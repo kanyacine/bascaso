@@ -55,8 +55,7 @@ describe("license route – LemonSqueezy guarded by IS_MAS", () => {
 
     const { DELETE } = await import("@/app/api/license/route");
 
-    const request = new Request("http://localhost/api/license", { method: "DELETE" });
-    const response = await DELETE(request);
+    const response = await DELETE();
     expect(response.status).toBe(404);
   });
 
@@ -86,8 +85,7 @@ describe("license route – LemonSqueezy guarded by IS_MAS", () => {
 
     const { DELETE } = await import("@/app/api/license/storekit/route");
 
-    const request = new Request("http://localhost/api/license/storekit", { method: "DELETE" });
-    const response = await DELETE(request);
+    const response = await DELETE();
     expect(response.status).toBe(404);
   });
 

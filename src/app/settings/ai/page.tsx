@@ -15,6 +15,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { AI_PROVIDERS } from "@/lib/ai-providers";
 import { invalidateAIStatus } from "@/lib/hooks/use-ai-status";
+import { LocalServerFields } from "@/components/local-server-fields";
 import {
   DEFAULT_LOCAL_OPENAI_BASE_URL,
   isLocalOpenAIProvider,
@@ -24,8 +25,6 @@ export default function AISettingsPage() {
   const [providerId, setProviderId] = useState("anthropic");
   const [modelId, setModelId] = useState("claude-sonnet-4-6");
   const [baseUrl, setBaseUrl] = useState("");
-  const [detectedModels, setDetectedModels] = useState<string[]>([]);
-  const [testingLocalServer, setTestingLocalServer] = useState(false);
   const [apiKey, setApiKey] = useState("");
   const [showKey, setShowKey] = useState(false);
   const [hasExistingSettings, setHasExistingSettings] = useState(false);
@@ -61,7 +60,6 @@ export default function AISettingsPage() {
         setProviderId(serverProvider);
         setModelId(serverModel);
         setBaseUrl(serverBaseUrl);
-        setDetectedModels([]);
         setHasExistingSettings(true);
         setStoredProvider(serverProvider);
         setStoredModel(serverModel);
@@ -69,7 +67,6 @@ export default function AISettingsPage() {
       } else {
         setHasExistingSettings(false);
         setBaseUrl("");
-        setDetectedModels([]);
       }
     }
     setLoading(false);
@@ -83,7 +80,6 @@ export default function AISettingsPage() {
     setProviderId(id);
     const newProvider = AI_PROVIDERS.find((p) => p.id === id)!;
     setModelId(newProvider.models[0].id);
-    setDetectedModels([]);
     setApiKey("");
     setShowKey(false);
   }
@@ -107,49 +103,6 @@ export default function AISettingsPage() {
       : isLocalProvider
         ? modelId.trim().length > 0
         : hasApiKeyInput;
-
-  async function handleTestLocalServer() {
-    setTestingLocalServer(true);
-
-    try {
-      const body: Record<string, string> = { baseUrl: effectiveBaseUrl };
-      if (hasApiKeyInput) {
-        body.apiKey = apiKey.trim();
-      }
-
-      const res = await fetch("/api/settings/ai/local-models", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        toast.error(data.error || "Failed to reach local server");
-        setTestingLocalServer(false);
-        return;
-      }
-
-      const models = Array.isArray(data.models)
-        ? data.models.filter((m: unknown): m is string => typeof m === "string" && m.trim().length > 0)
-        : [];
-
-      setDetectedModels(models);
-
-      if (models.length === 0) {
-        toast.error("Server is reachable, but no models were returned.");
-      } else {
-        if (!models.includes(modelId)) {
-          setModelId(models[0]);
-        }
-        toast.success(`Detected ${models.length} model${models.length === 1 ? "" : "s"}`);
-      }
-    } catch {
-      toast.error("Network error");
-    }
-
-    setTestingLocalServer(false);
-  }
 
   async function handleSave() {
     setSaving(true);
@@ -205,7 +158,6 @@ export default function AISettingsPage() {
         setStoredModel("");
         setStoredBaseUrl("");
         setBaseUrl("");
-        setDetectedModels([]);
         setApiKey("");
         setShowKey(false);
         invalidateAIStatus();
@@ -245,61 +197,20 @@ export default function AISettingsPage() {
 
       {isLocalProvider && (
         <section className="space-y-2 max-w-2xl">
-          <h3 className="section-title">Local server URL</h3>
-          <Input
-            value={baseUrl}
-            onChange={(e) => setBaseUrl(e.target.value)}
-            placeholder={DEFAULT_LOCAL_OPENAI_BASE_URL}
-            className="font-mono text-sm max-w-xl"
+          <h3 className="section-title">Local server</h3>
+          <LocalServerFields
+            baseUrl={baseUrl}
+            onBaseUrlChange={setBaseUrl}
+            modelId={modelId}
+            onModelIdChange={setModelId}
+            apiKey={apiKey}
           />
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleTestLocalServer}
-              disabled={testingLocalServer}
-            >
-              {testingLocalServer ? <><Spinner className="size-3" /> Testing...</> : "Test local server"}
-            </Button>
-            <span className="text-xs text-muted-foreground">
-              Tries <span className="font-mono">{effectiveBaseUrl}/models</span>
-            </span>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Example: <span className="font-mono">http://127.0.0.1:1234</span>. The app uses the OpenAI-compatible <span className="font-mono">/v1</span> API.
-          </p>
         </section>
       )}
 
-      <section className="space-y-2">
-        <h3 className="section-title">Model</h3>
-        {isLocalProvider ? (
-          <div className="space-y-2 max-w-xl">
-            <Input
-              value={modelId}
-              onChange={(e) => setModelId(e.target.value)}
-              placeholder="qwen2.5-7b-instruct"
-              className="font-mono text-sm"
-            />
-            {detectedModels.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 pt-1">
-                {detectedModels.map((id) => (
-                  <button
-                    key={id}
-                    type="button"
-                    className={`rounded-md border px-2 py-1 text-xs font-mono ${id === modelId ? "bg-primary text-primary-foreground border-primary" : "bg-background hover:bg-muted"}`}
-                    onClick={() => setModelId(id)}
-                  >
-                    {id}
-                  </button>
-                ))}
-              </div>
-            )}
-            <p className="text-xs text-muted-foreground">
-              Use the model ID exposed by your local server (for LM Studio, this is the loaded model ID).
-            </p>
-          </div>
-        ) : (
+      {!isLocalProvider && (
+        <section className="space-y-2">
+          <h3 className="section-title">Model</h3>
           <Select value={modelId} onValueChange={setModelId}>
             <SelectTrigger className="w-[320px] text-sm">
               <SelectValue />
@@ -315,8 +226,8 @@ export default function AISettingsPage() {
               ))}
             </SelectContent>
           </Select>
-        )}
-      </section>
+        </section>
+      )}
 
       <section className="space-y-2">
         <h3 className="section-title">API key / token</h3>

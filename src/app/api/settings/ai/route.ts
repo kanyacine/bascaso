@@ -72,35 +72,22 @@ export async function PUT(request: Request) {
     .orderBy(sql`${aiSettings.updatedAt} DESC`)
     .get();
 
-  async function validateLocalModelLoad(candidateApiKey: string) {
+  async function validateAndLoadLocal(candidateApiKey: string): Promise<Response | null> {
     if (!isLocalProvider) return null;
-    return ensureLocalModelLoaded(
-      modelId,
-      normalizedBaseUrl ?? undefined,
-      candidateApiKey,
-    );
+    const loadError = await ensureLocalModelLoaded(modelId, normalizedBaseUrl ?? undefined, candidateApiKey);
+    if (loadError) return NextResponse.json({ error: loadError }, { status: 422 });
+    return null;
   }
 
-  if (apiKey) {
-    const localLoadError = await validateLocalModelLoad(apiKey);
-    if (localLoadError) {
-      return NextResponse.json({ error: localLoadError }, { status: 422 });
-    }
+  async function validateKey(candidateApiKey: string): Promise<Response | null> {
+    const error = await validateApiKey(provider, modelId, candidateApiKey, normalizedBaseUrl ?? undefined);
+    if (error) return NextResponse.json({ error }, { status: 422 });
+    return null;
+  }
 
-    // Validate the key before saving
-    const validationError = await validateApiKey(
-      provider,
-      modelId,
-      apiKey,
-      normalizedBaseUrl ?? undefined,
-    );
-    if (validationError) {
-      return NextResponse.json({ error: validationError }, { status: 422 });
-    }
-
-    // New key: replace everything
+  function replaceSettings(candidateApiKey: string): void {
     db.delete(aiSettings).run();
-    const encrypted = encrypt(apiKey);
+    const encrypted = encrypt(candidateApiKey);
     db.insert(aiSettings)
       .values({
         id: ulid(),
@@ -114,108 +101,45 @@ export async function PUT(request: Request) {
         encryptedDek: encrypted.encryptedDek,
       })
       .run();
+  }
+
+  if (apiKey) {
+    const loadErr = await validateAndLoadLocal(apiKey);
+    if (loadErr) return loadErr;
+    const keyErr = await validateKey(apiKey);
+    if (keyErr) return keyErr;
+    replaceSettings(apiKey);
+  } else if (!existing) {
+    if (!isLocalProvider) {
+      return NextResponse.json({ error: "API key is required for initial setup" }, { status: 400 });
+    }
+    const localApiKey = resolveLocalOpenAIApiKey(undefined);
+    const loadErr = await validateAndLoadLocal(localApiKey);
+    if (loadErr) return loadErr;
+    const keyErr = await validateKey(localApiKey);
+    if (keyErr) return keyErr;
+    replaceSettings(localApiKey);
+  } else if (provider !== existing.provider) {
+    if (!isLocalProvider) {
+      return NextResponse.json({ error: "Switching provider requires a new API key" }, { status: 400 });
+    }
+    const localApiKey = resolveLocalOpenAIApiKey(undefined);
+    const loadErr = await validateAndLoadLocal(localApiKey);
+    if (loadErr) return loadErr;
+    const keyErr = await validateKey(localApiKey);
+    if (keyErr) return keyErr;
+    replaceSettings(localApiKey);
   } else {
-    // No key: update provider/model only if settings exist
-    if (!existing) {
-      if (isLocalProvider) {
-        const localApiKey = resolveLocalOpenAIApiKey(undefined);
-        const localLoadError = await validateLocalModelLoad(localApiKey);
-        if (localLoadError) {
-          return NextResponse.json({ error: localLoadError }, { status: 422 });
-        }
-        const validationError = await validateApiKey(
-          provider,
-          modelId,
-          localApiKey,
-          normalizedBaseUrl ?? undefined,
-        );
-        if (validationError) {
-          return NextResponse.json({ error: validationError }, { status: 422 });
-        }
-
-        const encrypted = encrypt(localApiKey);
-        db.insert(aiSettings)
-          .values({
-            id: ulid(),
-            provider,
-            modelId,
-            baseUrl: normalizedBaseUrl,
-            updatedAt: new Date().toISOString(),
-            encryptedApiKey: encrypted.ciphertext,
-            iv: encrypted.iv,
-            authTag: encrypted.authTag,
-            encryptedDek: encrypted.encryptedDek,
-          })
-          .run();
-
-        return NextResponse.json({ ok: true });
-      }
-
-      return NextResponse.json(
-        { error: "API key is required for initial setup" },
-        { status: 400 },
-      );
-    }
-
-    if (provider !== existing.provider) {
-      if (isLocalProvider) {
-        const localApiKey = resolveLocalOpenAIApiKey(undefined);
-        const localLoadError = await validateLocalModelLoad(localApiKey);
-        if (localLoadError) {
-          return NextResponse.json({ error: localLoadError }, { status: 422 });
-        }
-        const validationError = await validateApiKey(
-          provider,
-          modelId,
-          localApiKey,
-          normalizedBaseUrl ?? undefined,
-        );
-        if (validationError) {
-          return NextResponse.json({ error: validationError }, { status: 422 });
-        }
-
-        db.delete(aiSettings).run();
-        const encrypted = encrypt(localApiKey);
-        db.insert(aiSettings)
-          .values({
-            id: ulid(),
-            provider,
-            modelId,
-            baseUrl: normalizedBaseUrl,
-            updatedAt: new Date().toISOString(),
-            encryptedApiKey: encrypted.ciphertext,
-            iv: encrypted.iv,
-            authTag: encrypted.authTag,
-            encryptedDek: encrypted.encryptedDek,
-          })
-          .run();
-
-        return NextResponse.json({ ok: true });
-      }
-
-      return NextResponse.json(
-        { error: "Switching provider requires a new API key" },
-        { status: 400 },
-      );
-    }
-
     if (isLocalProvider) {
       const localApiKey = resolveLocalOpenAIApiKey(undefined);
-      const localLoadError = await validateLocalModelLoad(localApiKey);
-      if (localLoadError) {
-        return NextResponse.json({ error: localLoadError }, { status: 422 });
-      }
+      const loadErr = await validateAndLoadLocal(localApiKey);
+      if (loadErr) return loadErr;
     }
-
     db.update(aiSettings)
       .set({ provider, modelId, baseUrl: normalizedBaseUrl, updatedAt: new Date().toISOString() })
       .where(eq(aiSettings.id, existing.id))
       .run();
-
-    // Cleanup stale rows so every code path resolves the same active settings.
-    db.delete(aiSettings)
-      .where(ne(aiSettings.id, existing.id))
-      .run();
+    db.delete(aiSettings).where(ne(aiSettings.id, existing.id)).run();
   }
 
   return NextResponse.json({ ok: true });

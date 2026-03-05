@@ -87,8 +87,7 @@ describe("license/storekit route", () => {
     expect(isPro()).toBe(true);
 
     // Then delete
-    const deleteReq = new Request("http://localhost/api/license/storekit", { method: "DELETE" });
-    const response = await DELETE(deleteReq);
+    const response = await DELETE();
     expect(response.status).toBe(200);
 
     resetProCache();
