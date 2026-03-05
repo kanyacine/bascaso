@@ -19,7 +19,11 @@ const config: ForgeConfig = {
       ? {
           identity: "3rd Party Mac Developer Application: Nikolajs Ustinovs (R892A93W42)",
           provisioningProfile: "embedded.provisionprofile",
-          optionsForFile: () => ({ entitlements: "entitlements.mas.plist" }),
+          optionsForFile: (filePath: string) => ({
+            entitlements: filePath.includes("/Frameworks/")
+              ? "entitlements.mas.child.plist"
+              : "entitlements.mas.plist",
+          }),
         }
       : process.env.APPLE_TEAM_ID ? {} : undefined,
     osxNotarize: isMAS
