@@ -41,6 +41,13 @@ Before writing any code, read these docs:
 - `forge.config.ts` imports `BUILD_NUMBER` for `CFBundleVersion`.
 - When asked to bump: update `src/lib/version.ts` and `package.json` version.
 
+## MAS builds
+
+- `MAS=1` – switches to StoreKit IAP, disables auto-updater, uses MAS entitlements. Set automatically by `electron:make:mas`.
+- `MAS_DEV=1` – signs with Apple Development cert + `provisioning.dev.provisionprofile` for local testing. Without it, uses 3rd Party Mac Developer Application cert + `provisioning.dist.provisionprofile` for App Store submission.
+- Both `.provisionprofile` files live in the project root and are gitignored.
+- `entitlements.mas.plist` – parent entitlements (sandbox, network, IAP). `entitlements.mas.child.plist` – child entitlements (sandbox + inherit) for helper processes.
+
 ## Style
 
 1. **European-style titles** – never use American Title Case.

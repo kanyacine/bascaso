@@ -102,6 +102,44 @@ MAS=1 npm run electron:dev
 
 This shows the StoreKit UI (buy/restore buttons) on the licence page instead of the LemonSqueezy key input. The auto-updater is disabled in MAS mode.
 
+### Build flags
+
+| Flag | Purpose |
+|---|---|
+| `MAS=1` | Switch to StoreKit IAP, disable auto-updater, use MAS entitlements. Set automatically by `electron:make:mas`. |
+| `MAS_DEV=1` | Sign with Apple Development cert + dev provisioning profile (for local testing). Without this, the build uses the 3rd Party Mac Developer Application cert + distribution profile (for App Store submission). |
+
+### Provisioning profiles
+
+Two provisioning profiles are needed in the project root (both gitignored):
+
+| File | Type | When to use |
+|---|---|---|
+| `provisioning.dev.provisionprofile` | macOS App Development | Local testing (`MAS_DEV=1`) |
+| `provisioning.dist.provisionprofile` | Mac App Distribution | App Store submission |
+
+Create both in the [Apple Developer portal](https://developer.apple.com/account/resources/profiles/) under Provisioning Profiles, selecting the `com.itsyconnect.app` App ID and the matching certificate.
+
+### Building and testing MAS locally
+
+```bash
+# Build with dev signing (runs locally)
+MAS_DEV=1 npm run electron:make:mas
+
+# Open the built app
+open out/Itsyconnect-darwin-arm64/Itsyconnect.app
+```
+
+### Building for App Store submission
+
+```bash
+# Build with distribution signing
+npm run electron:make:mas
+
+# Submit via Transporter or altool
+xcrun altool --upload-app -f out/make/*.pkg -u you@example.com
+```
+
 ### Testing the StoreKit API locally
 
 While running `MAS=1 npm run electron:dev`, you can simulate StoreKit activations via curl:
@@ -125,7 +163,7 @@ Real purchases require a signed MAS build and an Apple sandbox tester:
 
 1. Register the product `com.itsyconnect.app.pro` (non-consumable) in App Store Connect
 2. Create a sandbox tester under Users and Access → Sandbox
-3. Build with `npm run electron:make:mas` using your distribution certificate
+3. Build with `MAS_DEV=1 npm run electron:make:mas`
 4. Run the signed build, sign into the sandbox account when prompted, then purchase
 
 ## Architecture

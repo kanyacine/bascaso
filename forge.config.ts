@@ -5,6 +5,7 @@ import { MakerZIP } from "@electron-forge/maker-zip";
 import { APP_VERSION, BUILD_NUMBER } from "./src/lib/version";
 
 const isMAS = process.env.MAS === "1";
+const isMasDev = process.env.MAS_DEV === "1";
 
 const config: ForgeConfig = {
   packagerConfig: {
@@ -17,8 +18,12 @@ const config: ForgeConfig = {
     ...(isMAS ? { extendInfo: { ElectronTeamID: "R892A93W42" } } : {}),
     osxSign: isMAS
       ? {
-          identity: "3rd Party Mac Developer Application: Nikolajs Ustinovs (R892A93W42)",
-          provisioningProfile: "embedded.provisionprofile",
+          identity: isMasDev
+            ? "Apple Development: Nikolajs Ustinovs (95YH3V335V)"
+            : "3rd Party Mac Developer Application: Nikolajs Ustinovs (R892A93W42)",
+          provisioningProfile: isMasDev
+            ? "provisioning.dev.provisionprofile"
+            : "provisioning.dist.provisionprofile",
           optionsForFile: (filePath: string) => ({
             entitlements: filePath.includes("/Frameworks/")
               ? "entitlements.mas.child.plist"
