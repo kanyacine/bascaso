@@ -69,8 +69,17 @@ npx electron-forge make
 step_done
 
 # Find outputs and rename DMG to stable filename for /releases/latest/download/Itsyconnect.dmg
-ORIG_DMG=$(find out/make -name "*.dmg" -type f | head -1)
-ZIP_PATH=$(find out/make -name "*.zip" -type f | head -1)
+# Prefer artifacts matching the current version to avoid picking stale files from previous builds.
+ORIG_DMG=$(find out/make -name "*${VERSION}*.dmg" -type f | head -1)
+ZIP_PATH=$(find out/make -name "*-${VERSION}.zip" -type f | head -1)
+
+# Fallbacks for unusual maker naming patterns
+if [ -z "$ORIG_DMG" ]; then
+  ORIG_DMG=$(find out/make -name "*.dmg" -type f | head -1)
+fi
+if [ -z "$ZIP_PATH" ]; then
+  ZIP_PATH=$(find out/make -name "*.zip" -type f | head -1)
+fi
 
 if [ -z "$ORIG_DMG" ]; then
   echo "ERROR: DMG not found in out/make/"

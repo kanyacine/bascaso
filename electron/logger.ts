@@ -35,7 +35,7 @@ function rotateIfNeeded(): void {
 
 function writeToFile(level: string, args: unknown[]): void {
   const message = args
-    .map((a) => (typeof a === "string" ? a : JSON.stringify(a, null, 2)))
+    .map((a) => serialiseForLog(a))
     .join(" ");
   const line = `[${timestamp()}] [${level}] ${message}\n`;
 
@@ -47,10 +47,59 @@ function writeToFile(level: string, args: unknown[]): void {
   }
 }
 
+function serialiseError(error: Error): string {
+  const extra: Record<string, unknown> = {};
+  const errorRecord = error as unknown as Record<string, unknown>;
+  for (const key of Object.keys(error)) {
+    extra[key] = errorRecord[key];
+  }
+  return JSON.stringify(
+    {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+      cause: (error as Error & { cause?: unknown }).cause,
+      ...extra,
+    },
+    null,
+    2,
+  );
+}
+
+function serialiseForLog(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (value instanceof Error) return serialiseError(value);
+  if (value == null) return String(value);
+  if (typeof value !== "object") return String(value);
+
+  const seen = new WeakSet<object>();
+  return JSON.stringify(
+    value,
+    (_key, v: unknown) => {
+      if (v instanceof Error) {
+        return {
+          name: v.name,
+          message: v.message,
+          stack: v.stack,
+          cause: (v as Error & { cause?: unknown }).cause,
+        };
+      }
+      if (typeof v === "object" && v !== null) {
+        if (seen.has(v)) return "[Circular]";
+        seen.add(v);
+      }
+      return v;
+    },
+    2,
+  );
+}
+
 export function initLogger(logDir?: string): void {
   if (!logDir) logDir = require("electron").app.getPath("logs");
   fs.mkdirSync(logDir!, { recursive: true });
   logPath = path.join(logDir!, LOG_FILE_NAME);
+  // Start each app session with a fresh log file.
+  fs.writeFileSync(logPath, "");
 
   const originalLog = console.log;
   const originalWarn = console.warn;

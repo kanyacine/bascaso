@@ -81,8 +81,13 @@ export async function ascFetch<T>(
           ...options?.headers,
         },
       });
-    } catch {
-      throw new AscApiError(networkError());
+    } catch (err) {
+      const method = options?.method ?? "GET";
+      console.error(`[ASC] ${method} ${path} → network error`, err);
+      const ascError = networkError();
+      ascError.method = method;
+      ascError.path = path;
+      throw new AscApiError(ascError);
     }
 
     if (response.ok) {

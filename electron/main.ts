@@ -11,6 +11,15 @@ import { initLogger, getLogPath, getLogDir } from "./logger";
 const isDev = !app.isPackaged;
 const isMAS = !!(process as NodeJS.Process & { mas?: boolean }).mas || process.env.MAS === "1";
 let nextProcess: ChildProcess | null = null;
+
+function installProcessErrorLogging(): void {
+  process.on("unhandledRejection", (reason) => {
+    console.error("[process] unhandledRejection:", reason);
+  });
+  process.on("uncaughtException", (error) => {
+    console.error("[process] uncaughtException:", error);
+  });
+}
 // --- Update settings persistence ---
 
 interface AppSettings {
@@ -569,6 +578,7 @@ if (!gotLock) {
 
   app.whenReady().then(async () => {
     initLogger();
+    installProcessErrorLogging();
     process.env.ELECTRON = "1";
     ensureMasterKey();
     setDatabasePath();

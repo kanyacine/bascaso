@@ -786,6 +786,22 @@ async function buildPhase(
   appId: string,
   maxInstances: number,
 ): Promise<AnalyticsData> {
+  const fetchReport = async (
+    label: string,
+    category: string,
+    reportName: string,
+    granularity: string,
+    limit: number,
+    max = limit,
+  ) => {
+    try {
+      return await fetchReportData(requestIds, category, reportName, granularity, limit, max);
+    } catch (err) {
+      console.error(`[analytics] ${appId}: ${label} fetch failed`, err);
+      throw err;
+    }
+  };
+
   const perfPromise = fetchPerfPowerMetrics(appId);
 
   // Crash reports are monthly – always cap at 24 (2 years)
@@ -802,15 +818,15 @@ async function buildPhase(
     crashRows,
     expandedCrashRows,
   ] = await Promise.all([
-    fetchReportData(requestIds, "COMMERCE", "App Downloads Standard", "DAILY", 200, maxInstances),
-    fetchReportData(requestIds, "COMMERCE", "App Store Purchases Standard", "DAILY", 200, maxInstances),
-    fetchReportData(requestIds, "APP_STORE_ENGAGEMENT", "App Store Discovery and Engagement Standard", "DAILY", 200, maxInstances),
-    fetchReportData(requestIds, "APP_STORE_ENGAGEMENT", "App Store Web Preview Engagement Standard", "DAILY", 200, maxInstances),
-    fetchReportData(requestIds, "APP_USAGE", "App Sessions Standard", "DAILY", 200, maxInstances),
-    fetchReportData(requestIds, "APP_USAGE", "App Store Installation and Deletion Standard", "DAILY", 200, maxInstances),
-    fetchReportData(requestIds, "APP_USAGE", "App Opt In", "DAILY", 200, maxInstances),
-    fetchReportData(requestIds, "APP_USAGE", "App Crashes", "MONTHLY", 24, crashMax),
-    fetchReportData(requestIds, "PERFORMANCE", "App Crashes Expanded", "DAILY", 200, maxInstances),
+    fetchReport("downloads", "COMMERCE", "App Downloads Standard", "DAILY", 200, maxInstances),
+    fetchReport("purchases", "COMMERCE", "App Store Purchases Standard", "DAILY", 200, maxInstances),
+    fetchReport("engagement", "APP_STORE_ENGAGEMENT", "App Store Discovery and Engagement Standard", "DAILY", 200, maxInstances),
+    fetchReport("web-preview", "APP_STORE_ENGAGEMENT", "App Store Web Preview Engagement Standard", "DAILY", 200, maxInstances),
+    fetchReport("sessions", "APP_USAGE", "App Sessions Standard", "DAILY", 200, maxInstances),
+    fetchReport("installs-deletes", "APP_USAGE", "App Store Installation and Deletion Standard", "DAILY", 200, maxInstances),
+    fetchReport("opt-in", "APP_USAGE", "App Opt In", "DAILY", 200, maxInstances),
+    fetchReport("crashes-monthly", "APP_USAGE", "App Crashes", "MONTHLY", 24, crashMax),
+    fetchReport("crashes-expanded", "PERFORMANCE", "App Crashes Expanded", "DAILY", 200, maxInstances),
   ]);
 
   const perfData = await perfPromise;
@@ -923,8 +939,16 @@ async function buildAnalyticsDataInner(
   appId: string,
   cacheKey: string,
 ): Promise<AnalyticsData> {
-  const requestIds = await findReportRequestIds(appId);
+  let requestIds: string[];
+  try {
+    console.log(`[analytics] ${appId}: loading report request IDs`);
+    requestIds = await findReportRequestIds(appId);
+  } catch (err) {
+    console.error(`[analytics] ${appId}: failed to load report request IDs`, err);
+    throw err;
+  }
   if (requestIds.length === 0) {
+    console.warn(`[analytics] ${appId}: no ONGOING or ONE_TIME_SNAPSHOT report requests`);
     const empty = emptyAnalyticsData();
     cacheSet(cacheKey, empty, ANALYTICS_TTL);
     return empty;
