@@ -9,7 +9,7 @@ import http from "node:http";
 import { initLogger, getLogPath, getLogDir } from "./logger";
 
 const isDev = !app.isPackaged;
-const isMAS = process.env.MAS === "1";
+const isMAS = !!(process as NodeJS.Process & { mas?: boolean }).mas || process.env.MAS === "1";
 let nextProcess: ChildProcess | null = null;
 // --- Update settings persistence ---
 

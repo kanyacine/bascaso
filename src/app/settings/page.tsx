@@ -35,6 +35,7 @@ export default function GeneralPage() {
   useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => {
+    if (IS_MAS) return;
     window.electron?.updates.getAutoCheck().then((v) => setAutoCheck(v));
     return window.electron?.updates.onStatus((status) => {
       setUpdateState(status.state as UpdateState);
