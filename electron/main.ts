@@ -1,4 +1,4 @@
-import { app, autoUpdater, BrowserWindow, clipboard, dialog, inAppPurchase, Menu, safeStorage, ipcMain, screen, shell, protocol, net } from "electron";
+import { app, BrowserWindow, clipboard, dialog, inAppPurchase, Menu, nativeImage, safeStorage, ipcMain, screen, shell, protocol, net } from "electron";
 import { spawn, ChildProcess } from "node:child_process";
 import path from "node:path";
 import fs from "node:fs";
@@ -271,18 +271,24 @@ function setupStoreKit(port: number): void {
   });
 }
 
-// --- Auto-updater ---
+// --- Auto-updater (direct distribution only – excluded from MAS builds) ---
 
 let checkSource: "menu" | "settings" | "auto" = "auto";
 let updateInterval: ReturnType<typeof setInterval> | null = null;
+let autoUpdater: Electron.AutoUpdater | null = null;
 
 function setupAutoUpdater(): void {
   if (isDev || isMAS) return;
 
-  const feedURL = `https://update.electronjs.org/nickustinov/itsyconnect-macos/${process.platform}-${process.arch}/${app.getVersion()}`;
-  autoUpdater.setFeedURL({ url: feedURL });
+  // Lazy-import autoUpdater so MAS builds never touch the module
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const updater: Electron.AutoUpdater = require("electron").autoUpdater;
+  autoUpdater = updater;
 
-  autoUpdater.on("error", (err) => {
+  const feedURL = `https://update.electronjs.org/nickustinov/itsyconnect-macos/${process.platform}-${process.arch}/${app.getVersion()}`;
+  updater.setFeedURL({ url: feedURL });
+
+  updater.on("error", (err) => {
     mainWindow?.webContents.send("update-status", { state: "error", message: err.message });
     if (checkSource === "menu") {
       dialog.showMessageBox({ message: "Update check failed", detail: err.message });
@@ -290,11 +296,11 @@ function setupAutoUpdater(): void {
     checkSource = "auto";
   });
 
-  autoUpdater.on("checking-for-update", () => {
+  updater.on("checking-for-update", () => {
     mainWindow?.webContents.send("update-status", { state: "checking" });
   });
 
-  autoUpdater.on("update-available", () => {
+  updater.on("update-available", () => {
     mainWindow?.webContents.send("update-status", { state: "available" });
     if (checkSource === "menu") {
       dialog.showMessageBox({ message: "A new update is being downloaded." });
@@ -302,7 +308,7 @@ function setupAutoUpdater(): void {
     checkSource = "auto";
   });
 
-  autoUpdater.on("update-not-available", () => {
+  updater.on("update-not-available", () => {
     mainWindow?.webContents.send("update-status", { state: "up-to-date" });
     if (checkSource === "menu") {
       dialog.showMessageBox({ message: "You're up to date!" });
@@ -310,14 +316,14 @@ function setupAutoUpdater(): void {
     checkSource = "auto";
   });
 
-  autoUpdater.on("update-downloaded", () => {
+  updater.on("update-downloaded", () => {
     mainWindow?.webContents.send("update-status", { state: "downloaded" });
     dialog.showMessageBox({
       message: "Update downloaded",
       detail: "The update will be installed when you restart.",
       buttons: ["Restart now", "Later"],
     }).then(({ response }) => {
-      if (response === 0) autoUpdater.quitAndInstall();
+      if (response === 0) updater.quitAndInstall();
     });
   });
 
@@ -326,9 +332,9 @@ function setupAutoUpdater(): void {
 }
 
 function startUpdateInterval(): void {
-  if (updateInterval) return;
+  if (updateInterval || !autoUpdater) return;
   autoUpdater.checkForUpdates();
-  updateInterval = setInterval(() => autoUpdater.checkForUpdates(), 60 * 60 * 1000);
+  updateInterval = setInterval(() => autoUpdater!.checkForUpdates(), 60 * 60 * 1000);
 }
 
 function stopUpdateInterval(): void {
@@ -340,6 +346,10 @@ function stopUpdateInterval(): void {
 
 // --- Menu ---
 
+function sfIcon(name: string): Electron.NativeImage {
+  return nativeImage.createFromNamedImage(name, [-1, 0, -1]).resize({ width: 12, height: 12 });
+}
+
 function setupMenu(): void {
   const appName = "Itsyconnect";
   const template: Electron.MenuItemConstructorOptions[] = [
@@ -347,15 +357,21 @@ function setupMenu(): void {
       label: appName,
       submenu: [
         { role: "about", label: `About ${appName}` },
-        {
-          label: "Check for updates\u2026",
-          click: () => {
-            checkSource = "menu";
-            autoUpdater.checkForUpdates();
-          },
-        },
+        ...(!isMAS
+          ? [
+              {
+                label: "Check for updates\u2026",
+                icon: sfIcon("arrow.triangle.2.circlepath"),
+                click: () => {
+                  checkSource = "menu";
+                  autoUpdater?.checkForUpdates();
+                },
+              },
+            ]
+          : []),
         {
           label: "Settings\u2026",
+          icon: sfIcon("gearshape"),
           accelerator: "CmdOrCtrl+,",
           click: () => {
             mainWindow?.webContents.send("navigate", "/settings");
@@ -410,6 +426,7 @@ function setupMenu(): void {
       submenu: [
         {
           label: "Copy diagnostics to clipboard",
+          icon: sfIcon("doc.on.clipboard"),
           click: () => {
             const logFile = getLogPath();
             let recentLogs = "";
@@ -443,8 +460,17 @@ function setupMenu(): void {
         },
         {
           label: "Show log files",
+          icon: sfIcon("folder"),
           click: () => {
             shell.openPath(getLogDir());
+          },
+        },
+        { type: "separator" },
+        {
+          label: "Report an issue",
+          icon: sfIcon("exclamationmark.bubble"),
+          click: () => {
+            shell.openExternal("https://github.com/nickustinov/itsyconnect-macos/issues/new");
           },
         },
       ],
@@ -556,27 +582,29 @@ if (!gotLock) {
     setupAutoUpdater();
     console.log(`[main] App started on port ${port} (${isDev ? "dev" : "prod"})`);
 
-    // --- Update IPC handlers ---
+    // --- Update IPC handlers (direct distribution only) ---
 
-    ipcMain.on("check-for-updates", () => {
-      checkSource = "settings";
-      autoUpdater.checkForUpdates();
-    });
+    if (!isMAS) {
+      ipcMain.on("check-for-updates", () => {
+        checkSource = "settings";
+        autoUpdater?.checkForUpdates();
+      });
 
-    ipcMain.handle("get-auto-check-updates", () => {
-      return loadSettings().autoCheckUpdates;
-    });
+      ipcMain.handle("get-auto-check-updates", () => {
+        return loadSettings().autoCheckUpdates;
+      });
 
-    ipcMain.on("set-auto-check-updates", (_, enabled: boolean) => {
-      const settings = loadSettings();
-      settings.autoCheckUpdates = enabled;
-      saveSettings(settings);
-      if (enabled) {
-        startUpdateInterval();
-      } else {
-        stopUpdateInterval();
-      }
-    });
+      ipcMain.on("set-auto-check-updates", (_, enabled: boolean) => {
+        const settings = loadSettings();
+        settings.autoCheckUpdates = enabled;
+        saveSettings(settings);
+        if (enabled) {
+          startUpdateInterval();
+        } else {
+          stopUpdateInterval();
+        }
+      });
+    }
 
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) {

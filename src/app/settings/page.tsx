@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/select";
 import { Monitor, Moon, Sun, CheckCircle, XCircle } from "@phosphor-icons/react";
 import { Spinner } from "@/components/ui/spinner";
+import { IS_MAS } from "@/lib/license-shared";
 
 const THEME_OPTIONS = [
   { value: "system", label: "System", icon: Monitor },
@@ -58,7 +59,7 @@ export default function GeneralPage() {
 
   return (
     <div className="space-y-8">
-      {isElectron && (
+      {isElectron && !IS_MAS && (
         <section className="space-y-4">
           <h3 className="section-title">Updates</h3>
           <div className="flex items-center gap-3">
