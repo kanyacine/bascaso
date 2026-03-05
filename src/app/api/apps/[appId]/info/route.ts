@@ -3,6 +3,7 @@ import { listAppInfos } from "@/lib/asc/app-info";
 import { hasCredentials } from "@/lib/asc/client";
 import { cacheGetMeta } from "@/lib/cache";
 import { errorJson } from "@/lib/api-helpers";
+import { isDemoMode, getDemoAppInfos } from "@/lib/demo";
 
 
 export async function GET(
@@ -10,6 +11,10 @@ export async function GET(
   { params }: { params: Promise<{ appId: string }> },
 ) {
   const { appId } = await params;
+
+  if (isDemoMode()) {
+    return NextResponse.json({ appInfos: getDemoAppInfos(appId), meta: null });
+  }
 
   if (!hasCredentials()) {
     return NextResponse.json({ appInfos: [], meta: null });

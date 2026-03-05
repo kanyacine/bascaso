@@ -3,6 +3,7 @@ import { errorJson } from "@/lib/api-helpers";
 import { listDiagnosticSignatures } from "@/lib/asc/testflight";
 import { hasCredentials } from "@/lib/asc/client";
 import type { TFDiagnosticType } from "@/lib/asc/testflight";
+import { isDemoMode } from "@/lib/demo";
 
 const VALID_TYPES = new Set(["DISK_WRITES", "HANGS", "LAUNCHES"]);
 
@@ -17,6 +18,10 @@ export async function GET(
   const type = typeParam && VALID_TYPES.has(typeParam)
     ? (typeParam as TFDiagnosticType)
     : undefined;
+
+  if (isDemoMode()) {
+    return NextResponse.json({ signatures: [] });
+  }
 
   if (!hasCredentials()) {
     return NextResponse.json({ signatures: [] });

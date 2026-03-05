@@ -44,6 +44,7 @@ export function NavFooter() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [switching, setSwitching] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [isDemo, setIsDemo] = useState(false);
 
   const fetchAccounts = useCallback(async () => {
     const res = await fetch("/api/settings/credentials");
@@ -55,10 +56,14 @@ export function NavFooter() {
 
   useEffect(() => {
     fetchAccounts();
+    fetch("/api/health")
+      .then((r) => r.json())
+      .then((d) => setIsDemo(d.demo === true))
+      .catch(() => {});
   }, [fetchAccounts]);
 
   const active = accounts.find((a) => a.isActive);
-  const displayName = active?.name || "My team";
+  const displayName = isDemo ? "Sample data" : (active?.name || "My team");
 
   async function handleSwitch(id: string) {
     if (switching) return;
@@ -106,7 +111,7 @@ export function NavFooter() {
               side={isMobile ? "bottom" : "right"}
               sideOffset={4}
             >
-              {accounts.map((account) => (
+              {!isDemo && accounts.map((account) => (
                 <DropdownMenuItem
                   key={account.id}
                   disabled={switching}
@@ -123,17 +128,21 @@ export function NavFooter() {
                   {account.name || "My team"}
                 </DropdownMenuItem>
               ))}
-              <DropdownMenuSeparator />
-              {!isPro && accounts.length >= FREE_LIMITS.teams ? (
-                <DropdownMenuItem disabled>
-                  <Plus size={16} />
-                  Add team (upgrade to Pro)
-                </DropdownMenuItem>
-              ) : (
-                <DropdownMenuItem onClick={() => setDialogOpen(true)}>
-                  <Plus size={16} />
-                  Add team…
-                </DropdownMenuItem>
+              {!isDemo && (
+                <>
+                  <DropdownMenuSeparator />
+                  {!isPro && accounts.length >= FREE_LIMITS.teams ? (
+                    <DropdownMenuItem disabled>
+                      <Plus size={16} />
+                      Add team (upgrade to Pro)
+                    </DropdownMenuItem>
+                  ) : (
+                    <DropdownMenuItem onClick={() => setDialogOpen(true)}>
+                      <Plus size={16} />
+                      Add team…
+                    </DropdownMenuItem>
+                  )}
+                </>
               )}
               <DropdownMenuSeparator />
               <DropdownMenuItem

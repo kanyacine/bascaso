@@ -3,6 +3,7 @@ import { z } from "zod";
 import { errorJson } from "@/lib/api-helpers";
 import { listAppBetaTesters, addTestersToGroup, removeTestersFromGroup } from "@/lib/asc/testflight";
 import { hasCredentials } from "@/lib/asc/client";
+import { isDemoMode } from "@/lib/demo";
 
 export async function GET(
   request: Request,
@@ -11,6 +12,10 @@ export async function GET(
   const { appId } = await params;
   const url = new URL(request.url);
   const scope = url.searchParams.get("scope");
+
+  if (isDemoMode()) {
+    return NextResponse.json({ testers: [] });
+  }
 
   if (!hasCredentials()) {
     return NextResponse.json({ testers: [] });
@@ -37,6 +42,10 @@ export async function POST(
   { params }: { params: Promise<{ appId: string; groupId: string }> },
 ) {
   const { groupId } = await params;
+
+  if (isDemoMode()) {
+    return NextResponse.json({ ok: true });
+  }
 
   if (!hasCredentials()) {
     return NextResponse.json({ ok: true });
@@ -68,6 +77,10 @@ export async function DELETE(
   { params }: { params: Promise<{ appId: string; groupId: string }> },
 ) {
   const { groupId } = await params;
+
+  if (isDemoMode()) {
+    return NextResponse.json({ ok: true });
+  }
 
   if (!hasCredentials()) {
     return NextResponse.json({ ok: true });

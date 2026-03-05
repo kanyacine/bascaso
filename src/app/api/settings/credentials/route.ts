@@ -21,6 +21,7 @@ export async function GET() {
       createdAt: ascCredentials.createdAt,
     })
     .from(ascCredentials)
+    .where(eq(ascCredentials.isDemo, false))
     .all();
 
   return NextResponse.json({ credentials });
@@ -72,7 +73,8 @@ export async function POST(request: Request) {
     }
   }
 
-  // Deactivate existing credentials
+  // Remove demo credentials and deactivate existing real ones
+  db.delete(ascCredentials).where(eq(ascCredentials.isDemo, true)).run();
   db.update(ascCredentials)
     .set({ isActive: false })
     .where(eq(ascCredentials.isActive, true))

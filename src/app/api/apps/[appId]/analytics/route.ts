@@ -2,12 +2,17 @@ import { NextResponse } from "next/server";
 import { hasCredentials } from "@/lib/asc/client";
 import { cacheGet, cacheGetMeta } from "@/lib/cache";
 import { buildAnalyticsData, type AnalyticsData } from "@/lib/asc/analytics";
+import { isDemoMode, getDemoAnalytics } from "@/lib/demo";
 
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ appId: string }> },
 ) {
   const { appId } = await params;
+
+  if (isDemoMode()) {
+    return NextResponse.json({ data: getDemoAnalytics(appId), meta: null });
+  }
 
   if (!hasCredentials()) {
     return NextResponse.json({ data: null, meta: null });

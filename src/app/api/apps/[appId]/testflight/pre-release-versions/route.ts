@@ -3,6 +3,7 @@ import { errorJson } from "@/lib/api-helpers";
 import { listPreReleaseVersions } from "@/lib/asc/testflight";
 import { hasCredentials } from "@/lib/asc/client";
 import { cacheGetMeta } from "@/lib/cache";
+import { isDemoMode, getDemoPreReleaseVersions } from "@/lib/demo";
 
 export async function GET(
   request: Request,
@@ -11,6 +12,10 @@ export async function GET(
   const { appId } = await params;
   const url = new URL(request.url);
   const forceRefresh = url.searchParams.get("refresh") === "1";
+
+  if (isDemoMode()) {
+    return NextResponse.json({ versions: getDemoPreReleaseVersions(appId), meta: null });
+  }
 
   if (!hasCredentials()) {
     return NextResponse.json({ versions: [], meta: null });

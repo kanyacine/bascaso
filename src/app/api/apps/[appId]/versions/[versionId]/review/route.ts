@@ -6,12 +6,17 @@ import {
   invalidateVersionsCache,
 } from "@/lib/asc/review-mutations";
 import { errorJson } from "@/lib/api-helpers";
+import { isDemoMode } from "@/lib/demo";
 
 export async function PUT(
   request: Request,
   { params }: { params: Promise<{ appId: string; versionId: string }> },
 ) {
   const { appId, versionId } = await params;
+
+  if (isDemoMode()) {
+    return NextResponse.json({ ok: true });
+  }
 
   if (!hasCredentials()) {
     return NextResponse.json({ error: "No credentials" }, { status: 401 });

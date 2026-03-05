@@ -11,6 +11,7 @@ import {
 } from "@/lib/asc/testflight";
 import { hasCredentials } from "@/lib/asc/client";
 import { cacheGetMeta, cacheInvalidatePrefix } from "@/lib/cache";
+import { isDemoMode, getDemoTFInfo } from "@/lib/demo";
 
 export async function GET(
   request: Request,
@@ -19,6 +20,10 @@ export async function GET(
   const { appId } = await params;
   const url = new URL(request.url);
   const forceRefresh = url.searchParams.get("refresh") === "1";
+
+  if (isDemoMode()) {
+    return NextResponse.json({ info: getDemoTFInfo(appId), meta: null });
+  }
 
   if (!hasCredentials()) {
     return NextResponse.json({ info: null, meta: null });
@@ -77,6 +82,10 @@ export async function PATCH(
 ) {
   await params;
 
+  if (isDemoMode()) {
+    return NextResponse.json({ ok: true });
+  }
+
   if (!hasCredentials()) {
     return NextResponse.json({ error: "No ASC credentials" }, { status: 400 });
   }
@@ -118,6 +127,10 @@ export async function PUT(
   { params }: { params: Promise<{ appId: string }> },
 ) {
   const { appId } = await params;
+
+  if (isDemoMode()) {
+    return NextResponse.json({ ok: true, results: [] });
+  }
 
   if (!hasCredentials()) {
     return NextResponse.json({ error: "No ASC credentials" }, { status: 401 });

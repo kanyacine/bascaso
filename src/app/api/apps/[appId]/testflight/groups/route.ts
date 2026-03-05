@@ -4,6 +4,7 @@ import { errorJson } from "@/lib/api-helpers";
 import { listGroups, createGroup } from "@/lib/asc/testflight";
 import { hasCredentials } from "@/lib/asc/client";
 import { cacheGetMeta } from "@/lib/cache";
+import { isDemoMode, getDemoGroups } from "@/lib/demo";
 
 export async function GET(
   request: Request,
@@ -12,6 +13,10 @@ export async function GET(
   const { appId } = await params;
   const url = new URL(request.url);
   const forceRefresh = url.searchParams.get("refresh") === "1";
+
+  if (isDemoMode()) {
+    return NextResponse.json({ groups: getDemoGroups(appId), meta: null });
+  }
 
   if (!hasCredentials()) {
     return NextResponse.json({ groups: [], meta: null });
@@ -36,6 +41,10 @@ export async function POST(
   { params }: { params: Promise<{ appId: string }> },
 ) {
   const { appId } = await params;
+
+  if (isDemoMode()) {
+    return NextResponse.json({ ok: true });
+  }
 
   const body = await request.json().catch(() => null);
   if (!body) {

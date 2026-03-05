@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { hasCredentials } from "@/lib/asc/client";
 import { cacheInvalidate } from "@/lib/cache";
 import { buildAnalyticsData } from "@/lib/asc/analytics";
+import { isDemoMode } from "@/lib/demo";
 
 export async function POST(
   _request: Request,
@@ -9,7 +10,7 @@ export async function POST(
 ) {
   const { appId } = await params;
 
-  if (!hasCredentials()) {
+  if (isDemoMode() || !hasCredentials()) {
     return NextResponse.json({ ok: true });
   }
 

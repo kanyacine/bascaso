@@ -5,6 +5,7 @@ import {
   invalidateScreenshotCache,
 } from "@/lib/asc/screenshot-mutations";
 import { errorJson } from "@/lib/api-helpers";
+import { isDemoMode } from "@/lib/demo";
 
 type RouteParams = {
   params: Promise<{
@@ -17,6 +18,10 @@ type RouteParams = {
 
 export async function DELETE(_request: Request, { params }: RouteParams) {
   const { localizationId, screenshotId } = await params;
+
+  if (isDemoMode()) {
+    return NextResponse.json({ ok: true });
+  }
 
   if (!hasCredentials()) {
     return NextResponse.json(

@@ -3,6 +3,7 @@ import { errorJson } from "@/lib/api-helpers";
 import { listBuilds } from "@/lib/asc/testflight";
 import { hasCredentials } from "@/lib/asc/client";
 import { cacheGetMeta } from "@/lib/cache";
+import { isDemoMode, getDemoBuilds } from "@/lib/demo";
 
 export async function GET(
   request: Request,
@@ -15,6 +16,10 @@ export async function GET(
   const versionString = url.searchParams.get("version") ?? undefined;
   const lite = url.searchParams.get("lite") === "1";
   const filters = platform || versionString || lite ? { platform, versionString, lite } : undefined;
+
+  if (isDemoMode()) {
+    return NextResponse.json({ builds: getDemoBuilds(appId), meta: null });
+  }
 
   if (!hasCredentials()) {
     return NextResponse.json({ builds: [], meta: null });

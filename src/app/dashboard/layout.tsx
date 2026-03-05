@@ -35,6 +35,7 @@ import { BuildActionProvider } from "@/lib/build-action-context";
 import { RefreshProvider } from "@/lib/refresh-context";
 import { FooterPortalProvider } from "@/lib/footer-portal-context";
 import { ConnectionBanner } from "@/components/layout/connection-banner";
+import { DemoBanner } from "@/components/layout/demo-banner";
 import { BreadcrumbProvider } from "@/lib/breadcrumb-context";
 import { ErrorReportProvider } from "@/lib/error-report-context";
 import { LicenseProvider } from "@/lib/license-context";
@@ -136,6 +137,7 @@ export default function DashboardLayout({
               </div>
             </div>
           </header>
+          <DemoBanner />
           <ConnectionBanner />
           <FooterPortalProvider>
           <div className="flex flex-1 flex-col overflow-y-auto pt-6 pb-8">

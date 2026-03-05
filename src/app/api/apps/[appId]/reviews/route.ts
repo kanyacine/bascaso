@@ -4,6 +4,7 @@ import { listCustomerReviews, createReviewResponse, deleteReviewResponse, invali
 import { hasCredentials } from "@/lib/asc/client";
 import { cacheGetMeta } from "@/lib/cache";
 import { errorJson } from "@/lib/api-helpers";
+import { isDemoMode, getDemoReviews } from "@/lib/demo";
 
 const SORT_MAP: Record<string, "-createdDate" | "createdDate" | "-rating" | "rating"> = {
   newest: "-createdDate",
@@ -24,6 +25,10 @@ export async function GET(
   const sort = SORT_MAP[sortParam] ?? "-createdDate";
 
   const forceRefresh = url.searchParams.get("refresh") === "1";
+
+  if (isDemoMode()) {
+    return NextResponse.json({ reviews: getDemoReviews(appId), meta: null });
+  }
 
   if (!hasCredentials()) {
     return NextResponse.json({ reviews: [], meta: null });
@@ -63,6 +68,10 @@ export async function POST(
   { params }: { params: Promise<{ appId: string }> },
 ) {
   const { appId } = await params;
+
+  if (isDemoMode()) {
+    return NextResponse.json({ ok: true });
+  }
 
   if (!hasCredentials()) {
     return NextResponse.json({ error: "No ASC credentials" }, { status: 400 });

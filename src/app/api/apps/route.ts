@@ -4,8 +4,13 @@ import { hasCredentials } from "@/lib/asc/client";
 import { cacheGetMeta } from "@/lib/cache";
 import { errorJson } from "@/lib/api-helpers";
 import { isPro, FREE_LIMITS } from "@/lib/license";
+import { isDemoMode, getDemoApps } from "@/lib/demo";
 
 export async function GET() {
+  if (isDemoMode()) {
+    return NextResponse.json({ apps: getDemoApps(), meta: null, truncated: false });
+  }
+
   if (!hasCredentials()) {
     return NextResponse.json({ apps: [], meta: null, truncated: false });
   }

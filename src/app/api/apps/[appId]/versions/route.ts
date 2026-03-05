@@ -5,6 +5,7 @@ import { hasCredentials } from "@/lib/asc/client";
 import { EDITABLE_STATES } from "@/lib/asc/version-types";
 import { cacheGetMeta } from "@/lib/cache";
 import { errorJson } from "@/lib/api-helpers";
+import { isDemoMode, getDemoVersions } from "@/lib/demo";
 
 
 export async function GET(
@@ -12,6 +13,10 @@ export async function GET(
   { params }: { params: Promise<{ appId: string }> },
 ) {
   const { appId } = await params;
+
+  if (isDemoMode()) {
+    return NextResponse.json({ versions: getDemoVersions(appId), meta: null });
+  }
 
   if (!hasCredentials()) {
     return NextResponse.json({ versions: [], meta: null });
@@ -31,6 +36,10 @@ export async function POST(
   { params }: { params: Promise<{ appId: string }> },
 ) {
   const { appId } = await params;
+
+  if (isDemoMode()) {
+    return NextResponse.json({ ok: true, versionId: "demo" });
+  }
 
   if (!hasCredentials()) {
     return NextResponse.json({ error: "No ASC credentials" }, { status: 400 });

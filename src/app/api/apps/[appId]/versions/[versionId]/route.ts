@@ -2,12 +2,17 @@ import { NextResponse } from "next/server";
 import { updateVersionAttributes, selectBuildForVersion, deleteVersion, invalidateVersionsCache } from "@/lib/asc/version-mutations";
 import { hasCredentials } from "@/lib/asc/client";
 import { errorJson } from "@/lib/api-helpers";
+import { isDemoMode } from "@/lib/demo";
 
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ appId: string; versionId: string }> },
 ) {
   const { appId, versionId } = await params;
+
+  if (isDemoMode()) {
+    return NextResponse.json({ ok: true });
+  }
 
   if (!hasCredentials()) {
     return NextResponse.json({ error: "No ASC credentials" }, { status: 400 });
@@ -42,6 +47,10 @@ export async function DELETE(
   { params }: { params: Promise<{ appId: string; versionId: string }> },
 ) {
   const { appId, versionId } = await params;
+
+  if (isDemoMode()) {
+    return NextResponse.json({ ok: true });
+  }
 
   if (!hasCredentials()) {
     return NextResponse.json({ error: "No credentials" }, { status: 401 });

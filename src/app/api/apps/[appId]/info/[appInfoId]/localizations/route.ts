@@ -9,6 +9,7 @@ import {
   invalidateAppInfoLocalizationsCache,
 } from "@/lib/asc/localization-mutations";
 import { errorJson, syncLocalizations } from "@/lib/api-helpers";
+import { isDemoMode, getDemoAppInfoLocalizations } from "@/lib/demo";
 
 
 export async function GET(
@@ -16,6 +17,10 @@ export async function GET(
   { params }: { params: Promise<{ appId: string; appInfoId: string }> },
 ) {
   const { appInfoId } = await params;
+
+  if (isDemoMode()) {
+    return NextResponse.json({ localizations: getDemoAppInfoLocalizations(appInfoId), meta: null });
+  }
 
   if (!hasCredentials()) {
     return NextResponse.json({ localizations: [], meta: null });
@@ -36,6 +41,10 @@ export async function PUT(
   { params }: { params: Promise<{ appId: string; appInfoId: string }> },
 ) {
   const { appInfoId } = await params;
+
+  if (isDemoMode()) {
+    return NextResponse.json({ ok: true, results: [] });
+  }
 
   if (!hasCredentials()) {
     return NextResponse.json({ error: "No credentials" }, { status: 401 });

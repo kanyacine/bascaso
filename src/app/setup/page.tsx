@@ -41,6 +41,7 @@ export default function SetupPage() {
   // step 0 = welcome, steps 1–3 = wizard
   const [step, setStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
+  const [enteringDemo, setEnteringDemo] = useState(false);
 
   useEffect(() => {
     fetch("/api/health")
@@ -224,6 +225,23 @@ export default function SetupPage() {
     } catch {
       toast.error("Network error");
       setSubmitting(false);
+    }
+  }
+
+  async function handleEnterDemo() {
+    setEnteringDemo(true);
+    try {
+      const res = await fetch("/api/setup/demo", { method: "POST" });
+      if (!res.ok) {
+        toast.error("Could not start demo mode");
+        setEnteringDemo(false);
+        return;
+      }
+      router.push("/dashboard?entry=1");
+      router.refresh();
+    } catch {
+      toast.error("Network error");
+      setEnteringDemo(false);
     }
   }
 
@@ -575,6 +593,19 @@ export default function SetupPage() {
             )}
           </Button>
         </div>
+
+        {isWelcome && (
+          <div className="flex justify-center">
+            <button
+              type="button"
+              className="text-sm text-muted-foreground underline-offset-4 hover:underline disabled:opacity-50"
+              disabled={enteringDemo}
+              onClick={handleEnterDemo}
+            >
+              {enteringDemo ? "Loading..." : "Explore with sample data"}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -49,6 +49,7 @@ export default function TeamsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const editRef = useRef<HTMLInputElement>(null);
+  const [isDemo, setIsDemo] = useState(false);
 
   const fetchTeams = useCallback(async () => {
     const res = await fetch("/api/settings/credentials");
@@ -61,6 +62,10 @@ export default function TeamsPage() {
 
   useEffect(() => {
     fetchTeams();
+    fetch("/api/health")
+      .then((r) => r.json())
+      .then((d) => setIsDemo(d.demo === true))
+      .catch(() => {});
   }, [fetchTeams]);
 
   async function handleTest(id: string) {
@@ -235,7 +240,11 @@ export default function TeamsPage() {
           </div>
         ))}
 
-        {!isPro && teams.length >= FREE_LIMITS.teams ? (
+        {isDemo ? (
+          <p className="text-sm text-muted-foreground">
+            Team management is not available in demo mode.
+          </p>
+        ) : !isPro && teams.length >= FREE_LIMITS.teams ? (
           <Button
             variant="outline"
             disabled

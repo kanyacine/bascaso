@@ -50,6 +50,10 @@ function getToken(): string {
     throw new Error("No active ASC credentials configured");
   }
 
+  if (cred.isDemo) {
+    throw new Error("ASC API is not available in demo mode");
+  }
+
   const privateKey = decryptPrivateKey(cred);
   const jwt = generateAscJwt(cred.issuerId, cred.keyId, privateKey);
 
@@ -121,4 +125,9 @@ export function resetToken(): void {
 
 export function hasCredentials(): boolean {
   return !!getActiveCredential();
+}
+
+export function isActiveDemoCredential(): boolean {
+  const cred = getActiveCredential();
+  return !!cred?.isDemo;
 }

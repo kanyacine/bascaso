@@ -3,6 +3,7 @@ import { z } from "zod";
 import { errorJson } from "@/lib/api-helpers";
 import { listBuilds, updateBetaBuildLocalization } from "@/lib/asc/testflight";
 import { hasCredentials } from "@/lib/asc/client";
+import { isDemoMode, getDemoBuildDetail } from "@/lib/demo";
 
 export async function GET(
   request: Request,
@@ -11,6 +12,12 @@ export async function GET(
   const { appId, buildId } = await params;
   const url = new URL(request.url);
   const forceRefresh = url.searchParams.get("refresh") === "1";
+
+  if (isDemoMode()) {
+    const build = getDemoBuildDetail(appId, buildId);
+    if (!build) return NextResponse.json({ error: "Build not found" }, { status: 404 });
+    return NextResponse.json({ build, meta: null });
+  }
 
   if (!hasCredentials()) {
     return NextResponse.json({ error: "No ASC credentials" }, { status: 400 });
@@ -38,6 +45,10 @@ export async function PATCH(
   { params }: { params: Promise<{ appId: string; buildId: string }> },
 ) {
   await params;
+
+  if (isDemoMode()) {
+    return NextResponse.json({ ok: true });
+  }
 
   if (!hasCredentials()) {
     return NextResponse.json({ error: "No ASC credentials" }, { status: 400 });

@@ -6,6 +6,7 @@ import {
   invalidateScreenshotCache,
 } from "@/lib/asc/screenshot-mutations";
 import { errorJson } from "@/lib/api-helpers";
+import { isDemoMode } from "@/lib/demo";
 
 type RouteParams = {
   params: Promise<{
@@ -17,6 +18,10 @@ type RouteParams = {
 
 export async function POST(request: Request, { params }: RouteParams) {
   const { localizationId } = await params;
+
+  if (isDemoMode()) {
+    return NextResponse.json({ ok: true });
+  }
 
   if (!hasCredentials()) {
     return NextResponse.json({ error: "No credentials" }, { status: 401 });
@@ -42,6 +47,10 @@ export async function POST(request: Request, { params }: RouteParams) {
 
 export async function DELETE(request: Request, { params }: RouteParams) {
   const { localizationId } = await params;
+
+  if (isDemoMode()) {
+    return NextResponse.json({ ok: true });
+  }
 
   if (!hasCredentials()) {
     return NextResponse.json({ error: "No credentials" }, { status: 401 });

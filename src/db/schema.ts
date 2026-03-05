@@ -13,6 +13,7 @@ export const ascCredentials = sqliteTable("asc_credentials", {
   authTag: text("auth_tag").notNull(),
   encryptedDek: text("encrypted_dek").notNull(),
   isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+  isDemo: integer("is_demo", { mode: "boolean" }).notNull().default(false),
   createdAt: text("created_at")
     .notNull()
     .$defaultFn(() => new Date().toISOString()),

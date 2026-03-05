@@ -3,6 +3,7 @@ import { z } from "zod";
 import { errorJson } from "@/lib/api-helpers";
 import { addBuildToGroups, removeBuildFromGroups } from "@/lib/asc/testflight";
 import { hasCredentials } from "@/lib/asc/client";
+import { isDemoMode } from "@/lib/demo";
 
 const schema = z.object({
   buildIds: z.array(z.string().min(1)).min(1),
@@ -13,6 +14,10 @@ export async function POST(
   { params }: { params: Promise<{ appId: string; groupId: string }> },
 ) {
   const { groupId } = await params;
+
+  if (isDemoMode()) {
+    return NextResponse.json({ ok: true });
+  }
 
   if (!hasCredentials()) {
     return NextResponse.json({ ok: true });
@@ -46,6 +51,10 @@ export async function DELETE(
   { params }: { params: Promise<{ appId: string; groupId: string }> },
 ) {
   const { groupId } = await params;
+
+  if (isDemoMode()) {
+    return NextResponse.json({ ok: true });
+  }
 
   if (!hasCredentials()) {
     return NextResponse.json({ ok: true });

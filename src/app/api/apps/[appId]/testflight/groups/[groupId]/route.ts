@@ -3,6 +3,7 @@ import { errorJson } from "@/lib/api-helpers";
 import { getGroupDetail, deleteGroup } from "@/lib/asc/testflight";
 import { hasCredentials } from "@/lib/asc/client";
 import { cacheGetMeta } from "@/lib/cache";
+import { isDemoMode, getDemoGroupDetail } from "@/lib/demo";
 
 export async function GET(
   request: Request,
@@ -13,6 +14,12 @@ export async function GET(
   const forceRefresh = url.searchParams.get("refresh") === "1";
 
   void appId; // groupId is sufficient for fetching
+
+  if (isDemoMode()) {
+    const detail = getDemoGroupDetail(appId, groupId);
+    if (!detail) return NextResponse.json({ error: "Group not found" }, { status: 404 });
+    return NextResponse.json({ ...detail, meta: null });
+  }
 
   if (!hasCredentials()) {
     return NextResponse.json({ error: "No ASC credentials" }, { status: 400 });
@@ -35,6 +42,10 @@ export async function DELETE(
   { params }: { params: Promise<{ appId: string; groupId: string }> },
 ) {
   const { groupId } = await params;
+
+  if (isDemoMode()) {
+    return NextResponse.json({ ok: true });
+  }
 
   if (!hasCredentials()) {
     return NextResponse.json({ ok: true });

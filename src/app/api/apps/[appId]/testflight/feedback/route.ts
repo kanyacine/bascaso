@@ -4,6 +4,7 @@ import { listFeedback, deleteFeedbackItem } from "@/lib/asc/testflight";
 import { hasCredentials } from "@/lib/asc/client";
 import { cacheGetMeta } from "@/lib/cache";
 import { getCompletedFeedbackIds } from "@/lib/feedback-completed";
+import { isDemoMode } from "@/lib/demo";
 
 export async function GET(
   request: Request,
@@ -14,6 +15,10 @@ export async function GET(
   const forceRefresh = url.searchParams.get("refresh") === "1";
 
   const completedIds = getCompletedFeedbackIds(appId);
+
+  if (isDemoMode()) {
+    return NextResponse.json({ feedback: [], completedIds, meta: null });
+  }
 
   if (!hasCredentials()) {
     return NextResponse.json({ feedback: [], completedIds, meta: null });
@@ -31,6 +36,10 @@ export async function GET(
 export async function DELETE(
   request: Request,
 ) {
+  if (isDemoMode()) {
+    return NextResponse.json({ ok: true });
+  }
+
   const body = await request.json() as { id: string; type: "screenshot" | "crash" };
 
   try {

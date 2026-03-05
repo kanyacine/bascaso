@@ -7,6 +7,7 @@ import {
   invalidateScreenshotCache,
 } from "@/lib/asc/screenshot-mutations";
 import { errorJson } from "@/lib/api-helpers";
+import { isDemoMode } from "@/lib/demo";
 
 type RouteParams = {
   params: Promise<{
@@ -20,6 +21,10 @@ export async function GET(request: Request, { params }: RouteParams) {
   const { localizationId } = await params;
   const { searchParams } = new URL(request.url);
   const forceRefresh = searchParams.get("refresh") === "1";
+
+  if (isDemoMode()) {
+    return NextResponse.json({ screenshotSets: [], meta: null });
+  }
 
   if (!hasCredentials()) {
     return NextResponse.json({ screenshotSets: [], meta: null });

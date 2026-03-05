@@ -6,12 +6,17 @@ import { listApps } from "@/lib/asc/apps";
 import { listVersions } from "@/lib/asc/versions";
 import { hasCredentials } from "@/lib/asc/client";
 import { errorJson } from "@/lib/api-helpers";
+import { isDemoMode } from "@/lib/demo";
 
 const refreshSchema = z.object({
   appId: z.string().min(1),
 });
 
 export async function POST(request: Request) {
+  if (isDemoMode()) {
+    return NextResponse.json({ ok: true });
+  }
+
   if (!hasCredentials()) {
     return NextResponse.json(
       { error: "No ASC credentials configured" },
