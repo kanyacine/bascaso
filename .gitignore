@@ -46,3 +46,6 @@ next-env.d.ts
 /out/
 electron/*.js
 electron/*.js.map
+
+# MAS provisioning
+*.provisionprofile

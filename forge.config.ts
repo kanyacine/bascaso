@@ -14,8 +14,13 @@ const config: ForgeConfig = {
     buildVersion: BUILD_NUMBER,
     icon: "public/icon",
     asar: false,
+    ...(isMAS ? { extendInfo: { ElectronTeamID: "R892A93W42" } } : {}),
     osxSign: isMAS
-      ? { type: "distribution", optionsForFile: () => ({ entitlements: "entitlements.mas.plist" }) }
+      ? {
+          identity: "3rd Party Mac Developer Application: Nikolajs Ustinovs (R892A93W42)",
+          provisioningProfile: "embedded.provisionprofile",
+          optionsForFile: () => ({ entitlements: "entitlements.mas.plist" }),
+        }
       : process.env.APPLE_TEAM_ID ? {} : undefined,
     osxNotarize: isMAS
       ? undefined
