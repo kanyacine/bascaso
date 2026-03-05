@@ -14,6 +14,8 @@ interface LocalServerFieldsProps {
   modelId: string;
   onModelIdChange: (id: string) => void;
   apiKey: string;
+  /** Use lightweight labels instead of section headings. */
+  compact?: boolean;
 }
 
 export function LocalServerFields({
@@ -22,6 +24,7 @@ export function LocalServerFields({
   modelId,
   onModelIdChange,
   apiKey,
+  compact,
 }: LocalServerFieldsProps) {
   const [detectedModels, setDetectedModels] = useState<string[]>([]);
   const [testing, setTesting] = useState(false);
@@ -63,29 +66,41 @@ export function LocalServerFields({
     setTesting(false);
   }
 
+  const Wrapper = compact ? "div" : "section";
+
   return (
     <>
-      <div className="space-y-2">
+      <Wrapper className={compact ? "space-y-2" : "space-y-2 max-w-2xl"}>
+        {compact ? (
+          <label className="text-sm text-muted-foreground">Server URL</label>
+        ) : (
+          <h3 className="section-title">Server URL</h3>
+        )}
         <Input
           value={baseUrl}
           onChange={(e) => onBaseUrlChange(e.target.value)}
           placeholder={DEFAULT_LOCAL_OPENAI_BASE_URL}
           className="font-mono text-sm max-w-xl"
         />
-        <div className="flex items-center gap-2">
+        <p className="text-xs text-muted-foreground">
+          OpenAI-compatible endpoint, e.g. <span className="font-mono">http://127.0.0.1:1234/v1</span>
+        </p>
+        <div className="flex items-center gap-2 pt-1">
           <Button variant="outline" size="sm" onClick={handleTest} disabled={testing}>
-            {testing ? <><Spinner className="size-3" /> Testing...</> : "Test local server"}
+            {testing ? <><Spinner className="size-3" /> Testing...</> : "Test connection"}
           </Button>
           <span className="text-xs text-muted-foreground">
             Tries <span className="font-mono">{effectiveBaseUrl}/models</span>
           </span>
         </div>
-        <p className="text-xs text-muted-foreground">
-          Example: <span className="font-mono">http://127.0.0.1:1234</span>. The app uses the OpenAI-compatible <span className="font-mono">/v1</span> API.
-        </p>
-      </div>
+      </Wrapper>
 
-      <div className="space-y-2">
+      <Wrapper className={compact ? "space-y-2" : "space-y-2 max-w-2xl"}>
+        {compact ? (
+          <label className="text-sm text-muted-foreground">Model</label>
+        ) : (
+          <h3 className="section-title">Model</h3>
+        )}
         <Input
           value={modelId}
           onChange={(e) => onModelIdChange(e.target.value)}
@@ -109,9 +124,9 @@ export function LocalServerFields({
           </div>
         )}
         <p className="text-xs text-muted-foreground">
-          Use the model ID exposed by your local server (for LM Studio, this is the loaded model ID).
+          The model ID exposed by your local server (for LM Studio, the loaded model ID).
         </p>
-      </div>
+      </Wrapper>
     </>
   );
 }

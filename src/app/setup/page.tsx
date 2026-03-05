@@ -505,16 +505,14 @@ export default function SetupPage() {
               </Select>
             </div>
             {isLocalOpenAIProvider(providerId) && (
-              <>
-                <label className="text-sm text-muted-foreground">Local server</label>
-                <LocalServerFields
-                  baseUrl={baseUrl}
-                  onBaseUrlChange={setBaseUrl}
-                  modelId={modelId}
-                  onModelIdChange={setModelId}
-                  apiKey={apiKey}
-                />
-              </>
+              <LocalServerFields
+                baseUrl={baseUrl}
+                onBaseUrlChange={setBaseUrl}
+                modelId={modelId}
+                onModelIdChange={setModelId}
+                apiKey={apiKey}
+                compact
+              />
             )}
             {!isLocalOpenAIProvider(providerId) && (
               <div className="space-y-2">

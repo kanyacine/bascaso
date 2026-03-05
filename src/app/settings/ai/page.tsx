@@ -196,16 +196,13 @@ export default function AISettingsPage() {
       </section>
 
       {isLocalProvider && (
-        <section className="space-y-2 max-w-2xl">
-          <h3 className="section-title">Local server</h3>
-          <LocalServerFields
-            baseUrl={baseUrl}
-            onBaseUrlChange={setBaseUrl}
-            modelId={modelId}
-            onModelIdChange={setModelId}
-            apiKey={apiKey}
-          />
-        </section>
+        <LocalServerFields
+          baseUrl={baseUrl}
+          onBaseUrlChange={setBaseUrl}
+          modelId={modelId}
+          onModelIdChange={setModelId}
+          apiKey={apiKey}
+        />
       )}
 
       {!isLocalProvider && (
