@@ -18,7 +18,7 @@
     "db:studio": "drizzle-kit studio",
     "electron:compile": "tsc -p electron/tsconfig.json",
     "electron:prepare": "bash ./scripts/prepare-electron.sh",
-    "electron:dev": "npm run electron:compile && electron .",
+    "electron:dev": "npm rebuild better-sqlite3 && npm run electron:compile && electron .",
     "electron:make:dmg": "npm run electron:compile && next build && npm run electron:prepare && electron-forge make --targets=@electron-forge/maker-dmg",
     "electron:make:mas": "MAS=1 npm run electron:compile && MAS=1 next build && npm run electron:prepare && MAS=1 electron-forge make --platform=mas --arch=universal"
   },
