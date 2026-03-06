@@ -36,6 +36,13 @@
       "when": 1772870400000,
       "tag": "0004_demo_mode",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1772807687575,
+      "tag": "0005_app_preferences",
+      "breakpoints": true
     }
   ]
 }

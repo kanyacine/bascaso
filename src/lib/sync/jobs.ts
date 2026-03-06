@@ -3,11 +3,25 @@ import { buildAnalyticsData } from "@/lib/asc/analytics";
 import { listBuilds, listGroups } from "@/lib/asc/testflight";
 import { hasCredentials } from "@/lib/asc/client";
 import { isPro, FREE_LIMITS } from "@/lib/license";
+import { getFreeSelectedAppId } from "@/lib/app-preferences";
 
-/** Return apps respecting the free tier limit. */
+/** Return apps respecting the free tier limit and selection. */
 async function visibleApps() {
   const all = await listApps();
-  return isPro() ? all : all.slice(0, FREE_LIMITS.apps);
+  if (isPro()) return all;
+
+  // Free user with only one app – no selection needed
+  if (all.length <= FREE_LIMITS.apps) return all;
+
+  // Free user with multiple apps – only sync the selected app
+  const selectedId = getFreeSelectedAppId();
+  if (selectedId) {
+    const selected = all.find((a) => a.id === selectedId);
+    if (selected) return [selected];
+  }
+
+  // No selection yet – don't sync any app until user picks one
+  return [];
 }
 
 export async function syncApps(): Promise<void> {

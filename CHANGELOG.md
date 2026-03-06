@@ -2,6 +2,7 @@
 
 ## 1.2.2
 
+- Add app picker after setup – choose which app to manage when you have multiple apps
 - Add copyright field to the store listing page
 - Expand submission checklist with screenshots, app name, support URL, privacy policy, and copyright checks
 - Surface associated errors from App Store Connect when submission fails – show the actual reasons (missing metadata, screenshots, etc.) instead of a generic error

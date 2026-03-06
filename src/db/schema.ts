@@ -68,6 +68,13 @@ export const analyticsBackfill = sqliteTable("analytics_backfill", {
     .$defaultFn(() => new Date().toISOString()),
 });
 
+// --- App preferences (key-value) ---
+
+export const appPreferences = sqliteTable("app_preferences", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+});
+
 // --- Feedback completed tracking ---
 
 export const feedbackCompleted = sqliteTable("feedback_completed", {

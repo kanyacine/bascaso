@@ -25,6 +25,8 @@ interface AppsContextValue {
   error: ConnectionError | null;
   /** True when the free tier app limit is hiding additional apps. */
   truncated: boolean;
+  /** True when the free user has multiple apps but hasn't picked one yet. */
+  needsAppSelection: boolean;
   refresh: () => Promise<void>;
   /** Update a single app in-place without refetching. */
   updateApp: (appId: string, updater: (a: App) => App) => void;
@@ -35,12 +37,13 @@ const AppsContext = createContext<AppsContextValue>({
   loading: true,
   error: null,
   truncated: false,
+  needsAppSelection: false,
   refresh: async () => {},
   updateApp: () => {},
 });
 
 /** Normalize ASC API shape to flat App interface. */
-function normalizeApp(raw: { id: string; attributes?: Record<string, string | null> } & Record<string, unknown>): App {
+export function normalizeApp(raw: { id: string; attributes?: Record<string, string | null> } & Record<string, unknown>): App {
   if (raw.attributes) {
     return {
       id: raw.id,
@@ -62,6 +65,7 @@ export function AppsProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<ConnectionError | null>(null);
   const [truncated, setTruncated] = useState(false);
+  const [needsAppSelection, setNeedsAppSelection] = useState(false);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -81,6 +85,7 @@ export function AppsProvider({ children }: { children: React.ReactNode }) {
       const normalized = (data.apps ?? []).map(normalizeApp);
       setApps(normalized);
       setTruncated(data.truncated === true);
+      setNeedsAppSelection(data.needsAppSelection === true);
       setError(null);
     } catch {
       setError({ message: "Could not connect to the server", category: "network" });
@@ -101,7 +106,7 @@ export function AppsProvider({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <AppsContext.Provider value={{ apps, loading, error, truncated, refresh, updateApp }}>
+    <AppsContext.Provider value={{ apps, loading, error, truncated, needsAppSelection, refresh, updateApp }}>
       {children}
     </AppsContext.Provider>
   );
