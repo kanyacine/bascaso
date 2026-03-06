@@ -1,7 +1,6 @@
 import type { ForgeConfig } from "@electron-forge/shared-types";
 import { MakerDMG } from "@electron-forge/maker-dmg";
 import { MakerZIP } from "@electron-forge/maker-zip";
-import { execSync } from "child_process";
 import { APP_VERSION, BUILD_NUMBER } from "./src/lib/version";
 
 const isMAS = process.env.MAS === "1";
@@ -41,24 +40,11 @@ const config: ForgeConfig = {
           }
         : undefined,
     osxUniversal: {
-      x64ArchFiles: "**/*.node",
+      // Native modules live under `.next/standalone/node_modules`.
+      // Use an explicit pattern that matches hidden `.next` paths during
+      // @electron/universal's Mach-O comparison.
+      x64ArchFiles: "Contents/Resources/app/.next/standalone/node_modules/**/*.{node,dylib}",
     },
-    afterCopy: [
-      // Rebuild better-sqlite3 inside the packaged standalone node_modules
-      // for the current target arch. Universal builds run this hook per-arch.
-      (buildPath: string, electronVersion: string, _platform: string, arch: string, callback: (err?: Error) => void) => {
-        try {
-          const moduleDir = `${buildPath}/.next/standalone/node_modules`;
-          execSync(
-            `npx electron-rebuild -f --build-from-source --only better-sqlite3 --module-dir "${moduleDir}" --version "${electronVersion}" --arch "${arch}"`,
-            { stdio: "inherit" },
-          );
-          callback();
-        } catch (err) {
-          callback(err as Error);
-        }
-      },
-    ],
     ignore: (filePath: string) => {
       if (!filePath) return false;
       if (filePath === "/package.json") return false;
