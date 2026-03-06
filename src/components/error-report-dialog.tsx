@@ -21,6 +21,7 @@ export interface AscErrorReportData {
   ascErrors?: AscErrorEntry[];
   ascMethod?: string;
   ascPath?: string;
+  ascAssociatedErrors?: Record<string, AscErrorEntry[]>;
 }
 
 export interface SyncErrorReportData {
@@ -53,6 +54,14 @@ function formatAscDetails(data: AscErrorReportData): string {
     }
   } else {
     lines.push(sanitiseText(data.message));
+  }
+
+  if (data.ascAssociatedErrors) {
+    for (const [, errors] of Object.entries(data.ascAssociatedErrors)) {
+      for (const entry of errors) {
+        lines.push(`${entry.code}: ${sanitiseText(entry.detail)}`);
+      }
+    }
   }
 
   return lines.join("\n");

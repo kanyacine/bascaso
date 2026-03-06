@@ -15,7 +15,7 @@ export function useAppInfo(appId: string): UseAppInfoResult {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const refresh = useCallback(async () => {
+  const fetchData = useCallback(async (forceRefresh = false) => {
     if (!appId) {
       setAppInfos([]);
       setLoading(false);
@@ -26,7 +26,8 @@ export function useAppInfo(appId: string): UseAppInfoResult {
     setError(null);
 
     try {
-      const res = await fetch(`/api/apps/${appId}/info`);
+      const qs = forceRefresh ? "?refresh=1" : "";
+      const res = await fetch(`/api/apps/${appId}/info${qs}`);
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         setError(data.error || "Failed to load app info");
@@ -45,8 +46,10 @@ export function useAppInfo(appId: string): UseAppInfoResult {
   }, [appId]);
 
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    fetchData();
+  }, [fetchData]);
+
+  const refresh = useCallback(() => fetchData(true), [fetchData]);
 
   return { appInfos, loading, error, refresh };
 }
@@ -66,7 +69,7 @@ export function useAppInfoLocalizations(
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const refresh = useCallback(async () => {
+  const fetchData = useCallback(async (forceRefresh = false) => {
     if (!appId || !appInfoId) {
       setLocalizations([]);
       setLoading(false);
@@ -77,8 +80,9 @@ export function useAppInfoLocalizations(
     setError(null);
 
     try {
+      const qs = forceRefresh ? "?refresh=1" : "";
       const res = await fetch(
-        `/api/apps/${appId}/info/${appInfoId}/localizations`,
+        `/api/apps/${appId}/info/${appInfoId}/localizations${qs}`,
       );
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -98,8 +102,10 @@ export function useAppInfoLocalizations(
   }, [appId, appInfoId]);
 
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    fetchData();
+  }, [fetchData]);
+
+  const refresh = useCallback(() => fetchData(true), [fetchData]);
 
   return { localizations, loading, error, refresh };
 }

@@ -19,18 +19,25 @@ export async function PATCH(
   }
 
   const body = await request.json();
-  const { versionString, buildId } = body as { versionString?: string; buildId?: string | null };
+  const { versionString, buildId, copyright } = body as {
+    versionString?: string;
+    buildId?: string | null;
+    copyright?: string;
+  };
 
-  if (!versionString && buildId === undefined) {
+  if (!versionString && buildId === undefined && copyright === undefined) {
     return NextResponse.json(
-      { error: "versionString or buildId is required" },
+      { error: "versionString, buildId, or copyright is required" },
       { status: 400 },
     );
   }
 
   try {
-    if (versionString) {
-      await updateVersionAttributes(versionId, { versionString });
+    const attrs: Record<string, string> = {};
+    if (versionString) attrs.versionString = versionString;
+    if (copyright !== undefined) attrs.copyright = copyright;
+    if (Object.keys(attrs).length > 0) {
+      await updateVersionAttributes(versionId, attrs);
     }
     if (buildId !== undefined) {
       await selectBuildForVersion(versionId, buildId);

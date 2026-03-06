@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useParams, usePathname, useSearchParams } from "next/navigation";
 import { CheckCircle, Circle, WarningCircle } from "@phosphor-icons/react";
 import { Spinner } from "@/components/ui/spinner";
@@ -19,12 +19,14 @@ import { toast } from "sonner";
 import { apiFetch, ApiError } from "@/lib/api-fetch";
 import { useVersions } from "@/lib/versions-context";
 import { useSubmissionChecklist, type FieldStatus } from "@/lib/submission-checklist-context";
+import { computeAppDetailsFlags } from "@/lib/submission-checklist-utils";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
 import { localeName } from "@/lib/asc/locale-names";
 import { useFormDirty } from "@/lib/form-dirty-context";
 import { useErrorReport } from "@/lib/error-report-context";
 import type { AscErrorReportData } from "@/components/error-report-dialog";
 import { resolveVersion, type AscVersion } from "@/lib/asc/version-types";
+import { useApps } from "@/lib/apps-context";
 
 /** Brief pause to let ASC propagate state changes before re-fetching. */
 const ASC_PROPAGATION_DELAY = 3000;
@@ -68,17 +70,28 @@ function ChecklistIcon({ status, localesWithIssues }: { status: FieldStatus; loc
 
 function SubmissionChecklist({ version, isFirstVersion }: { version: AscVersion; isFirstVersion: boolean }) {
   const { flags } = useSubmissionChecklist();
+  const sl = flags.storeListing;
+  const ad = flags.appDetails;
 
   const hasBuild = version.build !== null;
+  const hasCopyright = !!(version.attributes.copyright?.trim());
   const rd = version.reviewDetail?.attributes;
   const hasContact = !!(rd?.contactEmail && rd?.contactFirstName && rd?.contactLastName && rd?.contactPhone);
 
+  const screenshotStatus: FieldStatus =
+    flags.hasScreenshots === null ? "missing" : flags.hasScreenshots ? "ok" : "missing";
+
   const items: { label: string; status: FieldStatus; localesWithIssues?: string[] }[] = [
     { label: "Build", status: hasBuild ? "ok" : "missing" },
-    { label: "Description", status: flags.description.status, localesWithIssues: flags.description.localesWithIssues },
-    ...(!isFirstVersion ? [{ label: "What's new", status: flags.whatsNew.status, localesWithIssues: flags.whatsNew.localesWithIssues }] : []),
-    { label: "Keywords", status: flags.keywords.status, localesWithIssues: flags.keywords.localesWithIssues },
-    { label: "Review contact", status: hasContact ? "ok" : "missing" },
+    { label: "Screenshots", status: screenshotStatus },
+    { label: "Name", status: ad?.name.status ?? "missing", localesWithIssues: ad?.name.localesWithIssues },
+    { label: "Description", status: sl?.description.status ?? "missing", localesWithIssues: sl?.description.localesWithIssues },
+    ...(!isFirstVersion ? [{ label: "What's new", status: sl?.whatsNew.status ?? "missing", localesWithIssues: sl?.whatsNew.localesWithIssues }] : []),
+    { label: "Keywords", status: sl?.keywords.status ?? "missing", localesWithIssues: sl?.keywords.localesWithIssues },
+    { label: "Support", status: sl?.supportUrl.status ?? "missing", localesWithIssues: sl?.supportUrl.localesWithIssues },
+    { label: "Privacy", status: ad?.privacyPolicyUrl.status ?? "missing", localesWithIssues: ad?.privacyPolicyUrl.localesWithIssues },
+    { label: "Copyright", status: hasCopyright ? "ok" : "missing" },
+    { label: "Contact", status: hasContact ? "ok" : "missing" },
   ];
 
   return (
@@ -100,13 +113,21 @@ function SubmissionChecklist({ version, isFirstVersion }: { version: AscVersion;
 
 function useChecklistReady(version: AscVersion, isFirstVersion: boolean): boolean {
   const { flags } = useSubmissionChecklist();
+  const sl = flags.storeListing;
+  const ad = flags.appDetails;
   const hasBuild = version.build !== null;
+  const hasCopyright = !!(version.attributes.copyright?.trim());
   const rd = version.reviewDetail?.attributes;
   const hasContact = !!(rd?.contactEmail && rd?.contactFirstName && rd?.contactLastName && rd?.contactPhone);
   return hasBuild
-    && flags.description.status === "ok"
-    && (isFirstVersion || flags.whatsNew.status === "ok")
-    && flags.keywords.status === "ok"
+    && flags.hasScreenshots === true
+    && ad?.name.status === "ok"
+    && sl?.description.status === "ok"
+    && (isFirstVersion || sl?.whatsNew.status === "ok")
+    && sl?.keywords.status === "ok"
+    && sl?.supportUrl.status === "ok"
+    && ad?.privacyPolicyUrl.status === "ok"
+    && hasCopyright
     && hasContact;
 }
 
@@ -119,6 +140,7 @@ export function VersionActionFooter() {
   const { showAscError } = useErrorReport();
   const [loading, setLoading] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const { apps } = useApps();
 
   const pageSegment = getPageSegment(pathname);
 
@@ -126,6 +148,86 @@ export function VersionActionFooter() {
     () => resolveVersion(versions, searchParams.get("version")),
     [versions, searchParams],
   );
+
+  // Auto-fetch app details + screenshot checklist flags
+  const { flags, reportAppDetails, reportScreenshots } = useSubmissionChecklist();
+  const primaryLocale = apps.find((a) => a.id === appId)?.primaryLocale ?? "";
+  const versionId = version?.id ?? "";
+
+  useEffect(() => {
+    if (flags.appDetails || !appId || !primaryLocale) return;
+
+    let cancelled = false;
+
+    async function fetchAndReport() {
+      try {
+        const infoRes = await fetch(`/api/apps/${appId}/info`);
+        if (!infoRes.ok) return;
+        const infoData = await infoRes.json();
+        const appInfos: { id: string; attributes: { state: string } }[] = infoData.appInfos ?? [];
+        const LIVE = new Set(["READY_FOR_DISTRIBUTION", "ACCEPTED"]);
+        const appInfo = appInfos.find((i) => !LIVE.has(i.attributes.state)) ?? appInfos[0];
+        if (!appInfo) return;
+
+        const locRes = await fetch(`/api/apps/${appId}/info/${appInfo.id}/localizations`);
+        if (!locRes.ok) return;
+        const locData = await locRes.json();
+        const locs: { attributes: { locale: string; name: string | null; privacyPolicyUrl: string | null } }[] =
+          locData.localizations ?? [];
+
+        if (cancelled) return;
+
+        const localeMap: Record<string, Record<string, string>> = {};
+        for (const loc of locs) {
+          localeMap[loc.attributes.locale] = {
+            name: loc.attributes.name ?? "",
+            privacyPolicyUrl: loc.attributes.privacyPolicyUrl ?? "",
+          };
+        }
+        reportAppDetails(computeAppDetailsFlags(localeMap, primaryLocale));
+      } catch {
+        // Non-critical – checklist items will show as missing
+      }
+    }
+
+    fetchAndReport();
+    return () => { cancelled = true; };
+  }, [appId, primaryLocale, flags.appDetails, reportAppDetails]);
+
+  // Check if primary locale has at least one screenshot
+  useEffect(() => {
+    if (flags.hasScreenshots !== null || !appId || !versionId || !primaryLocale) return;
+
+    let cancelled = false;
+
+    async function checkScreenshots() {
+      try {
+        // Get version localizations to find the primary locale's ID
+        const locRes = await fetch(`/api/apps/${appId}/versions/${versionId}/localizations`);
+        if (!locRes.ok) return;
+        const locData = await locRes.json();
+        const locs: { id: string; attributes: { locale: string } }[] = locData.localizations ?? [];
+        const primaryLoc = locs.find((l) => l.attributes.locale === primaryLocale);
+        if (!primaryLoc || cancelled) return;
+
+        // Fetch screenshot sets for the primary locale
+        const ssRes = await fetch(
+          `/api/apps/${appId}/versions/${versionId}/localizations/${primaryLoc.id}/screenshots`,
+        );
+        if (!ssRes.ok || cancelled) return;
+        const ssData = await ssRes.json();
+        const sets: { screenshots: unknown[] }[] = ssData.screenshotSets ?? [];
+        const has = sets.some((s) => s.screenshots.length > 0);
+
+        if (!cancelled) reportScreenshots(has);
+      } catch {
+        // Non-critical
+      }
+    }
+
+    checkScreenshots();
+    return () => { cancelled = true; };
+  }, [appId, versionId, primaryLocale, flags.hasScreenshots, reportScreenshots]);
 
   if (!appId || !FOOTER_PAGES.has(pageSegment) || !version) return null;
 
@@ -293,12 +395,13 @@ function SubmitFooter({
       toast.success("Submitted for review");
       await delay(ASC_PROPAGATION_DELAY);
     } catch (err) {
-      if (err instanceof ApiError && err.ascErrors?.length) {
+      if (err instanceof ApiError && (err.ascErrors?.length || err.ascAssociatedErrors)) {
         showAscError({
           message: err.message,
           ascErrors: err.ascErrors,
           ascMethod: err.ascMethod,
           ascPath: err.ascPath,
+          ascAssociatedErrors: err.ascAssociatedErrors,
         });
       } else {
         toast.error(err instanceof Error ? err.message : "Failed to submit for review");

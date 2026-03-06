@@ -13,10 +13,11 @@ import { isDemoMode, getDemoAppInfoLocalizations } from "@/lib/demo";
 
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ appId: string; appInfoId: string }> },
 ) {
   const { appInfoId } = await params;
+  const refresh = new URL(request.url).searchParams.has("refresh");
 
   if (isDemoMode()) {
     return NextResponse.json({ localizations: getDemoAppInfoLocalizations(appInfoId), meta: null });
@@ -27,7 +28,7 @@ export async function GET(
   }
 
   try {
-    const localizations = await listAppInfoLocalizations(appInfoId);
+    const localizations = await listAppInfoLocalizations(appInfoId, refresh);
     const meta = cacheGetMeta(`appInfoLocalizations:${appInfoId}`);
 
     return NextResponse.json({ localizations, meta });

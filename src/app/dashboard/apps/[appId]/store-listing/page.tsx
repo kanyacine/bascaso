@@ -5,6 +5,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import { Lock } from "@phosphor-icons/react";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
+import { Input } from "@/components/ui/input";
 import { ApiError, apiFetch } from "@/lib/api-fetch";
 import { useErrorReport } from "@/lib/error-report-context";
 import type { SyncError } from "@/lib/api-helpers";
@@ -22,7 +23,7 @@ import {
 } from "@/lib/asc/locale-names";
 import { useRegisterHeaderLocale } from "@/lib/header-locale-context";
 import { useSubmissionChecklist } from "@/lib/submission-checklist-context";
-import { computeChecklistFlags } from "@/lib/submission-checklist-utils";
+import { computeStoreListingFlags } from "@/lib/submission-checklist-utils";
 import { useLocaleManagement } from "@/lib/hooks/use-locale-management";
 import { useLocaleHandlers } from "@/lib/hooks/use-locale-handlers";
 import type { MagicWandLocaleProps, CopyFromVersion } from "@/components/magic-wand-button";
@@ -152,7 +153,7 @@ export default function StoreListingPage() {
     onCopyFromVersion: handleCopyFromVersion,
   };
 
-  const { report: reportChecklist } = useSubmissionChecklist();
+  const { reportStoreListing } = useSubmissionChecklist();
   const { setDirty, registerSave, registerDiscard, setValidationErrors } = useFormDirty();
   const { showAscError, showSyncErrors } = useErrorReport();
 
@@ -181,6 +182,10 @@ export default function StoreListingPage() {
         : "Copied to all locales",
     );
   }
+  // Copyright (version-level, not per-locale)
+  const [copyright, setCopyright] = useState(selectedVersion?.attributes.copyright ?? "");
+  const originalCopyrightRef = useRef(selectedVersion?.attributes.copyright ?? "");
+
   // Build picker state
   const [allBuilds, setAllBuilds] = useState<TFBuild[]>([]);
   const [selectedBuildId, setSelectedBuildId] = useState<string | null>(selectedVersion?.build?.id ?? null);
@@ -219,7 +224,7 @@ export default function StoreListingPage() {
   const [phasedRelease, setPhasedRelease] = useState(derived.phasedRelease);
 
   // Re-sync from server data when version switches or data refreshes
-  const snapshotKey = `${versionId}:${selectedVersion?.attributes.releaseType}:${selectedVersion?.attributes.earliestReleaseDate}:${selectedVersion?.phasedRelease?.id ?? ""}:${selectedVersion?.build?.id ?? ""}`;
+  const snapshotKey = `${versionId}:${selectedVersion?.attributes.releaseType}:${selectedVersion?.attributes.earliestReleaseDate}:${selectedVersion?.phasedRelease?.id ?? ""}:${selectedVersion?.build?.id ?? ""}:${selectedVersion?.attributes.copyright ?? ""}`;
   const [prevSnapshotKey, setPrevSnapshotKey] = useState(snapshotKey);
   if (snapshotKey !== prevSnapshotKey) {
     setPrevSnapshotKey(snapshotKey);
@@ -229,6 +234,9 @@ export default function StoreListingPage() {
     const buildId = selectedVersion?.build?.id ?? null;
     setSelectedBuildId(buildId);
     originalBuildIdRef.current = buildId;
+    const cr = selectedVersion?.attributes.copyright ?? "";
+    setCopyright(cr);
+    originalCopyrightRef.current = cr;
   }
 
   // Track original locale → localization ID mapping for diffing saves
@@ -296,8 +304,8 @@ export default function StoreListingPage() {
   // Report submission checklist flags across all locales
   useEffect(() => {
     if (!localeData[primaryLocale]) return;
-    reportChecklist(computeChecklistFlags(localeData, primaryLocale));
-  }, [localeData, primaryLocale, reportChecklist]);
+    reportStoreListing(computeStoreListingFlags(localeData, primaryLocale));
+  }, [localeData, primaryLocale, reportStoreListing]);
 
   // Register save handler for the header Save button
   useEffect(() => {
@@ -384,6 +392,17 @@ export default function StoreListingPage() {
             }),
           );
         }
+
+        // Save copyright if changed
+        if (copyright !== originalCopyrightRef.current) {
+          promises.push(
+            apiFetch(`/api/apps/${appId}/versions/${versionId}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ copyright }),
+            }),
+          );
+        }
       }
 
       try {
@@ -441,6 +460,7 @@ export default function StoreListingPage() {
             ...v.attributes,
             releaseType: ascReleaseType,
             earliestReleaseDate,
+            copyright,
           },
           build: newBuild
             ? {
@@ -459,15 +479,18 @@ export default function StoreListingPage() {
             : null,
         }));
 
-        // Update original ref so subsequent discards reflect the saved state
+        // Update original refs so subsequent discards reflect the saved state
         if (selectedBuildId !== originalBuildIdRef.current) {
           originalBuildIdRef.current = selectedBuildId;
+        }
+        if (copyright !== originalCopyrightRef.current) {
+          originalCopyrightRef.current = copyright;
         }
       }
 
       setDirty(false);
     });
-  }, [appId, versionId, localeData, readOnly, isFirstVersion, releaseType, scheduledDate, phasedRelease, selectedBuildId, allBuilds, selectedVersion, registerSave, setDirty, updateVersion, showAscError, showSyncErrors]);
+  }, [appId, versionId, localeData, readOnly, isFirstVersion, releaseType, scheduledDate, phasedRelease, selectedBuildId, copyright, allBuilds, selectedVersion, registerSave, setDirty, updateVersion, showAscError, showSyncErrors]);
 
   // Register discard handler for the header Discard button
   useEffect(() => {
@@ -483,6 +506,7 @@ export default function StoreListingPage() {
       setScheduledDate(reset.scheduledDate);
       setPhasedRelease(reset.phasedRelease);
       setSelectedBuildId(originalBuildIdRef.current);
+      setCopyright(originalCopyrightRef.current);
     });
   }, [localizations, primaryLocale, selectedLocale, selectedVersion, setLocales, changeLocale, registerDiscard]);
 
@@ -584,6 +608,18 @@ export default function StoreListingPage() {
             hideWhatsNew={isFirstVersion}
           />
         )}
+
+        {/* Copyright (version-level, not per-locale) */}
+        <section className="space-y-2">
+          <h3 className="section-title">Copyright</h3>
+          <Input
+            value={copyright}
+            onChange={(e) => { setCopyright(e.target.value); setDirty(true); }}
+            readOnly={readOnly}
+            placeholder={`© ${new Date().getFullYear()} Your Company Name`}
+            className="text-sm"
+          />
+        </section>
 
         {/* Build */}
         <BuildSection

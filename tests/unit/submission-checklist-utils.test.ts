@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeFieldIssues, computeChecklistFlags } from "@/lib/submission-checklist-utils";
+import { computeFieldIssues, computeStoreListingFlags } from "@/lib/submission-checklist-utils";
 import type { LocaleFields } from "@/app/dashboard/apps/[appId]/store-listing/_components/locale-fields";
 
 function makeLocaleData(overrides: Record<string, Partial<LocaleFields>>): Record<string, LocaleFields> {
@@ -120,46 +120,51 @@ describe("computeFieldIssues", () => {
   });
 });
 
-describe("computeChecklistFlags", () => {
-  it("computes all three fields independently", () => {
+describe("computeStoreListingFlags", () => {
+  it("computes all fields independently", () => {
     const data = makeLocaleData({
-      "en-US": { description: "A valid description text", keywords: "games", whatsNew: "New stuff here" },
-      "it": { description: "Descrizione valida qui", keywords: "", whatsNew: "" },
+      "en-US": { description: "A valid description text", keywords: "games", whatsNew: "New stuff here", supportUrl: "https://example.com" },
+      "it": { description: "Descrizione valida qui", keywords: "", whatsNew: "", supportUrl: "" },
     });
-    const flags = computeChecklistFlags(data, "en-US");
+    const flags = computeStoreListingFlags(data, "en-US");
     expect(flags.description.status).toBe("ok");
     expect(flags.keywords.status).toBe("warn");
     expect(flags.keywords.localesWithIssues).toEqual(["it"]);
     expect(flags.whatsNew.status).toBe("warn");
     expect(flags.whatsNew.localesWithIssues).toEqual(["it"]);
+    expect(flags.supportUrl.status).toBe("warn");
+    expect(flags.supportUrl.localesWithIssues).toEqual(["it"]);
   });
 
   it("handles mixed states correctly", () => {
     const data = makeLocaleData({
-      "en-US": { description: "A valid description text", keywords: "games", whatsNew: "" },
+      "en-US": { description: "A valid description text", keywords: "games", whatsNew: "", supportUrl: "https://example.com" },
     });
-    const flags = computeChecklistFlags(data, "en-US");
+    const flags = computeStoreListingFlags(data, "en-US");
     expect(flags.description.status).toBe("ok");
     expect(flags.keywords.status).toBe("ok");
     expect(flags.whatsNew.status).toBe("missing");
+    expect(flags.supportUrl.status).toBe("ok");
   });
 
   it("returns all 'missing' for empty localeData", () => {
-    const flags = computeChecklistFlags({}, "en-US");
+    const flags = computeStoreListingFlags({}, "en-US");
     expect(flags.description.status).toBe("missing");
     expect(flags.whatsNew.status).toBe("missing");
     expect(flags.keywords.status).toBe("missing");
+    expect(flags.supportUrl.status).toBe("missing");
   });
 
   it("returns all 'ok' when every locale has all fields", () => {
     const data = makeLocaleData({
-      "en-US": { description: "A valid description text", keywords: "games", whatsNew: "Bugs fixed" },
-      "it": { description: "Descrizione valida qui", keywords: "giochi", whatsNew: "Bug corretti" },
-      "de-DE": { description: "Eine gültige Beschreibung", keywords: "spiele", whatsNew: "Fehler behoben" },
+      "en-US": { description: "A valid description text", keywords: "games", whatsNew: "Bugs fixed", supportUrl: "https://a.com" },
+      "it": { description: "Descrizione valida qui", keywords: "giochi", whatsNew: "Bug corretti", supportUrl: "https://b.com" },
+      "de-DE": { description: "Eine gültige Beschreibung", keywords: "spiele", whatsNew: "Fehler behoben", supportUrl: "https://c.com" },
     });
-    const flags = computeChecklistFlags(data, "en-US");
+    const flags = computeStoreListingFlags(data, "en-US");
     expect(flags.description.status).toBe("ok");
     expect(flags.keywords.status).toBe("ok");
     expect(flags.whatsNew.status).toBe("ok");
+    expect(flags.supportUrl.status).toBe("ok");
   });
 });

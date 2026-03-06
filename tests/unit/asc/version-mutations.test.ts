@@ -141,79 +141,92 @@ describe("version-mutations", () => {
   });
 
   describe("submitForReview", () => {
-    it("creates submission, adds version item, then confirms", async () => {
+    it("creates submission when no draft exists, adds item, then confirms", async () => {
       mockAscFetch
-        .mockResolvedValueOnce({ data: { id: "sub-1" } }) // step 1: create submission
-        .mockResolvedValueOnce({}) // step 2: add item
-        .mockResolvedValueOnce({}); // step 3: confirm
+        .mockResolvedValueOnce({ data: [] }) // find drafts: none
+        .mockResolvedValueOnce({ data: { id: "sub-1" } }) // create submission
+        .mockResolvedValueOnce({}) // add item
+        .mockResolvedValueOnce({}); // confirm
 
       await submitForReview("app-1", "ver-1", "MAC_OS");
 
-      // Step 1: create review submission
+      // Step 1: check for existing drafts
+      expect(mockAscFetch.mock.calls[0][0]).toContain("/v1/apps/app-1/reviewSubmissions");
+
+      // Step 1b: create new submission (no draft found)
       expect(mockAscFetch).toHaveBeenCalledWith(
         "/v1/reviewSubmissions",
         expect.objectContaining({ method: "POST" }),
       );
-      const step1Body = JSON.parse(mockAscFetch.mock.calls[0][1].body);
-      expect(step1Body.data.type).toBe("reviewSubmissions");
-      expect(step1Body.data.attributes.platform).toBe("MAC_OS");
-      expect(step1Body.data.relationships.app.data.id).toBe("app-1");
+      const createBody = JSON.parse(mockAscFetch.mock.calls[1][1].body);
+      expect(createBody.data.type).toBe("reviewSubmissions");
+      expect(createBody.data.attributes.platform).toBe("MAC_OS");
+      expect(createBody.data.relationships.app.data.id).toBe("app-1");
 
       // Step 2: add version as item
       expect(mockAscFetch).toHaveBeenCalledWith(
         "/v1/reviewSubmissionItems",
         expect.objectContaining({ method: "POST" }),
       );
-      const step2Body = JSON.parse(mockAscFetch.mock.calls[1][1].body);
-      expect(step2Body.data.type).toBe("reviewSubmissionItems");
-      expect(step2Body.data.relationships.reviewSubmission.data.id).toBe("sub-1");
-      expect(step2Body.data.relationships.appStoreVersion.data.id).toBe("ver-1");
+      const itemBody = JSON.parse(mockAscFetch.mock.calls[2][1].body);
+      expect(itemBody.data.relationships.reviewSubmission.data.id).toBe("sub-1");
+      expect(itemBody.data.relationships.appStoreVersion.data.id).toBe("ver-1");
 
       // Step 3: confirm submission
-      expect(mockAscFetch).toHaveBeenCalledWith(
-        "/v1/reviewSubmissions/sub-1",
-        expect.objectContaining({ method: "PATCH" }),
-      );
-      const step3Body = JSON.parse(mockAscFetch.mock.calls[2][1].body);
-      expect(step3Body.data.attributes.submitted).toBe(true);
+      const confirmBody = JSON.parse(mockAscFetch.mock.calls[3][1].body);
+      expect(confirmBody.data.attributes.submitted).toBe(true);
     });
 
-    it("cleans up dangling submission when step 2 fails", async () => {
+    it("reuses an existing draft submission instead of creating a new one", async () => {
       mockAscFetch
-        .mockResolvedValueOnce({ data: { id: "sub-1" } }) // step 1: create
-        .mockRejectedValueOnce(new Error("add item failed")) // step 2: fails
-        .mockResolvedValueOnce(null); // cleanup DELETE
+        .mockResolvedValueOnce({ data: [
+          { id: "existing-sub", attributes: { state: "READY_FOR_REVIEW" } },
+        ] }) // find drafts: one exists
+        .mockResolvedValueOnce({}) // add item
+        .mockResolvedValueOnce({}); // confirm
+
+      await submitForReview("app-1", "ver-1", "IOS");
+
+      // Should NOT create a new submission – only 3 calls total
+      expect(mockAscFetch).toHaveBeenCalledTimes(3);
+
+      // Item should reference the existing submission
+      const itemBody = JSON.parse(mockAscFetch.mock.calls[1][1].body);
+      expect(itemBody.data.relationships.reviewSubmission.data.id).toBe("existing-sub");
+    });
+
+    it("throws when step 2 (add item) fails", async () => {
+      mockAscFetch
+        .mockResolvedValueOnce({ data: [] }) // find drafts: none
+        .mockResolvedValueOnce({ data: { id: "sub-1" } }) // create
+        .mockRejectedValueOnce(new Error("add item failed")); // add item fails
 
       await expect(submitForReview("app-1", "ver-1", "IOS")).rejects.toThrow("add item failed");
-
-      expect(mockAscFetch).toHaveBeenCalledWith(
-        "/v1/reviewSubmissions/sub-1",
-        expect.objectContaining({ method: "DELETE" }),
-      );
     });
 
-    it("cleans up dangling submission when step 3 fails", async () => {
+    it("throws when step 3 (confirm) fails", async () => {
       mockAscFetch
-        .mockResolvedValueOnce({ data: { id: "sub-1" } }) // step 1: create
-        .mockResolvedValueOnce({}) // step 2: add item
-        .mockRejectedValueOnce(new Error("confirm failed")) // step 3: fails
-        .mockResolvedValueOnce(null); // cleanup DELETE
+        .mockResolvedValueOnce({ data: [] }) // find drafts: none
+        .mockResolvedValueOnce({ data: { id: "sub-1" } }) // create
+        .mockResolvedValueOnce({}) // add item
+        .mockRejectedValueOnce(new Error("confirm failed")); // confirm fails
 
       await expect(submitForReview("app-1", "ver-1", "IOS")).rejects.toThrow("confirm failed");
-
-      expect(mockAscFetch).toHaveBeenCalledWith(
-        "/v1/reviewSubmissions/sub-1",
-        expect.objectContaining({ method: "DELETE" }),
-      );
     });
 
-    it("still throws original error when cleanup DELETE also fails", async () => {
+    it("falls through to create when listing drafts fails", async () => {
       mockAscFetch
-        .mockResolvedValueOnce({ data: { id: "sub-1" } }) // step 1: create
-        .mockRejectedValueOnce(new Error("add item failed")) // step 2: fails
-        .mockRejectedValueOnce(new Error("delete also failed")); // cleanup also fails
+        .mockRejectedValueOnce(new Error("list failed")) // find drafts fails
+        .mockResolvedValueOnce({ data: { id: "sub-1" } }) // create
+        .mockResolvedValueOnce({}) // add item
+        .mockResolvedValueOnce({}); // confirm
 
-      await expect(submitForReview("app-1", "ver-1", "IOS")).rejects.toThrow("add item failed");
+      await submitForReview("app-1", "ver-1", "IOS");
+
+      expect(mockAscFetch).toHaveBeenCalledWith(
+        "/v1/reviewSubmissions",
+        expect.objectContaining({ method: "POST" }),
+      );
     });
   });
 

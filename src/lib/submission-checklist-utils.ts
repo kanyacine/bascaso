@@ -1,8 +1,8 @@
 import type { LocaleFields } from "@/app/dashboard/apps/[appId]/store-listing/_components/locale-fields";
 import { FIELD_MIN_LIMITS } from "@/lib/asc/locale-names";
-import type { FieldIssues, ChecklistFlags } from "@/lib/submission-checklist-context";
+import type { FieldIssues, StoreListingFlags, AppDetailsFlags } from "@/lib/submission-checklist-context";
 
-type CheckedField = "description" | "whatsNew" | "keywords";
+type CheckedField = "description" | "whatsNew" | "keywords" | "supportUrl" | "marketingUrl";
 
 /**
  * Compute the status for a single field across all locales.
@@ -37,15 +37,57 @@ export function computeFieldIssues(
 }
 
 /**
- * Compute checklist flags for all three submission-required fields.
+ * Compute checklist flags for store listing fields.
  */
-export function computeChecklistFlags(
+export function computeStoreListingFlags(
   localeData: Record<string, LocaleFields>,
   primaryLocale: string,
-): ChecklistFlags {
+): StoreListingFlags {
   return {
     description: computeFieldIssues(localeData, primaryLocale, "description", FIELD_MIN_LIMITS.description),
     whatsNew: computeFieldIssues(localeData, primaryLocale, "whatsNew", FIELD_MIN_LIMITS.whatsNew),
     keywords: computeFieldIssues(localeData, primaryLocale, "keywords", 1),
+    supportUrl: computeFieldIssues(localeData, primaryLocale, "supportUrl", 1),
+  };
+}
+
+/**
+ * Compute checklist flags for a generic per-locale string field (e.g. app info fields).
+ */
+export function computeLocaleFieldIssues(
+  localeData: Record<string, Record<string, string>>,
+  primaryLocale: string,
+  field: string,
+  minLength: number,
+): FieldIssues {
+  const primary = localeData[primaryLocale];
+  if (!primary || (primary[field]?.length ?? 0) < minLength) {
+    return { status: "missing", localesWithIssues: [] };
+  }
+
+  const failing: string[] = [];
+  for (const [locale, fields] of Object.entries(localeData)) {
+    if (locale === primaryLocale) continue;
+    if ((fields[field]?.length ?? 0) < minLength) {
+      failing.push(locale);
+    }
+  }
+
+  if (failing.length > 0) {
+    return { status: "warn", localesWithIssues: failing };
+  }
+  return { status: "ok", localesWithIssues: [] };
+}
+
+/**
+ * Compute checklist flags for app details fields.
+ */
+export function computeAppDetailsFlags(
+  localeData: Record<string, Record<string, string>>,
+  primaryLocale: string,
+): AppDetailsFlags {
+  return {
+    name: computeLocaleFieldIssues(localeData, primaryLocale, "name", 1),
+    privacyPolicyUrl: computeLocaleFieldIssues(localeData, primaryLocale, "privacyPolicyUrl", 1),
   };
 }

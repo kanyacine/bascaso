@@ -7,6 +7,7 @@ export async function updateVersionAttributes(
     versionString?: string;
     releaseType?: string;
     earliestReleaseDate?: string | null;
+    copyright?: string;
   },
 ): Promise<void> {
   await ascFetch(`/v1/appStoreVersions/${versionId}`, {
@@ -91,7 +92,61 @@ export async function submitForReview(
   versionId: string,
   platform: string,
 ): Promise<void> {
-  // Step 1: create a review submission for the app
+  // Step 1: find an existing draft submission or create a new one.
+  // Draft submissions (READY_FOR_REVIEW) can't be deleted or cancelled,
+  // so we reuse them to avoid accumulating dangling drafts.
+  const submissionId = await findOrCreateReviewSubmission(appId, platform);
+
+  // Step 2: add the version as a review submission item
+  await ascFetch("/v1/reviewSubmissionItems", {
+    method: "POST",
+    body: JSON.stringify({
+      data: {
+        type: "reviewSubmissionItems",
+        relationships: {
+          reviewSubmission: {
+            data: { type: "reviewSubmissions", id: submissionId },
+          },
+          appStoreVersion: {
+            data: { type: "appStoreVersions", id: versionId },
+          },
+        },
+      },
+    }),
+  });
+
+  // Step 3: confirm the submission
+  await ascFetch(`/v1/reviewSubmissions/${submissionId}`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      data: {
+        type: "reviewSubmissions",
+        id: submissionId,
+        attributes: { submitted: true },
+      },
+    }),
+  });
+}
+
+async function findOrCreateReviewSubmission(
+  appId: string,
+  platform: string,
+): Promise<string> {
+  // Check for an existing draft submission we can reuse
+  try {
+    const res = await ascFetch<{
+      data: { id: string; attributes: { state: string } }[];
+    }>(
+      `/v1/apps/${appId}/reviewSubmissions?filter[platform]=${platform}&filter[state]=READY_FOR_REVIEW`,
+    );
+
+    if (res.data.length > 0) {
+      return res.data[0].id;
+    }
+  } catch {
+    // If listing fails, fall through to create
+  }
+
   const submission = await ascFetch<{ data: { id: string } }>(
     "/v1/reviewSubmissions",
     {
@@ -110,49 +165,7 @@ export async function submitForReview(
     },
   );
 
-  const submissionId = submission.data.id;
-
-  try {
-    // Step 2: add the version as a review submission item
-    await ascFetch("/v1/reviewSubmissionItems", {
-      method: "POST",
-      body: JSON.stringify({
-        data: {
-          type: "reviewSubmissionItems",
-          relationships: {
-            reviewSubmission: {
-              data: { type: "reviewSubmissions", id: submissionId },
-            },
-            appStoreVersion: {
-              data: { type: "appStoreVersions", id: versionId },
-            },
-          },
-        },
-      }),
-    });
-
-    // Step 3: confirm the submission
-    await ascFetch(`/v1/reviewSubmissions/${submissionId}`, {
-      method: "PATCH",
-      body: JSON.stringify({
-        data: {
-          type: "reviewSubmissions",
-          id: submissionId,
-          attributes: { submitted: true },
-        },
-      }),
-    });
-  } catch (err) {
-    // Clean up the dangling draft submission so it doesn't block future attempts
-    try {
-      await ascFetch(`/v1/reviewSubmissions/${submissionId}`, {
-        method: "DELETE",
-      });
-    } catch {
-      // Best-effort cleanup
-    }
-    throw err;
-  }
+  return submission.data.id;
 }
 
 export async function releaseVersion(versionId: string): Promise<void> {

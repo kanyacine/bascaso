@@ -31,12 +31,15 @@ import { useRegisterHeaderLocale } from "@/lib/header-locale-context";
 import { useLocaleManagement } from "@/lib/hooks/use-locale-management";
 import { useLocaleHandlers } from "@/lib/hooks/use-locale-handlers";
 import { apiFetch } from "@/lib/api-fetch";
+import { useSubmissionChecklist } from "@/lib/submission-checklist-context";
+import { computeAppDetailsFlags } from "@/lib/submission-checklist-utils";
 import { MagicWandButton, wandProps } from "@/components/magic-wand-button";
 import type { MagicWandLocaleProps } from "@/components/magic-wand-button";
 import { BulkAIDialog, type BulkField } from "@/components/bulk-ai-dialog";
 import { BulkAllAIDialog } from "@/components/bulk-all-ai-dialog";
 import { EmptyState } from "@/components/empty-state";
 import { useTabNavigation } from "@/lib/hooks/use-tab-navigation";
+import { useRegisterRefresh } from "@/lib/refresh-context";
 
 const SORTED_CATEGORIES = Object.keys(CATEGORIES).sort((a, b) =>
   CATEGORIES[a].localeCompare(CATEGORIES[b]),
@@ -88,12 +91,21 @@ export default function AppDetailsPage() {
   const searchParams = useSearchParams();
   const { apps, updateApp } = useApps();
   const app = apps.find((a) => a.id === appId);
-  const { appInfos, loading: infoLoading } = useAppInfo(appId);
+  const { appInfos, loading: infoLoading, refresh: refreshAppInfo } = useAppInfo(appId);
   const appInfo = pickAppInfo(appInfos);
   const appInfoId = appInfo?.id ?? "";
 
-  const { localizations, loading: locLoading } =
+  const { localizations, loading: locLoading, refresh: refreshLocalizations } =
     useAppInfoLocalizations(appId, appInfoId);
+
+  const refreshLoading = infoLoading || locLoading;
+  useRegisterRefresh({
+    onRefresh: async () => {
+      await refreshAppInfo();
+      await refreshLocalizations();
+    },
+    busy: refreshLoading,
+  });
 
   const primaryLocale = app?.primaryLocale ?? "";
 
@@ -238,6 +250,17 @@ export default function AppDetailsPage() {
     }
     setValidationErrors(errors);
   }, [localeData, setValidationErrors]);
+
+  // Report submission checklist flags for app details fields
+  const { reportAppDetails } = useSubmissionChecklist();
+  useEffect(() => {
+    if (!localeData[primaryLocale]) return;
+    const mapped: Record<string, Record<string, string>> = {};
+    for (const [locale, fields] of Object.entries(localeData)) {
+      mapped[locale] = { ...fields };
+    }
+    reportAppDetails(computeAppDetailsFlags(mapped, primaryLocale));
+  }, [localeData, primaryLocale, reportAppDetails]);
 
   // Register save handler for the header Save button
   useEffect(() => {

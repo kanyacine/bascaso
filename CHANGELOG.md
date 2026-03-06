@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.2
+
+- Add copyright field to the store listing page
+- Expand submission checklist with screenshots, app name, support URL, privacy policy, and copyright checks
+- Surface associated errors from App Store Connect when submission fails – show the actual reasons (missing metadata, screenshots, etc.) instead of a generic error
+- Fix review submission cleanup – reuse existing draft submissions instead of failing to delete them
+- Fix app details refresh – the refresh button now reloads app info and localizations from App Store Connect
+- Invalidate app info caches on global refresh
+
 ## 1.2.1
 
 - Add demo mode – "Explore with sample data" on the setup screen lets you browse the full dashboard with three fictional apps, no credentials required

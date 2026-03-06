@@ -14,6 +14,7 @@ export interface AscError {
   method?: string;
   path?: string;
   entries?: AscErrorEntry[];
+  associatedErrors?: Record<string, AscErrorEntry[]>;
 }
 
 /**
@@ -23,6 +24,8 @@ export interface AscError {
 export function parseAscError(status: number, responseText: string): AscError {
   let detail: string | undefined;
   let entries: AscErrorEntry[] | undefined;
+
+  let associatedErrors: Record<string, AscErrorEntry[]> | undefined;
 
   try {
     const body = JSON.parse(responseText);
@@ -35,6 +38,26 @@ export function parseAscError(status: number, responseText: string): AscError {
       }));
       entries = parsed;
       detail = parsed[0]?.detail;
+
+      // Extract associatedErrors from meta (e.g. 409 submission errors)
+      const meta = body.errors[0]?.meta as Record<string, unknown> | undefined;
+      const assocRaw = meta?.associatedErrors as Record<string, unknown[]> | undefined;
+      if (assocRaw) {
+        associatedErrors = {};
+        for (const [key, errs] of Object.entries(assocRaw)) {
+          if (Array.isArray(errs)) {
+            associatedErrors[key] = errs.map((e: unknown) => {
+              const entry = e as Record<string, unknown>;
+              return {
+              code: (entry.code as string) ?? "",
+              title: (entry.title as string) ?? "",
+              detail: (entry.detail as string) ?? "",
+              source: entry.source as { pointer?: string } | undefined,
+            };
+            });
+          }
+        }
+      }
     }
   } catch {
     // Not JSON – use default messages below
@@ -46,6 +69,7 @@ export function parseAscError(status: number, responseText: string): AscError {
       message: detail ?? "API key may be invalid or expired",
       statusCode: status,
       entries,
+      associatedErrors,
     };
   }
 
@@ -55,6 +79,7 @@ export function parseAscError(status: number, responseText: string): AscError {
       message: detail ?? "App Store Connect is temporarily unavailable",
       statusCode: status,
       entries,
+      associatedErrors,
     };
   }
 
@@ -63,6 +88,7 @@ export function parseAscError(status: number, responseText: string): AscError {
     message: detail ?? `App Store Connect returned an error (${status})`,
     statusCode: status,
     entries,
+    associatedErrors,
   };
 }
 

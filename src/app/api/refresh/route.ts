@@ -35,10 +35,12 @@ export async function POST(request: Request) {
   }
 
   try {
-    // Invalidate apps, versions, and pre-release versions cache
+    // Invalidate all app-related caches
     cacheInvalidate("apps");
     cacheInvalidatePrefix("versions:");
     cacheInvalidatePrefix("tf-pre-release-versions:");
+    cacheInvalidatePrefix("appInfos:");
+    cacheInvalidatePrefix("appInfoLocalizations:");
     await listApps(true);
     await listVersions(parsed.data.appId, true);
 

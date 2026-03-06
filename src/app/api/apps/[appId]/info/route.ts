@@ -7,10 +7,11 @@ import { isDemoMode, getDemoAppInfos } from "@/lib/demo";
 
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ appId: string }> },
 ) {
   const { appId } = await params;
+  const refresh = new URL(request.url).searchParams.has("refresh");
 
   if (isDemoMode()) {
     return NextResponse.json({ appInfos: getDemoAppInfos(appId), meta: null });
@@ -21,7 +22,7 @@ export async function GET(
   }
 
   try {
-    const appInfos = await listAppInfos(appId);
+    const appInfos = await listAppInfos(appId, refresh);
     const meta = cacheGetMeta(`appInfos:${appId}`);
 
     return NextResponse.json({ appInfos, meta });
