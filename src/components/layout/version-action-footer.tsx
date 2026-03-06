@@ -66,7 +66,7 @@ function ChecklistIcon({ status, localesWithIssues }: { status: FieldStatus; loc
   return <Circle size={14} />;
 }
 
-function SubmissionChecklist({ version }: { version: AscVersion }) {
+function SubmissionChecklist({ version, isFirstVersion }: { version: AscVersion; isFirstVersion: boolean }) {
   const { flags } = useSubmissionChecklist();
 
   const hasBuild = version.build !== null;
@@ -76,7 +76,7 @@ function SubmissionChecklist({ version }: { version: AscVersion }) {
   const items: { label: string; status: FieldStatus; localesWithIssues?: string[] }[] = [
     { label: "Build", status: hasBuild ? "ok" : "missing" },
     { label: "Description", status: flags.description.status, localesWithIssues: flags.description.localesWithIssues },
-    { label: "What's new", status: flags.whatsNew.status, localesWithIssues: flags.whatsNew.localesWithIssues },
+    ...(!isFirstVersion ? [{ label: "What's new", status: flags.whatsNew.status, localesWithIssues: flags.whatsNew.localesWithIssues }] : []),
     { label: "Keywords", status: flags.keywords.status, localesWithIssues: flags.keywords.localesWithIssues },
     { label: "Review contact", status: hasContact ? "ok" : "missing" },
   ];
@@ -98,14 +98,14 @@ function SubmissionChecklist({ version }: { version: AscVersion }) {
   );
 }
 
-function useChecklistReady(version: AscVersion): boolean {
+function useChecklistReady(version: AscVersion, isFirstVersion: boolean): boolean {
   const { flags } = useSubmissionChecklist();
   const hasBuild = version.build !== null;
   const rd = version.reviewDetail?.attributes;
   const hasContact = !!(rd?.contactEmail && rd?.contactFirstName && rd?.contactLastName && rd?.contactPhone);
   return hasBuild
     && flags.description.status === "ok"
-    && flags.whatsNew.status === "ok"
+    && (isFirstVersion || flags.whatsNew.status === "ok")
     && flags.keywords.status === "ok"
     && hasContact;
 }
@@ -129,6 +129,7 @@ export function VersionActionFooter() {
 
   if (!appId || !FOOTER_PAGES.has(pageSegment) || !version) return null;
 
+  const isFirstVersion = !versions.some((v) => v.attributes.appStoreState === "READY_FOR_SALE");
   const state = version.attributes.appVersionState;
 
   const isSubmit = SUBMIT_STATES.has(state);
@@ -139,6 +140,7 @@ export function VersionActionFooter() {
       <SubmitFooter
         appId={appId}
         version={version}
+        isFirstVersion={isFirstVersion}
         isResubmit={isResubmit}
         isDirty={isDirty}
         isSaving={isSaving}
@@ -241,6 +243,7 @@ export function VersionActionFooter() {
 function SubmitFooter({
   appId,
   version,
+  isFirstVersion,
   isResubmit,
   isDirty,
   isSaving,
@@ -255,6 +258,7 @@ function SubmitFooter({
 }: {
   appId: string;
   version: AscVersion;
+  isFirstVersion: boolean;
   isResubmit: boolean;
   isDirty: boolean;
   isSaving: boolean;
@@ -267,7 +271,7 @@ function SubmitFooter({
   setLoading: (v: boolean) => void;
   setConfirmOpen: (v: boolean) => void;
 }) {
-  const checklistReady = useChecklistReady(version);
+  const checklistReady = useChecklistReady(version, isFirstVersion);
   const canSubmit = checklistReady && !hasValidationErrors && !isSaving;
 
   const label = isResubmit ? "Resubmit for review" : "Submit for review";
@@ -307,7 +311,7 @@ function SubmitFooter({
   return (
     <>
       {loading && <LoadingOverlay label="Submitting for review…" />}
-      <Footer left={<SubmissionChecklist version={version} />}>
+      <Footer left={<SubmissionChecklist version={version} isFirstVersion={isFirstVersion} />}>
         <Button disabled={!canSubmit || loading} onClick={() => setConfirmOpen(true)}>
           {label}
         </Button>

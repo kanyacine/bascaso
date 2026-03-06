@@ -1,13 +1,17 @@
 # Changelog
 
+## 1.2.1
+
+- Fix analytics not loading for accounts that never opened App Store Connect analytics on the web – automatically create report requests when none exist
+
 ## 1.2.0
 
 - Add demo mode – "Explore with sample data" on the setup screen lets you browse the full dashboard with three fictional apps, no credentials required
 - Retry on transient App Store Connect server errors (500) with exponential backoff
 - Fix proceeds chart and date picker disappearing when selected range has no data
 - Fix AI status not updating after configuring a provider without restarting the app
-- Fix analytics not loading for accounts that never opened App Store Connect analytics on the web – automatically create report requests when none exist
-- Fix "what's new" field causing sync errors on the first-ever app version – hide the field and skip it in save payloads when no version has been distributed yet
+- Fix "what's new" field causing sync errors on the first-ever app version – hide the field and submission checklist item when no version has been distributed yet
+- Add Tab/Shift+Tab navigation between text inputs on store listing, app details, app review, and TestFlight info pages
 
 ## 1.1.0
 
