@@ -1,10 +1,22 @@
 import type { ForgeConfig } from "@electron-forge/shared-types";
 import { MakerDMG } from "@electron-forge/maker-dmg";
 import { MakerZIP } from "@electron-forge/maker-zip";
+import MakerPKG from "@electron-forge/maker-pkg";
 import { APP_VERSION, BUILD_NUMBER } from "./src/lib/version";
 
 const isMAS = process.env.MAS === "1";
 const isMasDev = process.env.MAS_DEV === "1";
+const makers = isMAS
+  ? [new MakerPKG({ name: "Itsyconnect" })]
+  : [
+      new MakerDMG({
+        format: "ULFO",
+        name: "Itsyconnect",
+        icon: "public/icon.icns",
+        overwrite: true,
+      }),
+      new MakerZIP({}),
+    ];
 
 const config: ForgeConfig = {
   packagerConfig: {
@@ -55,16 +67,7 @@ const config: ForgeConfig = {
       return true;
     },
   },
-  makers: [
-    new MakerDMG({
-      format: "ULFO",
-      name: "Itsyconnect",
-      icon: "public/icon.icns",
-      overwrite: true,
-    }),
-
-    new MakerZIP({}),
-  ],
+  makers,
 };
 
 export default config;
