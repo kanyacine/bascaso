@@ -11,6 +11,7 @@
   <img src="https://img.shields.io/badge/next.js-16-black" alt="Next.js 16" />
   <img src="https://img.shields.io/badge/sqlite-WAL-green" alt="SQLite" />
   <img src="https://img.shields.io/badge/macOS-11%2B-999" alt="macOS 11+" />
+  <a href="https://github.com/nickustinov/itsyconnect-macos/releases"><img src="https://img.shields.io/github/downloads/nickustinov/itsyconnect-macos/total" alt="Downloads" /></a>
 </p>
 
 ---
