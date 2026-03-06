@@ -1,7 +1,7 @@
 import type { ForgeConfig } from "@electron-forge/shared-types";
 import { MakerDMG } from "@electron-forge/maker-dmg";
-
 import { MakerZIP } from "@electron-forge/maker-zip";
+import { execSync } from "child_process";
 import { APP_VERSION, BUILD_NUMBER } from "./src/lib/version";
 
 const isMAS = process.env.MAS === "1";
@@ -43,6 +43,28 @@ const config: ForgeConfig = {
     osxUniversal: {
       x64ArchFiles: "**/*.node",
     },
+    afterCopy: [
+      // Rebuild better-sqlite3 for the target architecture.
+      // `next build` standalone output only has the host-arch .node file,
+      // so universal builds need it rebuilt per-arch and copied in.
+      (buildPath: string, _electronVersion: string, _platform: string, arch: string, callback: (err?: Error) => void) => {
+        try {
+          execSync(
+            `npx electron-rebuild -f -o better-sqlite3 --build-from-source --arch=${arch}`,
+            { stdio: "inherit" },
+          );
+          const dest = `${buildPath}/.next/standalone/node_modules/better-sqlite3/build/Release`;
+          execSync(`mkdir -p "${dest}"`, { stdio: "inherit" });
+          execSync(
+            `cp node_modules/better-sqlite3/build/Release/better_sqlite3.node "${dest}/better_sqlite3.node"`,
+            { stdio: "inherit" },
+          );
+          callback();
+        } catch (err) {
+          callback(err as Error);
+        }
+      },
+    ],
     ignore: (filePath: string) => {
       if (!filePath) return false;
       if (filePath === "/package.json") return false;
