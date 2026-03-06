@@ -5,6 +5,7 @@ import os from "node:os";
 import { initLogger, getLogPath, getLogDir } from "../../electron/logger";
 
 const mockLogDir = path.join(os.tmpdir(), `logger-test-${process.pid}`);
+const MAX_LOG_SIZE = 10 * 1024 * 1024;
 
 describe("logger", () => {
   beforeEach(() => {
@@ -58,12 +59,12 @@ describe("logger", () => {
     expect(content).toContain('"key": "value"');
   });
 
-  it("rotates log file when it exceeds 1 MB", () => {
+  it("rotates log file when it exceeds 10 MB", () => {
     initLogger(mockLogDir);
     const logFile = getLogPath();
 
-    // Write > 1 MB to the log file directly
-    const bigContent = "x".repeat(1024 * 1024 + 1);
+    // Write > 10 MB to the log file directly
+    const bigContent = "x".repeat(MAX_LOG_SIZE + 1);
     fs.writeFileSync(logFile, bigContent);
 
     // Next write should trigger rotation
@@ -85,8 +86,8 @@ describe("logger", () => {
     // Create existing backup
     fs.writeFileSync(logFile + ".1", "old backup");
 
-    // Write > 1 MB to trigger rotation
-    fs.writeFileSync(logFile, "y".repeat(1024 * 1024 + 1));
+    // Write > 10 MB to trigger rotation
+    fs.writeFileSync(logFile, "y".repeat(MAX_LOG_SIZE + 1));
     console.log("new entry");
 
     // Old backup should be replaced
