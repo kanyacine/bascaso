@@ -135,12 +135,12 @@ const reportIdCache = new Map<string, string>();
 async function findReportRequestIds(appId: string): Promise<string[]> {
   // Tier 1: in-memory
   const memCached = reportRequestIdsCache.get(appId);
-  if (memCached) return memCached;
+  if (memCached && memCached.length > 0) return memCached;
 
   // Tier 2: SQLite
   const dbKey = `asc-report-requests:${appId}`;
   const dbCached = cacheGet<string[]>(dbKey);
-  if (dbCached) {
+  if (dbCached && dbCached.length > 0) {
     reportRequestIdsCache.set(appId, dbCached);
     return dbCached;
   }
@@ -154,11 +154,35 @@ async function findReportRequestIds(appId: string): Promise<string[]> {
   // ONGOING has recent daily data; SNAPSHOT has historical backfill.
   // Their instances can overlap on data dates – fetchReportData
   // deduplicates rows by data date to prevent double-counting.
-  const ids = response.data
+  let ids = response.data
     .filter((r) => r.attributes.accessType === "ONGOING" || r.attributes.accessType === "ONE_TIME_SNAPSHOT")
     .map((r) => r.id);
 
   console.log(`[analytics] ${appId}: ${ids.length} report requests (${response.data.map((r) => r.attributes.accessType).join(", ")})`);
+
+  // No report requests exist yet – create an ONGOING one.
+  // ASC requires a POST before analytics data becomes available.
+  if (ids.length === 0) {
+    console.log(`[analytics] ${appId}: creating ONGOING report request`);
+    const created = await ascFetch<{ data: { id: string } }>(
+      "/v1/analyticsReportRequests",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          data: {
+            type: "analyticsReportRequests",
+            attributes: { accessType: "ONGOING" },
+            relationships: {
+              app: { data: { type: "apps", id: appId } },
+            },
+          },
+        }),
+      },
+    );
+    ids = [created.data.id];
+    console.log(`[analytics] ${appId}: created report request ${created.data.id}`);
+  }
 
   reportRequestIdsCache.set(appId, ids);
   cacheSet(dbKey, ids, REPORT_ID_TTL);

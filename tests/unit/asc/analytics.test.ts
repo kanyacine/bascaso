@@ -123,35 +123,37 @@ describe("buildAnalyticsData", () => {
     expect(mockCacheGet).toHaveBeenCalledWith("analytics:app-cached");
   });
 
-  it("returns empty data when no report requests exist", async () => {
-    // First call: analytics cache miss
-    // Second call: report-requests SQLite cache miss
+  it("creates ONGOING report request when none exist", async () => {
     mockCacheGet.mockReturnValue(null);
+    // First call: list report requests – returns empty
     mockAscFetch.mockResolvedValueOnce(reportRequestsResponse([]));
+    // Second call: POST to create ONGOING report request
+    mockAscFetch.mockResolvedValueOnce({ data: { id: "new-req" } });
+    // Subsequent calls: reports, instances, segments – all empty
+    mockAscFetch.mockResolvedValue({ data: [] });
 
-    const result = await buildAnalyticsData("app-empty");
-    expect(result.dailyDownloads).toEqual([]);
-    expect(result.dailyRevenue).toEqual([]);
-    expect(result.dailyEngagement).toEqual([]);
-    expect(result.dailySessions).toEqual([]);
-    expect(result.dailyInstallsDeletes).toEqual([]);
-    expect(result.dailyDownloadsBySource).toEqual([]);
-    expect(result.dailyTerritoryDownloads).toEqual([]);
-    expect(result.dailyVersionSessions).toEqual([]);
-    expect(result.dailyOptIn).toEqual([]);
-    expect(result.dailyWebPreview).toEqual([]);
-    expect(result.territories).toEqual([]);
-    expect(result.discoverySources).toEqual([]);
-    expect(result.crashesByVersion).toEqual([]);
-    expect(result.crashesByDevice).toEqual([]);
-    expect(result.dailyCrashes).toEqual([]);
-    expect(result.perfMetrics).toEqual([]);
-    expect(result.perfRegressions).toEqual([]);
-    // Should cache the empty result
+    await buildAnalyticsData("app-empty");
+
+    expect(mockAscFetch).toHaveBeenCalledWith(
+      "/v1/analyticsReportRequests",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          data: {
+            type: "analyticsReportRequests",
+            attributes: { accessType: "ONGOING" },
+            relationships: {
+              app: { data: { type: "apps", id: "app-empty" } },
+            },
+          },
+        }),
+      }),
+    );
+    // Should cache the created ID
     expect(mockCacheSet).toHaveBeenCalledWith(
-      "analytics:app-empty",
-      expect.objectContaining({ dailyDownloads: [] }),
-      3_600_000,
+      "asc-report-requests:app-empty",
+      ["new-req"],
+      604_800_000,
     );
   });
 
