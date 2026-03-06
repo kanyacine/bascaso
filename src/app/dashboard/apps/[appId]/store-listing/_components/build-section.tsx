@@ -130,6 +130,35 @@ export function BuildSection({
     </DropdownMenu>
   );
 
+  // Build is selected but not yet in the TF builds list – fall back to version build data
+  if (!selectedBuild && selectedBuildId && versionBuild) {
+    const buildNumber = versionBuild.attributes.version;
+    const uploadedDate = versionBuild.attributes.uploadedDate;
+    const tpl = versionBuild.attributes.iconAssetToken?.templateUrl;
+    const iconUrl = tpl ? tpl.replace("{w}", "64").replace("{h}", "64").replace("{f}", "png") : null;
+
+    return (
+      <section className="space-y-2">
+        <h3 className="section-title">Build</h3>
+        <div className="flex items-center gap-4 rounded-lg border p-4">
+          <AppIcon iconUrl={iconUrl} name={`Build ${buildNumber}`} className="size-10" iconSize={20} />
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold">Build {buildNumber}</p>
+            {uploadedDate && (
+              <p className="text-sm text-muted-foreground">
+                {formatBuildDate(uploadedDate)}
+              </p>
+            )}
+          </div>
+          <Button variant="ghost" size="sm" onClick={onBuildRemove}>
+            Remove
+          </Button>
+          {picker}
+        </div>
+      </section>
+    );
+  }
+
   if (!selectedBuild) {
     return (
       <section className="space-y-2">

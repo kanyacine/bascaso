@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.3
+
+- Fix build not showing in store listing after cancelling a submission – fall back to version build data when the build isn't in the TestFlight builds list
+
 ## 1.2.2
 
 - Add app picker after setup – choose which app to manage when you have multiple apps
