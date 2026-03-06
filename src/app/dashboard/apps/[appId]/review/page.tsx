@@ -17,8 +17,10 @@ import { resolveVersion } from "@/lib/asc/version-types";
 import { FIELD_LIMITS } from "@/lib/asc/locale-names";
 import { CharCount } from "@/components/char-count";
 import { EmptyState } from "@/components/empty-state";
+import { useTabNavigation } from "@/lib/hooks/use-tab-navigation";
 
 export default function AppReviewPage() {
+  const tabRef = useTabNavigation();
   const { appId } = useParams<{ appId: string }>();
   const searchParams = useSearchParams();
   const { apps } = useApps();
@@ -164,7 +166,7 @@ export default function AppReviewPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div ref={tabRef} className="space-y-6">
       {/* Review notes */}
       <section className="space-y-2">
         <h3 className="section-title">Notes for App Review</h3>

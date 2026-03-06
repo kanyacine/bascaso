@@ -34,6 +34,7 @@ import { VersionStringSection } from "./_components/version-string-section";
 import { BuildSection } from "./_components/build-section";
 import { ReleaseSettings } from "./_components/release-settings";
 import { EmptyState } from "@/components/empty-state";
+import { useTabNavigation } from "@/lib/hooks/use-tab-navigation";
 
 
 function deriveReleaseSettings(version: AscVersion | undefined) {
@@ -70,6 +71,7 @@ function buildLocaleData(
 }
 
 export default function StoreListingPage() {
+  const tabRef = useTabNavigation();
   const { appId } = useParams<{ appId: string }>();
   const searchParams = useSearchParams();
   const { apps } = useApps();
@@ -547,7 +549,7 @@ export default function StoreListingPage() {
     : null;
 
   return (
-    <div className="space-y-6">
+    <div ref={tabRef} className="space-y-6">
         {/* Read-only banner */}
         {readOnly && selectedVersion && (
           <ReadOnlyBanner state={selectedVersion.attributes.appVersionState} />

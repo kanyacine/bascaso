@@ -36,6 +36,7 @@ import type { MagicWandLocaleProps } from "@/components/magic-wand-button";
 import { BulkAIDialog, type BulkField } from "@/components/bulk-ai-dialog";
 import { BulkAllAIDialog } from "@/components/bulk-all-ai-dialog";
 import { EmptyState } from "@/components/empty-state";
+import { useTabNavigation } from "@/lib/hooks/use-tab-navigation";
 
 const SORTED_CATEGORIES = Object.keys(CATEGORIES).sort((a, b) =>
   CATEGORIES[a].localeCompare(CATEGORIES[b]),
@@ -82,6 +83,7 @@ function buildLocaleData(
 }
 
 export default function AppDetailsPage() {
+  const tabRef = useTabNavigation();
   const { appId } = useParams<{ appId: string }>();
   const searchParams = useSearchParams();
   const { apps, updateApp } = useApps();
@@ -429,7 +431,7 @@ export default function AppDetailsPage() {
     : null;
 
   return (
-    <div className="space-y-8">
+    <div ref={tabRef} className="space-y-8">
       {/* Identifiers (read-only) */}
       <section className="space-y-2">
         <h3 className="section-title">Identifiers</h3>

@@ -32,6 +32,7 @@ import type {
   TFBetaReviewDetail,
   TFBetaLicenseAgreement,
 } from "@/lib/asc/testflight";
+import { useTabNavigation } from "@/lib/hooks/use-tab-navigation";
 
 interface BetaLocaleFields {
   description: string;
@@ -75,6 +76,7 @@ function buildLocaleIds(
 }
 
 export default function TestFlightInfoPage() {
+  const tabRef = useTabNavigation();
   const { appId } = useParams<{ appId: string }>();
   const searchParams = useSearchParams();
   const { apps } = useApps();
@@ -410,7 +412,7 @@ export default function TestFlightInfoPage() {
     : null;
 
   return (
-    <div className="space-y-8">
+    <div ref={tabRef} className="space-y-8">
       {/* Beta app information */}
       <section className="space-y-4">
         <h3 className="section-title">Beta app information</h3>
