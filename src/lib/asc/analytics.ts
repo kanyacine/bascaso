@@ -178,35 +178,38 @@ async function findReportRequestIds(appId: string): Promise<string[]> {
     console.warn(`[analytics] ${appId}: report requests exist but none are ONGOING/ONE_TIME_SNAPSHOT`);
   }
 
-  // No report requests exist yet – create both ONGOING (daily going forward)
-  // and ONE_TIME_SNAPSHOT (historical backfill). ASC requires a POST before
-  // analytics data becomes available. The snapshot takes hours to process
-  // but will eventually provide the full history.
-  if (ids.length === 0) {
-    for (const accessType of ["ONGOING", "ONE_TIME_SNAPSHOT"] as const) {
-      try {
-        console.log(`[analytics] ${appId}: creating ${accessType} report request`);
-        const created = await ascFetch<{ data: { id: string } }>(
-          "/v1/analyticsReportRequests",
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              data: {
-                type: "analyticsReportRequests",
-                attributes: { accessType },
-                relationships: {
-                  app: { data: { type: "apps", id: appId } },
-                },
+  // Create any missing report request types. ASC requires a POST before
+  // analytics data becomes available. ONGOING provides daily data going
+  // forward; ONE_TIME_SNAPSHOT provides historical backfill (takes hours).
+  const existingTypes = new Set(
+    response.data
+      .filter((r) => ids.includes(r.id))
+      .map((r) => r.attributes.accessType),
+  );
+  for (const accessType of ["ONGOING", "ONE_TIME_SNAPSHOT"] as const) {
+    if (existingTypes.has(accessType)) continue;
+    try {
+      console.log(`[analytics] ${appId}: creating ${accessType} report request`);
+      const created = await ascFetch<{ data: { id: string } }>(
+        "/v1/analyticsReportRequests",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            data: {
+              type: "analyticsReportRequests",
+              attributes: { accessType },
+              relationships: {
+                app: { data: { type: "apps", id: appId } },
               },
-            }),
-          },
-        );
-        ids.push(created.data.id);
-        console.log(`[analytics] ${appId}: created ${accessType} report request ${created.data.id}`);
-      } catch (err) {
-        console.warn(`[analytics] ${appId}: failed to create ${accessType} report request`, err);
-      }
+            },
+          }),
+        },
+      );
+      ids.push(created.data.id);
+      console.log(`[analytics] ${appId}: created ${accessType} report request ${created.data.id}`);
+    } catch (err) {
+      console.warn(`[analytics] ${appId}: failed to create ${accessType} report request`, err);
     }
   }
 

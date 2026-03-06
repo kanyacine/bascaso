@@ -52,6 +52,16 @@ function makeFetchResponse(body: string | Buffer, ok = true, status = 200) {
 }
 
 function reportRequestsResponse(ids: string[], accessTypes?: string[]) {
+  // When no explicit accessTypes and a single ID, auto-add a ONE_TIME_SNAPSHOT
+  // companion so the code doesn't try to POST-create one during tests.
+  if (!accessTypes && ids.length === 1) {
+    return {
+      data: [
+        { id: ids[0], attributes: { accessType: "ONGOING" } },
+        { id: `${ids[0]}-snap`, attributes: { accessType: "ONE_TIME_SNAPSHOT" } },
+      ],
+    };
+  }
   return {
     data: ids.map((id, i) => ({
       id,
@@ -170,6 +180,36 @@ describe("buildAnalyticsData", () => {
     expect(mockCacheSet).toHaveBeenCalledWith(
       "asc-report-requests:app-empty",
       ["new-ongoing", "new-snapshot"],
+      604_800_000,
+    );
+  });
+
+  it("creates missing ONE_TIME_SNAPSHOT when only ONGOING exists", async () => {
+    mockCacheGet.mockReturnValue(null);
+    // API returns only ONGOING (e.g. user upgrading from v1.2.0)
+    mockAscFetch.mockResolvedValueOnce(
+      reportRequestsResponse(["existing-ongoing"], ["ONGOING"]),
+    );
+    // POST to create ONE_TIME_SNAPSHOT
+    mockAscFetch.mockResolvedValueOnce({ data: { id: "new-snapshot" } });
+    // Subsequent calls: reports, instances – all empty
+    mockAscFetch.mockResolvedValue({ data: [] });
+
+    await buildAnalyticsData("app-upgrade");
+
+    // Should NOT create ONGOING (already exists)
+    const postCalls = mockAscFetch.mock.calls.filter(
+      (c: unknown[]) =>
+        c[0] === "/v1/analyticsReportRequests" &&
+        (c[1] as Record<string, string>)?.method === "POST",
+    );
+    expect(postCalls).toHaveLength(1);
+    expect(postCalls[0][1].body).toContain("ONE_TIME_SNAPSHOT");
+
+    // Should cache both IDs
+    expect(mockCacheSet).toHaveBeenCalledWith(
+      "asc-report-requests:app-upgrade",
+      ["existing-ongoing", "new-snapshot"],
       604_800_000,
     );
   });
@@ -359,7 +399,7 @@ describe("buildAnalyticsData – full pipeline", () => {
 
       // Report requests
       if (url.includes("/analyticsReportRequests") && !url.includes("/reports")) {
-        return reportRequestsResponse(["req-1"]);
+        return reportRequestsResponse(["req-1", "req-1-snap"], ["ONGOING", "ONE_TIME_SNAPSHOT"]);
       }
 
       // Reports for a request (by category)
@@ -615,7 +655,7 @@ describe("buildAnalyticsData – full pipeline", () => {
 
     expect(mockCacheSet).toHaveBeenCalledWith(
       "asc-report-requests:app-cache-rr",
-      ["req-1"],
+      ["req-1", "req-1-snap"],
       7 * 24 * 60 * 60 * 1000,
     );
   });
@@ -2093,13 +2133,14 @@ describe("findReportId caches all reports from a category", () => {
     expect(cachedNames).toContain("App Store Purchases Standard");
 
     // Both Commerce report types (Downloads + Purchases) call findReportId
-    // in parallel, so the COMMERCE category may be fetched twice if the parallel
-    // calls race. The key invariant is that both report names get cached.
+    // in parallel for each report request ID (ONGOING + ONE_TIME_SNAPSHOT),
+    // so the COMMERCE category may be fetched up to 4 times. The key
+    // invariant is that both report names get cached.
     const commerceCalls = mockAscFetch.mock.calls.filter(
       (c: string[]) => c[0].includes("filter[category]=COMMERCE"),
     );
     expect(commerceCalls.length).toBeGreaterThanOrEqual(1);
-    expect(commerceCalls.length).toBeLessThanOrEqual(2);
+    expect(commerceCalls.length).toBeLessThanOrEqual(4);
   });
 });
 
