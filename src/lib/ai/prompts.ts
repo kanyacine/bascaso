@@ -55,8 +55,11 @@ export function buildTranslatePrompt(
 
 Rules:
 - Preserve the original tone, formatting, and line breaks.
-- Keep brand names, technical terms, and proper nouns untranslated unless they have an established localised form.
-- For keywords: translate each keyword individually, keep them comma-separated, and optimise for local App Store search terms.`;
+- Keep brand names, technical terms, and proper nouns untranslated unless they have an established localised form.`;
+
+  if (context.field === "keywords") {
+    prompt += `\n- Translate each keyword individually, keep them comma-separated, and optimise for local App Store search terms.`;
+  }
 
   prompt += OUTPUT_CONSTRAINT;
 

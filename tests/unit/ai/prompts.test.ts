@@ -60,8 +60,18 @@ describe("buildTranslatePrompt", () => {
       { field: "keywords" },
     );
 
-    expect(prompt).toContain("keywords");
     expect(prompt).toContain("comma-separated");
+  });
+
+  it("excludes keyword-specific guidance for non-keyword fields", () => {
+    const prompt = buildTranslatePrompt(
+      "Download now and enjoy!",
+      "en-US",
+      "de-DE",
+      { field: "description" },
+    );
+
+    expect(prompt).not.toContain("comma-separated");
   });
 
   it("handles empty text", () => {

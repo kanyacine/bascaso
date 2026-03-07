@@ -3,6 +3,7 @@
 ## 1.2.3
 
 - Fix build not showing in store listing after cancelling a submission – fall back to version build data when the build isn't in the TestFlight builds list
+- Fix AI translation appending spurious keywords to translated descriptions – keyword-specific prompt rules are now only included when translating the keywords field
 
 ## 1.2.2
 
