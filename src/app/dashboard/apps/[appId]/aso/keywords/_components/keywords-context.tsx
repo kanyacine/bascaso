@@ -25,6 +25,7 @@ interface KeywordsContextValue {
   editedLocalizations: AscLocalization[];
   localeAnalysis: StorefrontAnalysis | null;
   readOnly: boolean;
+  versionState: string | null;
   loading: boolean;
   noVersions: boolean;
   handleKeywordsChange: (locale: string, keywords: string) => void;
@@ -183,6 +184,8 @@ export function KeywordsProvider({ children }: { children: React.ReactNode }) {
     return localizations.find((l) => l.attributes.locale === locale)?.attributes.description ?? "";
   }
 
+  const versionState = selectedVersion?.attributes.appVersionState ?? null;
+
   const value = useMemo((): KeywordsContextValue => ({
     app: app ? { id: app.id, name: app.name, primaryLocale: app.primaryLocale } : undefined,
     localizations,
@@ -190,13 +193,14 @@ export function KeywordsProvider({ children }: { children: React.ReactNode }) {
     editedLocalizations,
     localeAnalysis,
     readOnly,
+    versionState,
     loading,
     noVersions: !loading && versions.length === 0,
     handleKeywordsChange,
     getTitle,
     getSubtitle,
     getDescription,
-  }), [app, localizations, infoLocalizations, editedLocalizations, localeAnalysis, readOnly, loading, versions.length]);
+  }), [app, localizations, infoLocalizations, editedLocalizations, localeAnalysis, readOnly, versionState, loading, versions.length]);
 
   return (
     <KeywordsContext.Provider value={value}>

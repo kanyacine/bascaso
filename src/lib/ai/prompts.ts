@@ -112,7 +112,7 @@ export function buildFixKeywordsPrompt(
   prompt += `
 
 Task: produce a single comma-separated keyword string in ${locName} that is close to ${kwLimit} characters (currently ${currentLen}). Add at least ${moreCount} more keywords.
-Rules: no spaces after commas, single words preferred, no stop words, no plurals, no forbidden words.
+Rules: no spaces (Apple indexes words individually so "clipboard history" wastes a character vs "clipboard,history"), no stop words, no plurals, no forbidden words.
 1 CJK character = 1 character, not 3.
 Target length: ${Math.floor(kwLimit * 0.9)}–${kwLimit} characters.
 

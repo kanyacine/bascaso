@@ -148,10 +148,10 @@ export function FixAllDialog({
 
       const isPrimary = ld.resolvedLocale === primaryLocale;
 
-      // Primary locale: keep ALL keywords intact, only fill budget
-      // Other locales: remove name/subtitle overlaps + primary locale duplicates + already-claimed
+      // Remove name/subtitle overlaps for all locales.
+      // For non-primary: also remove primary locale duplicates + already-claimed.
       const cleaned = isPrimary
-        ? ld.keywordsRaw
+        ? cleanKeywords(ld)
         : cleanKeywords(ld, primaryKeywords, claimedKeywords);
 
       const forbidden = buildForbiddenWords(
@@ -160,17 +160,6 @@ export function FixAllDialog({
       // Add keywords from already-fixed locales to the forbidden list
       for (const kws of Object.values(newKeywordsByLocale)) {
         for (const kw of kws) forbidden.push(kw);
-      }
-
-      // If primary locale has no room to fill, skip AI call
-      if (isPrimary && ld.charsFree <= 5) {
-        newKeywordsByLocale[ld.locale] = ld.keywords;
-        for (const kw of ld.keywords) claimedKeywords.add(kw.toLowerCase());
-        setResults((prev) => ({
-          ...prev,
-          [ld.locale]: { status: "done", value: ld.keywordsRaw },
-        }));
-        continue;
       }
 
       try {

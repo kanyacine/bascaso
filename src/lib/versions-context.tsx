@@ -34,6 +34,16 @@ export function VersionsProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<ConnectionError | null>(null);
 
+  // Clear stale data immediately (during render) when appId changes,
+  // so consumers never see old-app versions with a new appId.
+  const [prevAppId, setPrevAppId] = useState(appId);
+  if (appId !== prevAppId) {
+    setPrevAppId(appId);
+    setVersions([]);
+    setLoading(true);
+    setError(null);
+  }
+
   const refresh = useCallback(async () => {
     if (!appId) return;
     setLoading(true);

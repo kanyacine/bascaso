@@ -208,34 +208,43 @@ export async function POST(request: Request) {
       );
     }
 
-    // For fix-keywords: strip NEW forbidden words (preserve originals the user kept)
+    // For fix-keywords: split multi-word keywords first (Apple indexes words
+    // individually), then strip forbidden words so individual words are caught.
     let cleaned = result;
-    if (action === "fix-keywords" && forbiddenWords && forbiddenWords.length > 0) {
-      const forbidden = new Set(forbiddenWords.map((w) => w.toLowerCase()));
-      // Words from the original input are protected – only strip newly added ones
-      const originals = new Set(
-        text.split(",").map((w) => w.trim().toLowerCase()).filter(Boolean),
-      );
-      const stripNewForbidden = (s: string) =>
-        s.split(",").map((w) => w.trim())
-          .filter((w) => w && (originals.has(w.toLowerCase()) || !forbidden.has(w.toLowerCase())))
-          .join(",");
+    if (action === "fix-keywords") {
+      // Split multi-word keywords: "clipboard history" → "clipboard,history"
+      const splitWords = (s: string) =>
+        s.split(",").flatMap((kw) => kw.trim().split(/\s+/)).filter(Boolean).join(",");
 
-      cleaned = stripNewForbidden(result);
+      cleaned = splitWords(result);
 
-      // If stripping left significant budget unused, retry with cleaned base
-      const limit = charLimit ?? 100;
-      if (cleaned.length < limit * 0.85) {
-        const retryPrompt = buildFixKeywordsPrompt(
-          cleaned, locale!, forbiddenWords, { field: "keywords", appName, charLimit, subtitle },
+      if (forbiddenWords && forbiddenWords.length > 0) {
+        const forbidden = new Set(forbiddenWords.map((w) => w.toLowerCase()));
+        // Words from the original input are protected – only strip newly added ones
+        const originals = new Set(
+          text.split(",").map((w) => w.trim().toLowerCase()).filter(Boolean),
         );
-        const { text: retry } = await generateText({
-          model, system: "You are a text-processing tool. Output ONLY the final result as plain text with no preamble, explanation, or commentary. Never use markdown, HTML, or any formatting syntax. Never refuse or ask questions.",
-          prompt: retryPrompt, temperature: 0,
-          providerOptions: noThinkingOptions(providerId, modelId),
-        });
-        if (!looksConversational(retry)) {
-          cleaned = stripNewForbidden(retry);
+        const stripNewForbidden = (s: string) =>
+          s.split(",").map((w) => w.trim())
+            .filter((w) => w && (originals.has(w.toLowerCase()) || !forbidden.has(w.toLowerCase())))
+            .join(",");
+
+        cleaned = stripNewForbidden(cleaned);
+
+        // If stripping left significant budget unused, retry with cleaned base
+        const limit = charLimit ?? 100;
+        if (cleaned.length < limit * 0.85) {
+          const retryPrompt = buildFixKeywordsPrompt(
+            cleaned, locale!, forbiddenWords, { field: "keywords", appName, charLimit, subtitle },
+          );
+          const { text: retry } = await generateText({
+            model, system: "You are a text-processing tool. Output ONLY the final result as plain text with no preamble, explanation, or commentary. Never use markdown, HTML, or any formatting syntax. Never refuse or ask questions.",
+            prompt: retryPrompt, temperature: 0,
+            providerOptions: noThinkingOptions(providerId, modelId),
+          });
+          if (!looksConversational(retry)) {
+            cleaned = stripNewForbidden(splitWords(retry));
+          }
         }
       }
     }

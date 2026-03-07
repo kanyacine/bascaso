@@ -62,8 +62,8 @@ import {
   type AscVersion,
 } from "@/lib/asc/version-types";
 
-const VERSION_PAGES = new Set(["store-listing", "screenshots", "review", "testflight"]);
-const SAVE_PAGES = new Set(["details", "store-listing", "review"]);
+const VERSION_PAGES = new Set(["store-listing", "screenshots", "review", "testflight", "aso"]);
+const SAVE_PAGES = new Set(["details", "store-listing", "review", "aso"]);
 const OVERVIEW_PAGE = "";
 
 const LIVE_STATES = new Set([
@@ -109,6 +109,9 @@ export function HeaderVersionPicker() {
   const isTestFlight = subpath === "testflight" || /^testflight\/groups\/[^/]+$/.test(subpath);
   if (!VERSION_PAGES.has(pageSegment) && !isTestFlight) return null;
   if (pageSegment === "testflight" && !isTestFlight) return null;
+
+  // Hide "New version/platform" on pages that only browse versions
+  const showCreateActions = !isTestFlight && pageSegment !== "aso";
 
   const versionParam = searchParams.get("version");
 
@@ -211,7 +214,7 @@ export function HeaderVersionPicker() {
                   </CommandItem>
                 ))}
               </CommandGroup>
-              {!isTestFlight && (
+              {showCreateActions && (
                 <>
                   <CommandSeparator />
                   <CommandGroup>
@@ -291,7 +294,7 @@ export function HeaderVersionPicker() {
                       </CommandItem>
                     ))}
               </CommandGroup>
-              {!isTestFlight && (
+              {showCreateActions && (
                 <>
                   <CommandSeparator />
                   <CommandGroup>
@@ -312,7 +315,7 @@ export function HeaderVersionPicker() {
         </PopoverContent>
       </Popover>
 
-      {!isTestFlight && (
+      {showCreateActions && (
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogContent className="sm:max-w-sm">
             <DialogHeader>

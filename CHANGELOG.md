@@ -16,6 +16,7 @@
 - AI keyword prompts now include app title, subtitle, and description for better suggestions
 - Primary locale keywords are treated as master – cross-locale duplicates are flagged and fixed in secondary locales only
 - Exchangeable locale fallback for storefronts (e.g. en-US serves en-CA when no en-CA localisation exists)
+- Add platform and version picker to keywords insights page – same picker as store listing with read-only banner for non-editable versions
 
 ## 1.2.3
 

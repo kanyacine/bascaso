@@ -27,6 +27,14 @@ export function PreReleaseVersionsProvider({ children }: { children: React.React
   const [versions, setVersions] = useState<PreReleaseVersion[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Clear stale data immediately when appId changes
+  const [prevAppId, setPrevAppId] = useState(appId);
+  if (appId !== prevAppId) {
+    setPrevAppId(appId);
+    setVersions([]);
+    setLoading(true);
+  }
+
   const fetchVersions = useCallback(async (forceRefresh = false) => {
     if (!appId) return;
     setLoading(true);

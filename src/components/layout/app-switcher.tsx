@@ -42,9 +42,9 @@ export function AppSwitcher() {
     );
   }, [apps, search]);
 
-  /** Subpages that persist across app switches (Insights + TestFlight). */
+  /** Subpages that persist across app switches (Insights + TestFlight + ASO). */
   const STICKY_SUBPAGES = new Set([
-    "reviews", "analytics", "sales", "testflight",
+    "reviews", "analytics", "sales", "testflight", "aso",
   ]);
 
   function buildAppUrl(targetAppId: string): string {

@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useParams, useSearchParams } from "next/navigation";
-import { Lock } from "@phosphor-icons/react";
 import { Spinner } from "@/components/ui/spinner";
+import { ReadOnlyBanner } from "@/components/read-only-banner";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { ApiError, apiFetch } from "@/lib/api-fetch";
@@ -593,7 +593,10 @@ export default function StoreListingPage() {
     <div ref={tabRef} className="space-y-6">
         {/* Read-only banner */}
         {readOnly && selectedVersion && (
-          <ReadOnlyBanner state={selectedVersion.attributes.appVersionState} />
+          <ReadOnlyBanner
+            state={selectedVersion.attributes.appVersionState}
+            liveMessage="This version is live – only promotional text can be updated without a new review."
+          />
         )}
 
         {/* Version string */}
@@ -725,22 +728,3 @@ export default function StoreListingPage() {
   );
 }
 
-const REVIEW_STATES = new Set(["WAITING_FOR_REVIEW", "IN_REVIEW"]);
-
-function ReadOnlyBanner({ state }: { state: string }) {
-  let message: string;
-  if (REVIEW_STATES.has(state)) {
-    message = "This version is in review – changes are locked until the review completes.";
-  } else if (state === "PENDING_DEVELOPER_RELEASE") {
-    message = "This version is approved and pending release – metadata is locked.";
-  } else {
-    message = "This version is live – only promotional text can be updated without a new review.";
-  }
-
-  return (
-    <div className="flex items-center gap-2 rounded-lg border border-border/60 bg-muted/50 px-4 py-3 text-sm text-muted-foreground">
-      <Lock size={16} className="shrink-0" />
-      {message}
-    </div>
-  );
-}

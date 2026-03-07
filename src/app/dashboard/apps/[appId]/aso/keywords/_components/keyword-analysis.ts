@@ -1,5 +1,6 @@
 import type { AscLocalization } from "@/lib/asc/localizations";
 import type { AscAppInfoLocalization } from "@/lib/asc/app-info";
+import { localeName } from "@/lib/asc/locale-names";
 import { resolveExchangeableLocale, storefrontsByLocale } from "@/lib/asc/storefronts";
 
 export interface LocaleKeywordData {
@@ -155,6 +156,8 @@ export function analyzeAllLocales(
       overlapsWithMetadata: overlaps,
     });
   }
+
+  localeData.sort((a, b) => localeName(a.locale).localeCompare(localeName(b.locale)));
 
   // Detect cross-locale duplicates – if two locales share a keyword
   // they're likely co-indexed in at least one storefront
