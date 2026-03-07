@@ -35,6 +35,7 @@ import { useApps, normalizeApp, type App } from "@/lib/apps-context";
 import { useRegisterRefresh } from "@/lib/refresh-context";
 import { formatDateShort } from "@/lib/format";
 import { parseRange, filterByDateRange } from "@/lib/analytics-range";
+import { usePersistedRange } from "@/lib/hooks/use-persisted-range";
 import type { AnalyticsData } from "@/lib/asc/analytics";
 
 const CHART_COLORS = [
@@ -56,7 +57,7 @@ export default function DashboardPage() {
   const searchParams = useSearchParams();
   const { apps, loading, truncated, needsAppSelection, refresh: refreshApps } = useApps();
   const [analytics, setAnalytics] = useState<Record<string, AppAnalytics>>({});
-  const [range, setRange] = useState<string | null>(null);
+  const [range, setRange] = usePersistedRange("range:portfolio-proceeds");
 
   // entry=1 means proxy redirected here on app launch – restore last URL
   const isEntry = searchParams.get("entry") === "1";

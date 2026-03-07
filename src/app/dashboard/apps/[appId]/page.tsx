@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -38,6 +38,9 @@ import {
   ChartLegendContent,
   type ChartConfig,
 } from "@/components/ui/chart";
+import { DateRangePicker } from "@/components/analytics-range-picker";
+import { usePersistedRange } from "@/lib/hooks/use-persisted-range";
+import { parseRange, filterByDateRange } from "@/lib/analytics-range";
 import type { AnalyticsData } from "@/lib/asc/analytics";
 import { formatDateShort } from "@/lib/format";
 
@@ -111,6 +114,8 @@ export default function AppOverviewPage() {
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [pending, setPending] = useState(false);
   const [analyticsLoading, setAnalyticsLoading] = useState(true);
+  const [downloadsRange, setDownloadsRange] = usePersistedRange("range:overview-downloads");
+  const [proceedsRange, setProceedsRange] = usePersistedRange("range:overview-proceeds");
 
   useEffect(() => {
     let cancelled = false;
@@ -128,32 +133,19 @@ export default function AppOverviewPage() {
     return () => { cancelled = true; };
   }, [appId]);
 
-  if (appsLoading || versionsLoading) {
-    return (
-      <div className="flex flex-1 items-center justify-center">
-        <Spinner className="size-6 text-muted-foreground" />
-      </div>
-    );
-  }
+  const parsedDownloads = useMemo(() => parseRange(downloadsRange), [downloadsRange]);
+  const parsedProceeds = useMemo(() => parseRange(proceedsRange), [proceedsRange]);
 
-  if (!app) {
-    return <EmptyState title="App not found" />;
-  }
-
-  // Last 30 days of data
-  const last30Downloads = (analytics?.dailyDownloads ?? []).slice(-30);
-  const last30Revenue = (analytics?.dailyRevenue ?? []).slice(-30);
-  const last30Sessions = (analytics?.dailySessions ?? []).slice(-30);
-
-  const totalDownloads = last30Downloads.reduce(
+  // All-time KPI stats
+  const totalDownloads = (analytics?.dailyDownloads ?? []).reduce(
     (s, d) => s + d.firstTime + d.redownload,
     0,
   );
-  const totalProceeds = last30Revenue.reduce(
+  const totalProceeds = (analytics?.dailyRevenue ?? []).reduce(
     (s, d) => s + d.proceeds,
     0,
   );
-  const totalDevices = last30Sessions.reduce(
+  const totalDevices = (analytics?.dailySessions ?? []).reduce(
     (s, d) => s + d.uniqueDevices,
     0,
   );
@@ -165,6 +157,28 @@ export default function AppOverviewPage() {
     totalDevices > 0
       ? ((1 - crashDevices / totalDevices) * 100).toFixed(1)
       : "100";
+
+  // Filtered chart data
+  const filteredDownloads = useMemo(
+    () => filterByDateRange(analytics?.dailyDownloads ?? [], parsedDownloads),
+    [analytics, parsedDownloads],
+  );
+  const filteredRevenue = useMemo(
+    () => filterByDateRange(analytics?.dailyRevenue ?? [], parsedProceeds),
+    [analytics, parsedProceeds],
+  );
+
+  if (appsLoading || versionsLoading) {
+    return (
+      <div className="flex flex-1 items-center justify-center">
+        <Spinner className="size-6 text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!app) {
+    return <EmptyState title="App not found" />;
+  }
 
   return (
     <div className="space-y-6">
@@ -227,7 +241,7 @@ export default function AppOverviewPage() {
         ))}
       </div>
 
-      {/* Analytics: KPI cards + chart, or pending placeholder */}
+      {/* Analytics: KPI cards + charts, or pending placeholder */}
       {analyticsLoading ? (
         <div className="flex items-center justify-center py-12">
           <Spinner className="size-6 text-muted-foreground" />
@@ -240,41 +254,44 @@ export default function AppOverviewPage() {
         </Card>
       ) : analytics ? (
         <>
-          {/* KPI cards */}
+          {/* KPI cards – all-time stats */}
           <div className="grid gap-4 sm:grid-cols-3">
             <KpiCard
               title="Total downloads"
               value={totalDownloads.toLocaleString()}
+              subtitle="All time"
               icon={DownloadSimple}
             />
             <KpiCard
-              title="Proceeds"
-              value={`$${totalProceeds.toLocaleString()}`}
+              title="Total proceeds"
+              value={`$${totalProceeds.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
+              subtitle="All time"
               icon={CurrencyDollar}
             />
             <KpiCard
               title="Crash-free rate"
               value={`${crashFreeRate}%`}
-              subtitle={crashDevices > 0 ? `${crashDevices} affected devices` : undefined}
+              subtitle={crashDevices > 0 ? `${crashDevices} affected devices` : "All time"}
               icon={ShieldCheck}
             />
           </div>
 
           {/* Charts row */}
           <div className="grid gap-4 lg:grid-cols-2">
-            {last30Downloads.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-sm font-medium">
-                    Downloads over time
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0">
+                <CardTitle className="text-sm font-medium">
+                  Downloads
+                </CardTitle>
+                <DateRangePicker value={downloadsRange} onChange={setDownloadsRange} />
+              </CardHeader>
+              <CardContent>
+                {filteredDownloads.length > 0 ? (
                   <ChartContainer
                     config={downloadsConfig}
                     className="h-[240px] w-full"
                   >
-                    <BarChart data={last30Downloads} accessibilityLayer>
+                    <BarChart data={filteredDownloads} accessibilityLayer>
                       <CartesianGrid vertical={false} />
                       <XAxis
                         dataKey="date"
@@ -306,23 +323,28 @@ export default function AppOverviewPage() {
                       />
                     </BarChart>
                   </ChartContainer>
-                </CardContent>
-              </Card>
-            )}
+                ) : (
+                  <p className="py-12 text-center text-sm text-muted-foreground">
+                    No data for this period.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
 
-            {last30Revenue.length > 0 && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-sm font-medium">
-                    Proceeds over time
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0">
+                <CardTitle className="text-sm font-medium">
+                  Proceeds
+                </CardTitle>
+                <DateRangePicker value={proceedsRange} onChange={setProceedsRange} />
+              </CardHeader>
+              <CardContent>
+                {filteredRevenue.length > 0 ? (
                   <ChartContainer
                     config={proceedsConfig}
                     className="h-[240px] w-full"
                   >
-                    <LineChart data={last30Revenue} accessibilityLayer>
+                    <LineChart data={filteredRevenue} accessibilityLayer>
                       <CartesianGrid vertical={false} />
                       <XAxis
                         dataKey="date"
@@ -362,9 +384,13 @@ export default function AppOverviewPage() {
                       />
                     </LineChart>
                   </ChartContainer>
-                </CardContent>
-              </Card>
-            )}
+                ) : (
+                  <p className="py-12 text-center text-sm text-muted-foreground">
+                    No data for this period.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
           </div>
         </>
       ) : null}

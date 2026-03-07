@@ -159,15 +159,23 @@ export function DateRangePicker({ value, lastDate, onChange }: DateRangePickerPr
   );
 }
 
+const RANGE_STORAGE_KEY = "range:analytics";
+
 export function AnalyticsRangePicker() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { lastDate } = useAnalytics();
 
-  const currentRange = searchParams.get("range");
+  const urlRange = searchParams.get("range");
+  const storedRange = typeof window !== "undefined" ? (() => { try { return localStorage.getItem(RANGE_STORAGE_KEY); } catch { return null; } })() : null;
+  const currentRange = urlRange ?? storedRange;
 
   function handleChange(range: string | null) {
+    try {
+      if (range === null) localStorage.removeItem(RANGE_STORAGE_KEY);
+      else localStorage.setItem(RANGE_STORAGE_KEY, range);
+    } catch {}
     const params = new URLSearchParams(searchParams.toString());
     if (range === null) {
       params.delete("range");
