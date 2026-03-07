@@ -45,6 +45,8 @@ Everything runs locally. One SQLite database, no cloud, no accounts, no telemetr
 
 **Analytics** – impressions, downloads, proceeds, first-time downloads, sessions, crashes, and conversion funnel. Compare periods, break down by territory, track version adoption. Acquisition sources, usage patterns, and crash reports across separate tabs.
 
+**Keyword optimisation** – track keyword character budgets per locale and storefront. Detect duplicates between name, subtitle, and keyword fields within a locale and across locales. One-click fix suggestions help maximise coverage and ranking across every market.
+
 **Customer reviews** – filter by rating, territory, or response status. Translate foreign-language reviews with one click. Draft replies with AI, automatically matching the reviewer's language. Edit and delete existing responses.
 
 **Screenshots** – upload, reorder with drag-and-drop, preview in lightbox, and delete screenshots across all device categories (iPhone, iPad, Mac, Apple TV, Apple Watch, Apple Vision) and locales.
