@@ -4,6 +4,9 @@
 
 - Add AI-powered review insights panel – analyses customer reviews to extract strengths and weaknesses, updates incrementally when new reviews arrive
 - Add unread reviews indicator on the Reviews sidebar item
+- Fix app overview KPI cards to show all-time totals instead of last 30 days
+- Add date range picker to downloads and proceeds charts on app overview
+- Persist date range selection across page navigation and app restarts
 
 ## 1.3.1
 
