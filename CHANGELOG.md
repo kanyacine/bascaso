@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.3.0
+
+- Add keywords insights page with per-locale keyword analysis, cross-locale duplicate detection, and storefront view
+- Add "Fix all issues" bulk AI keyword optimisation across all locales
+- Add per-locale "Fix issues" AI keyword improvement that removes name/subtitle overlaps and cross-locale duplicates
+- Add keyword tips in store listing showing empty or underused keyword budget
+- AI keyword prompts now include app title, subtitle, and description for better suggestions
+- Primary locale keywords are treated as master – cross-locale duplicates are flagged and fixed in secondary locales only
+- Exchangeable locale fallback for storefronts (e.g. en-US serves en-CA when no en-CA localisation exists)
+
 ## 1.2.3
 
 - Fix build not showing in store listing after cancelling a submission – fall back to version build data when the build isn't in the TestFlight builds list

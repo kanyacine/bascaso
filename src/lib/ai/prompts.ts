@@ -75,7 +75,7 @@ ${text}`;
 
 export function buildGenerateKeywordsPrompt(
   locale: string,
-  context: FieldContext & { description?: string },
+  context: FieldContext & { description?: string; subtitle?: string },
 ): string {
   const locName = localeName(locale);
 
@@ -83,6 +83,9 @@ export function buildGenerateKeywordsPrompt(
 
   if (context.appName) {
     prompt += `\nThe app is called "${context.appName}".`;
+  }
+  if (context.subtitle) {
+    prompt += `\nApp subtitle: "${context.subtitle}".`;
   }
   if (context.description) {
     prompt += `\n\nApp description for context:\n${context.description}`;
@@ -109,7 +112,7 @@ Rules:
 export function buildOptimizeKeywordsPrompt(
   keywords: string,
   locale: string,
-  context: FieldContext & { description?: string },
+  context: FieldContext & { description?: string; subtitle?: string },
 ): string {
   const locName = localeName(locale);
 
@@ -117,6 +120,9 @@ export function buildOptimizeKeywordsPrompt(
 
   if (context.appName) {
     prompt += `\nThe app is called "${context.appName}".`;
+  }
+  if (context.subtitle) {
+    prompt += `\nApp subtitle: "${context.subtitle}".`;
   }
   if (context.description) {
     prompt += `\n\nApp description for context:\n${context.description}`;
@@ -175,6 +181,54 @@ Tasks:
 - Do NOT duplicate words already present in the current keywords or app name.
 - Keep terms comma-separated with NO spaces after commas.
 - HARD LIMIT: The output MUST be ${context.charLimit ?? 100} characters or fewer. This is a system constraint – longer output will be rejected. Maximise the budget but never exceed it.`;
+
+  prompt += OUTPUT_CONSTRAINT;
+
+  return prompt;
+}
+
+export function buildFixKeywordsPrompt(
+  cleanedKeywords: string,
+  locale: string,
+  forbiddenWords: string[],
+  context: FieldContext & { description?: string; subtitle?: string },
+): string {
+  const locName = localeName(locale);
+  const kwLimit = context.charLimit ?? 100;
+  const currentLen = cleanedKeywords.length;
+
+  let prompt = `App Store keywords for ${locName} (${locale}).`;
+  if (context.appName) prompt += ` App: "${context.appName}".`;
+  if (context.subtitle) prompt += ` Subtitle: "${context.subtitle}".`;
+
+  if (context.description) {
+    // Truncate description to keep prompt focused
+    const desc = context.description.length > 500
+      ? context.description.slice(0, 500) + "..."
+      : context.description;
+    prompt += `\n\nApp description for context:\n${desc}`;
+  }
+
+  if (cleanedKeywords) {
+    prompt += `\n\nKeep these: ${cleanedKeywords}`;
+  }
+
+  prompt += `\n\nForbidden (already indexed elsewhere): ${forbiddenWords.join(", ") || "none"}`;
+
+  // Estimate how many more keywords can fit (avg keyword length + comma)
+  const currentKeywords = cleanedKeywords ? cleanedKeywords.split(",").filter(Boolean) : [];
+  const avgLen = currentKeywords.length > 0
+    ? Math.ceil(currentKeywords.reduce((sum, kw) => sum + kw.length, 0) / currentKeywords.length)
+    : 3;
+  const freeChars = kwLimit - currentLen;
+  const moreCount = Math.max(1, Math.floor(freeChars / (avgLen + 1)));
+
+  prompt += `
+
+Add at least ${moreCount} more ${locName} keywords. You MUST use close to ${kwLimit} total characters (currently only ${currentLen}).
+IMPORTANT: 1 CJK character = 1 character, NOT 3. Count each Chinese/Japanese/Korean character as exactly 1.
+Comma-separated, no spaces after commas. Single words preferred. No stop words or plurals.
+Output the full keyword string (kept + new). Must be ${kwLimit} chars or fewer but at least ${Math.floor(kwLimit * 0.9)}.`;
 
   prompt += OUTPUT_CONSTRAINT;
 

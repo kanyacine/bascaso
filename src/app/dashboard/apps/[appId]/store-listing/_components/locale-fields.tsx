@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -7,6 +8,27 @@ import { KeywordTagInput } from "@/components/keyword-tag-input";
 import { FIELD_LIMITS, FIELD_MIN_LIMITS } from "@/lib/asc/locale-names";
 import { MagicWandButton, wandProps } from "@/components/magic-wand-button";
 import type { MagicWandLocaleProps } from "@/components/magic-wand-button";
+
+function KeywordTip({ keywords }: { keywords: string }) {
+  const len = keywords.length;
+  const free = FIELD_LIMITS.keywords - len;
+
+  if (len === 0) {
+    return (
+      <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-muted-foreground">
+        Empty
+      </Badge>
+    );
+  }
+  if (free > 15) {
+    return (
+      <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-amber-500/50 text-amber-600 dark:text-amber-400">
+        {free} chars free
+      </Badge>
+    );
+  }
+  return null;
+}
 
 export interface LocaleFields {
   description: string;
@@ -157,6 +179,7 @@ export function LocaleFieldsSection({
             disabled={readOnly}
             onTranslateAll={() => onBulkAllMode("keywords")}
           />
+          <KeywordTip keywords={current.keywords} />
         </div>
         <Card className="gap-0 py-0">
           <CardContent className="px-5 py-4">

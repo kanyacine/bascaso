@@ -12,6 +12,7 @@ import {
   buildGenerateKeywordsPrompt,
   buildOptimizeKeywordsPrompt,
   buildFillKeywordGapsPrompt,
+  buildFixKeywordsPrompt,
 } from "@/lib/ai/prompts";
 import { errorJson, parseBody } from "@/lib/api-helpers";
 
@@ -80,6 +81,7 @@ const requestSchema = z.object({
     "generate-keywords",
     "optimize-keywords",
     "fill-keyword-gaps",
+    "fix-keywords",
     "draft-reply",
     "draft-appeal",
   ]),
@@ -93,7 +95,9 @@ const requestSchema = z.object({
   appName: z.string().optional(),
   charLimit: z.number().optional(),
   description: z.string().optional(),
+  subtitle: z.string().optional(),
   otherLocaleKeywords: z.record(z.string(), z.string()).optional(),
+  forbiddenWords: z.array(z.string()).optional(),
 });
 
 export async function POST(request: Request) {
@@ -102,7 +106,7 @@ export async function POST(request: Request) {
 
   const {
     action, text, field, reviewTitle, rating, fromLocale, toLocale, locale,
-    appName, charLimit, description, otherLocaleKeywords,
+    appName, charLimit, description, subtitle, otherLocaleKeywords, forbiddenWords,
   } = parsed;
 
   // Copy needs no AI – echo the text back
@@ -174,7 +178,7 @@ export async function POST(request: Request) {
           { status: 400 },
         );
       }
-      prompt = buildGenerateKeywordsPrompt(locale, { ...context, description });
+      prompt = buildGenerateKeywordsPrompt(locale, { ...context, description, subtitle });
       break;
     }
     case "optimize-keywords": {
@@ -184,7 +188,7 @@ export async function POST(request: Request) {
           { status: 400 },
         );
       }
-      prompt = buildOptimizeKeywordsPrompt(text, locale, { ...context, description });
+      prompt = buildOptimizeKeywordsPrompt(text, locale, { ...context, description, subtitle });
       break;
     }
     case "fill-keyword-gaps": {
@@ -195,6 +199,21 @@ export async function POST(request: Request) {
         );
       }
       prompt = buildFillKeywordGapsPrompt(text, locale, otherLocaleKeywords ?? {}, context);
+      break;
+    }
+    case "fix-keywords": {
+      if (!locale) {
+        return NextResponse.json(
+          { error: "locale is required for fix-keywords" },
+          { status: 400 },
+        );
+      }
+      prompt = buildFixKeywordsPrompt(
+        text,
+        locale,
+        forbiddenWords ?? [],
+        { ...context, description, subtitle },
+      );
       break;
     }
     case "draft-reply": {
@@ -226,8 +245,40 @@ export async function POST(request: Request) {
       );
     }
 
+    // For fix-keywords: strip NEW forbidden words (preserve originals the user kept)
+    let cleaned = result;
+    if (action === "fix-keywords" && forbiddenWords && forbiddenWords.length > 0) {
+      const forbidden = new Set(forbiddenWords.map((w) => w.toLowerCase()));
+      // Words from the original input are protected – only strip newly added ones
+      const originals = new Set(
+        text.split(",").map((w) => w.trim().toLowerCase()).filter(Boolean),
+      );
+      const stripNewForbidden = (s: string) =>
+        s.split(",").map((w) => w.trim())
+          .filter((w) => w && (originals.has(w.toLowerCase()) || !forbidden.has(w.toLowerCase())))
+          .join(",");
+
+      cleaned = stripNewForbidden(result);
+
+      // If stripping left significant budget unused, retry with cleaned base
+      const limit = charLimit ?? 100;
+      if (cleaned.length < limit * 0.85) {
+        const retryPrompt = buildFixKeywordsPrompt(
+          cleaned, locale!, forbiddenWords, { field: "keywords", appName, charLimit, subtitle },
+        );
+        const { text: retry } = await generateText({
+          model, system: "You are a text-processing tool. Output ONLY the final result as plain text with no preamble, explanation, or commentary. Never use markdown, HTML, or any formatting syntax. Never refuse or ask questions.",
+          prompt: retryPrompt, temperature: 0,
+          providerOptions: noThinkingOptions(providerId, modelId),
+        });
+        if (!looksConversational(retry)) {
+          cleaned = stripNewForbidden(retry);
+        }
+      }
+    }
+
     // Enforce character limit as a safety net – LLMs don't always respect prompt constraints
-    const finalResult = charLimit ? truncateToLimit(result, charLimit, field ?? "") : result;
+    const finalResult = charLimit ? truncateToLimit(cleaned, charLimit, field ?? "") : cleaned;
 
     return NextResponse.json({ result: finalResult });
   } catch (err) {

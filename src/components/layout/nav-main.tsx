@@ -14,6 +14,7 @@ import {
   Truck,
   UsersThree,
   ChatDots,
+  MagnifyingGlass,
 } from "@phosphor-icons/react";
 import type { Icon } from "@phosphor-icons/react";
 import {
@@ -54,6 +55,7 @@ function getNavGroups(appId: string): NavGroup[] {
       items: [
         { title: "Reviews", href: `${base}/reviews`, icon: ChatsCircle },
         { title: "Analytics", href: `${base}/analytics`, icon: ChartLineUp },
+        { title: "Keywords", href: `${base}/aso/keywords`, icon: MagnifyingGlass },
       ],
     },
     {
