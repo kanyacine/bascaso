@@ -14,14 +14,8 @@ import { errorJson } from "@/lib/api-helpers";
 const INSIGHTS_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
 const insightSchema = z.object({
-  strengths: z.array(z.object({
-    point: z.string(),
-    mentions: z.number(),
-  })),
-  weaknesses: z.array(z.object({
-    point: z.string(),
-    mentions: z.number(),
-  })),
+  strengths: z.array(z.string()),
+  weaknesses: z.array(z.string()),
 });
 
 export type ReviewInsights = z.infer<typeof insightSchema>;

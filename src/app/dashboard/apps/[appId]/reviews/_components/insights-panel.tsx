@@ -14,14 +14,9 @@ import { toast } from "sonner";
 import { useAIStatus } from "@/lib/hooks/use-ai-status";
 import { useInsightsPanel } from "@/lib/insights-panel-context";
 
-interface InsightPoint {
-  point: string;
-  mentions: number;
-}
-
 interface Insights {
-  strengths: InsightPoint[];
-  weaknesses: InsightPoint[];
+  strengths: string[];
+  weaknesses: string[];
 }
 
 export function InsightsPanel({
@@ -183,10 +178,7 @@ export function InsightsPanel({
                   {insights.strengths.map((s, i) => (
                     <li key={i} className="flex items-baseline gap-2 text-sm leading-snug">
                       <span className="relative top-[-1px] size-1.5 shrink-0 rounded-full bg-emerald-500" />
-                      <span className="flex-1">{s.point}</span>
-                      <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">
-                        {s.mentions}
-                      </span>
+                      <span>{s}</span>
                     </li>
                   ))}
                 </ul>
@@ -202,10 +194,7 @@ export function InsightsPanel({
                   {insights.weaknesses.map((w, i) => (
                     <li key={i} className="flex items-baseline gap-2 text-sm leading-snug">
                       <span className="relative top-[-1px] size-1.5 shrink-0 rounded-full bg-red-500" />
-                      <span className="flex-1">{w.point}</span>
-                      <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">
-                        {w.mentions}
-                      </span>
+                      <span>{w}</span>
                     </li>
                   ))}
                 </ul>

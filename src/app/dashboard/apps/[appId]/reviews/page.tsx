@@ -44,6 +44,7 @@ import type { AscCustomerReview } from "@/lib/asc/reviews";
 import { EmptyState } from "@/components/empty-state";
 import { ErrorState } from "@/components/error-state";
 import { useMarkReviewsRead } from "@/lib/hooks/use-unread-reviews";
+import { usePersistedState, usePersistedBool } from "@/lib/hooks/use-persisted-range";
 import { InsightsPanel } from "./_components/insights-panel";
 
 // ── Territory helpers ──────────────────────────────────────────────
@@ -200,11 +201,12 @@ export default function ReviewsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Filters
-  const [sortBy, setSortBy] = useState("newest");
-  const [ratingFilter, setRatingFilter] = useState("all");
-  const [territoryFilter, setTerritoryFilter] = useState("all");
-  const [hideResponded, setHideResponded] = useState(false);
+  // Filters (persisted)
+  const [sortBy, setSortBy] = usePersistedState("reviews:sort", "newest");
+  const [ratingFilter, setRatingFilter] = usePersistedState("reviews:rating", "all");
+  const [territoryFilter, setTerritoryFilter] = usePersistedState("reviews:territory", "all");
+  const [dateFilter, setDateFilter] = usePersistedState("reviews:date", "all");
+  const [hideResponded, setHideResponded] = usePersistedBool("reviews:hide-responded", false);
 
   // Translation state
   const [translations, setTranslations] = useState<
@@ -280,6 +282,29 @@ export default function ReviewsPage() {
   const filtered = useMemo(() => {
     let result = [...reviews];
 
+    if (dateFilter !== "all") {
+      const now = new Date();
+      let cutoff: Date;
+      switch (dateFilter) {
+        case "7d":
+          cutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 7);
+          break;
+        case "30d":
+          cutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 30);
+          break;
+        case "90d":
+          cutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 90);
+          break;
+        case "year":
+          cutoff = new Date(now.getFullYear(), 0, 1);
+          break;
+        default:
+          cutoff = new Date(0);
+      }
+      const cutoffStr = cutoff.toISOString();
+      result = result.filter((r) => r.createdDate >= cutoffStr);
+    }
+
     if (ratingFilter !== "all") {
       const star = parseInt(ratingFilter);
       result = result.filter((r) => r.rating === star);
@@ -294,12 +319,12 @@ export default function ReviewsPage() {
     }
 
     return result;
-  }, [reviews, ratingFilter, territoryFilter, hideResponded]);
+  }, [reviews, dateFilter, ratingFilter, territoryFilter, hideResponded]);
 
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [ratingFilter, territoryFilter, hideResponded, sortBy]);
+  }, [ratingFilter, territoryFilter, dateFilter, hideResponded, sortBy]);
 
   // Summary stats (from all reviews, not filtered)
   const total = reviews.length;
@@ -656,6 +681,19 @@ export default function ReviewsPage() {
             <SelectItem value="oldest">Oldest first</SelectItem>
             <SelectItem value="highest">Highest rated</SelectItem>
             <SelectItem value="lowest">Lowest rated</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Select value={dateFilter} onValueChange={setDateFilter}>
+          <SelectTrigger className="w-[140px] text-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All time</SelectItem>
+            <SelectItem value="7d">Last 7 days</SelectItem>
+            <SelectItem value="30d">Last 30 days</SelectItem>
+            <SelectItem value="90d">Last 90 days</SelectItem>
+            <SelectItem value="year">This year</SelectItem>
           </SelectContent>
         </Select>
 
