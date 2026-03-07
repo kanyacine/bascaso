@@ -43,6 +43,7 @@ export function OverviewCard({
     ? Math.round((analysis.totalCharsUsed / analysis.totalBudget) * 100)
     : 0;
   const issueCount = analysis.totalOverlaps + analysis.crossLocaleDuplicates.size + analysis.missingLocales.length;
+  const fixableIssueCount = analysis.totalOverlaps + analysis.crossLocaleDuplicates.size;
   const hasUnusedBudget = analysis.localeData.some((ld) => ld.charsFree > 15);
   const allGood = issueCount === 0 && budgetPercent >= 80;
 
@@ -101,7 +102,7 @@ export function OverviewCard({
             </div>
           )}
 
-          {!readOnly && (issueCount > 0 || hasUnusedBudget) && (
+          {!readOnly && (fixableIssueCount > 0 || hasUnusedBudget) && (
             <Button
               variant="outline"
               size="sm"

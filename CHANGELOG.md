@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.3.1
+
+- Fix "Fix all issues" button showing on storefronts tab when only untapped locales exist – the AI dialog cannot fix missing locales
+
 ## 1.3.0
 
 - Add locale dialog – translates all fields from the primary locale, generates keywords with forbidden-word rules, and creates localizations across store listing and app details in one step
