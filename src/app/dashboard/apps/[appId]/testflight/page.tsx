@@ -52,7 +52,7 @@ export default function TestFlightBuildsPage() {
   const searchParams = useSearchParams();
   const { apps } = useApps();
   const app = apps.find((a) => a.id === appId);
-  const { versions: preReleaseVersions, loading: versionsLoading } = usePreReleaseVersions();
+  const { versions: preReleaseVersions, loading: versionsLoading, refresh: refreshVersions } = usePreReleaseVersions();
 
   const selectedVersion = resolvePreReleaseVersion(preReleaseVersions, searchParams.get("version"));
   const platform = selectedVersion?.platform;
@@ -109,7 +109,10 @@ export default function TestFlightBuildsPage() {
     if (!versionsLoading) fetchData();
   }, [fetchData, versionsLoading]);
 
-  const handleRefresh = useCallback(() => fetchData(true), [fetchData]);
+  const handleRefresh = useCallback(async () => {
+    await refreshVersions();
+    await fetchData(true);
+  }, [fetchData, refreshVersions]);
   useRegisterRefresh({ onRefresh: handleRefresh, busy: loading });
 
   // Stats

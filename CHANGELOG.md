@@ -2,6 +2,7 @@
 
 ## 1.5.0
 
+- Fix TestFlight version picker not showing new versions on refresh – pre-release versions were only fetched on mount, not during manual refresh
 - Fix resubmission after App Review rejection – handle UNRESOLVED_ISSUES submissions to avoid ITEM_PART_OF_ANOTHER_SUBMISSION errors
 - Rename "Resubmit for review" button to "Update review" to match App Store Connect terminology
 - Revamp review insights prompt with three categories (strengths, weaknesses, potential) and stricter rules
