@@ -15,8 +15,9 @@ contextBridge.exposeInMainWorld("electron", {
   },
   updates: {
     checkNow: () => ipcRenderer.send("check-for-updates"),
-    onStatus: (cb: (status: { state: string; message?: string }) => void) => {
-      const handler = (_: unknown, status: { state: string; message?: string }) => cb(status);
+    installNow: () => ipcRenderer.send("install-update"),
+    onStatus: (cb: (status: { state: string; message?: string; notes?: string[] }) => void) => {
+      const handler = (_: unknown, status: { state: string; message?: string; notes?: string[] }) => cb(status);
       ipcRenderer.on("update-status", handler);
       return () => { ipcRenderer.removeListener("update-status", handler); };
     },

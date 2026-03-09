@@ -40,6 +40,7 @@ import { RefreshProvider } from "@/lib/refresh-context";
 import { FooterPortalProvider } from "@/lib/footer-portal-context";
 import { ConnectionBanner } from "@/components/layout/connection-banner";
 import { DemoBanner } from "@/components/layout/demo-banner";
+import { UpdateBanner } from "@/components/layout/update-banner";
 import { BreadcrumbProvider } from "@/lib/breadcrumb-context";
 import { ErrorReportProvider } from "@/lib/error-report-context";
 import { InsightsPanelProvider, useInsightsPanel } from "@/lib/insights-panel-context";
@@ -54,7 +55,8 @@ declare global {
       onNavigate: (cb: (path: string) => void) => () => void;
       updates: {
         checkNow: () => void;
-        onStatus: (cb: (status: { state: string; message?: string }) => void) => () => void;
+        installNow: () => void;
+        onStatus: (cb: (status: { state: string; message?: string; notes?: string[] }) => void) => () => void;
         getAutoCheck: () => Promise<boolean>;
         setAutoCheck: (enabled: boolean) => void;
       };
@@ -181,6 +183,7 @@ export default function DashboardLayout({
           <Suspense>
             <BuildActionFooter />
           </Suspense>
+          <UpdateBanner />
           </InsightsPanelProvider>
         </SidebarInset>
       </SidebarProvider>

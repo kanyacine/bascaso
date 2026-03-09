@@ -326,18 +326,36 @@ function setupAutoUpdater(): void {
   });
 
   updater.on("update-downloaded", () => {
-    mainWindow?.webContents.send("update-status", { state: "downloaded" });
-    dialog.showMessageBox({
-      message: "Update downloaded",
-      detail: "The update will be installed when you restart.",
-      buttons: ["Restart now", "Later"],
-    }).then(({ response }) => {
-      if (response === 0) updater.quitAndInstall();
-    });
+    const notes = getLatestChangelog();
+    mainWindow?.webContents.send("update-status", { state: "downloaded", notes });
   });
 
   const settings = loadSettings();
   if (settings.autoCheckUpdates) startUpdateInterval();
+}
+
+/** Read the top section from CHANGELOG.md for the update banner. */
+function getLatestChangelog(): string[] {
+  try {
+    const changelogPath = path.join(app.getAppPath(), "CHANGELOG.md");
+    const content = fs.readFileSync(changelogPath, "utf-8");
+    const lines = content.split("\n");
+    const notes: string[] = [];
+    let inSection = false;
+    for (const line of lines) {
+      if (line.startsWith("## ") && !inSection) {
+        inSection = true;
+        continue;
+      }
+      if (line.startsWith("## ") && inSection) break;
+      if (inSection && line.startsWith("- ")) {
+        notes.push(line.slice(2).trim());
+      }
+    }
+    return notes;
+  } catch {
+    return [];
+  }
 }
 
 function startUpdateInterval(): void {
@@ -602,6 +620,10 @@ if (!gotLock) {
 
       ipcMain.handle("get-auto-check-updates", () => {
         return loadSettings().autoCheckUpdates;
+      });
+
+      ipcMain.on("install-update", () => {
+        autoUpdater?.quitAndInstall();
       });
 
       ipcMain.on("set-auto-check-updates", (_, enabled: boolean) => {
