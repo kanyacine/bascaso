@@ -376,8 +376,8 @@ function SubmitFooter({
   const checklistReady = useChecklistReady(version, isFirstVersion);
   const canSubmit = checklistReady && !hasValidationErrors && !isSaving;
 
-  const label = isResubmit ? "Resubmit for review" : "Submit for review";
-  const confirmTitle = isResubmit ? "Resubmit for review?" : "Submit for review?";
+  const label = isResubmit ? "Update review" : "Submit for review";
+  const confirmTitle = isResubmit ? "Update review?" : "Submit for review?";
 
   async function handleSubmit() {
     setConfirmOpen(false);
@@ -392,7 +392,7 @@ function SubmitFooter({
           body: JSON.stringify({ platform: version.attributes.platform }),
         },
       );
-      toast.success("Submitted for review");
+      toast.success(isResubmit ? "Review updated" : "Submitted for review");
       await delay(ASC_PROPAGATION_DELAY);
     } catch (err) {
       if (err instanceof ApiError && (err.ascErrors?.length || err.ascAssociatedErrors)) {
@@ -413,7 +413,7 @@ function SubmitFooter({
 
   return (
     <>
-      {loading && <LoadingOverlay label="Submitting for review…" />}
+      {loading && <LoadingOverlay label={isResubmit ? "Updating review…" : "Submitting for review…"} />}
       <Footer left={<SubmissionChecklist version={version} isFirstVersion={isFirstVersion} />}>
         <Button disabled={!canSubmit || loading} onClick={() => setConfirmOpen(true)}>
           {label}
@@ -424,13 +424,15 @@ function SubmitFooter({
           <AlertDialogHeader>
             <AlertDialogTitle>{confirmTitle}</AlertDialogTitle>
             <AlertDialogDescription>
-              Version {version.attributes.versionString} will be submitted to App Review.
+              {isResubmit
+                ? `Version ${version.attributes.versionString} will be resubmitted to App Review with your changes.`
+                : `Version ${version.attributes.versionString} will be submitted to App Review.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleSubmit}>
-              Submit
+              {isResubmit ? "Update" : "Submit"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

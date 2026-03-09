@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4.2
+
+- Fix resubmission after App Review rejection – handle UNRESOLVED_ISSUES submissions to avoid ITEM_PART_OF_ANOTHER_SUBMISSION errors
+- Rename "Resubmit for review" button to "Update review" to match App Store Connect terminology
+- Revamp review insights prompt with three categories (strengths, weaknesses, potential) and stricter rules
+
 ## 1.4.1
 
 - Show informational banner when analytics reports are first requested – explains the 24–48 hour wait and displays elapsed time since the request was initiated

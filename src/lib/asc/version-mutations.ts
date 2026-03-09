@@ -92,12 +92,18 @@ export async function submitForReview(
   versionId: string,
   platform: string,
 ): Promise<void> {
-  // Step 1: find an existing draft submission or create a new one.
-  // Draft submissions (READY_FOR_REVIEW) can't be deleted or cancelled,
-  // so we reuse them to avoid accumulating dangling drafts.
+  // After rejection the version stays attached to an UNRESOLVED_ISSUES
+  // submission. Re-confirming that submission resubmits it. We check for
+  // this state first to avoid the ITEM_PART_OF_ANOTHER_SUBMISSION error.
+  const unresolvedId = await findUnresolvedSubmission(appId);
+  if (unresolvedId) {
+    await confirmSubmission(unresolvedId);
+    return;
+  }
+
+  // Normal flow: find or create a READY_FOR_REVIEW submission, add item, confirm
   const submissionId = await findOrCreateReviewSubmission(appId, platform);
 
-  // Step 2: add the version as a review submission item
   await ascFetch("/v1/reviewSubmissionItems", {
     method: "POST",
     body: JSON.stringify({
@@ -115,7 +121,10 @@ export async function submitForReview(
     }),
   });
 
-  // Step 3: confirm the submission
+  await confirmSubmission(submissionId);
+}
+
+async function confirmSubmission(submissionId: string): Promise<void> {
   await ascFetch(`/v1/reviewSubmissions/${submissionId}`, {
     method: "PATCH",
     body: JSON.stringify({
@@ -126,6 +135,27 @@ export async function submitForReview(
       },
     }),
   });
+}
+
+/**
+ * Find an UNRESOLVED_ISSUES submission for the app.
+ * After rejection, the old submission moves to this state and still owns
+ * the version. Re-confirming it resubmits for review.
+ */
+async function findUnresolvedSubmission(appId: string): Promise<string | null> {
+  try {
+    const res = await ascFetch<{
+      data: { id: string; attributes: { state: string } }[];
+    }>(
+      `/v1/apps/${appId}/reviewSubmissions?filter[state]=UNRESOLVED_ISSUES`,
+    );
+    if (res.data.length > 0) {
+      return res.data[0].id;
+    }
+  } catch {
+    // Fall through
+  }
+  return null;
 }
 
 async function findOrCreateReviewSubmission(
