@@ -60,6 +60,14 @@ export interface AnalyticsData {
   perfRegressions: PerfRegression[];
 }
 
+/**
+ * Returns the timestamp (ms) when we created report requests for this app,
+ * or null if reports were already set up before Itsyconnect.
+ */
+export function getReportInitiatedAt(appId: string): number | null {
+  return cacheGet<number>(`report-initiated:${appId}`, true);
+}
+
 interface AscReportRequest {
   id: string;
   attributes: { accessType: string; [key: string]: unknown };
@@ -208,6 +216,9 @@ async function findReportRequestIds(appId: string): Promise<string[]> {
       );
       ids.push(created.data.id);
       console.log(`[analytics] ${appId}: created ${accessType} report request ${created.data.id}`);
+      // Track when we initiated reports so the UI can show
+      // an appropriate banner while Apple generates data (24–48h).
+      cacheSet(`report-initiated:${appId}`, Date.now(), 48 * 60 * 60 * 1000);
     } catch (err) {
       console.warn(`[analytics] ${appId}: failed to create ${accessType} report request`, err);
     }
@@ -1107,6 +1118,10 @@ async function buildAnalyticsDataInner(
 
   const hasRows = hasAnyAnalyticsRows(data);
   cacheSet(cacheKey, data, hasRows ? ANALYTICS_TTL : ANALYTICS_EMPTY_RETRY_TTL);
+  if (hasRows) {
+    // Data arrived – clear the "report initiated" flag so the banner disappears.
+    cacheSet(`report-initiated:${appId}`, null, 0);
+  }
   if (!hasRows) {
     console.warn(
       `[analytics] ${appId}: phase 1 returned no rows, using short cache TTL (${ANALYTICS_EMPTY_RETRY_TTL / 60000}m) for retry`,

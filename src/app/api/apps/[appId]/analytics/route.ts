@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { hasCredentials } from "@/lib/asc/client";
 import { cacheGet, cacheGetMeta } from "@/lib/cache";
-import { buildAnalyticsData, type AnalyticsData } from "@/lib/asc/analytics";
+import { buildAnalyticsData, getReportInitiatedAt, type AnalyticsData } from "@/lib/asc/analytics";
 import { isDemoMode, getDemoAnalytics } from "@/lib/demo";
 
 export async function GET(
@@ -29,5 +29,12 @@ export async function GET(
     console.error(`[analytics] Background build failed for ${appId}:`, err);
   });
 
-  return NextResponse.json({ data: null, pending: true });
+  // Check if we recently created the report requests for this app.
+  // Apple needs 24–48h to generate data after the first request.
+  const initiatedAt = getReportInitiatedAt(appId);
+  return NextResponse.json({
+    data: null,
+    pending: true,
+    ...(initiatedAt ? { reportInitiated: true, initiatedAt } : {}),
+  });
 }

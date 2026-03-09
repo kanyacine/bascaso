@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useApps } from "@/lib/apps-context";
@@ -43,6 +43,7 @@ import { usePersistedRange } from "@/lib/hooks/use-persisted-range";
 import { parseRange, filterByDateRange } from "@/lib/analytics-range";
 import type { AnalyticsData } from "@/lib/asc/analytics";
 import { formatDateShort } from "@/lib/format";
+import { ReportInitiatedBanner } from "@/components/report-initiated-banner";
 
 // ---------- Constants ----------
 
@@ -111,8 +112,12 @@ export default function AppOverviewPage() {
   const { versions, loading: versionsLoading } = useVersions();
   const app = apps.find((a) => a.id === appId);
 
+  const searchParams = useSearchParams();
+  const devSimulate = searchParams.get("analyticsState") === "initiated";
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [pending, setPending] = useState(false);
+  const [reportInitiated, setReportInitiated] = useState(false);
+  const [initiatedAt, setInitiatedAt] = useState<number | null>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(true);
   const [downloadsRange, setDownloadsRange] = usePersistedRange("range:overview-downloads");
   const [proceedsRange, setProceedsRange] = usePersistedRange("range:overview-proceeds");
@@ -121,10 +126,12 @@ export default function AppOverviewPage() {
     let cancelled = false;
     fetch(`/api/apps/${appId}/analytics`)
       .then((r) => r.json())
-      .then((res: { data: AnalyticsData | null; pending?: boolean }) => {
+      .then((res: { data: AnalyticsData | null; pending?: boolean; reportInitiated?: boolean; initiatedAt?: number }) => {
         if (cancelled) return;
         setAnalytics(res.data);
         setPending(res.pending === true && !res.data);
+        setReportInitiated(res.reportInitiated === true);
+        setInitiatedAt(res.initiatedAt ?? null);
         setAnalyticsLoading(false);
       })
       .catch(() => {
@@ -246,6 +253,10 @@ export default function AppOverviewPage() {
         <div className="flex items-center justify-center py-12">
           <Spinner className="size-6 text-muted-foreground" />
         </div>
+      ) : devSimulate ? (
+        <ReportInitiatedBanner initiatedAt={Date.now() - 2 * 60 * 60 * 1000} />
+      ) : reportInitiated && !analytics ? (
+        <ReportInitiatedBanner initiatedAt={initiatedAt} />
       ) : pending ? (
         <Card>
           <CardContent className="py-12 text-center text-sm text-muted-foreground">

@@ -3,9 +3,10 @@
 import { useAnalytics } from "@/lib/analytics-context";
 import { Spinner } from "@/components/ui/spinner";
 import { ErrorState } from "@/components/error-state";
+import { ReportInitiatedBanner } from "@/components/report-initiated-banner";
 
 export function AnalyticsStateGuard({ children }: { children: React.ReactNode }) {
-  const { data, loading, error, pending } = useAnalytics();
+  const { data, loading, error, pending, reportInitiated, initiatedAt } = useAnalytics();
 
   if (loading && !data) {
     return (
@@ -13,6 +14,10 @@ export function AnalyticsStateGuard({ children }: { children: React.ReactNode })
         <Spinner className="size-6 text-muted-foreground" />
       </div>
     );
+  }
+
+  if (reportInitiated && !data) {
+    return <ReportInitiatedBanner initiatedAt={initiatedAt} />;
   }
 
   if (pending && !data) {

@@ -37,6 +37,7 @@ import { formatDateShort } from "@/lib/format";
 import { parseRange, filterByDateRange } from "@/lib/analytics-range";
 import { usePersistedRange } from "@/lib/hooks/use-persisted-range";
 import type { AnalyticsData } from "@/lib/asc/analytics";
+import { ReportInitiatedBanner } from "@/components/report-initiated-banner";
 
 const CHART_COLORS = [
   "var(--color-chart-1)",
@@ -50,12 +51,15 @@ interface AppAnalytics {
   data: AnalyticsData | null;
   loading: boolean;
   pending: boolean;
+  reportInitiated: boolean;
+  initiatedAt: number | null;
 }
 
 export default function DashboardPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { apps, loading, truncated, needsAppSelection, refresh: refreshApps } = useApps();
+  const devSimulate = searchParams.get("analyticsState") === "initiated";
   const [analytics, setAnalytics] = useState<Record<string, AppAnalytics>>({});
   const [range, setRange] = usePersistedRange("range:portfolio-proceeds");
 
@@ -130,13 +134,15 @@ export default function DashboardPage() {
             data: json.data ?? null,
             loading: false,
             pending: json.pending ?? false,
+            reportInitiated: json.reportInitiated === true,
+            initiatedAt: json.initiatedAt ?? null,
           },
         };
       });
     } catch {
       setAnalytics((prev) => ({
         ...prev,
-        [appId]: { data: null, loading: false, pending: false },
+        [appId]: { data: null, loading: false, pending: false, reportInitiated: false, initiatedAt: null },
       }));
     }
   }, []);
@@ -146,7 +152,7 @@ export default function DashboardPage() {
 
     const initial: Record<string, AppAnalytics> = {};
     for (const app of apps) {
-      initial[app.id] = { data: null, loading: true, pending: false };
+      initial[app.id] = { data: null, loading: true, pending: false, reportInitiated: false, initiatedAt: null };
     }
     setAnalytics(initial);
 
@@ -367,6 +373,10 @@ export default function DashboardPage() {
   const anyLoaded = Object.values(analytics).some((a) => !a.loading);
   const allPending = Object.values(analytics).length > 0
     && Object.values(analytics).every((a) => !a.loading && a.pending && !a.data);
+  const anyInitiated = Object.values(analytics).some((a) => a.reportInitiated && !a.data);
+  const earliestInitiatedAt = Object.values(analytics)
+    .filter((a) => a.initiatedAt)
+    .reduce<number | null>((min, a) => (min === null || (a.initiatedAt! < min) ? a.initiatedAt! : min), null);
   const noData = anyLoaded
     && Object.values(analytics).every((a) => !a.loading && !a.data);
 
@@ -397,7 +407,11 @@ export default function DashboardPage() {
       </div>
 
       {/* Proceeds chart */}
-      {allPending || (!anyLoaded && Object.keys(analytics).length > 0) ? (
+      {devSimulate ? (
+        <ReportInitiatedBanner initiatedAt={Date.now() - 2 * 60 * 60 * 1000} />
+      ) : anyInitiated && !anyLoaded ? (
+        <ReportInitiatedBanner initiatedAt={earliestInitiatedAt} />
+      ) : allPending || (!anyLoaded && Object.keys(analytics).length > 0) ? (
         <div className="flex flex-col items-center justify-center gap-3 py-16">
           <Spinner className="size-6 text-muted-foreground" />
           <p className="text-sm text-muted-foreground">
@@ -494,6 +508,8 @@ export default function DashboardPage() {
                 <CardContent>
                   {entry?.loading ? (
                     <Spinner className="size-4 text-muted-foreground" />
+                  ) : (entry?.reportInitiated || devSimulate) && !entry?.data ? (
+                    <p className="text-xs text-muted-foreground">Awaiting data from App Store Connect</p>
                   ) : entry?.pending ? (
                     <p className="text-xs text-muted-foreground">Pending</p>
                   ) : entry?.data ? (
