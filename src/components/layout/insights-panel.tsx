@@ -22,6 +22,7 @@ import { useInsightsPanel } from "@/lib/insights-panel-context";
 interface ReviewInsights {
   strengths: string[];
   weaknesses: string[];
+  potential: string[];
 }
 
 function ReviewInsightsContent({
@@ -158,6 +159,24 @@ function ReviewInsightsContent({
           ))}
         </ul>
       </section>
+
+      {/* Potential */}
+      {insights.potential?.length > 0 && (
+        <section className="space-y-2">
+          <Badge className="bg-amber-500/15 text-amber-600 hover:bg-amber-500/15 dark:text-amber-400 border-0 text-[10px] font-semibold uppercase tracking-wider">
+            <Lightbulb size={10} weight="bold" className="mr-1" />
+            Potential
+          </Badge>
+          <ul className="space-y-2">
+            {insights.potential.map((p, i) => (
+              <li key={i} className="flex items-baseline gap-2 text-sm leading-snug">
+                <span className="relative top-[-1px] size-1.5 shrink-0 rounded-full bg-amber-500" />
+                <span>{p}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {/* Footer */}
       <div className="flex items-center justify-between border-t pt-3">

@@ -16,6 +16,7 @@ const INSIGHTS_TTL = 24 * 60 * 60 * 1000; // 24 hours
 const insightSchema = z.object({
   strengths: z.array(z.string()),
   weaknesses: z.array(z.string()),
+  potential: z.array(z.string()),
 });
 
 export type ReviewInsights = z.infer<typeof insightSchema>;
@@ -169,7 +170,7 @@ export async function POST(
     const { object: insights } = await generateObject({
       model,
       schema: insightSchema,
-      system: "You are an app review analyst. Analyse customer reviews and extract structured insights. Be concise and data-driven.",
+      system: "You are an app review analyst. Be concise and data-driven.",
       prompt,
       temperature: 0,
       providerOptions: noThinkingOptions(),

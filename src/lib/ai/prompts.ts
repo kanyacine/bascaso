@@ -192,21 +192,13 @@ export function buildInsightsPrompt(
   reviews: Array<{ rating: number; title: string; body: string }>,
   appName?: string,
 ): string {
-  let prompt = `Analyse the following ${reviews.length} App Store customer reviews and extract the key strengths and weaknesses.`;
+  let prompt = `Here are the App Store Connect ratings for the app.`;
 
   if (appName) {
-    prompt += `\nThe app is called "${appName}".`;
+    prompt += ` The app is called "${appName}".`;
   }
 
-  prompt += `
-
-Rules:
-- Return 3–7 strengths (things users love) and 3–7 weaknesses (things users dislike or want improved).
-- Each point should be a short phrase (3–8 words), not a full sentence.
-- Order by frequency – most commonly mentioned first.
-- Only include a point if at least 2 reviews mention it, unless there are fewer than 10 reviews total.
-- Do NOT invent issues that aren't in the reviews.
-- Do NOT include generic filler like "some users want more features".
+  prompt += ` Extract three lists with at most 10 bullet points each for "Strengths", "Weaknesses" and "Potential" (growth & improvements). Only include points that are directly supported by the reviews provided – do not invent or assume anything. Do not repeat similar points inside categories.
 
 Reviews:
 `;
@@ -223,6 +215,7 @@ export function buildIncrementalInsightsPrompt(
   existingInsights: {
     strengths: string[];
     weaknesses: string[];
+    potential: string[];
   },
   totalReviewCount: number,
 ): string {
@@ -236,16 +229,12 @@ export function buildIncrementalInsightsPrompt(
   for (const w of existingInsights.weaknesses) {
     prompt += `- ${w}\n`;
   }
+  prompt += `\nPotential:\n`;
+  for (const p of existingInsights.potential) {
+    prompt += `- ${p}\n`;
+  }
 
-  prompt += `\nNow ${newReviews.length} new review${newReviews.length !== 1 ? "s have" : " has"} come in. Update the insights based on these new reviews.
-
-Rules:
-- Merge new themes into the existing list if the new reviews reinforce them.
-- Add new points only if the new reviews introduce a genuinely new theme.
-- Remove points that no longer apply given the full picture.
-- Keep 3–7 strengths and 3–7 weaknesses, ordered by frequency.
-- Each point should be a short phrase (3–8 words).
-- Do NOT invent issues that aren't in the reviews.
+  prompt += `\nNow ${newReviews.length} new review${newReviews.length !== 1 ? "s have" : " has"} come in. Update the three lists (strengths, weaknesses, potential) with at most 10 bullet points each.
 
 New reviews:
 `;
