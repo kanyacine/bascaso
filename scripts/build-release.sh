@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-# Build a signed, notarized release (DMG + ZIP) and create a draft GitHub release.
+# Build a signed, notarized release (DMG + ZIP) and create a GitHub release.
 #
 # Required environment variables:
 #   APPLE_ID            – Apple ID email
@@ -106,18 +106,26 @@ echo "    SHA256 (DMG): $DMG_SHA"
 echo ""
 
 if [ "$SKIP_RELEASE" = false ]; then
-  step_start "Creating draft GitHub release v$VERSION"
+  NOTES_FILE=$(mktemp)
+  sed -n "/^## $VERSION$/,/^## /{ /^## /!p; }" CHANGELOG.md > "$NOTES_FILE"
+
+  if [ ! -s "$NOTES_FILE" ]; then
+    echo "ERROR: No changelog entry found for version $VERSION in CHANGELOG.md"
+    rm -f "$NOTES_FILE"
+    exit 1
+  fi
+
+  step_start "Creating GitHub release v$VERSION"
   gh release create "v$VERSION" "$DMG_PATH" "$ZIP_PATH" \
     --title "v$VERSION" \
-    --draft \
-    --generate-notes
+    --notes-file "$NOTES_FILE"
+  rm -f "$NOTES_FILE"
   step_done
 fi
 
 TOTAL=$(( SECONDS ))
 echo "==> All done in $(( TOTAL / 60 ))m $(( TOTAL % 60 ))s"
 if [ "$SKIP_RELEASE" = false ]; then
-  echo "    Review the draft release on GitHub, then publish it."
   echo "    https://github.com/nickustinov/itsyconnect-macos/releases"
 else
   echo "    GitHub release skipped (--no-release)."
