@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.4.1
+
+- Show informational banner when analytics reports are first requested – explains the 24–48 hour wait and displays elapsed time since the request was initiated
+
 ## 1.4.0
 
 - Add AI-powered analytics insights – highlights trends, anomalies, and actionable opportunities from App Store Connect metrics
