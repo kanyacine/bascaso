@@ -18,14 +18,14 @@ describe("display-types", () => {
     });
 
     it("maps known types to labels", () => {
-      expect(DISPLAY_TYPE_LABELS.APP_IPHONE_67).toBe('iPhone 6.7"');
+      expect(DISPLAY_TYPE_LABELS.APP_IPHONE_67).toBe('iPhone 6.9"');
       expect(DISPLAY_TYPE_LABELS.APP_DESKTOP).toBe("Mac");
     });
   });
 
   describe("displayTypeLabel", () => {
     it("returns the label for a known display type", () => {
-      expect(displayTypeLabel("APP_IPHONE_67")).toBe('iPhone 6.7"');
+      expect(displayTypeLabel("APP_IPHONE_67")).toBe('iPhone 6.9"');
       expect(displayTypeLabel("APP_APPLE_TV")).toBe("Apple TV");
     });
 
