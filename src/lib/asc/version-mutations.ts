@@ -87,21 +87,34 @@ export async function cancelSubmission(versionId: string): Promise<void> {
   });
 }
 
+/**
+ * Cancel an UNRESOLVED_ISSUES review submission (after rejection).
+ * PATCHes the submission with `canceled: true`, moving the version
+ * back to PREPARE_FOR_SUBMISSION so it can be edited and resubmitted.
+ */
+export async function cancelUnresolvedSubmission(appId: string): Promise<void> {
+  const submissionId = await findUnresolvedSubmission(appId);
+  if (!submissionId) {
+    throw new Error("No unresolved submission found");
+  }
+  await ascFetch(`/v1/reviewSubmissions/${submissionId}`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      data: {
+        type: "reviewSubmissions",
+        id: submissionId,
+        attributes: { canceled: true },
+      },
+    }),
+  });
+}
+
 export async function submitForReview(
   appId: string,
   versionId: string,
   platform: string,
 ): Promise<void> {
-  // After rejection the version stays attached to an UNRESOLVED_ISSUES
-  // submission. Re-confirming that submission resubmits it. We check for
-  // this state first to avoid the ITEM_PART_OF_ANOTHER_SUBMISSION error.
-  const unresolvedId = await findUnresolvedSubmission(appId);
-  if (unresolvedId) {
-    await confirmSubmission(unresolvedId);
-    return;
-  }
-
-  // Normal flow: find or create a READY_FOR_REVIEW submission, add item, confirm
+  // Find or create a READY_FOR_REVIEW submission, add item, confirm
   const submissionId = await findOrCreateReviewSubmission(appId, platform);
 
   await ascFetch("/v1/reviewSubmissionItems", {
@@ -142,7 +155,7 @@ async function confirmSubmission(submissionId: string): Promise<void> {
  * After rejection, the old submission moves to this state and still owns
  * the version. Re-confirming it resubmits for review.
  */
-async function findUnresolvedSubmission(appId: string): Promise<string | null> {
+export async function findUnresolvedSubmission(appId: string): Promise<string | null> {
   try {
     const res = await ascFetch<{
       data: { id: string; attributes: { state: string } }[];

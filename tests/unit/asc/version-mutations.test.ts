@@ -18,6 +18,7 @@ import {
   createVersion,
   deleteVersion,
   cancelSubmission,
+  cancelUnresolvedSubmission,
   submitForReview,
   releaseVersion,
   selectBuildForVersion,
@@ -140,14 +141,37 @@ describe("version-mutations", () => {
     });
   });
 
-  describe("submitForReview", () => {
-    /** Mock findUnresolvedSubmission returning no results. */
-    function mockNoUnresolved() {
-      mockAscFetch.mockResolvedValueOnce({ data: [] }); // no UNRESOLVED_ISSUES
-    }
+  describe("cancelUnresolvedSubmission", () => {
+    it("finds UNRESOLVED_ISSUES submission and PATCHes with canceled: true", async () => {
+      mockAscFetch
+        .mockResolvedValueOnce({ data: [
+          { id: "unresolved-sub", attributes: { state: "UNRESOLVED_ISSUES" } },
+        ] })
+        .mockResolvedValueOnce({});
 
-    it("creates submission when no unresolved or draft exists", async () => {
-      mockNoUnresolved();
+      await cancelUnresolvedSubmission("app-1");
+
+      expect(mockAscFetch).toHaveBeenCalledWith(
+        "/v1/apps/app-1/reviewSubmissions?filter[state]=UNRESOLVED_ISSUES",
+      );
+
+      const patchCall = mockAscFetch.mock.calls[1];
+      expect(patchCall[0]).toBe("/v1/reviewSubmissions/unresolved-sub");
+      const body = JSON.parse(patchCall[1].body);
+      expect(body.data.attributes.canceled).toBe(true);
+    });
+
+    it("throws when no unresolved submission exists", async () => {
+      mockAscFetch.mockResolvedValueOnce({ data: [] });
+
+      await expect(cancelUnresolvedSubmission("app-1")).rejects.toThrow(
+        "No unresolved submission found",
+      );
+    });
+  });
+
+  describe("submitForReview", () => {
+    it("creates submission when no draft exists", async () => {
       mockAscFetch
         .mockResolvedValueOnce({ data: [] }) // findOrCreate: no READY_FOR_REVIEW drafts
         .mockResolvedValueOnce({ data: { id: "sub-1" } }) // create submission
@@ -170,27 +194,7 @@ describe("version-mutations", () => {
       expect(body.data.attributes.submitted).toBe(true);
     });
 
-    it("resubmits UNRESOLVED_ISSUES submission directly after rejection", async () => {
-      mockAscFetch
-        .mockResolvedValueOnce({ data: [
-          { id: "rejected-sub", attributes: { state: "UNRESOLVED_ISSUES" } },
-        ] })
-        .mockResolvedValueOnce({}); // confirm
-
-      await submitForReview("app-1", "ver-1", "IOS");
-
-      // Should confirm the UNRESOLVED_ISSUES submission directly
-      const confirmCall = mockAscFetch.mock.calls[1];
-      expect(confirmCall[0]).toBe("/v1/reviewSubmissions/rejected-sub");
-      const body = JSON.parse(confirmCall[1].body);
-      expect(body.data.attributes.submitted).toBe(true);
-
-      // Should NOT create a new submission or add items
-      expect(mockAscFetch).toHaveBeenCalledTimes(2);
-    });
-
-    it("reuses an existing READY_FOR_REVIEW draft in normal flow", async () => {
-      mockNoUnresolved();
+    it("reuses an existing READY_FOR_REVIEW draft", async () => {
       mockAscFetch
         .mockResolvedValueOnce({ data: [
           { id: "existing-sub", attributes: { state: "READY_FOR_REVIEW" } },
@@ -202,13 +206,13 @@ describe("version-mutations", () => {
 
       const addItemCall = mockAscFetch.mock.calls.find(
         (c: unknown[]) => c[0] === "/v1/reviewSubmissionItems" && (c[1] as Record<string, string>)?.method === "POST",
-      )!;
-      const itemBody = JSON.parse((addItemCall[1] as Record<string, string>).body);
+      );
+      expect(addItemCall).toBeDefined();
+      const itemBody = JSON.parse((addItemCall![1] as Record<string, string>).body);
       expect(itemBody.data.relationships.reviewSubmission.data.id).toBe("existing-sub");
     });
 
     it("throws when add item fails", async () => {
-      mockNoUnresolved();
       mockAscFetch
         .mockResolvedValueOnce({ data: [] }) // findOrCreate: none
         .mockResolvedValueOnce({ data: { id: "sub-1" } }) // create
@@ -218,30 +222,13 @@ describe("version-mutations", () => {
     });
 
     it("throws when confirm fails", async () => {
-      mockNoUnresolved();
       mockAscFetch
-        .mockResolvedValueOnce({ data: [] }) // findOrCreate: none
-        .mockResolvedValueOnce({ data: { id: "sub-1" } }) // create
+        .mockResolvedValueOnce({ data: [] }) // findOrCreate: no drafts
+        .mockResolvedValueOnce({ data: { id: "sub-1" } }) // create submission
         .mockResolvedValueOnce({}) // add item
-        .mockRejectedValueOnce(new Error("confirm failed"));
+        .mockRejectedValueOnce(new Error("confirm failed")); // confirm
 
       await expect(submitForReview("app-1", "ver-1", "IOS")).rejects.toThrow("confirm failed");
-    });
-
-    it("falls through to normal flow when unresolved search fails", async () => {
-      mockAscFetch
-        .mockRejectedValueOnce(new Error("list failed")) // unresolved search fails
-        .mockResolvedValueOnce({ data: [] }) // findOrCreate: none
-        .mockResolvedValueOnce({ data: { id: "sub-1" } }) // create
-        .mockResolvedValueOnce({}) // add item
-        .mockResolvedValueOnce({}); // confirm
-
-      await submitForReview("app-1", "ver-1", "IOS");
-
-      expect(mockAscFetch).toHaveBeenCalledWith(
-        "/v1/reviewSubmissions",
-        expect.objectContaining({ method: "POST" }),
-      );
     });
   });
 

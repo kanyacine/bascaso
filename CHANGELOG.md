@@ -2,6 +2,7 @@
 
 ## 1.5.1
 
+- Add cancel submission button for rejected versions
 - Fix screenshot display size labels to match current App Store Connect
 - Show all locales on screenshots page instead of only the primary locale
 - Fix screenshot refresh not bypassing cache

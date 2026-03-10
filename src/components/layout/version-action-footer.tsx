@@ -35,8 +35,8 @@ const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 const FOOTER_PAGES = new Set(["store-listing"]);
 
 const SUBMIT_STATES = new Set(["PREPARE_FOR_SUBMISSION"]);
-const RESUBMIT_STATES = new Set(["REJECTED", "METADATA_REJECTED", "DEVELOPER_REJECTED"]);
 const CANCEL_STATES = new Set(["WAITING_FOR_REVIEW", "IN_REVIEW"]);
+const REJECTED_STATES = new Set(["REJECTED", "METADATA_REJECTED", "DEVELOPER_REJECTED"]);
 
 function getPageSegment(pathname: string): string {
   const parts = pathname.split("/");
@@ -140,6 +140,8 @@ export function VersionActionFooter() {
   const { showAscError } = useErrorReport();
   const [loading, setLoading] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  /** null = not checked yet, true/false = has/doesn't have unresolved submission */
+  const [hasUnresolved, setHasUnresolved] = useState<boolean | null>(null);
   const { apps } = useApps();
 
   const pageSegment = getPageSegment(pathname);
@@ -229,21 +231,44 @@ export function VersionActionFooter() {
     return () => { cancelled = true; };
   }, [appId, versionId, primaryLocale, flags.hasScreenshots, reportScreenshots]);
 
+  // Check if a rejected version still has an UNRESOLVED_ISSUES submission
+  const state = version?.attributes.appVersionState ?? "";
+  const isRejected = REJECTED_STATES.has(state);
+
+  useEffect(() => {
+    if (!appId || !isRejected) {
+      setHasUnresolved(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function check() {
+      try {
+        const res = await fetch(`/api/apps/${appId}/unresolved-submission`);
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (!cancelled) setHasUnresolved(data.hasUnresolved);
+      } catch {
+        // Non-critical – default to showing cancel
+        if (!cancelled) setHasUnresolved(true);
+      }
+    }
+
+    check();
+    return () => { cancelled = true; };
+  }, [appId, isRejected]);
+
   if (!appId || !FOOTER_PAGES.has(pageSegment) || !version) return null;
 
   const isFirstVersion = !versions.some((v) => v.attributes.appStoreState === "READY_FOR_SALE");
-  const state = version.attributes.appVersionState;
 
-  const isSubmit = SUBMIT_STATES.has(state);
-  const isResubmit = RESUBMIT_STATES.has(state);
-
-  if (isSubmit || isResubmit) {
+  if (SUBMIT_STATES.has(state)) {
     return (
       <SubmitFooter
         appId={appId}
         version={version}
         isFirstVersion={isFirstVersion}
-        isResubmit={isResubmit}
         isDirty={isDirty}
         isSaving={isSaving}
         hasValidationErrors={hasValidationErrors}
@@ -309,6 +334,82 @@ export function VersionActionFooter() {
     );
   }
 
+  if (isRejected && hasUnresolved === true) {
+    return (
+      <>
+        {loading && <LoadingOverlay label="Cancelling submission…" />}
+        <Footer>
+          <Button
+            variant="destructive"
+            disabled={loading}
+            onClick={() => setConfirmOpen(true)}
+          >
+            Cancel submission
+          </Button>
+        </Footer>
+        <AlertDialog open={confirmOpen} onOpenChange={(open) => !open && setConfirmOpen(false)}>
+          <AlertDialogContent size="sm">
+            <AlertDialogHeader>
+              <AlertDialogTitle>Cancel submission?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Version {version.attributes.versionString} will be removed from review. You can make changes and submit again.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Keep submission</AlertDialogCancel>
+              <AlertDialogAction
+                variant="destructive"
+                onClick={async () => {
+                  setConfirmOpen(false);
+                  setLoading(true);
+                  try {
+                    await apiFetch(
+                      `/api/apps/${appId}/versions/${version.id}/cancel-submission`,
+                      {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ unresolved: true }),
+                      },
+                    );
+                    toast.success("Submission cancelled");
+                    await delay(ASC_PROPAGATION_DELAY);
+                  } catch (err) {
+                    toast.error(err instanceof Error ? err.message : "Failed to cancel submission");
+                  }
+                  setLoading(false);
+                  setHasUnresolved(false);
+                  await refresh();
+                }}
+              >
+                Cancel submission
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </>
+    );
+  }
+
+  if (isRejected && hasUnresolved === false) {
+    return (
+      <SubmitFooter
+        appId={appId}
+        version={version}
+        isFirstVersion={isFirstVersion}
+        isDirty={isDirty}
+        isSaving={isSaving}
+        hasValidationErrors={hasValidationErrors}
+        loading={loading}
+        confirmOpen={confirmOpen}
+        onSave={onSave}
+        showAscError={showAscError}
+        refresh={refresh}
+        setLoading={setLoading}
+        setConfirmOpen={setConfirmOpen}
+      />
+    );
+  }
+
   if (state === "PENDING_DEVELOPER_RELEASE") {
     return (
       <>
@@ -346,7 +447,6 @@ function SubmitFooter({
   appId,
   version,
   isFirstVersion,
-  isResubmit,
   isDirty,
   isSaving,
   hasValidationErrors,
@@ -361,7 +461,6 @@ function SubmitFooter({
   appId: string;
   version: AscVersion;
   isFirstVersion: boolean;
-  isResubmit: boolean;
   isDirty: boolean;
   isSaving: boolean;
   hasValidationErrors: boolean;
@@ -376,9 +475,6 @@ function SubmitFooter({
   const checklistReady = useChecklistReady(version, isFirstVersion);
   const canSubmit = checklistReady && !hasValidationErrors && !isSaving;
 
-  const label = isResubmit ? "Update review" : "Submit for review";
-  const confirmTitle = isResubmit ? "Update review?" : "Submit for review?";
-
   async function handleSubmit() {
     setConfirmOpen(false);
     setLoading(true);
@@ -392,7 +488,7 @@ function SubmitFooter({
           body: JSON.stringify({ platform: version.attributes.platform }),
         },
       );
-      toast.success(isResubmit ? "Review updated" : "Submitted for review");
+      toast.success("Submitted for review");
       await delay(ASC_PROPAGATION_DELAY);
     } catch (err) {
       if (err instanceof ApiError && (err.ascErrors?.length || err.ascAssociatedErrors)) {
@@ -413,26 +509,24 @@ function SubmitFooter({
 
   return (
     <>
-      {loading && <LoadingOverlay label={isResubmit ? "Updating review…" : "Submitting for review…"} />}
+      {loading && <LoadingOverlay label="Submitting for review…" />}
       <Footer left={<SubmissionChecklist version={version} isFirstVersion={isFirstVersion} />}>
         <Button disabled={!canSubmit || loading} onClick={() => setConfirmOpen(true)}>
-          {label}
+          Submit for review
         </Button>
       </Footer>
       <AlertDialog open={confirmOpen} onOpenChange={(open) => !open && setConfirmOpen(false)}>
         <AlertDialogContent size="sm">
           <AlertDialogHeader>
-            <AlertDialogTitle>{confirmTitle}</AlertDialogTitle>
+            <AlertDialogTitle>Submit for review?</AlertDialogTitle>
             <AlertDialogDescription>
-              {isResubmit
-                ? `Version ${version.attributes.versionString} will be resubmitted to App Review with your changes.`
-                : `Version ${version.attributes.versionString} will be submitted to App Review.`}
+              Version {version.attributes.versionString} will be submitted to App Review.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleSubmit}>
-              {isResubmit ? "Update" : "Submit"}
+              Submit
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
