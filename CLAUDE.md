@@ -15,6 +15,8 @@ Before writing any code, read these docs:
 2. **Phosphor icons only** – `@phosphor-icons/react`. Never import from lucide-react.
 3. **Geist font** – sans (body) and mono (code/inputs). Set globally, never override.
 4. **Custom CSS classes over inline Tailwind** – reusable styles live in `globals.css` `@layer components`. Use `.section-title` for form headings, not ad-hoc utility classes. Add new classes there when a pattern repeats.
+5. **Sosumi for Apple docs** – always use the `sosumi` MCP server to search and fetch Apple developer documentation. Never guess at ASC API shapes, field names, or endpoint paths – look them up via sosumi first.
+
 ## Core principles
 
 1. **Security first** – never expose API keys client-side. Use session tokens for browser auth, API keys server-side only. No security shortcuts.

@@ -15,6 +15,7 @@ import {
   UsersThree,
   ChatDots,
   MagnifyingGlass,
+  Trophy,
 } from "@phosphor-icons/react";
 import type { Icon } from "@phosphor-icons/react";
 import {
@@ -51,6 +52,12 @@ function getNavGroups(appId: string): NavGroup[] {
         { title: "Screenshots", href: `${base}/screenshots`, icon: Images },
         { title: "App details", href: `${base}/details`, icon: Info },
         { title: "App review", href: `${base}/review`, icon: Stamp },
+      ],
+    },
+    {
+      label: "Growth",
+      items: [
+        { title: "Nominations", href: `${base}/nominations`, icon: Trophy },
       ],
     },
     {

@@ -63,7 +63,7 @@ import {
 } from "@/lib/asc/version-types";
 
 const VERSION_PAGES = new Set(["store-listing", "screenshots", "review", "testflight", "aso"]);
-const SAVE_PAGES = new Set(["details", "store-listing", "review", "aso"]);
+const SAVE_PAGES = new Set(["details", "store-listing", "review", "aso", "nominations"]);
 const OVERVIEW_PAGE = "";
 
 const LIVE_STATES = new Set([
@@ -483,7 +483,7 @@ export function HeaderVersionActions() {
           onClick={onSave}
         >
           {isSaving && <Spinner className="size-3.5" />}
-          {isSaving ? "Saving\u2026" : "Save"}
+          {isSaving ? "Saving\u2026" : pageSegment === "nominations" ? "Save draft" : "Save"}
           {!isSaving && (
             <kbd className="ml-1 text-[10px] opacity-50 font-sans">&#8984;S</kbd>
           )}

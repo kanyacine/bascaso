@@ -22,6 +22,7 @@ const PAGE_TITLES: Record<string, string> = {
   sales: "Sales",
   details: "App details",
   aso: "Keywords",
+  nominations: "Nominations",
 };
 
 const TF_SUB_TITLES: Record<string, string> = {
@@ -151,6 +152,17 @@ export function DashboardBreadcrumb() {
             </BreadcrumbItem>
             {pageSegment === "testflight" ? (
               renderTestFlightCrumbs()
+            ) : pageSegment === "nominations" && segments[1] ? (
+              <>
+                <BreadcrumbSeparator className="hidden md:block" />
+                <BreadcrumbItem className="hidden md:block">
+                  <BreadcrumbLink asChild><Link href={`/dashboard/apps/${appId}/nominations`}>Nominations</Link></BreadcrumbLink>
+                </BreadcrumbItem>
+                <BreadcrumbSeparator className="hidden md:block" />
+                <BreadcrumbItem>
+                  <BreadcrumbPage>{dynamicTitle ?? (segments[1] === "new" ? "New nomination" : "Detail")}</BreadcrumbPage>
+                </BreadcrumbItem>
+              </>
             ) : (
               <>
                 <BreadcrumbSeparator className="hidden md:block" />

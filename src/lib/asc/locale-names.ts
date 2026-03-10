@@ -40,8 +40,18 @@ export const LOCALE_NAMES: Record<string, string> = {
   "zh-Hant": "Chinese (Traditional)",
 };
 
+/** Case-insensitive lookup map: uppercase key → canonical key in LOCALE_NAMES. */
+const LOCALE_UPPER: Record<string, string> = Object.fromEntries(
+  Object.keys(LOCALE_NAMES).map((k) => [k.toUpperCase(), k]),
+);
+
+/** Normalise an ASC locale code (which may be ALL-CAPS) to our canonical form. */
+export function normalizeLocale(code: string): string {
+  return LOCALE_UPPER[code.toUpperCase()] ?? code;
+}
+
 export function localeName(locale: string): string {
-  return LOCALE_NAMES[locale] ?? locale;
+  return LOCALE_NAMES[locale] ?? LOCALE_NAMES[normalizeLocale(locale)] ?? locale;
 }
 
 /** Sort locales: primary locale first, rest alphabetical by display name. */
