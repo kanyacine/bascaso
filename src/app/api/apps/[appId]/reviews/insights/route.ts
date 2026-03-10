@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createLanguageModel, classifyAIError } from "@/lib/ai/provider-factory";
-import { getAISettings, type AISettingsResult } from "@/lib/ai/settings";
+import { getAISettings } from "@/lib/ai/settings";
 import { ensureLocalModelLoaded, isLocalOpenAIProvider } from "@/lib/ai/local-provider";
 import { buildInsightsPrompt, buildIncrementalInsightsPrompt } from "@/lib/ai/prompts";
 import { generateObjectWithRepair } from "@/lib/ai/structured-output";
@@ -110,11 +110,10 @@ export async function POST(
 
   // 2. Get AI model
   let model;
-  let settings: AISettingsResult | null = null;
   let providerId = "";
   let modelId = "";
   try {
-    settings = await getAISettings();
+    const settings = await getAISettings();
     if (!settings) throw new Error("AI not configured");
 
     if (isLocalOpenAIProvider(settings.provider)) {
@@ -176,19 +175,12 @@ export async function POST(
       temperature: 0,
       providerId,
       providerOptions: noThinkingOptions(),
+      maxOutputTokens: isLocalOpenAIProvider(providerId) ? 500 : undefined,
       sectionAliases: {
         strengths: ["strengths"],
         weaknesses: ["weaknesses"],
         potential: ["potential", "opportunities"],
       },
-      localOpenAI: settings && isLocalOpenAIProvider(providerId)
-        ? {
-            modelId,
-            baseUrl: settings.baseUrl ?? undefined,
-            apiKey: settings.apiKey,
-            maxOutputTokens: 500,
-          }
-        : undefined,
     });
 
     // Cache the result with review count

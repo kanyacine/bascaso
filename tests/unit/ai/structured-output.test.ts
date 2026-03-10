@@ -5,12 +5,11 @@ vi.mock("ai", async () => {
   const actual = await vi.importActual<typeof import("ai")>("ai");
   return {
     ...actual,
-    generateObject: vi.fn(),
     generateText: vi.fn(),
   };
 });
 
-import { generateObject, generateText } from "ai";
+import { generateText } from "ai";
 import { generateObjectWithRepair, repairGeneratedObjectText } from "@/lib/ai/structured-output";
 
 const analyticsSchema = z.object({
@@ -91,22 +90,16 @@ describe("repairGeneratedObjectText", () => {
 describe("generateObjectWithRepair", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.stubGlobal("fetch", vi.fn());
   });
 
-  it("uses LM Studio chat completions structured output for local-openai", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        choices: [
-          {
-            message: {
-              content: "{\"highlights\":[\"A\"],\"opportunities\":[\"B\"]}",
-            },
-          },
-        ],
-      }),
-    } as Response);
+  it("returns the SDK structured output when generation succeeds", async () => {
+    vi.mocked(generateText).mockResolvedValueOnce({
+      output: {
+        highlights: ["A"],
+        opportunities: ["B"],
+      },
+      text: "{\"highlights\":[\"A\"],\"opportunities\":[\"B\"]}",
+    } as never);
 
     const result = await generateObjectWithRepair({
       model: {} as never,
@@ -114,50 +107,67 @@ describe("generateObjectWithRepair", () => {
       prompt: "test",
       system: "system",
       providerId: "local-openai",
-      localOpenAI: {
-        modelId: "qwen/test",
-        baseUrl: "http://127.0.0.1:1234/v1",
-        apiKey: "lm-studio",
-        maxOutputTokens: 300,
-      },
+      maxOutputTokens: 400,
     });
 
     expect(result.object).toEqual({
       highlights: ["A"],
       opportunities: ["B"],
     });
-    expect(fetch).toHaveBeenCalledTimes(1);
-    expect(generateObject).not.toHaveBeenCalled();
+    expect(generateText).toHaveBeenCalledTimes(1);
   });
 
-  it("falls back to AI SDK object generation when local structured call fails", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce({
-      ok: false,
-      status: 400,
-      text: async () => "unsupported",
-    } as Response);
-    vi.mocked(generateObject).mockResolvedValueOnce({
-      object: {
-        highlights: ["A"],
-        opportunities: ["B"],
+  it("repairs sectioned markdown without a second model call", async () => {
+    vi.mocked(generateText).mockRejectedValueOnce(Object.assign(
+      new Error("No object generated: could not parse the response."),
+      {
+        text: `**Highlights:**
+- Search drove 38% of downloads.
+
+**Opportunities:**
+- Improve search visibility with keyword work.`,
       },
-    } as never);
+    ));
 
     const result = await generateObjectWithRepair({
       model: {} as never,
       schema: analyticsSchema,
       prompt: "test",
       providerId: "local-openai",
-      localOpenAI: {
-        modelId: "qwen/test",
-      },
     });
 
-    expect(fetch).toHaveBeenCalledTimes(1);
-    expect(generateObject).toHaveBeenCalledTimes(1);
+    expect(result.object).toEqual({
+      highlights: ["Search drove 38% of downloads."],
+      opportunities: ["Improve search visibility with keyword work."],
+    });
+    expect(generateText).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses a second SDK call to repair unparsable local output", async () => {
+    vi.mocked(generateText)
+      .mockRejectedValueOnce(Object.assign(
+        new Error("No object generated: could not parse the response."),
+        {
+          text: "Summarised prose without parsable sections.",
+        },
+      ))
+      .mockResolvedValueOnce({
+        text: "{\"highlights\":[\"A\"],\"opportunities\":[\"B\"]}",
+      } as never);
+
+    const result = await generateObjectWithRepair({
+      model: {} as never,
+      schema: analyticsSchema,
+      prompt: "test",
+      system: "system",
+      providerId: "local-openai",
+      maxOutputTokens: 400,
+    });
+
     expect(result.object).toEqual({
       highlights: ["A"],
       opportunities: ["B"],
     });
+    expect(generateText).toHaveBeenCalledTimes(2);
   });
 });

@@ -1,19 +1,8 @@
-import { generateObject, generateText, type LanguageModel } from "ai";
+import { Output, generateText, type LanguageModel } from "ai";
 import { z } from "zod";
-import {
-  LOCAL_OPENAI_PROVIDER_ID,
-  resolveLocalOpenAIApiKey,
-  resolveLocalOpenAIBaseUrl,
-} from "./local-provider";
+import { LOCAL_OPENAI_PROVIDER_ID } from "./local-provider";
 
 type ProviderOptions = NonNullable<Parameters<typeof generateText>[0]["providerOptions"]>;
-
-interface LocalOpenAIStructuredOptions {
-  modelId: string;
-  baseUrl?: string;
-  apiKey?: string;
-  maxOutputTokens?: number;
-}
 
 interface RepairGeneratedObjectTextOptions<T extends Record<string, unknown>> {
   text: string;
@@ -22,6 +11,7 @@ interface RepairGeneratedObjectTextOptions<T extends Record<string, unknown>> {
   system?: string;
   providerId?: string;
   providerOptions?: ProviderOptions;
+  maxOutputTokens?: number;
   sectionAliases?: Record<string, string[]>;
 }
 
@@ -31,10 +21,10 @@ interface GenerateObjectWithRepairOptions<T extends Record<string, unknown>> {
   prompt: string;
   system?: string;
   temperature?: number;
+  maxOutputTokens?: number;
   providerId?: string;
   providerOptions?: ProviderOptions;
   sectionAliases?: Record<string, string[]>;
-  localOpenAI?: LocalOpenAIStructuredOptions;
 }
 
 function stripCodeFences(text: string): string {
@@ -196,92 +186,11 @@ function buildJsonRepairPrompt<T extends Record<string, unknown>>(
   ].join("\n");
 }
 
-function chatCompletionsUrl(baseUrl: string | undefined): string {
-  return `${resolveLocalOpenAIBaseUrl(baseUrl)}/chat/completions`;
-}
-
-function extractTextFromChatCompletion(payload: unknown): string {
-  const choices = (payload as { choices?: Array<{ message?: { content?: unknown } }> }).choices;
-  const content = choices?.[0]?.message?.content;
-
-  if (typeof content === "string") {
-    return content;
+function extractErrorText(err: unknown): string | null {
+  if (err && typeof err === "object" && "text" in err && typeof err.text === "string") {
+    return err.text;
   }
-
-  if (Array.isArray(content)) {
-    return content
-      .map((part) => {
-        if (typeof part === "string") return part;
-        if (part && typeof part === "object" && "text" in part && typeof part.text === "string") {
-          return part.text;
-        }
-        return "";
-      })
-      .join("")
-      .trim();
-  }
-
-  return "";
-}
-
-async function generateLocalOpenAIStructuredObject<T extends Record<string, unknown>>({
-  schema,
-  prompt,
-  system,
-  temperature,
-  localOpenAI,
-  sectionAliases = {},
-}: {
-  schema: z.ZodType<T>;
-  prompt: string;
-  system?: string;
-  temperature?: number;
-  localOpenAI: LocalOpenAIStructuredOptions;
-  sectionAliases?: Record<string, string[]>;
-}): Promise<T> {
-  const headers: HeadersInit = {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${resolveLocalOpenAIApiKey(localOpenAI.apiKey)}`,
-  };
-
-  const response = await fetch(chatCompletionsUrl(localOpenAI.baseUrl), {
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      model: localOpenAI.modelId,
-      messages: [
-        ...(system ? [{ role: "system", content: system }] : []),
-        { role: "user", content: prompt },
-      ],
-      temperature: temperature ?? 0,
-      max_tokens: localOpenAI.maxOutputTokens ?? 400,
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          name: "structured_output",
-          strict: true,
-          schema: z.toJSONSchema(schema),
-        },
-      },
-    }),
-    cache: "no-store",
-    signal: AbortSignal.timeout(60_000),
-  });
-
-  if (!response.ok) {
-    const raw = await response.text().catch(() => "");
-    throw new Error(raw || `Local structured output failed with status ${response.status}`);
-  }
-
-  const payload = await response.json();
-  const text = extractTextFromChatCompletion(payload);
-  const directJson = validateJsonCandidate(extractBalancedJson(text), schema);
-  if (directJson) return directJson;
-
-  const sectioned = parseSectionedBulletLists(text, schema, sectionAliases);
-  if (sectioned) return sectioned;
-
-  throw new Error("Local structured output did not return valid schema-matching JSON");
+  return null;
 }
 
 export async function repairGeneratedObjectText<T extends Record<string, unknown>>({
@@ -291,6 +200,7 @@ export async function repairGeneratedObjectText<T extends Record<string, unknown
   system,
   providerId,
   providerOptions,
+  maxOutputTokens,
   sectionAliases = {},
 }: RepairGeneratedObjectTextOptions<T>): Promise<string | null> {
   const directJson = validateJsonCandidate(extractBalancedJson(text), schema);
@@ -313,6 +223,7 @@ export async function repairGeneratedObjectText<T extends Record<string, unknown
       system,
       prompt: buildJsonRepairPrompt(text, schema),
       temperature: 0,
+      maxOutputTokens,
       providerOptions,
     });
 
@@ -323,7 +234,8 @@ export async function repairGeneratedObjectText<T extends Record<string, unknown
 
     const repairedSections = parseSectionedBulletLists(repaired.text, schema, sectionAliases);
     return repairedSections ? JSON.stringify(repairedSections) : null;
-  } catch {
+  } catch (err) {
+    console.warn("[ai] Structured output repair call failed:", err);
     return null;
   }
 }
@@ -334,44 +246,59 @@ export async function generateObjectWithRepair<T extends Record<string, unknown>
   prompt,
   system,
   temperature,
+  maxOutputTokens,
   providerId,
   providerOptions,
   sectionAliases,
-  localOpenAI,
 }: GenerateObjectWithRepairOptions<T>) {
-  if (providerId === LOCAL_OPENAI_PROVIDER_ID && localOpenAI) {
-    try {
-      const object = await generateLocalOpenAIStructuredObject({
+  try {
+    const result = await generateText({
+      model,
+      system,
+      prompt,
+      temperature,
+      maxOutputTokens,
+      providerOptions,
+      output: Output.object({
         schema,
-        prompt,
-        system,
-        temperature,
-        localOpenAI,
-        sectionAliases,
-      });
-      return { object };
-    } catch {
-      // Fall back to generic structured generation plus repair for
-      // OpenAI-compatible servers that do not fully support json_schema.
-    }
-  }
+        name: "structured_output",
+      }),
+    });
 
-  return generateObject({
-    model,
-    schema,
-    prompt,
-    system,
-    temperature,
-    output: "object",
-    providerOptions,
-    experimental_repairText: ({ text }) => repairGeneratedObjectText({
+    return { object: result.output };
+  } catch (err) {
+    const text = extractErrorText(err);
+    if (!text) {
+      throw err;
+    }
+
+    console.warn(
+      `[ai] Structured output parse failed${providerId ? ` for ${providerId}` : ""}; attempting repair.`,
+      err,
+    );
+
+    const repaired = await repairGeneratedObjectText({
       text,
       schema,
       model,
       system,
       providerId,
       providerOptions,
+      maxOutputTokens,
       sectionAliases,
-    }),
-  });
+    });
+
+    const repairedObject = validateJsonCandidate(repaired, schema);
+    if (repairedObject) {
+      console.warn(
+        `[ai] Structured output repaired${providerId ? ` for ${providerId}` : ""}.`,
+      );
+      return { object: repairedObject };
+    }
+
+    console.warn(
+      `[ai] Structured output repair failed${providerId ? ` for ${providerId}` : ""}.`,
+    );
+    throw err;
+  }
 }
