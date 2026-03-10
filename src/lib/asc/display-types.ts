@@ -1,17 +1,17 @@
 export const DISPLAY_TYPE_LABELS: Record<string, string> = {
   // iPhone
-  APP_IPHONE_67: 'iPhone 6.7"',
-  APP_IPHONE_61: 'iPhone 6.1"',
+  APP_IPHONE_67: 'iPhone 6.9"',
   APP_IPHONE_65: 'iPhone 6.5"',
-  APP_IPHONE_58: 'iPhone 5.8"',
+  APP_IPHONE_61: 'iPhone 6.3"',
+  APP_IPHONE_58: 'iPhone 6.1"',
   APP_IPHONE_55: 'iPhone 5.5"',
   APP_IPHONE_47: 'iPhone 4.7"',
   APP_IPHONE_40: 'iPhone 4"',
   APP_IPHONE_35: 'iPhone 3.5"',
   // iPad
-  APP_IPAD_PRO_3GEN_129: 'iPad Pro 12.9"',
-  APP_IPAD_PRO_3GEN_11: 'iPad Pro 11"',
-  APP_IPAD_PRO_129: 'iPad Pro 12.9" (2nd)',
+  APP_IPAD_PRO_3GEN_129: 'iPad 13"',
+  APP_IPAD_PRO_3GEN_11: 'iPad 11"',
+  APP_IPAD_PRO_129: 'iPad 12.9"',
   APP_IPAD_105: 'iPad 10.5"',
   APP_IPAD_97: 'iPad 9.7"',
   // Apple Watch
@@ -25,17 +25,17 @@ export const DISPLAY_TYPE_LABELS: Record<string, string> = {
   APP_APPLE_TV: "Apple TV",
   APP_APPLE_VISION_PRO: "Apple Vision Pro",
   // iMessage – iPhone
-  IMESSAGE_APP_IPHONE_67: 'iMessage iPhone 6.7"',
+  IMESSAGE_APP_IPHONE_67: 'iMessage iPhone 6.9"',
   IMESSAGE_APP_IPHONE_65: 'iMessage iPhone 6.5"',
-  IMESSAGE_APP_IPHONE_61: 'iMessage iPhone 6.1"',
-  IMESSAGE_APP_IPHONE_58: 'iMessage iPhone 5.8"',
+  IMESSAGE_APP_IPHONE_61: 'iMessage iPhone 6.3"',
+  IMESSAGE_APP_IPHONE_58: 'iMessage iPhone 6.1"',
   IMESSAGE_APP_IPHONE_55: 'iMessage iPhone 5.5"',
   IMESSAGE_APP_IPHONE_47: 'iMessage iPhone 4.7"',
   IMESSAGE_APP_IPHONE_40: 'iMessage iPhone 4"',
   // iMessage – iPad
-  IMESSAGE_APP_IPAD_PRO_3GEN_129: 'iMessage iPad Pro 12.9"',
-  IMESSAGE_APP_IPAD_PRO_3GEN_11: 'iMessage iPad Pro 11"',
-  IMESSAGE_APP_IPAD_PRO_129: 'iMessage iPad Pro 12.9" (2nd)',
+  IMESSAGE_APP_IPAD_PRO_3GEN_129: 'iMessage iPad 13"',
+  IMESSAGE_APP_IPAD_PRO_3GEN_11: 'iMessage iPad 11"',
+  IMESSAGE_APP_IPAD_PRO_129: 'iMessage iPad 12.9"',
   IMESSAGE_APP_IPAD_105: 'iMessage iPad 10.5"',
   IMESSAGE_APP_IPAD_97: 'iMessage iPad 9.7"',
 };
@@ -43,16 +43,16 @@ export const DISPLAY_TYPE_LABELS: Record<string, string> = {
 /** Primary portrait resolution for each display type (width × height). */
 export const DISPLAY_TYPE_SIZES: Record<string, string> = {
   // iPhone
-  APP_IPHONE_67: "1290 × 2796",
-  APP_IPHONE_61: "1170 × 2532",
+  APP_IPHONE_67: "1260 × 2736",
   APP_IPHONE_65: "1284 × 2778",
-  APP_IPHONE_58: "1125 × 2436",
+  APP_IPHONE_61: "1179 × 2556",
+  APP_IPHONE_58: "1170 × 2532",
   APP_IPHONE_55: "1242 × 2208",
   APP_IPHONE_47: "750 × 1334",
   APP_IPHONE_40: "640 × 1136",
   APP_IPHONE_35: "640 × 960",
   // iPad
-  APP_IPAD_PRO_3GEN_129: "2048 × 2732",
+  APP_IPAD_PRO_3GEN_129: "2064 × 2752",
   APP_IPAD_PRO_3GEN_11: "1668 × 2388",
   APP_IPAD_PRO_129: "2048 × 2732",
   APP_IPAD_105: "1668 × 2224",
@@ -73,8 +73,8 @@ export const DISPLAY_TYPE_SIZES: Record<string, string> = {
 export const DISPLAY_TYPE_ORDER: string[] = [
   // iPhone
   "APP_IPHONE_67",
-  "APP_IPHONE_61",
   "APP_IPHONE_65",
+  "APP_IPHONE_61",
   "APP_IPHONE_58",
   "APP_IPHONE_55",
   "APP_IPHONE_47",
@@ -125,8 +125,8 @@ export type DeviceCategory =
 export const DEVICE_CATEGORY_TYPES: Record<DeviceCategory, string[]> = {
   iPhone: [
     "APP_IPHONE_67",
-    "APP_IPHONE_61",
     "APP_IPHONE_65",
+    "APP_IPHONE_61",
     "APP_IPHONE_58",
     "APP_IPHONE_55",
     "APP_IPHONE_47",
