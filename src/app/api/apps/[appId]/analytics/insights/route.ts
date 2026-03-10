@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { generateObject } from "ai";
 import { createLanguageModel, classifyAIError } from "@/lib/ai/provider-factory";
-import { getAISettings } from "@/lib/ai/settings";
+import { getAISettings, type AISettingsResult } from "@/lib/ai/settings";
 import { ensureLocalModelLoaded, isLocalOpenAIProvider } from "@/lib/ai/local-provider";
 import { buildAnalyticsInsightsPrompt } from "@/lib/ai/prompts";
+import { generateObjectWithRepair } from "@/lib/ai/structured-output";
 import { hasCredentials } from "@/lib/asc/client";
 import { isDemoMode, getDemoAnalytics } from "@/lib/demo";
 import type { AnalyticsData } from "@/lib/asc/analytics";
@@ -95,10 +95,11 @@ export async function POST(
 
   // 2. Get AI model
   let model;
+  let settings: AISettingsResult | null = null;
   let providerId = "";
   let modelId = "";
   try {
-    const settings = await getAISettings();
+    settings = await getAISettings();
     if (!settings) throw new Error("AI not configured");
 
     if (isLocalOpenAIProvider(settings.provider)) {
@@ -143,13 +144,26 @@ export async function POST(
   }
 
   try {
-    const { object: insights } = await generateObject({
+    const { object: insights } = await generateObjectWithRepair({
       model,
       schema: analyticsInsightSchema,
       system: "You are an app analytics expert. Analyse App Store Connect metrics and extract structured insights. Be concise, data-driven, and actionable.",
       prompt,
       temperature: 0,
+      providerId,
       providerOptions: noThinkingOptions(),
+      sectionAliases: {
+        highlights: ["highlights"],
+        opportunities: ["opportunities"],
+      },
+      localOpenAI: settings && isLocalOpenAIProvider(providerId)
+        ? {
+            modelId,
+            baseUrl: settings.baseUrl ?? undefined,
+            apiKey: settings.apiKey,
+            maxOutputTokens: 400,
+          }
+        : undefined,
     });
 
     // Cache the result with data hash

@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { generateObject } from "ai";
 import { createLanguageModel, classifyAIError } from "@/lib/ai/provider-factory";
-import { getAISettings } from "@/lib/ai/settings";
+import { getAISettings, type AISettingsResult } from "@/lib/ai/settings";
 import { ensureLocalModelLoaded, isLocalOpenAIProvider } from "@/lib/ai/local-provider";
 import { buildInsightsPrompt, buildIncrementalInsightsPrompt } from "@/lib/ai/prompts";
+import { generateObjectWithRepair } from "@/lib/ai/structured-output";
 import { listCustomerReviews } from "@/lib/asc/reviews";
 import { hasCredentials } from "@/lib/asc/client";
 import { isDemoMode, getDemoReviews } from "@/lib/demo";
@@ -110,10 +110,11 @@ export async function POST(
 
   // 2. Get AI model
   let model;
+  let settings: AISettingsResult | null = null;
   let providerId = "";
   let modelId = "";
   try {
-    const settings = await getAISettings();
+    settings = await getAISettings();
     if (!settings) throw new Error("AI not configured");
 
     if (isLocalOpenAIProvider(settings.provider)) {
@@ -167,13 +168,27 @@ export async function POST(
   }
 
   try {
-    const { object: insights } = await generateObject({
+    const { object: insights } = await generateObjectWithRepair({
       model,
       schema: insightSchema,
       system: "You are an app review analyst. Be concise and data-driven.",
       prompt,
       temperature: 0,
+      providerId,
       providerOptions: noThinkingOptions(),
+      sectionAliases: {
+        strengths: ["strengths"],
+        weaknesses: ["weaknesses"],
+        potential: ["potential", "opportunities"],
+      },
+      localOpenAI: settings && isLocalOpenAIProvider(providerId)
+        ? {
+            modelId,
+            baseUrl: settings.baseUrl ?? undefined,
+            apiKey: settings.apiKey,
+            maxOutputTokens: 500,
+          }
+        : undefined,
     });
 
     // Cache the result with review count
