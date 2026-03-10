@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { generateObject } from "ai";
 import { createLanguageModel, classifyAIError } from "@/lib/ai/provider-factory";
 import { getAISettings } from "@/lib/ai/settings";
 import { ensureLocalModelLoaded, isLocalOpenAIProvider } from "@/lib/ai/local-provider";
 import { buildInsightsPrompt, buildIncrementalInsightsPrompt } from "@/lib/ai/prompts";
+import { generateObjectWithRepair } from "@/lib/ai/structured-output";
 import { listCustomerReviews } from "@/lib/asc/reviews";
 import { hasCredentials } from "@/lib/asc/client";
 import { isDemoMode, getDemoReviews } from "@/lib/demo";
@@ -167,13 +167,20 @@ export async function POST(
   }
 
   try {
-    const { object: insights } = await generateObject({
+    const { object: insights } = await generateObjectWithRepair({
       model,
       schema: insightSchema,
       system: "You are an app review analyst. Be concise and data-driven.",
       prompt,
       temperature: 0,
+      providerId,
       providerOptions: noThinkingOptions(),
+      maxOutputTokens: isLocalOpenAIProvider(providerId) ? 500 : undefined,
+      sectionAliases: {
+        strengths: ["strengths"],
+        weaknesses: ["weaknesses"],
+        potential: ["potential", "opportunities"],
+      },
     });
 
     // Cache the result with review count
