@@ -8,7 +8,6 @@ Before writing any code, read these docs:
 
 - **[docs/UI.md](docs/UI.md)** – typography, icons, component patterns, form conventions, layout rules. All UI must follow these conventions exactly.
 - **[docs/BACKEND.md](docs/BACKEND.md)** – architecture, security model, database schema, caching strategy, API conventions, testing. All server-side code must follow these conventions.
-- **[docs/ASC-API.md](docs/ASC-API.md)** – App Store Connect API endpoints, field names, data shapes, and known quirks. Reference this before writing any ASC fetch code.
 
 ## Project rules
 
@@ -41,12 +40,6 @@ Before writing any code, read these docs:
 - `forge.config.ts` imports `BUILD_NUMBER` for `CFBundleVersion`.
 - When asked to bump: update `src/lib/version.ts` and `package.json` version.
 
-## MAS builds
-
-- `MAS=1` – switches to StoreKit IAP, disables auto-updater, uses MAS entitlements. Set automatically by `electron:make:mas`.
-- `MAS_DEV=1` – signs with Apple Development cert + `provisioning.dev.provisionprofile` for local testing. Without it, uses 3rd Party Mac Developer Application cert + `provisioning.dist.provisionprofile` for App Store submission.
-- Both `.provisionprofile` files live in the project root and are gitignored.
-- `entitlements.mas.plist` – parent entitlements (sandbox, network, IAP). `entitlements.mas.child.plist` – child entitlements (sandbox + inherit) for helper processes.
 
 ## Style
 
