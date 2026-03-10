@@ -38,7 +38,7 @@ export function createLanguageModel(
       apiKey: resolveLocalOpenAIApiKey(apiKey),
       baseURL: resolveLocalOpenAIBaseUrl(baseUrl),
     });
-    return openaiCompatible(modelId);
+    return openaiCompatible.chat(modelId);
   }
 
   switch (provider) {
