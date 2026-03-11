@@ -45,7 +45,7 @@ describe("createLanguageModel", () => {
   it("creates a local OpenAI-compatible model", () => {
     const model = createLanguageModel("local-openai", "qwen2.5-7b-instruct", "", DEFAULT_LOCAL_OPENAI_BASE_URL) as Record<string, unknown>;
     expect(model.modelId).toBe("qwen2.5-7b-instruct");
-    expect(model.provider).toContain("openai");
+    expect(model.provider).toBe("openai.chat");
   });
 
   it("throws for unknown provider", () => {
