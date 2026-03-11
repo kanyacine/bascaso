@@ -10,6 +10,7 @@ import {
   buildReplyPrompt,
   buildAppealPrompt,
   buildFixKeywordsPrompt,
+  buildNominationPrompt,
 } from "@/lib/ai/prompts";
 import { errorJson, parseBody } from "@/lib/api-helpers";
 
@@ -78,6 +79,7 @@ const requestSchema = z.object({
     "fix-keywords",
     "draft-reply",
     "draft-appeal",
+    "draft-nomination",
   ]),
   text: z.string(),
   field: z.string().optional(),
@@ -91,6 +93,11 @@ const requestSchema = z.object({
   description: z.string().optional(),
   subtitle: z.string().optional(),
   forbiddenWords: z.array(z.string()).optional(),
+  // draft-nomination fields
+  versionString: z.string().optional(),
+  whatsNew: z.string().optional(),
+  promotionalText: z.string().optional(),
+  isLaunch: z.boolean().optional(),
 });
 
 export async function POST(request: Request) {
@@ -100,6 +107,7 @@ export async function POST(request: Request) {
   const {
     action, text, field, reviewTitle, rating, fromLocale, toLocale, locale,
     appName, charLimit, description, subtitle, forbiddenWords,
+    versionString, whatsNew, promotionalText, isLaunch,
   } = parsed;
 
   // Copy needs no AI – echo the text back
@@ -185,6 +193,17 @@ export async function POST(request: Request) {
     }
     case "draft-appeal": {
       prompt = buildAppealPrompt(reviewTitle ?? "", text, rating ?? 1, appName);
+      break;
+    }
+    case "draft-nomination": {
+      prompt = buildNominationPrompt({
+        appName,
+        versionString: versionString ?? "",
+        whatsNew: whatsNew ?? "",
+        promotionalText: promotionalText ?? "",
+        description: description ?? "",
+        isLaunch: isLaunch ?? false,
+      });
       break;
     }
   }

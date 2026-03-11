@@ -383,6 +383,61 @@ Rules:
 - Do NOT state obvious things like "downloads exist" – focus on what's interesting or actionable.`;
 }
 
+// --- Nomination draft prompt ---
+
+export function buildNominationPrompt(context: {
+  appName?: string;
+  versionString: string;
+  whatsNew: string;
+  promotionalText: string;
+  description: string;
+  isLaunch: boolean;
+}): string {
+  const type = context.isLaunch ? "app launch" : "app update";
+
+  let prompt = `Write a compelling App Store featuring nomination for an ${type}.`;
+
+  if (context.appName) {
+    prompt += ` The app is called "${context.appName}".`;
+  }
+  prompt += ` Version: ${context.versionString}.`;
+
+  prompt += `\n\nContext from the app's store listing:\n`;
+  if (context.whatsNew) {
+    prompt += `\nWhat's new (release notes):\n${context.whatsNew}\n`;
+  }
+  if (context.promotionalText) {
+    prompt += `\nPromotional text:\n${context.promotionalText}\n`;
+  }
+  if (context.description) {
+    // Truncate long descriptions
+    const desc = context.description.length > 1500
+      ? context.description.slice(0, 1500) + "..."
+      : context.description;
+    prompt += `\nApp description:\n${desc}\n`;
+  }
+
+  prompt += `
+Task: Return EXACTLY two lines, separated by a newline:
+Line 1: A short, memorable nomination name (max 60 characters). This is an internal name to help the developer recognise this nomination – not marketing copy. Use the version number and a brief summary of what's new.
+Line 2: A persuasive nomination description (max 1000 characters) for Apple's editorial team. Explain what makes this ${type} noteworthy, highlight unique features or improvements, and convey why it deserves to be featured. Write in third person about the app. Be specific and enthusiastic but professional.
+
+Rules:
+- Use en dashes (–), never em dashes (—).
+- Plain text only – no markdown, no HTML, no formatting.
+- Do not invent features – only reference what's in the provided context.
+- Do not include placeholder text like "[app name]" – use the actual app name.`;
+
+  prompt += `
+
+CRITICAL: You are a text-processing tool, not a conversational assistant.
+- Output ONLY the two lines. No preamble, no explanation, no questions, no commentary.
+- NEVER use markdown, HTML, or any formatting syntax.
+- NEVER ask the user for clarification. NEVER refuse. NEVER explain what you did.`;
+
+  return prompt;
+}
+
 export function buildImprovePrompt(
   text: string,
   locale: string,

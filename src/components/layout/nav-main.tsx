@@ -15,6 +15,7 @@ import {
   UsersThree,
   ChatDots,
   MagnifyingGlass,
+  Trophy,
 } from "@phosphor-icons/react";
 import type { Icon } from "@phosphor-icons/react";
 import {
@@ -57,7 +58,7 @@ function getNavGroups(appId: string): NavGroup[] {
       label: "Insights",
       items: [
         { title: "Reviews", href: `${base}/reviews`, icon: ChatsCircle, shortcut: "⌘R" },
-        { title: "Analytics", href: `${base}/analytics`, icon: ChartLineUp, shortcut: "⌘A" },
+        { title: "Analytics", href: `${base}/analytics`, icon: ChartLineUp, shortcut: "⌘I" },
         { title: "Keywords", href: `${base}/aso/keywords`, icon: MagnifyingGlass },
       ],
     },
@@ -68,6 +69,12 @@ function getNavGroups(appId: string): NavGroup[] {
         { title: "Groups", href: `${base}/testflight/groups`, icon: UsersThree },
         { title: "Beta app info", href: `${base}/testflight/info`, icon: Info },
         { title: "Feedback", href: `${base}/testflight/feedback`, icon: ChatDots },
+      ],
+    },
+    {
+      label: "Growth",
+      items: [
+        { title: "Nominations", href: `${base}/nominations`, icon: Trophy },
       ],
     },
   ];

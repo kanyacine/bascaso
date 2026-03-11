@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { Package, SquaresFour } from "@phosphor-icons/react";
@@ -81,6 +81,42 @@ function PortfolioButton() {
   );
 }
 
+function ScrollFadeSidebarContent({ children }: { children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [fade, setFade] = useState<"none" | "bottom" | "top" | "both">("none");
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    function update() {
+      if (!el) return;
+      const { scrollTop, scrollHeight, clientHeight } = el;
+      const atTop = scrollTop <= 2;
+      const atBottom = scrollTop + clientHeight >= scrollHeight - 2;
+      if (atTop && atBottom) setFade("none");
+      else if (atTop) setFade("bottom");
+      else if (atBottom) setFade("top");
+      else setFade("both");
+    }
+
+    update();
+    el.addEventListener("scroll", update, { passive: true });
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener("scroll", update);
+      ro.disconnect();
+    };
+  }, []);
+
+  return (
+    <SidebarContent ref={ref} className={`sidebar-scroll-fade sidebar-scroll-fade--${fade}`}>
+      {children}
+    </SidebarContent>
+  );
+}
+
 export function AppSidebar() {
   const { appId } = useParams<{ appId?: string }>();
   const router = useRouter();
@@ -102,7 +138,7 @@ export function AppSidebar() {
     o: "",                // Overview
     l: "/store-listing",  // Store listing
     r: "/reviews",        // Reviews
-    a: "/analytics",      // Analytics
+    i: "/analytics",      // Analytics
     b: "/testflight",     // Builds
   };
 
@@ -147,9 +183,9 @@ export function AppSidebar() {
           <AppSwitcher />
         </div>
       </SidebarHeader>
-      <SidebarContent>
+      <ScrollFadeSidebarContent>
         {navAppId && <NavMain appId={navAppId} />}
-      </SidebarContent>
+      </ScrollFadeSidebarContent>
       <div className="no-drag px-2 pb-2">
         <ProBanner />
       </div>
