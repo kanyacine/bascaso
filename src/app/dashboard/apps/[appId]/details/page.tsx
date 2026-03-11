@@ -624,10 +624,6 @@ export default function AppDetailsPage() {
         appId={appId}
         versionId={versionId}
         appInfoId={appInfoId}
-        sections={{
-          storeListing: otherSectionLocales["store-listing"]?.includes(removeLocaleCode ?? "") ?? false,
-          appDetails: locales.includes(removeLocaleCode ?? ""),
-        }}
         onRemoved={() => {
           if (removeLocaleCode === selectedLocale) {
             const remaining = locales.filter((l) => l !== removeLocaleCode);

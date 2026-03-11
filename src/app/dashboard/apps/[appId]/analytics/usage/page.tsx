@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/chart";
 import { formatDateShort } from "@/lib/format";
 import { useAnalytics } from "@/lib/analytics-context";
-import { parseRange, filterByDateRange } from "@/lib/analytics-range";
+import { parseRange, filterByDateRange, getStoredRange } from "@/lib/analytics-range";
 import { AnalyticsStateGuard } from "@/components/analytics-state-guard";
 
 // ---------- Chart configs ----------
@@ -62,7 +62,7 @@ const VERSION_COLORS = [
 export default function UsagePage() {
   const searchParams = useSearchParams();
   const { data, lastDate } = useAnalytics();
-  const range = useMemo(() => parseRange(searchParams.get("range"), lastDate), [searchParams, lastDate]);
+  const range = useMemo(() => parseRange(searchParams.get("range") ?? getStoredRange(), lastDate), [searchParams, lastDate]);
 
   const sessions = useMemo(
     () => filterByDateRange(data?.dailySessions ?? [], range),

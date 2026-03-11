@@ -1,3 +1,21 @@
+const RANGE_STORAGE_KEY = "range:analytics";
+
+/** Read the effective range string from URL param with localStorage fallback. */
+export function getStoredRange(): string | null {
+  try {
+    return localStorage.getItem(RANGE_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setStoredRange(range: string | null): void {
+  try {
+    if (range === null) localStorage.removeItem(RANGE_STORAGE_KEY);
+    else localStorage.setItem(RANGE_STORAGE_KEY, range);
+  } catch { /* ignore */ }
+}
+
 export interface DateRange {
   from: string; // YYYY-MM-DD
   to: string; // YYYY-MM-DD

@@ -21,7 +21,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { CaretRight, Info } from "@phosphor-icons/react";
+import { CaretRight, Info, MagicWand } from "@phosphor-icons/react";
 import { localeName, FIELD_LIMITS } from "@/lib/asc/locale-names";
 import { buildForbiddenKeywords } from "@/lib/asc/keyword-utils";
 import { useAIStatus } from "@/lib/hooks/use-ai-status";
@@ -120,6 +120,13 @@ function isMultiLine(field: string): boolean {
   return field === "description" || field === "whatsNew" || field === "promotionalText";
 }
 
+// All translatable text fields (not URLs)
+const ALL_TEXT_FIELDS = [
+  ...STORE_LISTING_TEXT_FIELDS,
+  "keywords" as const,
+  ...APP_DETAILS_TEXT_FIELDS,
+];
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -147,9 +154,17 @@ export function AddLocaleDialog({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [translated, setTranslated] = useState(false);
 
   // Existing localization IDs (if locale already exists in ASC)
   const existingIdsRef = useRef<{ version?: string; appInfo?: string }>({});
+
+  // Store base data so we can translate from it on demand
+  const baseDataRef = useRef<{
+    storeListing: StoreListingFields;
+    appDetails: AppDetailsFields;
+    otherKeywords: string[];
+  } | null>(null);
 
   // Track whether we've already started for this open
   const initiatedRef = useRef(false);
@@ -197,9 +212,9 @@ export function AddLocaleDialog({
     [locale, primaryLocale, appName, updateField],
   );
 
-  // Generate keywords for the locale
-  const generateKeywords = useCallback(
-    async (description: string, subtitle: string, forbiddenWords: string[]) => {
+  // Fix keywords: dedupe, remove forbidden, fill budget
+  const fixKeywords = useCallback(
+    async (translatedKeywords: string, description: string, subtitle: string, forbiddenWords: string[]) => {
       updateField("keywords", { translating: true });
       try {
         const res = await fetch("/api/ai", {
@@ -207,7 +222,7 @@ export function AddLocaleDialog({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             action: "fix-keywords",
-            text: "",
+            text: translatedKeywords,
             field: "keywords",
             locale,
             appName,
@@ -223,14 +238,14 @@ export function AddLocaleDialog({
           return;
         }
       } catch {
-        // Fall through
+        // Fall through – keep translated keywords
       }
       updateField("keywords", { translating: false });
     },
     [locale, appName, updateField],
   );
 
-  // Fetch base data and start translations when dialog opens
+  // Fetch base data when dialog opens (no auto-translate)
   useEffect(() => {
     if (!open || initiatedRef.current) return;
     initiatedRef.current = true;
@@ -239,7 +254,6 @@ export function AddLocaleDialog({
     setError(null);
 
     async function init() {
-      // Fetch base data from both sections in parallel
       const [versionRes, infoRes] = await Promise.all([
         fetch(`/api/apps/${appId}/versions/${versionId}/localizations?refresh`),
         fetch(`/api/apps/${appId}/info/${appInfoId}/localizations?refresh`),
@@ -254,7 +268,6 @@ export function AddLocaleDialog({
       const versionData = await versionRes.json();
       const infoData = await infoRes.json();
 
-      // Find primary locale data + check if target locale already exists
       /* eslint-disable @typescript-eslint/no-explicit-any */
       const versionLocalizations = versionData.localizations ?? [];
       const infoLocalizations = infoData.localizations ?? [];
@@ -292,7 +305,20 @@ export function AddLocaleDialog({
         privacyChoicesUrl: baseInfo?.attributes.privacyChoicesUrl ?? "",
       };
 
-      // Initialise all fields with base values
+      /* eslint-disable @typescript-eslint/no-explicit-any */
+      const otherKeywords = (versionLocalizations ?? [])
+        .filter((l: any) => l.attributes.locale !== locale)
+        .map((l: any) => (l.attributes.keywords ?? "") as string);
+      /* eslint-enable @typescript-eslint/no-explicit-any */
+
+      // Store base data for later translation
+      baseDataRef.current = {
+        storeListing: baseStoreListing,
+        appDetails: baseAppDetails,
+        otherKeywords,
+      };
+
+      // Initialise all fields with base values (including keywords)
       const initial: Record<string, FieldState> = {};
 
       for (const f of [...STORE_LISTING_TEXT_FIELDS, ...STORE_LISTING_URL_FIELDS]) {
@@ -303,7 +329,7 @@ export function AddLocaleDialog({
         };
       }
       initial.keywords = {
-        value: "",
+        value: baseStoreListing.keywords,
         translating: false,
         checked: true,
       };
@@ -318,82 +344,116 @@ export function AddLocaleDialog({
 
       setFields(initial);
       setLoading(false);
-
-      // If AI is not configured, keep base values (already set)
-      if (!aiConfigured) return;
-
-      // Collect other locales' keywords for the forbidden words list
-      /* eslint-disable @typescript-eslint/no-explicit-any */
-      const otherKeywords = (versionLocalizations ?? [])
-        .filter((l: any) => l.attributes.locale !== locale)
-        .map((l: any) => (l.attributes.keywords ?? "") as string);
-      /* eslint-enable @typescript-eslint/no-explicit-any */
-
-      // Start translations in parallel for text fields
-      // Track description + subtitle promises for keyword generation
-      let descPromise: Promise<string | undefined> = Promise.resolve(undefined);
-      let subtitlePromise: Promise<string | undefined> = Promise.resolve(undefined);
-
-      for (const f of STORE_LISTING_TEXT_FIELDS) {
-        if (f === "whatsNew" && isFirstVersion) continue;
-        const base = baseStoreListing[f];
-        if (base.trim()) {
-          const p = translateField(f, base);
-          if (f === "description") descPromise = p;
-        }
-      }
-
-      for (const f of APP_DETAILS_TEXT_FIELDS) {
-        const base = baseAppDetails[f];
-        if (base.trim()) {
-          const p = translateField(f, base);
-          if (f === "subtitle") subtitlePromise = p;
-        }
-      }
-
-      // Wait for description + subtitle translations, then generate keywords
-      // Rebuild forbidden words with translated subtitle so its words are excluded
-      Promise.all([descPromise, subtitlePromise]).then(
-        ([translatedDesc, translatedSubtitle]) => {
-          const finalSubtitle = translatedSubtitle ?? baseAppDetails.subtitle;
-          const finalForbidden = buildForbiddenKeywords({
-            appName,
-            subtitle: finalSubtitle || undefined,
-            otherLocaleKeywords: otherKeywords,
-          });
-          generateKeywords(
-            translatedDesc ?? baseStoreListing.description,
-            finalSubtitle,
-            finalForbidden,
-          );
-        },
-      );
     }
 
     init().catch(() => {
       setError("Failed to initialise");
       setLoading(false);
     });
+  }, [open, appId, versionId, appInfoId, primaryLocale, locale, isFirstVersion]);
+
+  // Translate checked fields on demand
+  const handleTranslate = useCallback(async () => {
+    const base = baseDataRef.current;
+    if (!base) return;
+
+    setFields((prev) => {
+      const next = { ...prev };
+      for (const f of ALL_TEXT_FIELDS) {
+        if (f === "whatsNew" && isFirstVersion) continue;
+        if (!next[f]?.checked) continue;
+        // Check section-level enable
+        const isStore = [...STORE_LISTING_TEXT_FIELDS, "keywords"].includes(f);
+        if (isStore && !storeListingEnabled) continue;
+        if (!isStore && !appDetailsEnabled) continue;
+        next[f] = { ...next[f], translating: true };
+      }
+      return next;
+    });
+
+    // Translate text fields in parallel (not keywords)
+    const textFields = ALL_TEXT_FIELDS.filter((f) => f !== "keywords");
+    let descResult: string | undefined;
+    let subtitleResult: string | undefined;
+
+    const promises = textFields.map(async (f) => {
+      if (f === "whatsNew" && isFirstVersion) return;
+      // Check if field is checked and section is enabled
+      const isStore = STORE_LISTING_TEXT_FIELDS.includes(f as keyof StoreListingFields);
+      if (isStore && !storeListingEnabled) return;
+      if (!isStore && !appDetailsEnabled) return;
+
+      // Read checked state from current fields
+      const fieldState = fields[f];
+      if (!fieldState?.checked) return;
+
+      const baseValue = isStore
+        ? base.storeListing[f as keyof StoreListingFields]
+        : base.appDetails[f as keyof AppDetailsFields];
+
+      if (!baseValue?.trim()) {
+        updateField(f, { translating: false });
+        return;
+      }
+
+      const result = await translateField(f, baseValue);
+      if (f === "description") descResult = result;
+      if (f === "subtitle") subtitleResult = result;
+    });
+
+    await Promise.all(promises);
+
+    // Keywords: translate → strip forbidden → fill budget
+    const keywordsChecked = fields.keywords?.checked && storeListingEnabled;
+    if (keywordsChecked && base.storeListing.keywords.trim()) {
+      // Step 1: Translate base keywords
+      const translatedKw = await translateField("keywords", base.storeListing.keywords);
+
+      const finalSubtitle = subtitleResult ?? base.appDetails.subtitle;
+      const finalDesc = descResult ?? base.storeListing.description;
+      const forbidden = buildForbiddenKeywords({
+        appName,
+        subtitle: finalSubtitle || undefined,
+        otherLocaleKeywords: base.otherKeywords,
+      });
+
+      // Step 2: Strip forbidden words client-side before fix-keywords
+      // (The API protects `text` keywords from stripping, so we must clean first)
+      const forbiddenSet = new Set(forbidden.map((w) => w.toLowerCase()));
+      const raw = (translatedKw ?? base.storeListing.keywords)
+        .split(",")
+        .map((w) => w.trim())
+        .filter((w) => w && !forbiddenSet.has(w.toLowerCase()))
+        .join(",");
+
+      // Step 3: Fill remaining budget with new locale-specific keywords
+      await fixKeywords(raw, finalDesc, finalSubtitle, forbidden);
+    } else if (keywordsChecked) {
+      updateField("keywords", { translating: false });
+    }
+
+    setTranslated(true);
   }, [
-    open,
-    appId,
-    versionId,
-    appInfoId,
-    primaryLocale,
-    aiConfigured,
+    fields,
     isFirstVersion,
+    storeListingEnabled,
+    appDetailsEnabled,
+    appName,
     translateField,
-    generateKeywords,
+    fixKeywords,
+    updateField,
   ]);
 
   // Reset when dialog closes
   useEffect(() => {
     if (!open) {
       initiatedRef.current = false;
+      baseDataRef.current = null;
       setFields({});
       setLoading(true);
       setError(null);
       setSaving(false);
+      setTranslated(false);
       setStoreListingEnabled(true);
       setAppDetailsEnabled(true);
     }
@@ -405,9 +465,8 @@ export function AddLocaleDialog({
     setError(null);
 
     try {
-      const promises: Promise<void>[] = [];
-
-      // Store listing localization
+      // Step 1: Create version localization.
+      // Apple auto-creates the appInfo localization when a version localization is added.
       if (storeListingEnabled) {
         const storeFields: Record<string, string> = {};
         for (const f of [...STORE_LISTING_TEXT_FIELDS, ...STORE_LISTING_URL_FIELDS, "keywords" as const]) {
@@ -417,26 +476,23 @@ export function AddLocaleDialog({
             storeFields[f] = fs.value;
           }
         }
-        promises.push(
-          fetch(`/api/apps/${appId}/versions/${versionId}/localizations`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              locales: { [locale]: storeFields },
-              originalLocaleIds: existingIdsRef.current.version
-                ? { [locale]: existingIdsRef.current.version }
-                : {},
-            }),
-          }).then(async (res) => {
-            const data = await res.json();
-            if (data.errors?.length > 0) {
-              throw new Error(data.errors[0].message);
-            }
+        const res = await fetch(`/api/apps/${appId}/versions/${versionId}/localizations`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            locales: { [locale]: storeFields },
+            originalLocaleIds: existingIdsRef.current.version
+              ? { [locale]: existingIdsRef.current.version }
+              : {},
           }),
-        );
+        });
+        const data = await res.json();
+        if (data.errors?.length > 0) {
+          throw new Error(data.errors[0].message);
+        }
       }
 
-      // App details localization
+      // Step 2: Update the auto-created appInfo localization with user's app details fields.
       if (appDetailsEnabled) {
         const detailFields: Record<string, string> = {};
         for (const f of [...APP_DETAILS_TEXT_FIELDS, ...APP_DETAILS_URL_FIELDS]) {
@@ -445,26 +501,36 @@ export function AddLocaleDialog({
             detailFields[f] = fs.value;
           }
         }
-        promises.push(
-          fetch(`/api/apps/${appId}/info/${appInfoId}/localizations`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              locales: { [locale]: detailFields },
-              originalLocaleIds: existingIdsRef.current.appInfo
-                ? { [locale]: existingIdsRef.current.appInfo }
-                : {},
-            }),
-          }).then(async (res) => {
-            const data = await res.json();
-            if (data.errors?.length > 0) {
-              throw new Error(data.errors[0].message);
+        if (Object.keys(detailFields).length > 0) {
+          // Fetch to find the auto-created localization ID
+          const listRes = await fetch(
+            `/api/apps/${appId}/info/${appInfoId}/localizations?refresh`,
+          );
+          if (listRes.ok) {
+            const listData = await listRes.json();
+            /* eslint-disable @typescript-eslint/no-explicit-any */
+            const autoCreated = (listData.localizations ?? []).find(
+              (l: any) => l.attributes.locale === locale,
+            );
+            /* eslint-enable @typescript-eslint/no-explicit-any */
+            if (autoCreated) {
+              // PATCH the auto-created localization
+              const res = await fetch(`/api/apps/${appId}/info/${appInfoId}/localizations`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  locales: { [locale]: detailFields },
+                  originalLocaleIds: { [locale]: autoCreated.id },
+                }),
+              });
+              const data = await res.json();
+              if (data.errors?.length > 0) {
+                throw new Error(data.errors[0].message);
+              }
             }
-          }),
-        );
+          }
+        }
       }
-
-      await Promise.all(promises);
 
       toast.success(`Added ${localeName(locale)}`);
       onOpenChange(false);
@@ -493,9 +559,9 @@ export function AddLocaleDialog({
             </span>
           </DialogTitle>
           <DialogDescription>
-            {aiConfigured
-              ? `Fields are being translated from ${localeName(primaryLocale)}. Review and uncheck any you don't want.`
-              : `AI is not configured – fields are copied from ${localeName(primaryLocale)}. Configure AI in settings for automatic translation.`}
+            {translated
+              ? `Translated from ${localeName(primaryLocale)}. Review the fields and uncheck any you don't want to include.`
+              : `Fields are copied from ${localeName(primaryLocale)}. Review, uncheck any you don't want, then translate with AI or add as-is.`}
           </DialogDescription>
         </DialogHeader>
 
@@ -537,7 +603,7 @@ export function AddLocaleDialog({
                     disabled={!storeListingEnabled}
                     onCheckedChange={(v) => updateField("keywords", { checked: v })}
                     onValueChange={(v) => updateField("keywords", { value: v })}
-                    hint={aiConfigured ? "Generated for this locale" : undefined}
+                    hint={translated ? "Translated, deduped, and optimised" : undefined}
                   />
                   {STORE_LISTING_URL_FIELDS.map((f) => (
                     <FieldRow
@@ -592,6 +658,31 @@ export function AddLocaleDialog({
         </ScrollArea>
 
         <DialogFooter className="border-t pt-4 mt-2">
+          {aiConfigured && !loading && (
+            <Button
+              variant="outline"
+              onClick={handleTranslate}
+              disabled={anyTranslating || translated}
+              className="mr-auto"
+            >
+              {anyTranslating ? (
+                <>
+                  <Spinner className="size-3.5" />
+                  Translating…
+                </>
+              ) : translated ? (
+                <>
+                  <MagicWand className="size-4" />
+                  Translated
+                </>
+              ) : (
+                <>
+                  <MagicWand className="size-4" />
+                  Translate with AI
+                </>
+              )}
+            </Button>
+          )}
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>

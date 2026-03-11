@@ -1188,10 +1188,6 @@ export default function ScreenshotsPage() {
         appId={appId}
         versionId={versionId}
         appInfoId={appInfoId}
-        sections={{
-          storeListing: locales.includes(removeLocaleCode ?? ""),
-          appDetails: otherSectionLocales.details?.includes(removeLocaleCode ?? "") ?? false,
-        }}
         onRemoved={() => {
           if (removeLocaleCode === selectedLocale) {
             const remaining = locales.filter((l) => l !== removeLocaleCode);

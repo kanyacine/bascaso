@@ -12,7 +12,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Calendar } from "@/components/ui/calendar";
-import { parseRange, type DateRange } from "@/lib/analytics-range";
+import { parseRange, getStoredRange, setStoredRange, type DateRange } from "@/lib/analytics-range";
 import { useAnalytics } from "@/lib/analytics-context";
 import type { DateRange as RdpDateRange } from "react-day-picker";
 
@@ -159,23 +159,16 @@ export function DateRangePicker({ value, lastDate, onChange }: DateRangePickerPr
   );
 }
 
-const RANGE_STORAGE_KEY = "range:analytics";
-
 export function AnalyticsRangePicker() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { lastDate } = useAnalytics();
 
-  const urlRange = searchParams.get("range");
-  const storedRange = typeof window !== "undefined" ? (() => { try { return localStorage.getItem(RANGE_STORAGE_KEY); } catch { return null; } })() : null;
-  const currentRange = urlRange ?? storedRange;
+  const currentRange = searchParams.get("range") ?? getStoredRange();
 
   function handleChange(range: string | null) {
-    try {
-      if (range === null) localStorage.removeItem(RANGE_STORAGE_KEY);
-      else localStorage.setItem(RANGE_STORAGE_KEY, range);
-    } catch {}
+    setStoredRange(range);
     const params = new URLSearchParams(searchParams.toString());
     if (range === null) {
       params.delete("range");

@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/chart";
 import { formatDateShort } from "@/lib/format";
 import { useAnalytics } from "@/lib/analytics-context";
-import { parseRange, filterByDateRange } from "@/lib/analytics-range";
+import { parseRange, filterByDateRange, getStoredRange } from "@/lib/analytics-range";
 import { AnalyticsStateGuard } from "@/components/analytics-state-guard";
 
 // ---------- Chart configs ----------
@@ -69,7 +69,7 @@ const SOURCE_FILLS: Record<string, string> = {
 export default function AcquisitionPage() {
   const searchParams = useSearchParams();
   const { data, lastDate } = useAnalytics();
-  const range = useMemo(() => parseRange(searchParams.get("range"), lastDate), [searchParams, lastDate]);
+  const range = useMemo(() => parseRange(searchParams.get("range") ?? getStoredRange(), lastDate), [searchParams, lastDate]);
 
   const engagement = useMemo(
     () => filterByDateRange(data?.dailyEngagement ?? [], range),

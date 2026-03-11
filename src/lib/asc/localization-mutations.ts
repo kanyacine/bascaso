@@ -45,20 +45,21 @@ export async function createVersionLocalization(
   for (const [k, v] of Object.entries(attributes)) {
     if (v !== "") cleaned[k] = v;
   }
+  const payload = {
+    data: {
+      type: "appStoreVersionLocalizations",
+      attributes: { locale, ...cleaned },
+      relationships: {
+        appStoreVersion: {
+          data: { type: "appStoreVersions", id: versionId },
+        },
+      },
+    },
+  };
   try {
     const res = await ascFetch<{ data: { id: string } }>("/v1/appStoreVersionLocalizations", {
       method: "POST",
-      body: JSON.stringify({
-        data: {
-          type: "appStoreVersionLocalizations",
-          attributes: { locale, ...cleaned },
-          relationships: {
-            appStoreVersion: {
-              data: { type: "appStoreVersions", id: versionId },
-            },
-          },
-        },
-      }),
+      body: JSON.stringify(payload),
     });
     return res.data.id;
   } catch (err) {
@@ -123,20 +124,21 @@ export async function createAppInfoLocalization(
   for (const [k, v] of Object.entries(attributes)) {
     if (v !== "") cleaned[k] = v;
   }
+  const payload = {
+    data: {
+      type: "appInfoLocalizations",
+      attributes: { locale, ...cleaned },
+      relationships: {
+        appInfo: {
+          data: { type: "appInfos", id: appInfoId },
+        },
+      },
+    },
+  };
   try {
     const res = await ascFetch<{ data: { id: string } }>("/v1/appInfoLocalizations", {
       method: "POST",
-      body: JSON.stringify({
-        data: {
-          type: "appInfoLocalizations",
-          attributes: { locale, ...cleaned },
-          relationships: {
-            appInfo: {
-              data: { type: "appInfos", id: appInfoId },
-            },
-          },
-        },
-      }),
+      body: JSON.stringify(payload),
     });
     return res.data.id;
   } catch (err) {

@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.6.1
+
+- Rework add locale dialog
+- Fix adding locale failing with 409/500 errors
+- Fix remove locale dialog not detecting app details
+- Fix locale picker showing stale data after removing a locale
+- Fix analytics date range resetting when navigating between pages
+- Fix selected locale resetting when navigating to settings and back
+
 ## 1.6.0
 
 - Add nominations – browse, edit, AI-powered fill, and submit App Store nominations

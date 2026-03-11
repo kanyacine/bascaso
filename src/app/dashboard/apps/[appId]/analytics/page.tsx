@@ -29,7 +29,7 @@ import {
 } from "@phosphor-icons/react";
 import { formatDateShort } from "@/lib/format";
 import { useAnalytics } from "@/lib/analytics-context";
-import { parseRange, filterByDateRange, previousRange, pctChange } from "@/lib/analytics-range";
+import { parseRange, filterByDateRange, previousRange, pctChange, getStoredRange } from "@/lib/analytics-range";
 import { KpiCard } from "@/components/kpi-card";
 import { AnalyticsStateGuard } from "@/components/analytics-state-guard";
 import { EmptyState } from "@/components/empty-state";
@@ -62,7 +62,7 @@ const funnelConfig = {
 export default function AnalyticsOverviewPage() {
   const searchParams = useSearchParams();
   const { data, lastDate } = useAnalytics();
-  const range = useMemo(() => parseRange(searchParams.get("range"), lastDate), [searchParams, lastDate]);
+  const range = useMemo(() => parseRange(searchParams.get("range") ?? getStoredRange(), lastDate), [searchParams, lastDate]);
   const prevRange = useMemo(() => previousRange(range), [range]);
 
   const downloads = useMemo(

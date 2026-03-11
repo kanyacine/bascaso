@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Spinner } from "@/components/ui/spinner";
@@ -13,11 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { localeName } from "@/lib/asc/locale-names";
-
-interface SectionInfo {
-  label: string;
-  exists: boolean;
-}
+import { useSeedSectionLocales } from "@/lib/section-locales-context";
 
 export interface RemoveLocaleDialogProps {
   open: boolean;
@@ -26,11 +22,6 @@ export interface RemoveLocaleDialogProps {
   appId: string;
   versionId: string;
   appInfoId: string;
-  /** Which sections have this locale. */
-  sections: {
-    storeListing: boolean;
-    appDetails: boolean;
-  };
   /** Called after deletion completes so pages can refresh. */
   onRemoved: () => void;
 }
@@ -42,15 +33,51 @@ export function RemoveLocaleDialog({
   appId,
   versionId,
   appInfoId,
-  sections,
   onRemoved,
 }: RemoveLocaleDialogProps) {
   const [storeListing, setStoreListing] = useState(true);
   const [appDetails, setAppDetails] = useState(true);
   const [removing, setRemoving] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [sections, setSections] = useState({ storeListing: false, appDetails: false });
+  const { reset: resetSectionLocales } = useSeedSectionLocales();
 
-  const sectionList: { key: string; label: string; exists: boolean; checked: boolean; setChecked: (v: boolean) => void }[] = [
+  // Fetch fresh section data when dialog opens
+  useEffect(() => {
+    if (!open || !locale) return;
+    setLoading(true);
+    setError(null);
+
+    async function check() {
+      /* eslint-disable @typescript-eslint/no-explicit-any */
+      const [versionRes, infoRes] = await Promise.all([
+        fetch(`/api/apps/${appId}/versions/${versionId}/localizations?refresh`),
+        fetch(`/api/apps/${appId}/info/${appInfoId}/localizations?refresh`),
+      ]);
+
+      const versionData = versionRes.ok ? await versionRes.json() : { localizations: [] };
+      const infoData = infoRes.ok ? await infoRes.json() : { localizations: [] };
+
+      const hasStoreListing = (versionData.localizations ?? []).some(
+        (l: any) => l.attributes.locale === locale,
+      );
+      const hasAppDetails = (infoData.localizations ?? []).some(
+        (l: any) => l.attributes.locale === locale,
+      );
+      /* eslint-enable @typescript-eslint/no-explicit-any */
+
+      setSections({ storeListing: hasStoreListing, appDetails: hasAppDetails });
+      setLoading(false);
+    }
+
+    check().catch(() => {
+      setError("Failed to check locale sections");
+      setLoading(false);
+    });
+  }, [open, locale, appId, versionId, appInfoId]);
+
+  const sectionList = [
     { key: "storeListing", label: "Store listing", exists: sections.storeListing, checked: storeListing, setChecked: setStoreListing },
     { key: "appDetails", label: "App details", exists: sections.appDetails, checked: appDetails, setChecked: setAppDetails },
   ];
@@ -84,6 +111,8 @@ export function RemoveLocaleDialog({
 
       await Promise.all(promises);
 
+      // Reset cross-section locale cache so pickers refresh
+      resetSectionLocales();
       onOpenChange(false);
       onRemoved();
     } catch (err) {
@@ -113,26 +142,32 @@ export function RemoveLocaleDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3 py-2">
-          {sectionList.map((s) => (
-            <label
-              key={s.key}
-              className={`flex items-center gap-3 rounded-md px-3 py-2 ${
-                s.exists ? "cursor-pointer hover:bg-muted/50" : "opacity-40"
-              }`}
-            >
-              <Checkbox
-                checked={s.exists && s.checked}
-                onCheckedChange={(v) => s.setChecked(v === true)}
-                disabled={!s.exists}
-              />
-              <span className="text-sm font-medium">{s.label}</span>
-              {!s.exists && (
-                <span className="text-xs text-muted-foreground">No locale</span>
-              )}
-            </label>
-          ))}
-        </div>
+        {loading ? (
+          <div className="flex items-center justify-center py-6">
+            <Spinner className="size-5" />
+          </div>
+        ) : (
+          <div className="space-y-3 py-2">
+            {sectionList.map((s) => (
+              <label
+                key={s.key}
+                className={`flex items-center gap-3 rounded-md px-3 py-2 ${
+                  s.exists ? "cursor-pointer hover:bg-muted/50" : "opacity-40"
+                }`}
+              >
+                <Checkbox
+                  checked={s.exists && s.checked}
+                  onCheckedChange={(v) => s.setChecked(v === true)}
+                  disabled={!s.exists}
+                />
+                <span className="text-sm font-medium">{s.label}</span>
+                {!s.exists && (
+                  <span className="text-xs text-muted-foreground">No locale</span>
+                )}
+              </label>
+            ))}
+          </div>
+        )}
 
         {error && (
           <p className="text-sm text-destructive">{error}</p>
@@ -145,7 +180,7 @@ export function RemoveLocaleDialog({
           <Button
             variant="destructive"
             onClick={handleRemove}
-            disabled={!anyChecked || removing}
+            disabled={loading || !anyChecked || removing}
           >
             {removing ? (
               <>
