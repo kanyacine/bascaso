@@ -3,11 +3,14 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import {
+  CaretDown,
   CaretLeft,
   CaretRight,
   CloudArrowUp,
+  Copy,
   DownloadSimple,
   Plus,
+  Translate,
   WarningCircle,
   X,
 } from "@phosphor-icons/react";
@@ -59,11 +62,17 @@ import {
   type AscScreenshot,
   type AscScreenshotSet,
 } from "@/lib/asc/display-types";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { useRegisterHeaderLocale } from "@/lib/header-locale-context";
 import { useRegisterRefresh } from "@/lib/refresh-context";
 import { EmptyState } from "@/components/empty-state";
 import { useLocaleManagement } from "@/lib/hooks/use-locale-management";
 import { useScreenshotOperations } from "@/lib/hooks/use-screenshot-operations";
+import { apiFetch } from "@/lib/api-fetch";
 
 // ---------------------------------------------------------------------------
 // Sortable screenshot thumbnail
@@ -548,6 +557,229 @@ function AddVariantButton({
 }
 
 // ---------------------------------------------------------------------------
+// Base locale screenshots (collapsible reference section)
+// ---------------------------------------------------------------------------
+
+function BaseLocaleScreenshots({
+  appId,
+  versionId,
+  primaryLocale,
+  primaryLocalizationId,
+  targetLocalizationId,
+  targetSets,
+  onCopied,
+}: {
+  appId: string;
+  versionId: string;
+  primaryLocale: string;
+  primaryLocalizationId: string;
+  targetLocalizationId: string;
+  targetSets: AscScreenshotSet[];
+  onCopied: () => Promise<void>;
+}) {
+  const { screenshotSets, loading } = useScreenshotSets(appId, versionId, primaryLocalizationId);
+
+  const sortedSets = useMemo(() => {
+    const sorted = sortDisplayTypes(
+      screenshotSets.map((s) => s.attributes.screenshotDisplayType),
+    );
+    return sorted.map(
+      (dt) => screenshotSets.find((s) => s.attributes.screenshotDisplayType === dt)!,
+    );
+  }, [screenshotSets]);
+
+  // Only show sets that have screenshots
+  const setsWithScreenshots = useMemo(
+    () => sortedSets.filter((s) => s.screenshots.length > 0),
+    [sortedSets],
+  );
+
+  // Display type dropdown – available types from base locale
+  const availableTypes = useMemo(
+    () => setsWithScreenshots.map((s) => s.attributes.screenshotDisplayType),
+    [setsWithScreenshots],
+  );
+
+  const [selectedType, setSelectedType] = useState<string>("");
+
+  // Auto-select first available type
+  useEffect(() => {
+    if (availableTypes.length > 0 && (!selectedType || !availableTypes.includes(selectedType))) {
+      setSelectedType(availableTypes[0]);
+    }
+  }, [availableTypes, selectedType]);
+
+  const selectedSet = setsWithScreenshots.find(
+    (s) => s.attributes.screenshotDisplayType === selectedType,
+  );
+
+  // Expanded by default if target locale has no screenshots
+  const targetHasScreenshots = targetSets.some((s) => s.screenshots.length > 0);
+  const [open, setOpen] = useState(!targetHasScreenshots);
+
+  // Track copying state per screenshot ID
+  const [copyingIds, setCopyingIds] = useState<Set<string>>(new Set());
+
+  async function handleCopy(screenshot: AscScreenshot) {
+    if (!screenshot.attributes.assetToken || copyingIds.has(screenshot.id)) return;
+
+    setCopyingIds((prev) => new Set(prev).add(screenshot.id));
+    try {
+      // Find or create the target screenshot set for this display type
+      let targetSetId = targetSets.find(
+        (s) => s.attributes.screenshotDisplayType === selectedType,
+      )?.id;
+
+      if (!targetSetId) {
+        const res = await apiFetch(
+          `/api/apps/${appId}/versions/${versionId}/localizations/${targetLocalizationId}/screenshots/sets`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ displayType: selectedType }),
+          },
+        ) as { setId: string };
+        targetSetId = res.setId;
+      }
+
+      // Fetch the image via our proxy
+      const imageUrl = screenshotImageUrl(screenshot.attributes.assetToken!, 4000);
+      const imageRes = await fetch(
+        `/api/screenshot-download?url=${encodeURIComponent(imageUrl)}&name=${encodeURIComponent(screenshot.attributes.fileName)}`,
+      );
+      if (!imageRes.ok) throw new Error("Failed to fetch image");
+      const blob = await imageRes.blob();
+      const file = new File([blob], screenshot.attributes.fileName, { type: blob.type || "image/png" });
+
+      // Upload to target locale's set
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("setId", targetSetId!);
+      await apiFetch(
+        `/api/apps/${appId}/versions/${versionId}/localizations/${targetLocalizationId}/screenshots`,
+        { method: "POST", body: formData },
+      );
+
+      toast.success("Screenshot copied");
+      await onCopied();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to copy screenshot");
+    } finally {
+      setCopyingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(screenshot.id);
+        return next;
+      });
+    }
+  }
+
+  if (loading || setsWithScreenshots.length === 0) return null;
+
+  return (
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <div className="rounded-lg border bg-muted/20">
+        <CollapsibleTrigger asChild>
+          <button
+            type="button"
+            className="flex w-full items-center gap-3 px-4 py-3 text-sm font-medium hover:bg-muted/40"
+          >
+            <CaretDown
+              size={14}
+              className={cn(
+                "text-muted-foreground transition-transform",
+                !open && "-rotate-90",
+              )}
+            />
+            <span>Base locale screenshots ({localeName(primaryLocale)})</span>
+            {availableTypes.length > 1 && (
+              <span
+                className="ml-auto text-xs text-muted-foreground"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <select
+                  value={selectedType}
+                  onChange={(e) => setSelectedType(e.target.value)}
+                  className="rounded border bg-background px-2 py-1 text-xs"
+                >
+                  {availableTypes.map((dt) => (
+                    <option key={dt} value={dt}>
+                      {displayTypeLabel(dt)}
+                    </option>
+                  ))}
+                </select>
+              </span>
+            )}
+            {availableTypes.length === 1 && (
+              <span className="ml-auto text-xs text-muted-foreground">
+                {displayTypeLabel(selectedType)}
+              </span>
+            )}
+          </button>
+        </CollapsibleTrigger>
+
+        <CollapsibleContent>
+          {selectedSet && (
+            <div className="flex gap-3 overflow-x-auto px-4 pb-4">
+              {selectedSet.screenshots.map((ss) => {
+                const isComplete = ss.attributes.assetDeliveryState?.state === "COMPLETE";
+                const hasToken = !!ss.attributes.assetToken;
+                const copying = copyingIds.has(ss.id);
+
+                return (
+                  <div key={ss.id} className="flex shrink-0 flex-col items-center gap-2">
+                    <div className="rounded-lg border bg-muted/30 p-2 opacity-60">
+                      {isComplete && hasToken ? (
+                        <img
+                          src={screenshotImageUrl(ss.attributes.assetToken!, 300)}
+                          alt={ss.attributes.fileName}
+                          className="h-[160px] w-auto rounded object-contain"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div className="flex h-[160px] w-[90px] items-center justify-center rounded bg-muted">
+                          <Spinner className="size-5 text-muted-foreground/40" />
+                        </div>
+                      )}
+                    </div>
+                    {isComplete && hasToken && (
+                      <div className="flex gap-1.5">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 gap-1.5 text-xs"
+                          disabled={copying}
+                          onClick={() => handleCopy(ss)}
+                        >
+                          {copying ? (
+                            <Spinner className="size-3" />
+                          ) : (
+                            <Copy size={12} />
+                          )}
+                          Copy
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 gap-1.5 text-xs"
+                          disabled
+                        >
+                          <Translate size={12} />
+                          Translate
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CollapsibleContent>
+      </div>
+    </Collapsible>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main page
 // ---------------------------------------------------------------------------
 
@@ -604,6 +836,10 @@ export default function ScreenshotsPage() {
     (l) => l.attributes.locale === selectedLocale,
   );
   const localizationId = selectedLocalization?.id ?? "";
+
+  const primaryLocalizationId = useMemo(() => {
+    return localizations.find((l) => l.attributes.locale === primaryLocale)?.id ?? "";
+  }, [localizations, primaryLocale]);
 
   const {
     screenshotSets: rawSets,
@@ -811,8 +1047,22 @@ export default function ScreenshotsPage() {
 
   const isEmpty = filteredSets.length === 0;
 
+  const isBaseLocale = selectedLocale === primaryLocale;
+
   return (
     <div className="flex flex-1 flex-col gap-6">
+      {!isBaseLocale && !readOnly && (
+        <BaseLocaleScreenshots
+          appId={appId}
+          versionId={versionId}
+          primaryLocale={primaryLocale}
+          primaryLocalizationId={primaryLocalizationId}
+          targetLocalizationId={localizationId}
+          targetSets={screenshotSets}
+          onCopied={refresh}
+        />
+      )}
+
       {showTabs && (
         <DeviceCategoryTabs
           categories={readOnly ? visibleCategories : allCategories}
