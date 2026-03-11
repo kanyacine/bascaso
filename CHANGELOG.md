@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.0
+
+- Add nominations – browse, edit, AI-powered fill, and submit App Store nominations
+
 ## 1.5.1
 
 - Add cancel submission button for rejected versions

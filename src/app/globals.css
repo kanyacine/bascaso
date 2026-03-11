@@ -145,6 +145,41 @@
   }
 }
 
+/* Sidebar scroll fade overlays */
+.sidebar-scroll-fade {
+  position: relative;
+}
+.sidebar-scroll-fade::before,
+.sidebar-scroll-fade::after {
+  content: "";
+  position: sticky;
+  left: 0;
+  right: 0;
+  height: 48px;
+  pointer-events: none;
+  z-index: 1;
+  transition: opacity 150ms ease;
+  flex-shrink: 0;
+}
+.sidebar-scroll-fade::before {
+  top: 0;
+  background: linear-gradient(to bottom, var(--sidebar), transparent);
+  margin-bottom: -48px;
+}
+.sidebar-scroll-fade::after {
+  bottom: 0;
+  background: linear-gradient(to top, var(--sidebar), transparent);
+  margin-top: -48px;
+}
+.sidebar-scroll-fade--none::before,
+.sidebar-scroll-fade--none::after { opacity: 0; }
+.sidebar-scroll-fade--bottom::before { opacity: 0; }
+.sidebar-scroll-fade--bottom::after { opacity: 1; }
+.sidebar-scroll-fade--top::before { opacity: 1; }
+.sidebar-scroll-fade--top::after { opacity: 0; }
+.sidebar-scroll-fade--both::before { opacity: 1; }
+.sidebar-scroll-fade--both::after { opacity: 1; }
+
 /* Electron window drag regions */
 .drag {
   -webkit-app-region: drag;
