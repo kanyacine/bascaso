@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { generateObject } from "ai";
 import { createLanguageModel, classifyAIError } from "@/lib/ai/provider-factory";
 import { getAISettings } from "@/lib/ai/settings";
 import { ensureLocalModelLoaded, isLocalOpenAIProvider } from "@/lib/ai/local-provider";
 import { buildAnalyticsInsightsPrompt } from "@/lib/ai/prompts";
+import { generateObjectWithRepair } from "@/lib/ai/structured-output";
 import { hasCredentials } from "@/lib/asc/client";
 import { isDemoMode, getDemoAnalytics } from "@/lib/demo";
 import type { AnalyticsData } from "@/lib/asc/analytics";
@@ -143,13 +143,19 @@ export async function POST(
   }
 
   try {
-    const { object: insights } = await generateObject({
+    const { object: insights } = await generateObjectWithRepair({
       model,
       schema: analyticsInsightSchema,
       system: "You are an app analytics expert. Analyse App Store Connect metrics and extract structured insights. Be concise, data-driven, and actionable.",
       prompt,
       temperature: 0,
+      providerId,
       providerOptions: noThinkingOptions(),
+      maxOutputTokens: isLocalOpenAIProvider(providerId) ? 400 : undefined,
+      sectionAliases: {
+        highlights: ["highlights"],
+        opportunities: ["opportunities"],
+      },
     });
 
     // Cache the result with data hash
@@ -161,6 +167,15 @@ export async function POST(
       cached: false,
     });
   } catch (err) {
+    console.warn(`[ai] Analytics insights generation failed for ${appId}:`, err);
+    if (cached?.insights) {
+      return NextResponse.json({
+        insights: cached.insights,
+        dataHash: cached.dataHash,
+        cached: true,
+        stale: true,
+      });
+    }
     const category = classifyAIError(err);
     if (category === "auth" || category === "permission") {
       return NextResponse.json({ error: "ai_auth_error" }, { status: 401 });
