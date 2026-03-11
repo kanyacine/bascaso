@@ -458,7 +458,7 @@ export function TranslateScreenshotsModal({
         )}
 
         {/* Actions */}
-        <div className="flex items-center gap-2 border-t pt-3">
+        <div className="flex items-center gap-2">
           {!started && (
             <>
               <div className="flex items-center gap-2 mr-auto">
