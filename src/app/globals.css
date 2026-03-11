@@ -147,38 +147,17 @@
 
 /* Sidebar scroll fade overlays */
 .sidebar-scroll-fade {
-  position: relative;
+  --_fade-size: 32px;
+  --_top: transparent;
+  --_bottom: transparent;
+  mask-image:
+    linear-gradient(to bottom, var(--_top), black var(--_fade-size), black calc(100% - var(--_fade-size)), var(--_bottom));
+  transition: mask-image 150ms ease;
 }
-.sidebar-scroll-fade::before,
-.sidebar-scroll-fade::after {
-  content: "";
-  position: sticky;
-  left: 0;
-  right: 0;
-  height: 48px;
-  pointer-events: none;
-  z-index: 1;
-  transition: opacity 150ms ease;
-  flex-shrink: 0;
-}
-.sidebar-scroll-fade::before {
-  top: 0;
-  background: linear-gradient(to bottom, var(--sidebar), transparent);
-  margin-bottom: -48px;
-}
-.sidebar-scroll-fade::after {
-  bottom: 0;
-  background: linear-gradient(to top, var(--sidebar), transparent);
-  margin-top: -48px;
-}
-.sidebar-scroll-fade--none::before,
-.sidebar-scroll-fade--none::after { opacity: 0; }
-.sidebar-scroll-fade--bottom::before { opacity: 0; }
-.sidebar-scroll-fade--bottom::after { opacity: 1; }
-.sidebar-scroll-fade--top::before { opacity: 1; }
-.sidebar-scroll-fade--top::after { opacity: 0; }
-.sidebar-scroll-fade--both::before { opacity: 1; }
-.sidebar-scroll-fade--both::after { opacity: 1; }
+.sidebar-scroll-fade--none { --_top: black; --_bottom: black; }
+.sidebar-scroll-fade--bottom { --_top: black; --_bottom: transparent; }
+.sidebar-scroll-fade--top { --_top: transparent; --_bottom: black; }
+.sidebar-scroll-fade--both { --_top: transparent; --_bottom: transparent; }
 
 /* Electron window drag regions */
 .drag {
