@@ -8,7 +8,7 @@ import {
   useSyncExternalStore,
 } from "react";
 
-export type SectionName = "store-listing" | "details" | "screenshots" | "testflight-info";
+export type SectionName = "store-listing" | "details" | "testflight-info";
 
 type Store = Record<SectionName, string[]>;
 
@@ -34,7 +34,6 @@ export function SectionLocalesProvider({
   const storeRef = useRef<Store>({
     "store-listing": [],
     details: [],
-    screenshots: [],
     "testflight-info": [],
   });
   const listenersRef = useRef(new Set<() => void>());
@@ -65,7 +64,7 @@ export function SectionLocalesProvider({
   }, []);
 
   const reset = useCallback(() => {
-    const empty: Store = { "store-listing": [], details: [], screenshots: [], "testflight-info": [] };
+    const empty: Store = { "store-listing": [], details: [], "testflight-info": [] };
     storeRef.current = empty;
     listenersRef.current.forEach((cb) => cb());
   }, []);

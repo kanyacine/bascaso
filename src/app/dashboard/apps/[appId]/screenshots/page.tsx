@@ -583,7 +583,7 @@ export default function ScreenshotsPage() {
     selectedLocale, setSelectedLocale,
     changeLocale,
     otherSectionLocales,
-  } = useLocaleManagement({ section: "screenshots", primaryLocale });
+  } = useLocaleManagement({ section: "store-listing", primaryLocale });
 
   const versionLocales = useMemo(
     () => localizations.map((l) => l.attributes.locale),
@@ -774,10 +774,7 @@ export default function ScreenshotsPage() {
     selectedLocale,
     primaryLocale,
     onLocaleChange: changeLocale,
-    onLocaleAdd: handleAddLocale,
-    onLocalesAdd: handleBulkAddLocales,
-    onLocaleDelete: (code: string) => setRemoveLocaleCode(code),
-    section: "screenshots",
+    section: "store-listing",
     otherSectionLocales,
     readOnly,
   });
@@ -876,9 +873,8 @@ export default function ScreenshotsPage() {
         versionId={versionId}
         appInfoId={appInfoId}
         sections={{
-          storeListing: otherSectionLocales["store-listing"]?.includes(removeLocaleCode ?? "") ?? false,
+          storeListing: locales.includes(removeLocaleCode ?? ""),
           appDetails: otherSectionLocales.details?.includes(removeLocaleCode ?? "") ?? false,
-          screenshots: locales.includes(removeLocaleCode ?? ""),
         }}
         onRemoved={() => {
           if (removeLocaleCode === selectedLocale) {

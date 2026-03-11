@@ -627,7 +627,6 @@ export default function AppDetailsPage() {
         sections={{
           storeListing: otherSectionLocales["store-listing"]?.includes(removeLocaleCode ?? "") ?? false,
           appDetails: locales.includes(removeLocaleCode ?? ""),
-          screenshots: otherSectionLocales.screenshots?.includes(removeLocaleCode ?? "") ?? false,
         }}
         onRemoved={() => {
           if (removeLocaleCode === selectedLocale) {

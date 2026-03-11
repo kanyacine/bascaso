@@ -24,7 +24,6 @@ import type { SectionName } from "@/lib/section-locales-context";
 const SECTION_LABELS: Record<SectionName, string> = {
   "store-listing": "store listing",
   details: "details",
-  screenshots: "screenshots",
   "testflight-info": "TestFlight info",
 };
 
@@ -33,7 +32,7 @@ interface LocalePickerProps {
   selectedLocale: string;
   primaryLocale: string;
   onLocaleChange: (code: string) => void;
-  onLocaleAdd: (code: string) => void;
+  onLocaleAdd?: (code: string) => void;
   onLocalesAdd?: (codes: string[]) => void;
   onLocaleDelete?: (code: string) => void;
   section: SectionName;
@@ -151,7 +150,7 @@ export function LocalePicker({
             </CommandGroup>
 
             {/* Add locale – flat groups so cmdk search filtering works */}
-            {!readOnly && addableCodes.length > 0 && (
+            {!readOnly && onLocaleAdd && addableCodes.length > 0 && (
               <>
                 <CommandSeparator />
 

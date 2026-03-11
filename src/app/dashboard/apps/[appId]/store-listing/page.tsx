@@ -686,7 +686,6 @@ export default function StoreListingPage() {
           sections={{
             storeListing: locales.includes(removeLocaleCode ?? ""),
             appDetails: otherSectionLocales.details?.includes(removeLocaleCode ?? "") ?? false,
-            screenshots: otherSectionLocales.screenshots?.includes(removeLocaleCode ?? "") ?? false,
           }}
           onRemoved={() => {
             // Switch away from the deleted locale before refreshing

@@ -30,7 +30,6 @@ export interface RemoveLocaleDialogProps {
   sections: {
     storeListing: boolean;
     appDetails: boolean;
-    screenshots: boolean;
   };
   /** Called after deletion completes so pages can refresh. */
   onRemoved: () => void;
@@ -48,14 +47,12 @@ export function RemoveLocaleDialog({
 }: RemoveLocaleDialogProps) {
   const [storeListing, setStoreListing] = useState(true);
   const [appDetails, setAppDetails] = useState(true);
-  const [screenshots, setScreenshots] = useState(true);
   const [removing, setRemoving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const sectionList: { key: string; label: string; exists: boolean; checked: boolean; setChecked: (v: boolean) => void }[] = [
     { key: "storeListing", label: "Store listing", exists: sections.storeListing, checked: storeListing, setChecked: setStoreListing },
     { key: "appDetails", label: "App details", exists: sections.appDetails, checked: appDetails, setChecked: setAppDetails },
-    { key: "screenshots", label: "Screenshots", exists: sections.screenshots, checked: screenshots, setChecked: setScreenshots },
   ];
 
   const anyChecked = sectionList.some((s) => s.exists && s.checked);
@@ -67,10 +64,7 @@ export function RemoveLocaleDialog({
     try {
       const promises: Promise<void>[] = [];
 
-      // Store listing + screenshots share the version localization.
-      // If either is checked, we need to handle the version localization.
-      // Screenshots-only locales also live under version localizations.
-      if ((storeListing && sections.storeListing) || (screenshots && sections.screenshots)) {
+      if (storeListing && sections.storeListing) {
         promises.push(
           deleteLocalization(
             `/api/apps/${appId}/versions/${versionId}/localizations`,
@@ -104,7 +98,6 @@ export function RemoveLocaleDialog({
     if (open) {
       setStoreListing(true);
       setAppDetails(true);
-      setScreenshots(true);
       setError(null);
     }
     onOpenChange(open);

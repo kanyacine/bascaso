@@ -19,7 +19,7 @@ export interface HeaderLocaleConfig {
   availableLocales?: string[];
   readOnly?: boolean;
   onLocaleChange: (code: string) => void;
-  onLocaleAdd: (code: string) => void;
+  onLocaleAdd?: (code: string) => void;
   onLocalesAdd?: (codes: string[]) => void;
   onLocaleDelete?: (code: string) => void;
   onBulkTranslate?: () => void;

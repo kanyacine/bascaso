@@ -31,7 +31,7 @@ export function HeaderLocalePicker() {
     [configRef, guardNavigation],
   );
   const onLocaleAdd = useCallback(
-    (code: string) => configRef.current?.onLocaleAdd(code),
+    (code: string) => configRef.current?.onLocaleAdd?.(code),
     [configRef],
   );
   const onLocalesAdd = useCallback(
@@ -69,7 +69,7 @@ export function HeaderLocalePicker() {
         selectedLocale={config.selectedLocale}
         primaryLocale={config.primaryLocale}
         onLocaleChange={onLocaleChange}
-        onLocaleAdd={onLocaleAdd}
+        onLocaleAdd={config.onLocaleAdd ? onLocaleAdd : undefined}
         onLocalesAdd={config.onLocalesAdd ? onLocalesAdd : undefined}
         onLocaleDelete={config.onLocaleDelete ? onLocaleDelete : undefined}
         section={config.section}

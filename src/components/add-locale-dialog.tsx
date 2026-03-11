@@ -141,7 +141,6 @@ export function AddLocaleDialog({
   // Section-level checkboxes
   const [storeListingEnabled, setStoreListingEnabled] = useState(true);
   const [appDetailsEnabled, setAppDetailsEnabled] = useState(true);
-  const [screenshotsEnabled, setScreenshotsEnabled] = useState(false);
 
   // Per-field state
   const [fields, setFields] = useState<Record<string, FieldState>>({});
@@ -397,7 +396,6 @@ export function AddLocaleDialog({
       setSaving(false);
       setStoreListingEnabled(true);
       setAppDetailsEnabled(true);
-      setScreenshotsEnabled(false);
     }
   }, [open]);
 
@@ -455,27 +453,6 @@ export function AddLocaleDialog({
               locales: { [locale]: detailFields },
               originalLocaleIds: existingIdsRef.current.appInfo
                 ? { [locale]: existingIdsRef.current.appInfo }
-                : {},
-            }),
-          }).then(async (res) => {
-            const data = await res.json();
-            if (data.errors?.length > 0) {
-              throw new Error(data.errors[0].message);
-            }
-          }),
-        );
-      }
-
-      // Screenshots – just create empty version localization if not already covered
-      if (screenshotsEnabled && !storeListingEnabled) {
-        promises.push(
-          fetch(`/api/apps/${appId}/versions/${versionId}/localizations`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              locales: { [locale]: {} },
-              originalLocaleIds: existingIdsRef.current.version
-                ? { [locale]: existingIdsRef.current.version }
                 : {},
             }),
           }).then(async (res) => {
@@ -603,18 +580,6 @@ export function AddLocaleDialog({
                   ))}
                 </FieldSection>
 
-                {/* Screenshots section */}
-                <FieldSection
-                  title="Screenshots"
-                  checked={screenshotsEnabled}
-                  onCheckedChange={setScreenshotsEnabled}
-                  defaultOpen={false}
-                >
-                  <p className="text-sm text-muted-foreground">
-                    Creates an empty locale for screenshots. Add screenshots manually after.
-                  </p>
-                </FieldSection>
-
                 {error && (
                   <div className="flex items-center gap-2 text-sm text-destructive">
                     <Info size={14} />
@@ -632,7 +597,7 @@ export function AddLocaleDialog({
           </Button>
           <Button
             onClick={handleCreate}
-            disabled={loading || saving || anyTranslating || (!storeListingEnabled && !appDetailsEnabled && !screenshotsEnabled)}
+            disabled={loading || saving || anyTranslating || (!storeListingEnabled && !appDetailsEnabled)}
           >
             {saving ? (
               <>
