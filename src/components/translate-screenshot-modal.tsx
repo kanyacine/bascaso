@@ -26,6 +26,8 @@ interface TranslateScreenshotModalProps {
   toLocale: string;
   /** Called with the translated image blob when user accepts. */
   onAccept: (file: File) => Promise<void>;
+  /** Copy the original screenshot without translation. */
+  onCopy: () => Promise<void>;
 }
 
 type Phase = "idle" | "translating" | "done" | "error" | "needs-key";
@@ -37,6 +39,7 @@ export function TranslateScreenshotModal({
   fileName,
   toLocale,
   onAccept,
+  onCopy,
 }: TranslateScreenshotModalProps) {
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState<string>("");
@@ -44,6 +47,7 @@ export function TranslateScreenshotModal({
   const [translatedSrc, setTranslatedSrc] = useState<string>("");
   const [translatedBlob, setTranslatedBlob] = useState<Blob | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [copying, setCopying] = useState(false);
 
   // Gemini key state (for inline key entry)
   const [geminiKey, setGeminiKey] = useState("");
@@ -59,6 +63,7 @@ export function TranslateScreenshotModal({
     setTranslatedBlob(null);
     setGeminiKey("");
     setUploading(false);
+    setCopying(false);
     setHasKey(null);
 
     fetch("/api/settings/gemini-key")
@@ -252,9 +257,36 @@ export function TranslateScreenshotModal({
         {/* Actions */}
         <div className="flex justify-end gap-2">
           {(phase === "idle" || phase === "error") && (
-            <Button onClick={() => handleTranslate()} disabled={isWorking}>
-              Translate
-            </Button>
+            <>
+              <Button
+                variant="outline"
+                onClick={async () => {
+                  setCopying(true);
+                  try {
+                    await onCopy();
+                    onOpenChange(false);
+                  } catch {
+                    setError("Failed to copy screenshot");
+                    setPhase("error");
+                  } finally {
+                    setCopying(false);
+                  }
+                }}
+                disabled={isWorking || copying}
+              >
+                {copying ? (
+                  <>
+                    <Spinner className="size-3" />
+                    Copying…
+                  </>
+                ) : (
+                  "Copy without translation"
+                )}
+              </Button>
+              <Button onClick={() => handleTranslate()} disabled={isWorking || copying}>
+                Translate
+              </Button>
+            </>
           )}
           {phase === "done" && (
             <>

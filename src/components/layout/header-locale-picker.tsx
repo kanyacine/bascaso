@@ -76,6 +76,7 @@ export function HeaderLocalePicker() {
         otherSectionLocales={config.otherSectionLocales}
         availableLocales={config.availableLocales}
         readOnly={config.readOnly}
+        localesWithContent={config.localesWithContent}
       />
       {showWand && multipleLocales && (
         <>

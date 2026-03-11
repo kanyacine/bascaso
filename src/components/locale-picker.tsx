@@ -39,6 +39,7 @@ interface LocalePickerProps {
   otherSectionLocales?: Partial<Record<SectionName, string[]>>;
   availableLocales?: string[];
   readOnly?: boolean;
+  localesWithContent?: Set<string>;
 }
 
 export function LocalePicker({
@@ -53,6 +54,7 @@ export function LocalePicker({
   otherSectionLocales,
   availableLocales: availableLocalesProp,
   readOnly,
+  localesWithContent,
 }: LocalePickerProps) {
   const [open, setOpen] = useState(false);
 
@@ -120,6 +122,15 @@ export function LocalePicker({
                   </span>
                   <span className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground">
                     {code}
+                    {localesWithContent && (
+                      <span
+                        className={`inline-block size-1.5 rounded-full ${
+                          localesWithContent.has(code)
+                            ? "bg-green-500"
+                            : "bg-muted-foreground/30"
+                        }`}
+                      />
+                    )}
                     {code === primaryLocale && (
                       <Badge
                         variant="secondary"

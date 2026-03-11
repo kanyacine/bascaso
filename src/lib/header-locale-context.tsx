@@ -26,6 +26,7 @@ export interface HeaderLocaleConfig {
   onBulkCopy?: () => void;
   onBulkTranslateAll?: () => void;
   onBulkCopyAll?: () => void;
+  localesWithContent?: Set<string>;
 }
 
 interface HeaderLocaleContextValue {
@@ -78,7 +79,8 @@ export function useRegisterHeaderLocale(config: HeaderLocaleConfig) {
       prev.primaryLocale !== config.primaryLocale ||
       prev.readOnly !== config.readOnly ||
       prev.section !== config.section ||
-      prev.availableLocales !== config.availableLocales
+      prev.availableLocales !== config.availableLocales ||
+      prev.localesWithContent !== config.localesWithContent
     ) {
       setVersion((v) => v + 1);
     }

@@ -7,7 +7,6 @@ import {
   CaretLeft,
   CaretRight,
   CloudArrowUp,
-  Copy,
   DownloadSimple,
   Plus,
   Translate,
@@ -160,34 +159,34 @@ function SortableScreenshot({
         )}
       </div>
 
-      {/* Download button */}
-      {isComplete && hasToken && (
-        <a
-          href={`/api/screenshot-download?url=${encodeURIComponent(screenshotImageUrl(screenshot.attributes.assetToken!, 4000))}&name=${encodeURIComponent(screenshot.attributes.fileName)}`}
-          download={screenshot.attributes.fileName}
-          onClick={(e) => e.stopPropagation()}
-          className="absolute top-1 left-1 hidden rounded-full bg-foreground/70 p-1 text-background shadow-sm hover:bg-foreground/90 group-hover:block"
-        >
-          <DownloadSimple size={12} />
-        </a>
-      )}
-
-      {/* Delete button */}
-      {!readOnly && (
-        deleting ? (
-          <div className="absolute top-1 right-1 rounded-full bg-destructive p-1 text-white shadow-sm">
-            <Spinner className="size-3" />
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={() => onDelete(screenshot.id)}
-            className="absolute top-1 right-1 hidden rounded-full bg-destructive p-1 text-white shadow-sm hover:bg-destructive/90 group-hover:block"
+      {/* Action buttons – top-right vertical stack */}
+      <div className="absolute top-1 right-1 flex flex-col gap-1">
+        {!readOnly && (
+          deleting ? (
+            <div className="rounded-full bg-destructive p-1 text-white shadow-sm">
+              <Spinner className="size-3" />
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => onDelete(screenshot.id)}
+              className="hidden rounded-full bg-destructive p-1 text-white shadow-sm hover:bg-destructive/90 group-hover:block"
+            >
+              <X size={12} />
+            </button>
+          )
+        )}
+        {isComplete && hasToken && (
+          <a
+            href={`/api/screenshot-download?url=${encodeURIComponent(screenshotImageUrl(screenshot.attributes.assetToken!, 4000))}&name=${encodeURIComponent(screenshot.attributes.fileName)}`}
+            download={screenshot.attributes.fileName}
+            onClick={(e) => e.stopPropagation()}
+            className="hidden rounded-full bg-foreground/70 p-1 text-background shadow-sm hover:bg-foreground/90 group-hover:block"
           >
-            <X size={12} />
-          </button>
-        )
-      )}
+            <DownloadSimple size={12} />
+          </a>
+        )}
+      </div>
     </div>
   );
 }
@@ -750,7 +749,7 @@ function BaseLocaleScreenshots({
                 const copying = copyingIds.has(ss.id);
 
                 return (
-                  <div key={ss.id} className="flex shrink-0 flex-col items-center gap-2">
+                  <div key={ss.id} className="group/base relative shrink-0">
                     <div className="rounded-lg border bg-muted/30 p-2 opacity-60">
                       {isComplete && hasToken ? (
                         <img
@@ -766,32 +765,15 @@ function BaseLocaleScreenshots({
                       )}
                     </div>
                     {isComplete && hasToken && (
-                      <div className="flex gap-1.5">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-7 gap-1.5 text-xs"
-                          disabled={copying}
-                          onClick={() => handleCopy(ss)}
-                        >
-                          {copying ? (
-                            <Spinner className="size-3" />
-                          ) : (
-                            <Copy size={12} />
-                          )}
-                          Copy
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-7 gap-1.5 text-xs"
-                          disabled={copying}
-                          onClick={() => setTranslateScreenshot(ss)}
-                        >
-                          <Translate size={12} />
-                          Translate
-                        </Button>
-                      </div>
+                      <Button
+                        variant="default"
+                        size="sm"
+                        className="absolute inset-x-0 bottom-1 mx-auto w-fit h-6 gap-1 rounded-full px-2 text-[10px] opacity-0 transition-opacity group-hover/base:opacity-100"
+                        onClick={() => setTranslateScreenshot(ss)}
+                      >
+                        <Translate size={11} />
+                        Translate
+                      </Button>
                     )}
                   </div>
                 );
@@ -809,6 +791,7 @@ function BaseLocaleScreenshots({
           fileName={translateScreenshot.attributes.fileName}
           toLocale={targetLocale}
           onAccept={handleTranslateAccept}
+          onCopy={() => handleCopy(translateScreenshot)}
         />
       )}
     </Collapsible>
@@ -883,6 +866,50 @@ export default function ScreenshotsPage() {
     loading: ssLoading,
     refresh,
   } = useScreenshotSets(appId, versionId, localizationId);
+
+  // Track which locales have screenshots (for locale picker indicator)
+  const [localesWithScreenshots, setLocalesWithScreenshots] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!localizations.length || !versionId) return;
+    let cancelled = false;
+
+    async function check() {
+      const results = await Promise.all(
+        localizations.map(async (loc) => {
+          try {
+            const res = await fetch(
+              `/api/apps/${appId}/versions/${versionId}/localizations/${loc.id}/screenshots`,
+            );
+            if (!res.ok) return null;
+            const data = await res.json();
+            const sets = data.screenshotSets as Array<{ screenshots: unknown[] }>;
+            const hasAny = sets?.some((s) => s.screenshots.length > 0);
+            return hasAny ? loc.attributes.locale : null;
+          } catch {
+            return null;
+          }
+        }),
+      );
+      if (cancelled) return;
+      setLocalesWithScreenshots(new Set(results.filter(Boolean) as string[]));
+    }
+
+    check();
+    return () => { cancelled = true; };
+  }, [localizations, appId, versionId]);
+
+  // Update indicator when current locale's sets change
+  useEffect(() => {
+    if (!selectedLocale) return;
+    const hasAny = rawSets.some((s) => s.screenshots.length > 0);
+    setLocalesWithScreenshots((prev) => {
+      const next = new Set(prev);
+      if (hasAny) next.add(selectedLocale);
+      else next.delete(selectedLocale);
+      return next;
+    });
+  }, [rawSets, selectedLocale]);
 
   // Sort sets by display type
   const screenshotSets = useMemo(() => {
@@ -1049,6 +1076,7 @@ export default function ScreenshotsPage() {
     section: "store-listing",
     otherSectionLocales,
     readOnly,
+    localesWithContent: localesWithScreenshots,
   });
 
   if (!app) {
