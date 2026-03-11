@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
   Eye, EyeSlash, Info, CheckCircle, XCircle,
   ArrowsClockwise,
@@ -16,6 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 import { localeName } from "@/lib/asc/locale-names";
 import { screenshotImageUrl } from "@/lib/asc/display-types";
 import type { AscScreenshot } from "@/lib/asc/display-types";
@@ -70,6 +71,7 @@ export function TranslateScreenshotsModal({
   const stopRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
   const setIdCacheRef = useRef(new Map<string, string>());
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   // Gemini key state
   const [geminiKey, setGeminiKey] = useState("");
@@ -300,6 +302,27 @@ export function TranslateScreenshotsModal({
     processItems(false, geminiKey.trim());
   }
 
+  // Auto-scroll to the latest in-progress or completed item
+  const lastActiveIndex = useMemo(() => {
+    let idx = -1;
+    for (let i = 0; i < items.length; i++) {
+      const s = itemStates.get(items[i].screenshot.id)?.status;
+      if (s === "translating" || s === "uploading" || s === "done" || s === "failed") {
+        idx = i;
+      }
+    }
+    return idx;
+  }, [items, itemStates]);
+
+  useEffect(() => {
+    if (lastActiveIndex < 0 || !scrollRef.current) return;
+    const container = scrollRef.current;
+    const child = container.children[lastActiveIndex] as HTMLElement | undefined;
+    if (child) {
+      child.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+    }
+  }, [lastActiveIndex]);
+
   // Compute progress stats
   const total = items.length;
   const doneCount = Array.from(itemStates.values()).filter((s) => s.status === "done").length;
@@ -310,7 +333,7 @@ export function TranslateScreenshotsModal({
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) handleClose(); }}>
-      <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col">
+      <DialogContent className="sm:max-w-4xl w-full max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>
             {isSingle ? "Translate screenshot" : `Translate ${total} screenshots`}
@@ -318,109 +341,67 @@ export function TranslateScreenshotsModal({
           </DialogTitle>
         </DialogHeader>
 
-        {/* Progress grid */}
-        {started && (
-          <div className="flex-1 overflow-y-auto">
-            {/* Progress bar */}
-            <div className="mb-3 space-y-1.5">
-              <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <span>
-                  {doneCount} of {total} completed
-                  {failedCount > 0 && ` (${failedCount} failed)`}
-                </span>
-              </div>
-              <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                <div
-                  className="h-full rounded-full bg-primary transition-all duration-300"
-                  style={{ width: `${total > 0 ? ((doneCount + failedCount) / total) * 100 : 0}%` }}
-                />
-              </div>
-            </div>
+        {/* Horizontal screenshot row */}
+        <div ref={scrollRef} className="flex gap-3 overflow-x-auto pb-2">
+          {items.map((item) => {
+            const state = itemStates.get(item.screenshot.id);
+            const status = started ? (state?.status ?? "queued") : "idle";
+            const token = item.screenshot.attributes.assetToken;
 
-            {/* Thumbnail grid */}
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-              {items.map((item) => {
-                const state = itemStates.get(item.screenshot.id);
-                const status = state?.status ?? "queued";
-                const token = item.screenshot.attributes.assetToken;
-
-                return (
-                  <div
-                    key={item.screenshot.id}
-                    className="relative flex flex-col items-center rounded-lg border bg-muted/20 p-2"
-                  >
-                    {/* Show translated thumbnail if done, otherwise original */}
-                    {status === "done" && state?.thumbnail ? (
-                      <img
-                        src={`data:${state.thumbnailMimeType};base64,${state.thumbnail}`}
-                        alt="Translated"
-                        className="h-[300px] w-auto rounded object-contain"
-                      />
-                    ) : token ? (
-                      <img
-                        src={screenshotImageUrl(token, 400)}
-                        alt={item.screenshot.attributes.fileName}
-                        className="h-[300px] w-auto rounded object-contain opacity-40"
-                      />
-                    ) : (
-                      <div className="flex h-[300px] w-[168px] items-center justify-center rounded bg-muted">
-                        <Spinner className="size-6 text-muted-foreground/40" />
-                      </div>
+            return (
+              <div
+                key={item.screenshot.id}
+                className="relative shrink-0 flex flex-col items-center rounded-lg border bg-muted/20 p-2"
+              >
+                {status === "done" && state?.thumbnail ? (
+                  <img
+                    src={`data:${state.thumbnailMimeType};base64,${state.thumbnail}`}
+                    alt="Translated"
+                    className="h-[300px] w-auto rounded object-contain"
+                  />
+                ) : token ? (
+                  <img
+                    src={screenshotImageUrl(token, 400)}
+                    alt={item.screenshot.attributes.fileName}
+                    className={cn(
+                      "h-[300px] w-auto rounded object-contain",
+                      started && status !== "done" && "opacity-40",
                     )}
+                  />
+                ) : (
+                  <div className="flex h-[300px] w-[168px] items-center justify-center rounded bg-muted">
+                    <Spinner className="size-6 text-muted-foreground/40" />
+                  </div>
+                )}
 
-                    {/* Status overlay */}
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      {(status === "translating" || status === "uploading") && (
+                {/* Status overlay */}
+                {started && (
+                  <>
+                    {(status === "translating" || status === "uploading") && (
+                      <div className="absolute inset-0 flex items-center justify-center">
                         <div className="rounded-full bg-background/80 p-2">
                           <Spinner className="size-7 text-primary" />
                         </div>
-                      )}
-                      {status === "done" && (
-                        <div className="absolute top-1 right-1 rounded-full bg-background/80 p-0.5">
-                          <CheckCircle size={20} weight="fill" className="text-green-500" />
-                        </div>
-                      )}
-                      {status === "failed" && (
+                      </div>
+                    )}
+                    {status === "done" && (
+                      <div className="absolute top-1 right-1 rounded-full bg-background/80 p-0.5">
+                        <CheckCircle size={20} weight="fill" className="text-green-500" />
+                      </div>
+                    )}
+                    {status === "failed" && (
+                      <div className="absolute inset-0 flex items-center justify-center">
                         <div className="rounded-full bg-background/80 p-2" title={state?.error}>
                           <XCircle size={24} weight="fill" className="text-destructive" />
                         </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Idle state – preview of what will be translated */}
-        {!started && (
-          <div className="flex-1 overflow-y-auto">
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-              {items.map((item) => {
-                const token = item.screenshot.attributes.assetToken;
-                return (
-                  <div
-                    key={item.screenshot.id}
-                    className="flex flex-col items-center rounded-lg border bg-muted/20 p-2"
-                  >
-                    {token ? (
-                      <img
-                        src={screenshotImageUrl(token, 400)}
-                        alt={item.screenshot.attributes.fileName}
-                        className="h-[300px] w-auto rounded object-contain"
-                      />
-                    ) : (
-                      <div className="flex h-[300px] w-[168px] items-center justify-center rounded bg-muted">
-                        <Spinner className="size-6 text-muted-foreground/40" />
                       </div>
                     )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
+                  </>
+                )}
+              </div>
+            );
+          })}
+        </div>
 
         {/* Gemini key input – shown when no key available */}
         {hasKey === false && !started && (
@@ -494,17 +475,24 @@ export function TranslateScreenshotsModal({
 
           {started && (
             <>
-              <div className="mr-auto text-xs text-muted-foreground">
-                {inProgress
-                  ? copyMode
-                    ? "Uploading..."
-                    : "Translating... This can take 1\u20132 minutes per image."
-                  : allDone && !hasFailed
-                    ? "All done!"
-                    : allDone && hasFailed
-                      ? `${doneCount} completed, ${failedCount} failed`
-                      : "Stopped"
-                }
+              <div className="mr-auto flex items-center gap-3 text-xs text-muted-foreground">
+                <span className="shrink-0">
+                  {inProgress
+                    ? copyMode ? "Uploading..." : "Translating (up to 1\u20132 min per image)"
+                    : allDone && !hasFailed
+                      ? "All done!"
+                      : allDone && hasFailed
+                        ? `${failedCount} failed`
+                        : "Stopped"
+                  }
+                </span>
+                <div className="h-1.5 w-24 overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full rounded-full bg-primary transition-all duration-300"
+                    style={{ width: `${total > 0 ? ((doneCount + failedCount) / total) * 100 : 0}%` }}
+                  />
+                </div>
+                <span className="shrink-0">{doneCount}/{total}</span>
               </div>
               {hasFailed && !inProgress && (
                 <Button variant="outline" size="sm" className="gap-1" onClick={handleRetryFailed}>

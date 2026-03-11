@@ -668,13 +668,11 @@ function BaseLocaleScreenshots({
   }
 
   function handleTranslateAll() {
-    // Collect all screenshots across all variants
+    if (!selectedSet) return;
     const items: ScreenshotItem[] = [];
-    for (const set of setsWithScreenshots) {
-      for (const ss of set.screenshots) {
-        if (ss.attributes.assetDeliveryState?.state === "COMPLETE" && ss.attributes.assetToken) {
-          items.push({ screenshot: ss, displayType: set.attributes.screenshotDisplayType });
-        }
+    for (const ss of selectedSet.screenshots) {
+      if (ss.attributes.assetDeliveryState?.state === "COMPLETE" && ss.attributes.assetToken) {
+        items.push({ screenshot: ss, displayType: selectedType });
       }
     }
     openTranslateModal(items);
