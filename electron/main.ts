@@ -551,7 +551,10 @@ function createWindow(port: number): void {
   const origin = isDev ? `http://127.0.0.1:${port}` : "app://itsyconnect";
   mainWindow.loadURL(`${origin}/`);
 
-  ipcMain.once("app-ready", () => {
+  let shown = false;
+  const showWindow = () => {
+    if (shown) return;
+    shown = true;
     mainWindow?.show();
     // Replay cached update status so the renderer doesn't miss events that
     // fired before it mounted (e.g. update-downloaded on relaunch)
@@ -559,7 +562,13 @@ function createWindow(port: number): void {
       console.log("[updater] replaying cached status:", lastUpdateStatus.state);
       mainWindow?.webContents.send("update-status", lastUpdateStatus);
     }
-  });
+  };
+
+  ipcMain.once("app-ready", showWindow);
+
+  // Fallback: show the window even if the renderer never signals ready
+  // (e.g. navigated to a 404 page outside the dashboard layout)
+  setTimeout(showWindow, 5000);
 
   let saveTimeout: ReturnType<typeof setTimeout> | null = null;
   const debouncedSave = () => {
