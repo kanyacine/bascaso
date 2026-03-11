@@ -152,39 +152,12 @@ export function TranslateScreenshotModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="sm:max-w-3xl max-h-[90vh]">
         <DialogHeader>
           <DialogTitle>
             Translate screenshot to {localeName(toLocale)}
           </DialogTitle>
         </DialogHeader>
-
-        {/* Settings row */}
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <Switch
-              id="marketing-only"
-              checked={marketingOnly}
-              onCheckedChange={setMarketingOnly}
-              disabled={isWorking}
-            />
-            <Label htmlFor="marketing-only" className="text-sm">
-              Don&apos;t translate app UI
-            </Label>
-          </div>
-        </div>
-
-        <p className="text-xs text-muted-foreground">
-          Uses Gemini 3 Pro Image – approximately $0.30 per image.{" "}
-          <a
-            href="https://cloud.google.com/vertex-ai/generative-ai/pricing"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline"
-          >
-            Google pricing
-          </a>
-        </p>
 
         {/* Needs key – inline form */}
         {phase === "needs-key" && (
@@ -225,70 +198,68 @@ export function TranslateScreenshotModal({
           </div>
         )}
 
-        {/* Translating spinner */}
-        {phase === "translating" && (
-          <div className="flex flex-col items-center gap-3 py-12">
-            <Spinner className="size-8 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">Translating with Gemini 3 Pro Image…</p>
-            <p className="text-xs text-muted-foreground">This can take up to a minute</p>
-          </div>
-        )}
-
-        {/* Result preview */}
-        {phase === "done" && translatedSrc && (
-          <div className="flex flex-col items-center gap-4">
-            <div className="rounded-lg border bg-muted/20 p-3">
-              <img
-                src={translatedSrc}
-                alt="Translated screenshot"
-                className="max-h-[70vh] w-auto rounded object-contain"
-              />
+        {/* Preview area – always visible */}
+        <div className="flex min-h-[400px] flex-col items-center justify-center rounded-lg border bg-muted/20 p-3">
+          {phase === "done" && translatedSrc ? (
+            <img
+              src={translatedSrc}
+              alt="Translated screenshot"
+              className="max-h-[60vh] w-auto rounded object-contain"
+            />
+          ) : phase === "translating" ? (
+            <div className="flex flex-col items-center gap-3 py-8">
+              <Spinner className="size-8 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">Translating with Gemini 3 Pro Image…</p>
+              <p className="text-xs text-muted-foreground">This can take up to a minute</p>
             </div>
-          </div>
-        )}
-
-        {/* Error */}
-        {phase === "error" && (
-          <div className="flex flex-col items-center gap-3 py-8">
+          ) : phase === "error" ? (
             <p className="max-w-sm text-center text-sm text-destructive">{error}</p>
-          </div>
-        )}
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Translated image preview will appear here
+            </p>
+          )}
+        </div>
 
         {/* Actions */}
-        <div className="flex justify-end gap-2">
-          {(phase === "idle" || phase === "error") && (
-            <>
-              <Button
-                variant="outline"
-                onClick={async () => {
-                  setCopying(true);
-                  try {
-                    await onCopy();
-                    onOpenChange(false);
-                  } catch {
-                    setError("Failed to copy screenshot");
-                    setPhase("error");
-                  } finally {
-                    setCopying(false);
-                  }
-                }}
-                disabled={isWorking || copying}
-              >
-                {copying ? (
-                  <>
-                    <Spinner className="size-3" />
-                    Copying…
-                  </>
-                ) : (
-                  "Copy without translation"
-                )}
-              </Button>
-              <Button onClick={() => handleTranslate()} disabled={isWorking || copying}>
-                Translate
-              </Button>
-            </>
-          )}
-          {phase === "done" && (
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 mr-auto">
+            <Switch
+              id="marketing-only"
+              checked={marketingOnly}
+              onCheckedChange={setMarketingOnly}
+              disabled={isWorking}
+            />
+            <Label htmlFor="marketing-only" className="text-sm">
+              Don&apos;t translate app UI
+            </Label>
+          </div>
+          <Button
+            variant="outline"
+            onClick={async () => {
+              setCopying(true);
+              try {
+                await onCopy();
+                onOpenChange(false);
+              } catch {
+                setError("Failed to copy screenshot");
+                setPhase("error");
+              } finally {
+                setCopying(false);
+              }
+            }}
+            disabled={isWorking || copying || uploading}
+          >
+            {copying ? (
+              <>
+                <Spinner className="size-3" />
+                Copying…
+              </>
+            ) : (
+              "Copy without translation"
+            )}
+          </Button>
+          {phase === "done" ? (
             <>
               <Button
                 variant="outline"
@@ -308,8 +279,24 @@ export function TranslateScreenshotModal({
                 )}
               </Button>
             </>
+          ) : (
+            <Button onClick={() => handleTranslate()} disabled={isWorking || copying}>
+              Translate
+            </Button>
           )}
         </div>
+
+        <p className="text-xs text-muted-foreground text-right">
+          Uses Gemini 3 Pro Image – approximately $0.30 per image.{" "}
+          <a
+            href="https://cloud.google.com/vertex-ai/generative-ai/pricing"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline"
+          >
+            Google pricing
+          </a>
+        </p>
       </DialogContent>
     </Dialog>
   );
