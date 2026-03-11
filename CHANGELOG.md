@@ -3,6 +3,7 @@
 ## 1.6.0
 
 - Add nominations – browse, edit, AI-powered fill, and submit App Store nominations
+- Translate and copy base locale screenshots to other locales using Gemini 3 Pro Image
 - Remove redundant screenshots section from add/remove locale dialogs
 
 ## 1.5.1

@@ -35,6 +35,14 @@ export default function AISettingsPage() {
   const [storedModel, setStoredModel] = useState("");
   const [storedBaseUrl, setStoredBaseUrl] = useState("");
 
+  // Gemini key for screenshot translation
+  const [geminiKeyAvailable, setGeminiKeyAvailable] = useState(false);
+  const [geminiKeyFromMain, setGeminiKeyFromMain] = useState(false);
+  const [geminiKey, setGeminiKey] = useState("");
+  const [showGeminiKey, setShowGeminiKey] = useState(false);
+  const [savingGeminiKey, setSavingGeminiKey] = useState(false);
+  const [removingGeminiKey, setRemovingGeminiKey] = useState(false);
+
   const provider = useMemo(
     () => AI_PROVIDERS.find((p) => p.id === providerId)!,
     [providerId],
@@ -72,9 +80,21 @@ export default function AISettingsPage() {
     setLoading(false);
   }, []);
 
+  const fetchGeminiKeyStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/settings/gemini-key");
+      if (res.ok) {
+        const data = await res.json();
+        setGeminiKeyAvailable(data.available);
+        setGeminiKeyFromMain(data.fromMainProvider);
+      }
+    } catch { /* ignore */ }
+  }, []);
+
   useEffect(() => {
     fetchSettings();
-  }, [fetchSettings]);
+    fetchGeminiKeyStatus();
+  }, [fetchSettings, fetchGeminiKeyStatus]);
 
   function handleProviderChange(id: string) {
     setProviderId(id);
@@ -135,6 +155,7 @@ export default function AISettingsPage() {
         setApiKey("");
         setShowKey(false);
         invalidateAIStatus();
+        fetchGeminiKeyStatus();
       } else {
         const data = await res.json().catch(() => ({}));
         toast.error(data.error || "Failed to save");
@@ -169,6 +190,46 @@ export default function AISettingsPage() {
     }
 
     setRemoving(false);
+  }
+
+  async function handleSaveGeminiKey() {
+    if (!geminiKey.trim()) return;
+    setSavingGeminiKey(true);
+    try {
+      const res = await fetch("/api/settings/gemini-key", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ apiKey: geminiKey.trim() }),
+      });
+      if (res.ok) {
+        toast.success("Gemini key saved");
+        setGeminiKey("");
+        setShowGeminiKey(false);
+        fetchGeminiKeyStatus();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error || "Failed to save");
+      }
+    } catch {
+      toast.error("Network error");
+    }
+    setSavingGeminiKey(false);
+  }
+
+  async function handleRemoveGeminiKey() {
+    setRemovingGeminiKey(true);
+    try {
+      const res = await fetch("/api/settings/gemini-key", { method: "DELETE" });
+      if (res.ok) {
+        toast.success("Gemini key removed");
+        fetchGeminiKeyStatus();
+      } else {
+        toast.error("Failed to remove");
+      }
+    } catch {
+      toast.error("Network error");
+    }
+    setRemovingGeminiKey(false);
   }
 
   if (loading) return null;
@@ -272,6 +333,61 @@ export default function AISettingsPage() {
                 {showKey ? <EyeSlash size={16} /> : <Eye size={16} />}
               </Button>
             </div>
+          </div>
+        )}
+      </section>
+
+      {/* Screenshot translation (Gemini) */}
+      <section className="space-y-2">
+        <h3 className="section-title">Screenshot translation</h3>
+        <p className="text-sm text-muted-foreground">
+          Uses Gemini 3 Pro Image to translate text in App Store screenshots.
+          {geminiKeyFromMain && " Your Google API key from above is used automatically."}
+        </p>
+        {geminiKeyAvailable ? (
+          <div className="flex items-center gap-2">
+            <CheckCircle size={16} weight="fill" className="text-green-600" />
+            <span className="text-sm">
+              {geminiKeyFromMain ? "Using your Google provider key" : "Configured"}
+            </span>
+            {!geminiKeyFromMain && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground text-xs h-auto py-0.5 px-1.5"
+                onClick={handleRemoveGeminiKey}
+                disabled={removingGeminiKey}
+              >
+                {removingGeminiKey ? <><Spinner className="size-3" /> Removing...</> : "Remove"}
+              </Button>
+            )}
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 max-w-md">
+            <Input
+              type={showGeminiKey ? "text" : "password"}
+              value={geminiKey}
+              onChange={(e) => setGeminiKey(e.target.value)}
+              placeholder="Google AI API key"
+              className="font-mono text-sm"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleSaveGeminiKey();
+              }}
+            />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="shrink-0"
+              onClick={() => setShowGeminiKey(!showGeminiKey)}
+            >
+              {showGeminiKey ? <EyeSlash size={16} /> : <Eye size={16} />}
+            </Button>
+            <Button
+              onClick={handleSaveGeminiKey}
+              disabled={savingGeminiKey || !geminiKey.trim()}
+            >
+              {savingGeminiKey ? <Spinner className="size-4" /> : "Save"}
+            </Button>
           </div>
         )}
       </section>

@@ -73,6 +73,7 @@ import { EmptyState } from "@/components/empty-state";
 import { useLocaleManagement } from "@/lib/hooks/use-locale-management";
 import { useScreenshotOperations } from "@/lib/hooks/use-screenshot-operations";
 import { apiFetch } from "@/lib/api-fetch";
+import { TranslateScreenshotModal } from "@/components/translate-screenshot-modal";
 
 // ---------------------------------------------------------------------------
 // Sortable screenshot thumbnail
@@ -565,6 +566,7 @@ function BaseLocaleScreenshots({
   versionId,
   primaryLocale,
   primaryLocalizationId,
+  targetLocale,
   targetLocalizationId,
   targetSets,
   onCopied,
@@ -573,6 +575,7 @@ function BaseLocaleScreenshots({
   versionId: string;
   primaryLocale: string;
   primaryLocalizationId: string;
+  targetLocale: string;
   targetLocalizationId: string;
   targetSets: AscScreenshotSet[];
   onCopied: () => Promise<void>;
@@ -620,27 +623,48 @@ function BaseLocaleScreenshots({
   // Track copying state per screenshot ID
   const [copyingIds, setCopyingIds] = useState<Set<string>>(new Set());
 
+  // Translate modal state
+  const [translateScreenshot, setTranslateScreenshot] = useState<AscScreenshot | null>(null);
+
+  async function ensureTargetSet(): Promise<string | null> {
+    const existing = targetSets.find(
+      (s) => s.attributes.screenshotDisplayType === selectedType,
+    );
+    if (existing) return existing.id;
+
+    const res = await apiFetch(
+      `/api/apps/${appId}/versions/${versionId}/localizations/${targetLocalizationId}/screenshots/sets`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ displayType: selectedType }),
+      },
+    ) as { setId: string };
+    return res.setId;
+  }
+
+  async function handleTranslateAccept(file: File) {
+    const setId = await ensureTargetSet();
+    if (!setId) throw new Error("Failed to create screenshot set");
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("setId", setId);
+    await apiFetch(
+      `/api/apps/${appId}/versions/${versionId}/localizations/${targetLocalizationId}/screenshots`,
+      { method: "POST", body: formData },
+    );
+
+    toast.success("Translated screenshot added");
+    await onCopied();
+  }
+
   async function handleCopy(screenshot: AscScreenshot) {
     if (!screenshot.attributes.assetToken || copyingIds.has(screenshot.id)) return;
 
     setCopyingIds((prev) => new Set(prev).add(screenshot.id));
     try {
-      // Find or create the target screenshot set for this display type
-      let targetSetId = targetSets.find(
-        (s) => s.attributes.screenshotDisplayType === selectedType,
-      )?.id;
-
-      if (!targetSetId) {
-        const res = await apiFetch(
-          `/api/apps/${appId}/versions/${versionId}/localizations/${targetLocalizationId}/screenshots/sets`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ displayType: selectedType }),
-          },
-        ) as { setId: string };
-        targetSetId = res.setId;
-      }
+      const targetSetId = await ensureTargetSet();
 
       // Fetch the image via our proxy
       const imageUrl = screenshotImageUrl(screenshot.attributes.assetToken!, 4000);
@@ -654,7 +678,7 @@ function BaseLocaleScreenshots({
       // Upload to target locale's set
       const formData = new FormData();
       formData.append("file", file);
-      formData.append("setId", targetSetId!);
+      formData.append("setId", targetSetId ?? "");
       await apiFetch(
         `/api/apps/${appId}/versions/${versionId}/localizations/${targetLocalizationId}/screenshots`,
         { method: "POST", body: formData },
@@ -761,7 +785,8 @@ function BaseLocaleScreenshots({
                           variant="outline"
                           size="sm"
                           className="h-7 gap-1.5 text-xs"
-                          disabled
+                          disabled={copying}
+                          onClick={() => setTranslateScreenshot(ss)}
                         >
                           <Translate size={12} />
                           Translate
@@ -775,6 +800,17 @@ function BaseLocaleScreenshots({
           )}
         </CollapsibleContent>
       </div>
+
+      {translateScreenshot?.attributes.assetToken && (
+        <TranslateScreenshotModal
+          open={!!translateScreenshot}
+          onOpenChange={(open) => { if (!open) setTranslateScreenshot(null); }}
+          originalUrl={screenshotImageUrl(translateScreenshot.attributes.assetToken, 4000)}
+          fileName={translateScreenshot.attributes.fileName}
+          toLocale={targetLocale}
+          onAccept={handleTranslateAccept}
+        />
+      )}
     </Collapsible>
   );
 }
@@ -1057,6 +1093,7 @@ export default function ScreenshotsPage() {
           versionId={versionId}
           primaryLocale={primaryLocale}
           primaryLocalizationId={primaryLocalizationId}
+          targetLocale={selectedLocale}
           targetLocalizationId={localizationId}
           targetSets={screenshotSets}
           onCopied={refresh}
