@@ -3,6 +3,7 @@
 ## 1.6.0
 
 - Add nominations – browse, edit, AI-powered fill, and submit App Store nominations
+- Remove redundant screenshots section from add/remove locale dialogs
 
 ## 1.5.1
 
