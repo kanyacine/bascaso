@@ -2,6 +2,8 @@
 
 ## 1.6.1
 
+- Add batch screenshot translation – select multiple screenshots and translate or copy them all at once
+- Translate and upload screenshots server-side in one step, eliminating slow client round-trips
 - Rework add locale dialog
 - Fix invisible window on launch with stale nav state
 - Fix app_preferences table missing after update

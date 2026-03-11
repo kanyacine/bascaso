@@ -13,6 +13,7 @@ import {
   WarningCircle,
   X,
 } from "@phosphor-icons/react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -71,8 +72,10 @@ import { useRegisterRefresh } from "@/lib/refresh-context";
 import { EmptyState } from "@/components/empty-state";
 import { useLocaleManagement } from "@/lib/hooks/use-locale-management";
 import { useScreenshotOperations } from "@/lib/hooks/use-screenshot-operations";
-import { apiFetch } from "@/lib/api-fetch";
-import { TranslateScreenshotModal } from "@/components/translate-screenshot-modal";
+import {
+  TranslateScreenshotsModal,
+  type ScreenshotItem,
+} from "@/components/translate-screenshots-modal";
 
 // ---------------------------------------------------------------------------
 // Sortable screenshot thumbnail
@@ -619,138 +622,151 @@ function BaseLocaleScreenshots({
   const targetHasScreenshots = targetSets.some((s) => s.screenshots.length > 0);
   const [open, setOpen] = useState(!targetHasScreenshots);
 
-  // Track copying state per screenshot ID
-  const [copyingIds, setCopyingIds] = useState<Set<string>>(new Set());
+  // Selection state – set of screenshot IDs
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // Clear selection when display type changes
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [selectedType]);
+
+  // All selectable screenshots in current set
+  const selectableScreenshots = useMemo(() => {
+    if (!selectedSet) return [];
+    return selectedSet.screenshots.filter(
+      (ss) => ss.attributes.assetDeliveryState?.state === "COMPLETE" && !!ss.attributes.assetToken,
+    );
+  }, [selectedSet]);
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   // Translate modal state
-  const [translateScreenshot, setTranslateScreenshot] = useState<AscScreenshot | null>(null);
+  const [translateItems, setTranslateItems] = useState<ScreenshotItem[]>([]);
+  const [translateOpen, setTranslateOpen] = useState(false);
 
-  async function ensureTargetSet(): Promise<string | null> {
-    const existing = targetSets.find(
-      (s) => s.attributes.screenshotDisplayType === selectedType,
-    );
-    if (existing) return existing.id;
-
-    const res = await apiFetch(
-      `/api/apps/${appId}/versions/${versionId}/localizations/${targetLocalizationId}/screenshots/sets`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ displayType: selectedType }),
-      },
-    ) as { setId: string };
-    return res.setId;
+  function openTranslateModal(items: ScreenshotItem[]) {
+    setTranslateItems(items);
+    setTranslateOpen(true);
   }
 
-  async function handleTranslateAccept(file: File) {
-    const setId = await ensureTargetSet();
-    if (!setId) throw new Error("Failed to create screenshot set");
-
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("setId", setId);
-    await apiFetch(
-      `/api/apps/${appId}/versions/${versionId}/localizations/${targetLocalizationId}/screenshots`,
-      { method: "POST", body: formData },
-    );
-
-    toast.success("Translated screenshot added");
-    await onCopied();
-  }
-
-  async function handleCopy(screenshot: AscScreenshot) {
-    if (!screenshot.attributes.assetToken || copyingIds.has(screenshot.id)) return;
-
-    setCopyingIds((prev) => new Set(prev).add(screenshot.id));
-    try {
-      const targetSetId = await ensureTargetSet();
-
-      // Fetch the image via our proxy
-      const imageUrl = screenshotImageUrl(screenshot.attributes.assetToken!, 4000);
-      const imageRes = await fetch(
-        `/api/screenshot-download?url=${encodeURIComponent(imageUrl)}&name=${encodeURIComponent(screenshot.attributes.fileName)}`,
-      );
-      if (!imageRes.ok) throw new Error("Failed to fetch image");
-      const blob = await imageRes.blob();
-      const file = new File([blob], screenshot.attributes.fileName, { type: blob.type || "image/png" });
-
-      // Upload to target locale's set
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("setId", targetSetId ?? "");
-      await apiFetch(
-        `/api/apps/${appId}/versions/${versionId}/localizations/${targetLocalizationId}/screenshots`,
-        { method: "POST", body: formData },
-      );
-
-      toast.success("Screenshot copied");
-      await onCopied();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to copy screenshot");
-    } finally {
-      setCopyingIds((prev) => {
-        const next = new Set(prev);
-        next.delete(screenshot.id);
-        return next;
-      });
+  function handleTranslateSelected() {
+    if (selectedIds.size === 0) return;
+    const items: ScreenshotItem[] = [];
+    for (const ss of selectableScreenshots) {
+      if (selectedIds.has(ss.id)) {
+        items.push({ screenshot: ss, displayType: selectedType });
+      }
     }
+    openTranslateModal(items);
+  }
+
+  function handleTranslateAll() {
+    // Collect all screenshots across all variants
+    const items: ScreenshotItem[] = [];
+    for (const set of setsWithScreenshots) {
+      for (const ss of set.screenshots) {
+        if (ss.attributes.assetDeliveryState?.state === "COMPLETE" && ss.attributes.assetToken) {
+          items.push({ screenshot: ss, displayType: set.attributes.screenshotDisplayType });
+        }
+      }
+    }
+    openTranslateModal(items);
+  }
+
+  async function handleTranslateComplete() {
+    setSelectedIds(new Set());
+    await onCopied();
   }
 
   if (loading || setsWithScreenshots.length === 0) return null;
 
+  const hasSelection = selectedIds.size > 0;
+
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
       <div className="rounded-lg border bg-muted/20">
-        <CollapsibleTrigger asChild>
-          <button
-            type="button"
-            className="flex w-full items-center gap-3 px-4 py-3 text-sm font-medium hover:bg-muted/40"
-          >
-            <CaretDown
-              size={14}
-              className={cn(
-                "text-muted-foreground transition-transform",
-                !open && "-rotate-90",
-              )}
-            />
-            <span>Base locale screenshots ({localeName(primaryLocale)})</span>
+        <div className="flex items-center gap-3 px-4 py-3">
+          <CollapsibleTrigger asChild>
+            <button
+              type="button"
+              className="flex items-center gap-3 text-sm font-medium hover:text-foreground/80"
+            >
+              <CaretDown
+                size={14}
+                className={cn(
+                  "text-muted-foreground transition-transform",
+                  !open && "-rotate-90",
+                )}
+              />
+              <span>Base locale screenshots ({localeName(primaryLocale)})</span>
+            </button>
+          </CollapsibleTrigger>
+
+          <div className="ml-auto flex items-center gap-2">
             {availableTypes.length > 1 && (
-              <span
-                className="ml-auto text-xs text-muted-foreground"
-                onClick={(e) => e.stopPropagation()}
+              <select
+                value={selectedType}
+                onChange={(e) => setSelectedType(e.target.value)}
+                className="rounded border bg-background px-2 py-1 text-xs text-muted-foreground"
               >
-                <select
-                  value={selectedType}
-                  onChange={(e) => setSelectedType(e.target.value)}
-                  className="rounded border bg-background px-2 py-1 text-xs"
-                >
-                  {availableTypes.map((dt) => (
-                    <option key={dt} value={dt}>
-                      {displayTypeLabel(dt)}
-                    </option>
-                  ))}
-                </select>
-              </span>
+                {availableTypes.map((dt) => (
+                  <option key={dt} value={dt}>
+                    {displayTypeLabel(dt)}
+                  </option>
+                ))}
+              </select>
             )}
-            {availableTypes.length === 1 && (
-              <span className="ml-auto text-xs text-muted-foreground">
-                {displayTypeLabel(selectedType)}
-              </span>
+            {hasSelection ? (
+              <Button
+                size="sm"
+                className="h-7 gap-1.5 text-xs"
+                onClick={handleTranslateSelected}
+              >
+                <Translate size={12} />
+                Translate selected ({selectedIds.size})
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 gap-1.5 text-xs"
+                onClick={handleTranslateAll}
+              >
+                <Translate size={12} />
+                Translate all
+              </Button>
             )}
-          </button>
-        </CollapsibleTrigger>
+          </div>
+        </div>
 
         <CollapsibleContent>
+
           {selectedSet && (
             <div className="flex gap-3 overflow-x-auto px-4 pb-4">
               {selectedSet.screenshots.map((ss) => {
                 const isComplete = ss.attributes.assetDeliveryState?.state === "COMPLETE";
                 const hasToken = !!ss.attributes.assetToken;
-                const copying = copyingIds.has(ss.id);
+                const isSelectable = isComplete && hasToken;
+                const isSelected = selectedIds.has(ss.id);
 
                 return (
                   <div key={ss.id} className="group/base relative shrink-0">
-                    <div className="rounded-lg border bg-muted/30 p-2 opacity-60">
+                    <div
+                      className={cn(
+                        "rounded-lg border p-2 cursor-pointer transition-colors",
+                        isSelected
+                          ? "border-primary bg-primary/5"
+                          : "bg-muted/30 opacity-60 hover:opacity-80",
+                      )}
+                      onClick={() => isSelectable && toggleSelect(ss.id)}
+                    >
                       {isComplete && hasToken ? (
                         <img
                           src={screenshotImageUrl(ss.attributes.assetToken!, 300)}
@@ -764,17 +780,21 @@ function BaseLocaleScreenshots({
                         </div>
                       )}
                     </div>
-                    {isComplete && hasToken && (
-                      <Button
-                        variant="default"
-                        size="sm"
-                        className="absolute inset-x-0 bottom-1 mx-auto w-fit h-6 gap-1 rounded-full px-2 text-[10px] opacity-0 transition-opacity group-hover/base:opacity-100"
-                        onClick={() => setTranslateScreenshot(ss)}
+
+                    {/* Checkbox */}
+                    {isSelectable && (
+                      <div
+                        className="absolute top-1.5 left-1.5"
+                        onClick={(e) => e.stopPropagation()}
                       >
-                        <Translate size={11} />
-                        Translate
-                      </Button>
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={() => toggleSelect(ss.id)}
+                          className="bg-background"
+                        />
+                      </div>
                     )}
+
                   </div>
                 );
               })}
@@ -783,17 +803,14 @@ function BaseLocaleScreenshots({
         </CollapsibleContent>
       </div>
 
-      {translateScreenshot?.attributes.assetToken && (
-        <TranslateScreenshotModal
-          open={!!translateScreenshot}
-          onOpenChange={(open) => { if (!open) setTranslateScreenshot(null); }}
-          originalUrl={screenshotImageUrl(translateScreenshot.attributes.assetToken, 4000)}
-          fileName={translateScreenshot.attributes.fileName}
-          toLocale={targetLocale}
-          onAccept={handleTranslateAccept}
-          onCopy={() => handleCopy(translateScreenshot)}
-        />
-      )}
+      <TranslateScreenshotsModal
+        open={translateOpen}
+        onOpenChange={setTranslateOpen}
+        items={translateItems}
+        toLocale={targetLocale}
+        targetLocalizationId={targetLocalizationId}
+        onComplete={handleTranslateComplete}
+      />
     </Collapsible>
   );
 }
