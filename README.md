@@ -16,7 +16,7 @@
 
 ---
 
-A macOS desktop app that replaces Apple's App Store Connect web dashboard. Edit metadata across all locales at once, manage TestFlight builds and testers, review analytics, and respond to customer reviews – all from a single desktop window. AI translates your descriptions, keywords, and review replies into every language with one click.
+A macOS desktop app that replaces Apple's App Store Connect web dashboard. Edit metadata across all locales at once, manage TestFlight builds and testers, review analytics, respond to customer reviews, and submit nominations – all from a single desktop window. AI translates your descriptions, keywords, review replies, and even screenshots into every language with one click.
 
 Everything runs locally. One SQLite database, no cloud, no accounts, no telemetry. Credentials are encrypted with AES-256-GCM and the master key lives in the macOS Keychain.
 
@@ -49,7 +49,9 @@ Everything runs locally. One SQLite database, no cloud, no accounts, no telemetr
 
 **Customer reviews** – filter by rating, territory, or response status. Translate foreign-language reviews with one click. Draft replies with AI, automatically matching the reviewer's language. Edit and delete existing responses.
 
-**Screenshots** – upload, reorder with drag-and-drop, preview in lightbox, and delete screenshots across all device categories (iPhone, iPad, Mac, Apple TV, Apple Watch, Apple Vision) and locales.
+**Screenshots** – upload, reorder with drag-and-drop, preview in lightbox, and delete screenshots across all device categories (iPhone, iPad, Mac, Apple TV, Apple Watch, Apple Vision) and locales. Translate screenshots to any locale using Gemini 3 Pro Image – the AI translates marketing text while preserving fonts and layout. Copy base locale screenshots to other locales without translation. Locale picker shows which locales have screenshots at a glance.
+
+**Nominations** – browse, edit, and submit App Store nominations. AI-powered fill generates nomination answers from your app metadata with one click.
 
 **Privacy and security** – local-first architecture. All data stays on your Mac in a single SQLite file. Credentials encrypted with AES-256-GCM envelope encryption, master key stored in the macOS Keychain. No cloud, no accounts, no telemetry.
 
