@@ -64,6 +64,7 @@ describe("ensureLocalModelLoaded", () => {
   });
 
   it("skips load when selected model is already loaded", async () => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const fetchMock = vi.fn(async (_input: RequestInfo | URL) =>
       new Response(
         JSON.stringify({
@@ -84,6 +85,7 @@ describe("ensureLocalModelLoaded", () => {
   });
 
   it("matches model by instance id when key differs", async () => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const fetchMock = vi.fn(async (_input: RequestInfo | URL) =>
       new Response(
         JSON.stringify({

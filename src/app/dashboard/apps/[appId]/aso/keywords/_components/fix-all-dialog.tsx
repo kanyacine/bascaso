@@ -103,27 +103,6 @@ export function FixAllDialog({
   const [authError, setAuthError] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
-  useEffect(() => {
-    if (!open) {
-      abortRef.current?.abort();
-      abortRef.current = null;
-      return;
-    }
-
-    setAuthError(false);
-    const initialChecked: Record<string, boolean> = {};
-    for (const ld of fixableLocales) {
-      initialChecked[ld.locale] = true;
-    }
-    setChecked(initialChecked);
-    runFix();
-
-    return () => {
-      abortRef.current?.abort();
-      abortRef.current = null;
-    };
-  }, [open]);
-
   async function runFix() {
     const controller = new AbortController();
     abortRef.current = controller;
@@ -220,6 +199,31 @@ export function FixAllDialog({
       }
     }
   }
+
+  useEffect(() => {
+    if (!open) {
+      abortRef.current?.abort();
+      abortRef.current = null;
+      return;
+    }
+
+    // Defer to avoid synchronous setState in effect body
+    const frame = requestAnimationFrame(() => {
+      setAuthError(false);
+      const initialChecked: Record<string, boolean> = {};
+      for (const ld of fixableLocales) {
+        initialChecked[ld.locale] = true;
+      }
+      setChecked(initialChecked);
+      runFix();
+    });
+
+    return () => {
+      cancelAnimationFrame(frame);
+      abortRef.current?.abort();
+      abortRef.current = null;
+    };
+  }, [open]);
 
   function toggleLocale(locale: string) {
     setChecked((prev) => ({ ...prev, [locale]: !prev[locale] }));

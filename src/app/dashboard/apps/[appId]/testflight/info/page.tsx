@@ -21,7 +21,7 @@ import { useApps } from "@/lib/apps-context";
 import { useRegisterHeaderLocale } from "@/lib/header-locale-context";
 import { useLocaleManagement } from "@/lib/hooks/use-locale-management";
 import { useLocaleHandlers } from "@/lib/hooks/use-locale-handlers";
-import { localeName, sortLocales } from "@/lib/asc/locale-names";
+import { sortLocales } from "@/lib/asc/locale-names";
 import { MagicWandButton, wandProps } from "@/components/magic-wand-button";
 import type { MagicWandLocaleProps } from "@/components/magic-wand-button";
 import { BulkAIDialog, type BulkField } from "@/components/bulk-ai-dialog";

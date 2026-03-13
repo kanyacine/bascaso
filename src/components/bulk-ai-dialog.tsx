@@ -8,7 +8,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Dialog,
   DialogContent,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -71,35 +70,17 @@ export function BulkAIDialog({
   const [authError, setAuthError] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
-  // Run on open
-  useEffect(() => {
-    if (!open) {
-      abortRef.current?.abort();
-      abortRef.current = null;
-      return;
-    }
-
-    // Init state
+  function initState() {
     setAuthError(false);
     const initialChecked: Record<string, boolean> = {};
     for (const f of fields) {
       initialChecked[f.key] = true;
     }
     setChecked(initialChecked);
-
-    if (mode === "copy") {
-      runCopy();
-    } else {
-      runTranslate();
-    }
-
-    return () => {
-      abortRef.current?.abort();
-      abortRef.current = null;
-    };
-  }, [open]);
+  }
 
   function runCopy() {
+    initState();
     const baseFields = localeData[primaryLocale] ?? {};
     const newResults: Record<string, FieldResult> = {};
     for (const f of fields) {
@@ -112,6 +93,7 @@ export function BulkAIDialog({
   }
 
   function runTranslate() {
+    initState();
     const controller = new AbortController();
     abortRef.current = controller;
     const baseFields = localeData[primaryLocale] ?? {};
@@ -179,6 +161,30 @@ export function BulkAIDialog({
         });
     }
   }
+
+  // Run on open
+  useEffect(() => {
+    if (!open) {
+      abortRef.current?.abort();
+      abortRef.current = null;
+      return;
+    }
+
+    // Defer to avoid synchronous setState in effect body
+    const frame = requestAnimationFrame(() => {
+      if (mode === "copy") {
+        runCopy();
+      } else {
+        runTranslate();
+      }
+    });
+
+    return () => {
+      cancelAnimationFrame(frame);
+      abortRef.current?.abort();
+      abortRef.current = null;
+    };
+  }, [open]);
 
   // --- Checkbox logic ---
 

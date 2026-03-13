@@ -309,7 +309,7 @@ export default function DashboardPage() {
             </div>
             <h1 className="text-2xl font-bold tracking-tight">Choose your app</h1>
             <p className="text-sm text-muted-foreground">
-              Pick the app you'd like to manage.
+              Pick the app you&apos;d like to manage.
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">

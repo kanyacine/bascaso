@@ -114,6 +114,7 @@ export default function AppOverviewPage() {
 
   const searchParams = useSearchParams();
   const devSimulate = searchParams.get("analyticsState") === "initiated";
+  const [devSimulateTime] = useState(() => Date.now() - 2 * 60 * 60 * 1000);
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [pending, setPending] = useState(false);
   const [reportInitiated, setReportInitiated] = useState(false);
@@ -254,7 +255,7 @@ export default function AppOverviewPage() {
           <Spinner className="size-6 text-muted-foreground" />
         </div>
       ) : devSimulate ? (
-        <ReportInitiatedBanner initiatedAt={Date.now() - 2 * 60 * 60 * 1000} />
+        <ReportInitiatedBanner initiatedAt={devSimulateTime} />
       ) : reportInitiated && !analytics ? (
         <ReportInitiatedBanner initiatedAt={initiatedAt} />
       ) : pending ? (

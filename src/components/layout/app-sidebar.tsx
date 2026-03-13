@@ -120,11 +120,11 @@ function ScrollFadeSidebarContent({ children }: { children: React.ReactNode }) {
 export function AppSidebar() {
   const { appId } = useParams<{ appId?: string }>();
   const router = useRouter();
-  const pathname = usePathname();
   const { apps } = useApps();
   const { guardNavigation } = useFormDirty();
   const [lastAppId, setLastAppId] = useState<string>();
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- client-only localStorage read
     if (!appId) setLastAppId(getLastAppId());
   }, [appId]);
   const navAppId = appId ?? lastAppId;

@@ -80,14 +80,7 @@ export function BulkAllAIDialog({
   const [authError, setAuthError] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
-  useEffect(() => {
-    if (!open) {
-      abortRef.current?.abort();
-      abortRef.current = null;
-      return;
-    }
-
-    // Init checked state – all locales checked
+  function initState() {
     setAuthError(false);
     const initialChecked: Record<string, boolean> = {};
     for (const loc of targetLocales) {
@@ -95,20 +88,10 @@ export function BulkAllAIDialog({
     }
     setChecked(initialChecked);
     setExpanded({});
-
-    if (mode === "copy") {
-      runCopy();
-    } else {
-      runTranslate();
-    }
-
-    return () => {
-      abortRef.current?.abort();
-      abortRef.current = null;
-    };
-  }, [open]);
+  }
 
   function runCopy() {
+    initState();
     const baseFields = localeData[primaryLocale] ?? {};
     const newResults: AllResults = {};
     for (const loc of targetLocales) {
@@ -123,6 +106,7 @@ export function BulkAllAIDialog({
   }
 
   function runTranslate() {
+    initState();
     const controller = new AbortController();
     abortRef.current = controller;
     const baseFields = localeData[primaryLocale] ?? {};
@@ -197,6 +181,29 @@ export function BulkAllAIDialog({
       }
     }
   }
+
+  useEffect(() => {
+    if (!open) {
+      abortRef.current?.abort();
+      abortRef.current = null;
+      return;
+    }
+
+    // Defer to avoid synchronous setState in effect body
+    const frame = requestAnimationFrame(() => {
+      if (mode === "copy") {
+        runCopy();
+      } else {
+        runTranslate();
+      }
+    });
+
+    return () => {
+      cancelAnimationFrame(frame);
+      abortRef.current?.abort();
+      abortRef.current = null;
+    };
+  }, [open]);
 
   // --- Checkbox logic ---
 

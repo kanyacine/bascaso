@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { gzipSync } from "node:zlib";
 
 // ---------- Mocks ----------
@@ -1053,8 +1053,6 @@ describe("data date deduplication in fetchReportData", () => {
       ],
     );
 
-    let instanceCallCount = 0;
-
     mockAscFetch.mockImplementation(async (url: string) => {
       if (url.includes("/analyticsReportRequests") && !url.includes("/reports")) {
         return reportRequestsResponse(["req-datededup"]);
@@ -1072,7 +1070,6 @@ describe("data date deduplication in fetchReportData", () => {
         ]);
       }
       if (url.includes("/segments")) {
-        instanceCallCount++;
         const instId = url.match(/Instances\/([^/]+)/)?.[1] ?? "";
         return segmentsResponse([
           { id: `seg-${instId}`, url: `https://s3.example.com/${instId}.tsv` },
@@ -3438,8 +3435,8 @@ describe("dailyCrashes aggregation", () => {
 
     // Override db mock so isBackfilled returns false (get() returns undefined)
     const dbModule = await import("@/db");
-    const origSelect = (dbModule.db as any).select;
-    (dbModule.db as any).select = () => ({
+    const origSelect = (dbModule.db as unknown as Record<string, unknown>).select;
+    (dbModule.db as unknown as Record<string, unknown>).select = () => ({
       from: () => ({
         where: () => ({ get: () => undefined }),
       }),
@@ -3466,18 +3463,18 @@ describe("dailyCrashes aggregation", () => {
     );
 
     // Restore original select
-    (dbModule.db as any).select = origSelect;
+    (dbModule.db as unknown as Record<string, unknown>).select = origSelect;
   });
 
   it("marks app as backfilled when backfill produces data", async () => {
     mockCacheGet.mockReturnValue(null);
 
     const dbModule = await import("@/db");
-    const origSelect = (dbModule.db as any).select;
-    const origInsert = (dbModule.db as any).insert;
+    const origSelect = (dbModule.db as unknown as Record<string, unknown>).select;
+    const origInsert = (dbModule.db as unknown as Record<string, unknown>).insert;
 
     // isBackfilled returns false
-    (dbModule.db as any).select = () => ({
+    (dbModule.db as unknown as Record<string, unknown>).select = () => ({
       from: () => ({
         where: () => ({ get: () => undefined }),
       }),
@@ -3485,7 +3482,7 @@ describe("dailyCrashes aggregation", () => {
 
     // Track insert calls (markBackfilled)
     const insertRunSpy = vi.fn();
-    (dbModule.db as any).insert = () => ({
+    (dbModule.db as unknown as Record<string, unknown>).insert = () => ({
       values: () => ({ onConflictDoNothing: () => ({ run: insertRunSpy }) }),
     });
 
@@ -3536,18 +3533,18 @@ describe("dailyCrashes aggregation", () => {
     );
     expect(insertRunSpy).toHaveBeenCalled();
 
-    (dbModule.db as any).select = origSelect;
-    (dbModule.db as any).insert = origInsert;
+    (dbModule.db as unknown as Record<string, unknown>).select = origSelect;
+    (dbModule.db as unknown as Record<string, unknown>).insert = origInsert;
   });
 
   it("catches and logs backfill errors", async () => {
     mockCacheGet.mockReturnValue(null);
 
     const dbModule = await import("@/db");
-    const origSelect = (dbModule.db as any).select;
+    const origSelect = (dbModule.db as unknown as Record<string, unknown>).select;
 
     // isBackfilled returns false
-    (dbModule.db as any).select = () => ({
+    (dbModule.db as unknown as Record<string, unknown>).select = () => ({
       from: () => ({
         where: () => ({ get: () => undefined }),
       }),
@@ -3589,7 +3586,7 @@ describe("dailyCrashes aggregation", () => {
 
     // Restore mocks
     mockCacheSet.mockReset();
-    (dbModule.db as any).select = origSelect;
+    (dbModule.db as unknown as Record<string, unknown>).select = origSelect;
   });
 
   it("re-throws when findReportRequestIds fails", async () => {

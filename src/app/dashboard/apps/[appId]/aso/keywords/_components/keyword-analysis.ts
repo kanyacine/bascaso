@@ -1,7 +1,7 @@
 import type { AscLocalization } from "@/lib/asc/localizations";
 import type { AscAppInfoLocalization } from "@/lib/asc/app-info";
 import { localeName } from "@/lib/asc/locale-names";
-import { resolveExchangeableLocale, storefrontsByLocale } from "@/lib/asc/storefronts";
+import { resolveExchangeableLocale } from "@/lib/asc/storefronts";
 
 export interface LocaleKeywordData {
   locale: string;

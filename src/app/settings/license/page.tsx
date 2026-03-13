@@ -17,7 +17,7 @@ import {
 import { CheckCircle, ArrowSquareOut } from "@phosphor-icons/react";
 import { Spinner } from "@/components/ui/spinner";
 import { useLicense } from "@/lib/license-context";
-import { CHECKOUT_URL, FREE_LIMITS, IS_MAS } from "@/lib/license-shared";
+import { CHECKOUT_URL, IS_MAS } from "@/lib/license-shared";
 import { toast } from "sonner";
 
 function MasFreePage() {

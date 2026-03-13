@@ -375,9 +375,9 @@ export default function StoreListingPage() {
           )
         : isFirstVersion
           ? Object.fromEntries(
-              Object.entries(localeData).map(([locale, { whatsNew: _, ...rest }]) => [
+              Object.entries(localeData).map(([locale, fields]) => [
                 locale,
-                rest,
+                Object.fromEntries(Object.entries(fields).filter(([k]) => k !== "whatsNew")),
               ]),
             )
           : localeData;

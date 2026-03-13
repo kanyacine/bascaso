@@ -3,7 +3,6 @@
 import {
   createContext,
   useContext,
-  useCallback,
   useEffect,
   useRef,
   useState,
@@ -30,15 +29,17 @@ export interface HeaderLocaleConfig {
 }
 
 interface HeaderLocaleContextValue {
+  /** Ref used by pages to keep handlers fresh without triggering re-renders */
   configRef: React.RefObject<HeaderLocaleConfig | null>;
-  version: number;
-  setVersion: React.Dispatch<React.SetStateAction<number>>;
+  /** Snapshot of the config for render-safe reading by the header */
+  config: HeaderLocaleConfig | null;
+  setConfig: React.Dispatch<React.SetStateAction<HeaderLocaleConfig | null>>;
 }
 
 const HeaderLocaleContext = createContext<HeaderLocaleContextValue>({
   configRef: { current: null },
-  version: 0,
-  setVersion: () => {},
+  config: null,
+  setConfig: () => {},
 });
 
 export function HeaderLocaleProvider({
@@ -47,10 +48,10 @@ export function HeaderLocaleProvider({
   children: React.ReactNode;
 }) {
   const configRef = useRef<HeaderLocaleConfig | null>(null);
-  const [version, setVersion] = useState(0);
+  const [config, setConfig] = useState<HeaderLocaleConfig | null>(null);
 
   return (
-    <HeaderLocaleContext.Provider value={{ configRef, version, setVersion }}>
+    <HeaderLocaleContext.Provider value={{ configRef, config, setConfig }}>
       {children}
     </HeaderLocaleContext.Provider>
   );
@@ -61,17 +62,13 @@ export function HeaderLocaleProvider({
  * Handlers are kept fresh via a ref; display data changes trigger header re-render.
  */
 export function useRegisterHeaderLocale(config: HeaderLocaleConfig) {
-  const { configRef, setVersion } = useContext(HeaderLocaleContext);
-
-  // Keep a local ref so handlers are always fresh
-  const latestRef = useRef(config);
-  latestRef.current = config;
+  const { configRef, setConfig } = useContext(HeaderLocaleContext);
 
   useEffect(() => {
     const prev = configRef.current;
-    configRef.current = latestRef.current;
+    configRef.current = config;
 
-    // Only bump version (trigger header re-render) when display data changes
+    // Only bump config (trigger header re-render) when display data changes
     if (
       !prev ||
       prev.selectedLocale !== config.selectedLocale ||
@@ -82,7 +79,7 @@ export function useRegisterHeaderLocale(config: HeaderLocaleConfig) {
       prev.availableLocales !== config.availableLocales ||
       prev.localesWithContent !== config.localesWithContent
     ) {
-      setVersion((v) => v + 1);
+      setConfig(config);
     }
   });
 
@@ -92,15 +89,14 @@ export function useRegisterHeaderLocale(config: HeaderLocaleConfig) {
     return () => {
       if (configRef.current?.section === section) {
         configRef.current = null;
-        setVersion((v) => v + 1);
+        setConfig(null);
       }
     };
-  }, [configRef, setVersion, section]);
+  }, [configRef, setConfig, section]);
 }
 
-/** Header reads the current locale picker config. */
+/** Header reads the current locale picker config (render-safe). */
 export function useHeaderLocale() {
-  const { configRef, version } = useContext(HeaderLocaleContext);
-  void version; // subscribe to version changes
-  return configRef;
+  const { configRef, config } = useContext(HeaderLocaleContext);
+  return { configRef, config };
 }

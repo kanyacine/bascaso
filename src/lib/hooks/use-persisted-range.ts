@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 
 function readStored(key: string): string | null {
   try {
@@ -19,11 +19,7 @@ function writeStored(key: string, value: string | null) {
 }
 
 export function usePersistedRange(storageKey: string): [string | null, (v: string | null) => void] {
-  const [range, setRange] = useState<string | null>(null);
-
-  useEffect(() => {
-    setRange(readStored(storageKey));
-  }, [storageKey]);
+  const [range, setRange] = useState<string | null>(() => readStored(storageKey));
 
   const update = useCallback((v: string | null) => {
     setRange(v);
@@ -34,12 +30,7 @@ export function usePersistedRange(storageKey: string): [string | null, (v: strin
 }
 
 export function usePersistedState(storageKey: string, defaultValue: string): [string, (v: string) => void] {
-  const [value, setValue] = useState(defaultValue);
-
-  useEffect(() => {
-    const stored = readStored(storageKey);
-    if (stored !== null) setValue(stored);
-  }, [storageKey]);
+  const [value, setValue] = useState(() => readStored(storageKey) ?? defaultValue);
 
   const update = useCallback((v: string) => {
     setValue(v);
@@ -50,12 +41,10 @@ export function usePersistedState(storageKey: string, defaultValue: string): [st
 }
 
 export function usePersistedBool(storageKey: string, defaultValue: boolean): [boolean, (v: boolean) => void] {
-  const [value, setValue] = useState(defaultValue);
-
-  useEffect(() => {
+  const [value, setValue] = useState(() => {
     const stored = readStored(storageKey);
-    if (stored !== null) setValue(stored === "1");
-  }, [storageKey]);
+    return stored !== null ? stored === "1" : defaultValue;
+  });
 
   const update = useCallback((v: boolean) => {
     setValue(v);

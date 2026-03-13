@@ -19,8 +19,7 @@ import { localeName } from "@/lib/asc/locale-names";
 import { AIRequiredDialog } from "@/components/ai-required-dialog";
 
 export function HeaderLocalePicker() {
-  const configRef = useHeaderLocale();
-  const config = configRef.current;
+  const { configRef, config } = useHeaderLocale();
   const { guardNavigation } = useFormDirty();
   const { configured } = useAIStatus();
   const [showRequired, setShowRequired] = useState(false);

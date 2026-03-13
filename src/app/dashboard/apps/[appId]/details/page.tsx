@@ -188,10 +188,10 @@ export default function AppDetailsPage() {
   // Track original locale → localization ID mapping for diffing saves
   const originalLocaleIdsRef = useRef<Record<string, string>>({});
 
-  const searchParamsRef = useRef(searchParams);
-  searchParamsRef.current = searchParams;
-
-  useEffect(() => {
+  // Track which localizations have been synced to avoid re-syncing
+  const [syncedLocalizations, setSyncedLocalizations] = useState(localizations);
+  if (localizations !== syncedLocalizations) {
+    setSyncedLocalizations(localizations);
     const data = buildLocaleData(localizations);
     setLocaleData(data);
     const sorted = sortLocales(Object.keys(data), primaryLocale);
@@ -200,48 +200,61 @@ export default function AppDetailsPage() {
     // Preserve current locale if still valid, else try URL param, else first
     setSelectedLocale((prev) => {
       if (prev && sorted.includes(prev)) return prev;
-      const fromUrl = searchParamsRef.current.get("locale");
+      const fromUrl = searchParams.get("locale");
       if (fromUrl && sorted.includes(fromUrl)) return fromUrl;
       return sorted[0] ?? "";
     });
     setDirty(false);
+  }
 
-    // Snapshot original locale → ID mapping for save diffing
+  // Keep ref snapshots in sync via effect (refs cannot be written during render)
+  useEffect(() => {
     const ids: Record<string, string> = {};
     for (const loc of localizations) {
       ids[loc.attributes.locale] = loc.id;
     }
     originalLocaleIdsRef.current = ids;
-  }, [localizations, primaryLocale, setDirty]);
+  }, [localizations]);
 
   // Sync content rights when app data loads
+  const [syncedContentRights, setSyncedContentRights] = useState(app?.contentRightsDeclaration);
+  if (app?.contentRightsDeclaration !== syncedContentRights) {
+    setSyncedContentRights(app?.contentRightsDeclaration);
+    if (app?.contentRightsDeclaration) {
+      setContentRights(app.contentRightsDeclaration as ContentRights);
+    }
+  }
   useEffect(() => {
     if (app?.contentRightsDeclaration) {
-      const value = app.contentRightsDeclaration as ContentRights;
-      setContentRights(value);
-      contentRightsOriginalRef.current = value;
+      contentRightsOriginalRef.current = app.contentRightsDeclaration as ContentRights;
     }
   }, [app?.contentRightsDeclaration]);
 
   // Sync notification URLs when app data loads
+  const [syncedNotifUrls, setSyncedNotifUrls] = useState({ prod: app?.subscriptionStatusUrl, sandbox: app?.subscriptionStatusUrlForSandbox });
+  if (app?.subscriptionStatusUrl !== syncedNotifUrls.prod || app?.subscriptionStatusUrlForSandbox !== syncedNotifUrls.sandbox) {
+    setSyncedNotifUrls({ prod: app?.subscriptionStatusUrl, sandbox: app?.subscriptionStatusUrlForSandbox });
+    setNotifUrl(app?.subscriptionStatusUrl ?? "");
+    setNotifSandboxUrl(app?.subscriptionStatusUrlForSandbox ?? "");
+  }
   useEffect(() => {
-    const prod = app?.subscriptionStatusUrl ?? "";
-    const sandbox = app?.subscriptionStatusUrlForSandbox ?? "";
-    setNotifUrl(prod);
-    setNotifSandboxUrl(sandbox);
-    notifUrlOriginalRef.current = prod;
-    notifSandboxUrlOriginalRef.current = sandbox;
+    notifUrlOriginalRef.current = app?.subscriptionStatusUrl ?? "";
+    notifSandboxUrlOriginalRef.current = app?.subscriptionStatusUrlForSandbox ?? "";
   }, [app?.subscriptionStatusUrl, app?.subscriptionStatusUrlForSandbox]);
 
   // Sync categories when appInfo loads
+  const [syncedAppInfo, setSyncedAppInfo] = useState(appInfo);
+  if (appInfo !== syncedAppInfo) {
+    setSyncedAppInfo(appInfo);
+    if (appInfo) {
+      setPrimaryCategoryId(appInfo.primaryCategory?.id ?? "");
+      setSecondaryCategoryId(appInfo.secondaryCategory?.id ?? "");
+    }
+  }
   useEffect(() => {
     if (appInfo) {
-      const primary = appInfo.primaryCategory?.id ?? "";
-      const secondary = appInfo.secondaryCategory?.id ?? "";
-      setPrimaryCategoryId(primary);
-      setSecondaryCategoryId(secondary);
-      primaryCategoryOriginalRef.current = primary;
-      secondaryCategoryOriginalRef.current = secondary;
+      primaryCategoryOriginalRef.current = appInfo.primaryCategory?.id ?? "";
+      secondaryCategoryOriginalRef.current = appInfo.secondaryCategory?.id ?? "";
     }
   }, [appInfo]);
 

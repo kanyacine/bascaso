@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useCallback, useEffect } from "react";
+import { createContext, useContext, useState, useCallback } from "react";
 import { usePathname } from "next/navigation";
 
 type PanelMode = "reviews" | "analytics";
@@ -46,18 +46,10 @@ export function InsightsPanelProvider({ children }: { children: React.ReactNode 
   const pathname = usePathname();
   const mode = detectMode(pathname);
 
-  const [state, setState] = useState<Record<PanelMode, boolean>>({
-    reviews: false,
-    analytics: false,
-  });
-
-  // Hydrate from localStorage after mount
-  useEffect(() => {
-    setState({
-      reviews: readPersisted("reviews"),
-      analytics: readPersisted("analytics"),
-    });
-  }, []);
+  const [state, setState] = useState<Record<PanelMode, boolean>>(() => ({
+    reviews: readPersisted("reviews"),
+    analytics: readPersisted("analytics"),
+  }));
 
   const open = mode ? state[mode] : false;
 

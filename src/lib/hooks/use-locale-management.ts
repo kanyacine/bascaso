@@ -30,6 +30,7 @@ interface UseLocaleManagementOptions {
 
 export function useLocaleManagement({
   section,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   primaryLocale,
 }: UseLocaleManagementOptions) {
   const searchParams = useSearchParams();

@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.2
+
+- Fix all linting and React compiler errors, make lint failures block CI
+
 ## 1.6.1
 
 - Add batch screenshot translation – select multiple screenshots and translate or copy them all at once

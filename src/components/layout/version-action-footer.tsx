@@ -141,7 +141,7 @@ export function VersionActionFooter() {
   const [loading, setLoading] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   /** null = not checked yet, true/false = has/doesn't have unresolved submission */
-  const [hasUnresolved, setHasUnresolved] = useState<boolean | null>(null);
+  const [unresolvedResult, setUnresolvedResult] = useState<{ value: boolean | null; forAppId: string; forRejected: boolean }>({ value: null, forAppId: "", forRejected: false });
   const { apps } = useApps();
 
   const pageSegment = getPageSegment(pathname);
@@ -235,11 +235,15 @@ export function VersionActionFooter() {
   const state = version?.attributes.appVersionState ?? "";
   const isRejected = REJECTED_STATES.has(state);
 
+  // Derive hasUnresolved: null when not applicable or result is stale
+  const hasUnresolved = (!appId || !isRejected)
+    ? null
+    : (unresolvedResult.forAppId === appId && unresolvedResult.forRejected === isRejected)
+      ? unresolvedResult.value
+      : null;
+
   useEffect(() => {
-    if (!appId || !isRejected) {
-      setHasUnresolved(null);
-      return;
-    }
+    if (!appId || !isRejected) return;
 
     let cancelled = false;
 
@@ -248,10 +252,10 @@ export function VersionActionFooter() {
         const res = await fetch(`/api/apps/${appId}/unresolved-submission`);
         if (!res.ok || cancelled) return;
         const data = await res.json();
-        if (!cancelled) setHasUnresolved(data.hasUnresolved);
+        if (!cancelled) setUnresolvedResult({ value: data.hasUnresolved, forAppId: appId, forRejected: true });
       } catch {
         // Non-critical – default to showing cancel
-        if (!cancelled) setHasUnresolved(true);
+        if (!cancelled) setUnresolvedResult({ value: true, forAppId: appId, forRejected: true });
       }
     }
 
@@ -377,7 +381,7 @@ export function VersionActionFooter() {
                     toast.error(err instanceof Error ? err.message : "Failed to cancel submission");
                   }
                   setLoading(false);
-                  setHasUnresolved(false);
+                  setUnresolvedResult({ value: false, forAppId: appId, forRejected: true });
                   await refresh();
                 }}
               >

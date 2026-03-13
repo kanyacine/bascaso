@@ -2,10 +2,8 @@
 
 import {
   createContext,
-  useCallback,
   useContext,
   useEffect,
-  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -38,12 +36,9 @@ export function useBreadcrumbTitle(): string | null {
 export function useSetBreadcrumbTitle(title: string | null): void {
   const ctx = useContext(BreadcrumbContext);
   const setTitle = ctx?.setTitle;
-  const titleRef = useRef(title);
-  titleRef.current = title;
-
   // Update whenever title changes
   useEffect(() => {
-    setTitle?.(titleRef.current);
+    setTitle?.(title);
   }, [setTitle, title]);
 
   // Clear on unmount

@@ -12,7 +12,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Calendar } from "@/components/ui/calendar";
-import { parseRange, getStoredRange, setStoredRange, type DateRange } from "@/lib/analytics-range";
+import { parseRange, getStoredRange, setStoredRange } from "@/lib/analytics-range";
 import { useAnalytics } from "@/lib/analytics-context";
 import type { DateRange as RdpDateRange } from "react-day-picker";
 

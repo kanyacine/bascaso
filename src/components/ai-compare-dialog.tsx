@@ -41,27 +41,34 @@ export function AICompareDialog({
   charLimit,
   onApply,
 }: AICompareDialogProps) {
-  const [proposed, setProposed] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // Fetch state: null = loading/not started, object = completed
+  const [fetchResult, setFetchResult] = useState<{
+    proposed: string;
+    error: string | null;
+    /** Key to identify which open cycle produced this result */
+    forKey: string;
+  } | null>(null);
+  // User's edits to the proposed value (overrides fetch result)
+  const [editState, setEditState] = useState<{ value: string; forKey: string } | null>(null);
+
+  // Derive a key from the open state + apiBody to detect new fetch cycles
+  const fetchKey = open && proposedValue == null && apiBody
+    ? JSON.stringify(apiBody)
+    : "";
+  const resultCurrent = fetchResult?.forKey === fetchKey && fetchKey !== "";
+  const baseProposed = proposedValue ?? (resultCurrent ? fetchResult.proposed : "");
+  // Only use edit if it matches the current fetch cycle
+  const editedValue = editState?.forKey === fetchKey ? editState.value : null;
+  const proposed = editedValue ?? baseProposed;
+  const loading = fetchKey !== "" && !resultCurrent;
+  const error = resultCurrent ? fetchResult.error : null;
+
+  function setProposed(value: string) {
+    setEditState({ value, forKey: fetchKey });
+  }
 
   useEffect(() => {
-    if (!open) return;
-
-    setError(null);
-
-    // Immediate value (e.g. Copy)
-    if (proposedValue != null) {
-      setProposed(proposedValue);
-      setLoading(false);
-      return;
-    }
-
-    // Fetch from AI
-    if (!apiBody) return;
-
-    setProposed("");
-    setLoading(true);
+    if (!fetchKey) return;
 
     let cancelled = false;
 
@@ -74,24 +81,23 @@ export function AICompareDialog({
         const data = await res.json();
         if (cancelled) return;
         if (!res.ok) {
-          setError(
-            data.error === "ai_auth_error"
+          setFetchResult({
+            proposed: "",
+            error: data.error === "ai_auth_error"
               ? "Your API key is invalid or revoked. Update it in AI settings."
               : data.error ?? "Request failed",
-          );
+            forKey: fetchKey,
+          });
         } else {
-          setProposed(data.result);
+          setFetchResult({ proposed: data.result, error: null, forKey: fetchKey });
         }
       })
       .catch(() => {
-        if (!cancelled) setError("Network error");
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) setFetchResult({ proposed: "", error: "Network error", forKey: fetchKey });
       });
 
     return () => { cancelled = true; };
-  }, [open, proposedValue, apiBody]);
+  }, [fetchKey, apiBody]);
 
   const TextField = singleLine ? Input : Textarea;
   const fieldClass = singleLine

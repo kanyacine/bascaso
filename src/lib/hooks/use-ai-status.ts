@@ -15,15 +15,18 @@ export function useAIStatus(): { configured: boolean; loading: boolean } {
   // Re-render when invalidateAIStatus() is called
   const v = useSyncExternalStore(subscribe, getVersion, getVersion);
 
-  const [configured, setConfigured] = useState(cachedStatus ?? false);
-  const [loading, setLoading] = useState(cachedStatus === null);
+  const [fetchResult, setFetchResult] = useState<{
+    configured: boolean;
+    forVersion: number;
+  } | null>(() => cachedStatus !== null ? { configured: cachedStatus, forVersion: v } : null);
+
+  // Derive status: use cache if available, then fetch result, then defaults
+  const resultCurrent = fetchResult?.forVersion === v;
+  const configured = cachedStatus ?? (resultCurrent ? fetchResult.configured : false);
+  const loading = cachedStatus === null && !resultCurrent;
 
   useEffect(() => {
-    if (cachedStatus !== null) {
-      setConfigured(cachedStatus);
-      setLoading(false);
-      return;
-    }
+    if (cachedStatus !== null) return;
 
     let cancelled = false;
     fetch("/api/ai/check")
@@ -31,13 +34,11 @@ export function useAIStatus(): { configured: boolean; loading: boolean } {
       .then((data: { configured: boolean }) => {
         if (cancelled) return;
         cachedStatus = data.configured;
-        setConfigured(data.configured);
-        setLoading(false);
+        setFetchResult({ configured: data.configured, forVersion: v });
       })
       .catch(() => {
         if (cancelled) return;
-        setConfigured(false);
-        setLoading(false);
+        setFetchResult({ configured: false, forVersion: v });
       });
 
     return () => { cancelled = true; };

@@ -61,12 +61,21 @@ export default function TeamsPage() {
   }, []);
 
   useEffect(() => {
-    fetchTeams();
+    let cancelled = false;
+
+    fetch("/api/settings/credentials")
+      .then((r) => r.json())
+      .then((data) => { if (!cancelled) setTeams(data.credentials); })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoading(false); });
+
     fetch("/api/health")
       .then((r) => r.json())
-      .then((d) => setIsDemo(d.demo === true))
+      .then((d) => { if (!cancelled) setIsDemo(d.demo === true); })
       .catch(() => {});
-  }, [fetchTeams]);
+
+    return () => { cancelled = true; };
+  }, []);
 
   async function handleTest(id: string) {
     setTestingId(id);

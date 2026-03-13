@@ -91,6 +91,7 @@ export async function POST(request: Request) {
 
   try {
     if (parsed.data.action === "create") {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { action, ...input } = parsed.data;
       const id = await createNomination(input);
       return NextResponse.json({ ok: true, id });

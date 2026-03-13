@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { useTheme } from "next-themes";
 import { Monitor, Moon, Sun } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
@@ -19,9 +19,11 @@ const THEME_OPTIONS = [
 
 export function ThemeToggle() {
   const { theme, setTheme, resolvedTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => setMounted(true), []);
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
 
   const ActiveIcon = mounted && resolvedTheme === "dark" ? Moon : Sun;
 

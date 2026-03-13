@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -52,35 +52,58 @@ export default function AISettingsPage() {
   const hasApiKeyInput = apiKey.trim().length > 0;
   const effectiveBaseUrl = baseUrl.trim() || DEFAULT_LOCAL_OPENAI_BASE_URL;
 
-  const fetchSettings = useCallback(async () => {
-    const res = await fetch("/api/settings/ai");
-    if (res.ok) {
-      const data = await res.json();
-      if (data.settings) {
-        const serverProvider = data.settings.provider as string;
-        const serverModel = data.settings.modelId as string;
-        const serverBaseUrl = (data.settings.baseUrl ?? "") as string;
-        const isStoredLocal = isLocalOpenAIProvider(serverProvider);
-        const normalizedStoredBaseUrl = isStoredLocal
-          ? serverBaseUrl || DEFAULT_LOCAL_OPENAI_BASE_URL
-          : "";
+  useEffect(() => {
+    let cancelled = false;
 
-        setProviderId(serverProvider);
-        setModelId(serverModel);
-        setBaseUrl(serverBaseUrl);
-        setHasExistingSettings(true);
-        setStoredProvider(serverProvider);
-        setStoredModel(serverModel);
-        setStoredBaseUrl(normalizedStoredBaseUrl);
-      } else {
-        setHasExistingSettings(false);
-        setBaseUrl("");
+    async function fetchSettings() {
+      const res = await fetch("/api/settings/ai");
+      if (cancelled) return;
+      if (res.ok) {
+        const data = await res.json();
+        if (cancelled) return;
+        if (data.settings) {
+          const serverProvider = data.settings.provider as string;
+          const serverModel = data.settings.modelId as string;
+          const serverBaseUrl = (data.settings.baseUrl ?? "") as string;
+          const isStoredLocal = isLocalOpenAIProvider(serverProvider);
+          const normalizedStoredBaseUrl = isStoredLocal
+            ? serverBaseUrl || DEFAULT_LOCAL_OPENAI_BASE_URL
+            : "";
+
+          setProviderId(serverProvider);
+          setModelId(serverModel);
+          setBaseUrl(serverBaseUrl);
+          setHasExistingSettings(true);
+          setStoredProvider(serverProvider);
+          setStoredModel(serverModel);
+          setStoredBaseUrl(normalizedStoredBaseUrl);
+        } else {
+          setHasExistingSettings(false);
+          setBaseUrl("");
+        }
       }
+      setLoading(false);
     }
-    setLoading(false);
+
+    async function fetchGeminiKeyStatus() {
+      try {
+        const res = await fetch("/api/settings/gemini-key");
+        if (cancelled) return;
+        if (res.ok) {
+          const data = await res.json();
+          if (cancelled) return;
+          setGeminiKeyAvailable(data.available);
+          setGeminiKeyFromMain(data.fromMainProvider);
+        }
+      } catch { /* ignore */ }
+    }
+
+    fetchSettings();
+    fetchGeminiKeyStatus();
+    return () => { cancelled = true; };
   }, []);
 
-  const fetchGeminiKeyStatus = useCallback(async () => {
+  async function refreshGeminiKeyStatus() {
     try {
       const res = await fetch("/api/settings/gemini-key");
       if (res.ok) {
@@ -89,12 +112,7 @@ export default function AISettingsPage() {
         setGeminiKeyFromMain(data.fromMainProvider);
       }
     } catch { /* ignore */ }
-  }, []);
-
-  useEffect(() => {
-    fetchSettings();
-    fetchGeminiKeyStatus();
-  }, [fetchSettings, fetchGeminiKeyStatus]);
+  }
 
   function handleProviderChange(id: string) {
     setProviderId(id);
@@ -155,7 +173,7 @@ export default function AISettingsPage() {
         setApiKey("");
         setShowKey(false);
         invalidateAIStatus();
-        fetchGeminiKeyStatus();
+        refreshGeminiKeyStatus();
       } else {
         const data = await res.json().catch(() => ({}));
         toast.error(data.error || "Failed to save");
@@ -205,7 +223,7 @@ export default function AISettingsPage() {
         toast.success("Gemini key saved");
         setGeminiKey("");
         setShowGeminiKey(false);
-        fetchGeminiKeyStatus();
+        refreshGeminiKeyStatus();
       } else {
         const data = await res.json().catch(() => ({}));
         toast.error(data.error || "Failed to save");
@@ -222,7 +240,7 @@ export default function AISettingsPage() {
       const res = await fetch("/api/settings/gemini-key", { method: "DELETE" });
       if (res.ok) {
         toast.success("Gemini key removed");
-        fetchGeminiKeyStatus();
+        refreshGeminiKeyStatus();
       } else {
         toast.error("Failed to remove");
       }

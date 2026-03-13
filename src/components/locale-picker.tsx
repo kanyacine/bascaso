@@ -50,7 +50,6 @@ export function LocalePicker({
   onLocaleAdd,
   onLocalesAdd,
   onLocaleDelete,
-  section,
   otherSectionLocales,
   availableLocales: availableLocalesProp,
   readOnly,

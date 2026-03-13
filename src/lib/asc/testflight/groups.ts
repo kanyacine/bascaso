@@ -42,8 +42,8 @@ export async function listGroups(
         ascFetch<AscJsonApiResponse>(`/v1/betaGroups/${g.id}/builds?limit=1`).catch(() => null),
       ]);
       // ASC returns a meta.paging.total for list endpoints
-      const testerCount = (testersRes as any)?.meta?.paging?.total ?? 0;
-      const buildCount = (buildsRes as any)?.meta?.paging?.total ?? 0;
+      const testerCount = (testersRes as unknown as { meta?: { paging?: { total?: number } } })?.meta?.paging?.total ?? 0;
+      const buildCount = (buildsRes as unknown as { meta?: { paging?: { total?: number } } })?.meta?.paging?.total ?? 0;
       return { groupId: g.id, testerCount, buildCount };
     }),
   );

@@ -868,6 +868,7 @@ describe("listGroups – branch coverage", () => {
     mockCacheGet.mockReturnValue(null);
 
     let callCount = 0;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     mockAscFetch.mockImplementation((_url: string) => {
       callCount++;
       // First call: betaGroups list
@@ -1103,6 +1104,7 @@ describe("getGroupDetail – branch coverage", () => {
     const build = makeBuildResource("b1");
 
     let callCount = 0;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     mockAscFetch.mockImplementation((_url: string) => {
       callCount++;
       // 1) Group fetch

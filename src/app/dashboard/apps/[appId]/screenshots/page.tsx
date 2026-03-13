@@ -23,7 +23,6 @@ import {
   DialogPortal,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
   DndContext,
@@ -605,14 +604,12 @@ function BaseLocaleScreenshots({
     [setsWithScreenshots],
   );
 
-  const [selectedType, setSelectedType] = useState<string>("");
+  const [selectedTypeRaw, setSelectedType] = useState<string>("");
 
-  // Auto-select first available type
-  useEffect(() => {
-    if (availableTypes.length > 0 && (!selectedType || !availableTypes.includes(selectedType))) {
-      setSelectedType(availableTypes[0]);
-    }
-  }, [availableTypes, selectedType]);
+  // Auto-select first available type (derived, no effect needed)
+  const selectedType = availableTypes.length > 0 && (!selectedTypeRaw || !availableTypes.includes(selectedTypeRaw))
+    ? availableTypes[0]
+    : selectedTypeRaw;
 
   const selectedSet = setsWithScreenshots.find(
     (s) => s.attributes.screenshotDisplayType === selectedType,
@@ -622,13 +619,16 @@ function BaseLocaleScreenshots({
   const targetHasScreenshots = targetSets.some((s) => s.screenshots.length > 0);
   const [open, setOpen] = useState(!targetHasScreenshots);
 
-  // Selection state – set of screenshot IDs
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-
-  // Clear selection when display type changes
-  useEffect(() => {
-    setSelectedIds(new Set());
-  }, [selectedType]);
+  // Selection state – set of screenshot IDs, tracked with the display type
+  const [selectionState, setSelectionState] = useState<{ ids: Set<string>; forType: string }>({ ids: new Set(), forType: "" });
+  const selectedIds = selectionState.forType === selectedType ? selectionState.ids : new Set<string>();
+  function setSelectedIds(idsOrUpdater: Set<string> | ((prev: Set<string>) => Set<string>)) {
+    setSelectionState((prev) => {
+      const prevIds = prev.forType === selectedType ? prev.ids : new Set<string>();
+      const next = typeof idsOrUpdater === "function" ? idsOrUpdater(prevIds) : idsOrUpdater;
+      return { ids: next, forType: selectedType };
+    });
+  }
 
   // All selectable screenshots in current set
   const selectableScreenshots = useMemo(() => {
@@ -851,11 +851,6 @@ export default function ScreenshotsPage() {
     otherSectionLocales,
   } = useLocaleManagement({ section: "store-listing", primaryLocale });
 
-  const versionLocales = useMemo(
-    () => localizations.map((l) => l.attributes.locale),
-    [localizations],
-  );
-
   // Populate locale tabs from version localizations (same as store listing)
   useEffect(() => {
     if (!localizations.length || !primaryLocale) return;
@@ -884,7 +879,7 @@ export default function ScreenshotsPage() {
   } = useScreenshotSets(appId, versionId, localizationId);
 
   // Track which locales have screenshots (for locale picker indicator)
-  const [localesWithScreenshots, setLocalesWithScreenshots] = useState<Set<string>>(new Set());
+  const [fetchedLocalesWithScreenshots, setFetchedLocalesWithScreenshots] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!localizations.length || !versionId) return;
@@ -908,24 +903,22 @@ export default function ScreenshotsPage() {
         }),
       );
       if (cancelled) return;
-      setLocalesWithScreenshots(new Set(results.filter(Boolean) as string[]));
+      setFetchedLocalesWithScreenshots(new Set(results.filter(Boolean) as string[]));
     }
 
     check();
     return () => { cancelled = true; };
   }, [localizations, appId, versionId]);
 
-  // Update indicator when current locale's sets change
-  useEffect(() => {
-    if (!selectedLocale) return;
+  // Merge fetched locale data with current locale's live screenshot state
+  const localesWithScreenshots = useMemo(() => {
+    if (!selectedLocale) return fetchedLocalesWithScreenshots;
     const hasAny = rawSets.some((s) => s.screenshots.length > 0);
-    setLocalesWithScreenshots((prev) => {
-      const next = new Set(prev);
-      if (hasAny) next.add(selectedLocale);
-      else next.delete(selectedLocale);
-      return next;
-    });
-  }, [rawSets, selectedLocale]);
+    const merged = new Set(fetchedLocalesWithScreenshots);
+    if (hasAny) merged.add(selectedLocale);
+    else merged.delete(selectedLocale);
+    return merged;
+  }, [fetchedLocalesWithScreenshots, rawSets, selectedLocale]);
 
   // Sort sets by display type
   const screenshotSets = useMemo(() => {
@@ -960,16 +953,14 @@ export default function ScreenshotsPage() {
     return allCategories;
   }, [readOnly, allCategories, categoriesWithSets]);
 
-  const [selectedCategory, setSelectedCategory] = useState<DeviceCategory>(
+  const [selectedCategoryRaw, setSelectedCategory] = useState<DeviceCategory>(
     () => visibleCategories[0] ?? "iPhone",
   );
 
-  // Reset selected category when visible categories change
-  useEffect(() => {
-    if (visibleCategories.length > 0 && !visibleCategories.includes(selectedCategory)) {
-      setSelectedCategory(visibleCategories[0]);
-    }
-  }, [visibleCategories, selectedCategory]);
+  // Auto-select first visible category (derived, no effect needed)
+  const selectedCategory = visibleCategories.length > 0 && !visibleCategories.includes(selectedCategoryRaw)
+    ? visibleCategories[0]
+    : selectedCategoryRaw;
 
   // Filter sets by selected category
   const categoryTypes = useMemo(
@@ -1020,68 +1011,6 @@ export default function ScreenshotsPage() {
 
   const handleRefresh = useCallback(() => refresh(), [refresh]);
   useRegisterRefresh({ onRefresh: handleRefresh, busy: ssLoading });
-
-  async function createLocalization(locale: string) {
-    const res = await fetch(
-      `/api/apps/${appId}/versions/${versionId}/localizations`,
-      {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          locales: {
-            [locale]: {
-              description: "",
-              keywords: "",
-              whatsNew: "",
-              promotionalText: "",
-              supportUrl: "",
-              marketingUrl: "",
-            },
-          },
-          originalLocaleIds: {},
-        }),
-      },
-    );
-    const data = await res.json();
-    if (!res.ok && !data.errors) throw new Error(data.error ?? "Failed");
-  }
-
-  async function handleAddLocale(locale: string) {
-    setLocales((prev) => sortLocales([...prev, locale], primaryLocale));
-    changeLocale(locale);
-    if (!versionLocales.includes(locale)) {
-      try {
-        await createLocalization(locale);
-        await refreshLocalizations();
-        toast.success(`Added ${localeName(locale)}`);
-      } catch {
-        setLocales((prev) => prev.filter((l) => l !== locale));
-        toast.error(`Failed to add ${localeName(locale)}`);
-      }
-    } else {
-      toast.success(`Added ${localeName(locale)}`);
-    }
-  }
-
-  async function handleBulkAddLocales(codes: string[]) {
-    setLocales((prev) => {
-      const combined = new Set([...prev, ...codes]);
-      return sortLocales([...combined], primaryLocale);
-    });
-    const newCodes = codes.filter((c) => !versionLocales.includes(c));
-    if (newCodes.length > 0) {
-      try {
-        await Promise.all(newCodes.map((c) => createLocalization(c)));
-        await refreshLocalizations();
-        toast.success(`Added ${codes.length} locales`);
-      } catch {
-        setLocales((prev) => prev.filter((l) => !newCodes.includes(l)));
-        toast.error("Failed to add some locales");
-      }
-    } else {
-      toast.success(`Added ${codes.length} locales`);
-    }
-  }
 
   // Register locale picker in the header bar
   useRegisterHeaderLocale({

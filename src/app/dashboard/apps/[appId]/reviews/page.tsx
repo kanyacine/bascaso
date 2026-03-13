@@ -334,12 +334,6 @@ export default function ReviewsPage() {
     count: reviews.filter((r) => r.rating === star).length,
   }));
 
-  const dateRange = useMemo(() => {
-    if (reviews.length === 0) return null;
-    const dates = reviews.map((r) => r.createdDate);
-    return { from: dates[dates.length - 1], to: dates[0] };
-  }, [reviews]);
-
   // ── Handlers ───────────────────────────────────────────────────
 
   async function handleTranslate(review: Review) {

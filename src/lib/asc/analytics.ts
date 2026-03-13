@@ -167,7 +167,7 @@ async function findReportRequestIds(appId: string): Promise<string[]> {
   // ONGOING has recent daily data; SNAPSHOT has historical backfill.
   // Their instances can overlap on data dates – fetchReportData
   // deduplicates rows by data date to prevent double-counting.
-  let ids = response.data
+  const ids = response.data
     .filter((r) => r.attributes.accessType === "ONGOING" || r.attributes.accessType === "ONE_TIME_SNAPSHOT")
     .map((r) => r.id);
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useSyncExternalStore } from "react";
+import { useRef, useEffect, useCallback, useSyncExternalStore } from "react";
 
 const STORAGE_KEY_PREFIX = "reviews-seen:";
 const POLL_INTERVAL = 5 * 60 * 1000; // 5 minutes
@@ -76,13 +76,13 @@ export function useHasUnreadReviews(appId: string): boolean {
  * Mark reviews as read for an app (call when user visits the reviews page).
  */
 export function useMarkReviewsRead(appId: string, reviewCount: number) {
-  const [marked, setMarked] = useState(false);
+  const markedRef = useRef(false);
 
   useEffect(() => {
-    if (reviewCount > 0 && !marked) {
+    if (reviewCount > 0 && !markedRef.current) {
       setSeenCount(appId, reviewCount);
       notifyBadgeChange(appId, false);
-      setMarked(true);
+      markedRef.current = true;
     }
-  }, [appId, reviewCount, marked]);
+  }, [appId, reviewCount]);
 }

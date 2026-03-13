@@ -25,7 +25,7 @@ export function ReportInitiatedBanner({ initiatedAt }: ReportInitiatedBannerProp
           <p className="text-sm font-medium">Analytics reports are being generated</p>
           <p className="text-sm text-muted-foreground">
             App Store Connect is preparing your analytics data. This typically takes 24–48 hours
-            for the first report. Data will appear here automatically once it's ready.
+            for the first report. Data will appear here automatically once it&apos;s ready.
           </p>
           {initiatedAt && (
             <p className="text-xs text-muted-foreground/70">
