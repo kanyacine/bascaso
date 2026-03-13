@@ -17,6 +17,7 @@ import {
 import { toast } from "sonner";
 import { apiFetch } from "@/lib/api-fetch";
 import { useBuildAction } from "@/lib/build-action-context";
+import { ActionFooter } from "@/components/layout/action-footer";
 
 function BetaSubmitChecklist({ hasWhatsNew, hasExternalGroup }: { hasWhatsNew: boolean; hasExternalGroup: boolean }) {
   const items = [
@@ -67,7 +68,7 @@ export function BuildActionFooter() {
 
   if (status === "Ready to submit") {
     return (
-      <Footer left={<BetaSubmitChecklist hasWhatsNew={hasWhatsNew} hasExternalGroup={hasExternalGroup} />}>
+      <ActionFooter left={<BetaSubmitChecklist hasWhatsNew={hasWhatsNew} hasExternalGroup={hasExternalGroup} />}>
         <div className="flex items-center gap-2">
           <ExpireButton
             open={expireOpen}
@@ -96,13 +97,13 @@ export function BuildActionFooter() {
             Submit for review
           </Button>
         </div>
-      </Footer>
+      </ActionFooter>
     );
   }
 
   if (status === "Missing compliance") {
     return (
-      <Footer>
+      <ActionFooter>
         <Button
           disabled={loading !== null}
           onClick={() => act("export-compliance", "Export compliance declared")}
@@ -110,13 +111,13 @@ export function BuildActionFooter() {
           {loading === "export-compliance" && <Spinner className="mr-1.5" />}
           Declare no encryption
         </Button>
-      </Footer>
+      </ActionFooter>
     );
   }
 
   if (status === "Testing" || status === "Ready to test") {
     return (
-      <Footer>
+      <ActionFooter>
         <div className="flex items-center gap-2">
           <ExpireButton
             open={expireOpen}
@@ -145,18 +146,18 @@ export function BuildActionFooter() {
             Notify testers
           </Button>
         </div>
-      </Footer>
+      </ActionFooter>
     );
   }
 
   if (status === "In beta review") {
     return (
-      <Footer>
+      <ActionFooter>
         <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
           <Timer size={14} />
           Waiting for Apple review
         </span>
-      </Footer>
+      </ActionFooter>
     );
   }
 
@@ -202,11 +203,3 @@ function ExpireButton({
   );
 }
 
-function Footer({ left, children }: { left?: React.ReactNode; children: React.ReactNode }) {
-  return (
-    <div className="flex shrink-0 items-center justify-between border-t bg-sidebar px-6 py-3">
-      <div>{left}</div>
-      {children}
-    </div>
-  );
-}

@@ -14,13 +14,6 @@ import {
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
-import {
   Select,
   SelectContent,
   SelectItem,
@@ -30,38 +23,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Spinner } from "@/components/ui/spinner";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Archive, ArrowCounterClockwise, CalendarBlank, CheckCircle, Circle, MagicWand, Plus, Trash } from "@phosphor-icons/react";
-import {
-  Combobox,
-  ComboboxChip,
-  ComboboxChips,
-  ComboboxChipsInput,
-  ComboboxContent,
-  ComboboxEmpty,
-  ComboboxItem,
-  ComboboxList,
-  ComboboxValue,
-  useComboboxAnchor,
-} from "@/components/ui/combobox";
+import { Archive, ArrowCounterClockwise, CalendarBlank, Plus, Trash } from "@phosphor-icons/react";
 import { toast } from "sonner";
 import { useFormDirty } from "@/lib/form-dirty-context";
 import { useSetBreadcrumbTitle } from "@/lib/breadcrumb-context";
@@ -70,451 +32,22 @@ import { useVersions } from "@/lib/versions-context";
 import { CharCount } from "@/components/char-count";
 import { ErrorState } from "@/components/error-state";
 import { FooterPortal } from "@/lib/footer-portal-context";
-import { AIRequiredDialog } from "@/components/ai-required-dialog";
-import { useAIStatus } from "@/lib/hooks/use-ai-status";
-import { LOCALE_NAMES, localeName, normalizeLocale } from "@/lib/asc/locale-names";
+import { normalizeLocale } from "@/lib/asc/locale-names";
+import type { AscNomination, NominationType } from "@/lib/asc/nominations";
+
 import {
-  stateLabel,
-  STATE_DOT_COLORS,
-  PLATFORM_LABELS,
-  type AscVersion,
-} from "@/lib/asc/version-types";
-import type { AscLocalization } from "@/lib/asc/localizations";
-import type {
-  AscNomination,
-  NominationType,
-} from "@/lib/asc/nominations";
+  LIMITS,
+  DEVICE_FAMILIES,
+  type NominationFormData,
+  makeEmptyForm,
+} from "./_components/nomination-constants";
+import { NominationChecklist, useNominationChecklistReady } from "./_components/nomination-checklist";
+import { LocalePicker } from "./_components/locale-picker";
+import { FillFromVersionButton } from "./_components/fill-from-version-button";
+import { CopyNotesButton } from "./_components/copy-notes-button";
+import { SubmitNominationDialog } from "./_components/submit-nomination-dialog";
 
-const SORTED_LOCALES = Object.keys(LOCALE_NAMES).sort((a, b) =>
-  localeName(a).localeCompare(localeName(b)),
-);
-
-// ── Constants ────────────────────────────────────────────────────────
-
-const LIMITS = {
-  name: 60,
-  description: 1000,
-  notes: 500,
-};
-
-const DEVICE_FAMILIES = [
-  { value: "IPHONE", label: "iOS (iPhone)" },
-  { value: "IPAD", label: "iOS (iPad)" },
-  { value: "APPLE_WATCH", label: "watchOS" },
-  { value: "MAC", label: "macOS" },
-  { value: "APPLE_TV", label: "tvOS" },
-  { value: "APPLE_VISION", label: "visionOS" },
-];
-
-// ── Nomination checklist ─────────────────────────────────────────────
-
-function NominationChecklist({ form }: { form: NominationFormData }) {
-  const items = [
-    { label: "Name", ok: form.name.trim().length > 0 && form.name.length <= LIMITS.name },
-    { label: "Description", ok: form.description.trim().length > 0 && form.description.length <= LIMITS.description },
-    { label: "Publish date", ok: !!form.publishStartDate },
-    { label: "Related apps", ok: form.relatedAppIds.length > 0 },
-  ];
-
-  return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-      {items.map((item) => (
-        <span
-          key={item.label}
-          className={`flex items-center gap-1 text-xs ${item.ok ? "text-muted-foreground" : "text-muted-foreground/60"}`}
-        >
-          {item.ok ? (
-            <CheckCircle size={14} weight="fill" className="text-green-500/70" />
-          ) : (
-            <Circle size={14} />
-          )}
-          {item.label}
-        </span>
-      ))}
-    </div>
-  );
-}
-
-function useNominationChecklistReady(form: NominationFormData): boolean {
-  return (
-    form.name.trim().length > 0 &&
-    form.name.length <= LIMITS.name &&
-    form.description.trim().length > 0 &&
-    form.description.length <= LIMITS.description &&
-    !!form.publishStartDate &&
-    form.relatedAppIds.length > 0
-  );
-}
-
-// ── Locale picker ────────────────────────────────────────────────────
-
-function LocalePicker({
-  value,
-  onChange,
-  disabled,
-}: {
-  value: string[];
-  onChange: (locales: string[]) => void;
-  disabled?: boolean;
-}) {
-  const anchor = useComboboxAnchor();
-
-  return (
-    <section className="space-y-2">
-      <h3 className="section-title">Localization</h3>
-      <Combobox
-        multiple
-        autoHighlight
-        items={SORTED_LOCALES}
-        value={value}
-        onValueChange={onChange}
-        disabled={disabled}
-        itemToStringValue={(code: string) =>
-          `${localeName(code)} ${code}`
-        }
-      >
-        <ComboboxChips ref={anchor} className="w-full max-w-md">
-          <ComboboxValue>
-            {(selected: string[]) =>
-              selected.map((code) => (
-                <ComboboxChip key={code}>
-                  {localeName(code)}
-                </ComboboxChip>
-              ))
-            }
-          </ComboboxValue>
-          <ComboboxChipsInput />
-        </ComboboxChips>
-        <ComboboxContent anchor={anchor}>
-          <ComboboxEmpty>No languages found.</ComboboxEmpty>
-          <ComboboxList>
-            {(code: string) => (
-              <ComboboxItem key={code} value={code}>
-                {localeName(code)}
-                <span className="ml-1.5 text-muted-foreground">{code}</span>
-              </ComboboxItem>
-            )}
-          </ComboboxList>
-        </ComboboxContent>
-      </Combobox>
-    </section>
-  );
-}
-
-// ── Platform → device family mapping ─────────────────────────────────
-
-const PLATFORM_TO_FAMILIES: Record<string, string[]> = {
-  IOS: ["IPHONE", "IPAD"],
-  MAC_OS: ["MAC"],
-  TV_OS: ["APPLE_TV"],
-  VISION_OS: ["APPLE_VISION"],
-};
-
-function threeWeeksFromNow(): Date {
-  const d = new Date();
-  d.setDate(d.getDate() + 21);
-  d.setHours(12, 0, 0, 0);
-  return d;
-}
-
-// ── Fill from version button ─────────────────────────────────────────
-
-function FillFromVersionButton({
-  versions,
-  appId,
-  appName,
-  primaryLocale,
-  onFill,
-  disabled,
-}: {
-  versions: AscVersion[];
-  appId: string;
-  appName: string;
-  primaryLocale: string;
-  onFill: (data: Partial<NominationFormData>) => void;
-  disabled?: boolean;
-}) {
-  const { configured } = useAIStatus();
-  const [open, setOpen] = useState(false);
-  const [filling, setFilling] = useState(false);
-  const [showAIRequired, setShowAIRequired] = useState(false);
-
-  async function handlePick(version: AscVersion) {
-    if (!configured) {
-      setOpen(false);
-      setShowAIRequired(true);
-      return;
-    }
-
-    setOpen(false);
-    setFilling(true);
-    try {
-      // Fetch localizations for this version
-      const res = await fetch(
-        `/api/apps/${appId}/versions/${version.id}/localizations`,
-      );
-      let localizations: AscLocalization[] = [];
-      if (res.ok) {
-        const data = await res.json();
-        localizations = data.localizations ?? [];
-      }
-
-      // Find primary locale's localization
-      const primaryLoc = localizations.find(
-        (l) => l.attributes.locale === primaryLocale,
-      );
-      const whatsNew = primaryLoc?.attributes.whatsNew ?? "";
-      const promoText = primaryLoc?.attributes.promotionalText ?? "";
-      const description = primaryLoc?.attributes.description ?? "";
-
-      // Determine type: version 1.0.x → launch, else enhancements
-      const isLaunch = /^1\.0(\.0)?$/.test(version.attributes.versionString);
-      const type: NominationType = isLaunch
-        ? "APP_LAUNCH"
-        : "APP_ENHANCEMENTS";
-
-      // Map platform → device families
-      const families = PLATFORM_TO_FAMILIES[version.attributes.platform] ?? [];
-
-      // Collect all locales from localizations
-      const locales = localizations.map((l) =>
-        normalizeLocale(l.attributes.locale),
-      );
-
-      // Publish date: earliest release date or 3 weeks from now
-      let publishDate: Date;
-      if (version.attributes.earliestReleaseDate) {
-        publishDate = new Date(version.attributes.earliestReleaseDate);
-      } else {
-        publishDate = threeWeeksFromNow();
-      }
-      publishDate.setHours(12, 0, 0, 0);
-
-      // Use AI to draft name + description
-      let aiName = "";
-      let aiDescription = "";
-      const aiRes = await fetch("/api/ai", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "draft-nomination",
-          text: "",
-          appName,
-          versionString: version.attributes.versionString,
-          whatsNew,
-          promotionalText: promoText,
-          description,
-          isLaunch,
-        }),
-      });
-
-      if (aiRes.ok) {
-        const aiData = await aiRes.json();
-        const result = (aiData.result as string) ?? "";
-        const newlineIdx = result.indexOf("\n");
-        if (newlineIdx > 0) {
-          aiName = result.slice(0, newlineIdx).trim();
-          aiDescription = result.slice(newlineIdx + 1).trim();
-        } else {
-          aiDescription = result.trim();
-        }
-      }
-
-      // Fallback if AI didn't produce useful output
-      if (!aiName) {
-        aiName = isLaunch
-          ? `${appName} launch`
-          : `${appName} ${version.attributes.versionString} update`;
-      }
-      if (!aiDescription) {
-        const parts = [whatsNew, promoText].filter(Boolean);
-        aiDescription = parts.length > 0 ? parts.join("\n\n") : description;
-      }
-
-      // Collect marketing URL for supplemental materials
-      const marketingUrl = primaryLoc?.attributes.marketingUrl ?? "";
-      const supplementalUris = marketingUrl ? [marketingUrl] : undefined;
-
-      onFill({
-        name: aiName.slice(0, LIMITS.name),
-        description: aiDescription.slice(0, LIMITS.description),
-        type,
-        publishStartDate: publishDate,
-        deviceFamilies: families,
-        locales: locales.length > 0 ? locales : undefined,
-        supplementalMaterialsUris: supplementalUris,
-      });
-
-      toast.success(`Filled from version ${version.attributes.versionString}`);
-    } catch {
-      toast.error("Failed to generate nomination");
-    } finally {
-      setFilling(false);
-    }
-  }
-
-  if (versions.length === 0) return null;
-
-  return (
-    <>
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-1.5"
-            disabled={disabled || filling}
-          >
-            {filling ? (
-              <Spinner className="size-3.5" />
-            ) : (
-              <MagicWand size={14} />
-            )}
-            Fill from version
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-72 p-0" align="start">
-          <Command>
-            <CommandEmpty>No versions found.</CommandEmpty>
-            <CommandList>
-              <CommandGroup>
-                {versions.map((v) => (
-                  <CommandItem
-                    key={v.id}
-                    value={`${v.attributes.versionString} ${stateLabel(v.attributes.appVersionState)} ${PLATFORM_LABELS[v.attributes.platform] ?? v.attributes.platform}`}
-                    onSelect={() => handlePick(v)}
-                  >
-                    <span className="font-mono">
-                      {v.attributes.versionString}
-                    </span>
-                    <span className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <span className="text-xs">
-                        {PLATFORM_LABELS[v.attributes.platform] ?? v.attributes.platform}
-                      </span>
-                      <span
-                        className={`size-1.5 shrink-0 rounded-full ${STATE_DOT_COLORS[v.attributes.appVersionState] ?? "bg-muted-foreground"}`}
-                      />
-                      {stateLabel(v.attributes.appVersionState)}
-                    </span>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            </CommandList>
-          </Command>
-        </PopoverContent>
-      </Popover>
-      <AIRequiredDialog open={showAIRequired} onOpenChange={setShowAIRequired} />
-    </>
-  );
-}
-
-// ── Copy notes from previous nomination ──────────────────────────────
-
-function CopyNotesButton({
-  appId,
-  currentNominationId,
-  onCopy,
-  disabled,
-}: {
-  appId: string;
-  currentNominationId: string;
-  onCopy: (notes: string) => void;
-  disabled?: boolean;
-}) {
-  const [nominations, setNominations] = useState<AscNomination[]>([]);
-  const [loaded, setLoaded] = useState(false);
-
-  async function handleOpen(open: boolean) {
-    if (!open || loaded) return;
-    try {
-      const res = await fetch("/api/nominations");
-      if (res.ok) {
-        const data = await res.json();
-        const filtered = (data.nominations as AscNomination[]).filter(
-          (n) =>
-            n.relatedAppIds.includes(appId) &&
-            n.id !== currentNominationId &&
-            n.attributes.notes?.trim(),
-        );
-        setNominations(filtered);
-      }
-    } catch {
-      // silently fail
-    } finally {
-      setLoaded(true);
-    }
-  }
-
-  return (
-    <DropdownMenu onOpenChange={handleOpen}>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-6 text-muted-foreground"
-          disabled={disabled}
-        >
-          <MagicWand size={14} />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger>Copy from</DropdownMenuSubTrigger>
-          <DropdownMenuSubContent>
-            {!loaded ? (
-              <DropdownMenuItem disabled>Loading…</DropdownMenuItem>
-            ) : nominations.length === 0 ? (
-              <DropdownMenuItem disabled>No previous notes</DropdownMenuItem>
-            ) : (
-              nominations.map((n) => (
-                <DropdownMenuItem
-                  key={n.id}
-                  onSelect={() => onCopy(n.attributes.notes!)}
-                >
-                  {n.attributes.name}
-                </DropdownMenuItem>
-              ))
-            )}
-          </DropdownMenuSubContent>
-        </DropdownMenuSub>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
-// ── Form state ───────────────────────────────────────────────────────
-
-interface NominationFormData {
-  name: string;
-  description: string;
-  notes: string;
-  type: NominationType;
-  publishStartDate: Date | undefined;
-  deviceFamilies: string[];
-  locales: string[];
-  hasInAppEvents: boolean;
-  launchInSelectMarketsFirst: boolean;
-  preOrderEnabled: boolean;
-  supplementalMaterialsUris: string[];
-  relatedAppIds: string[];
-}
-
-function makeEmptyForm(appId: string, primaryLocale: string): NominationFormData {
-  return {
-    name: "",
-    description: "",
-    notes: "",
-    type: "APP_ENHANCEMENTS",
-    publishStartDate: undefined,
-    deviceFamilies: [],
-    locales: primaryLocale ? [primaryLocale] : [],
-    hasInAppEvents: false,
-    launchInSelectMarketsFirst: false,
-    preOrderEnabled: false,
-    supplementalMaterialsUris: [],
-    relatedAppIds: [appId],
-  };
-}
+// ── Helpers ──────────────────────────────────────────────────────────
 
 function nominationToForm(n: AscNomination): NominationFormData {
   return {
@@ -778,7 +311,7 @@ export default function NominationDetailPage() {
     });
   }, [registerDiscard, isNew, emptyForm]);
 
-  // ── Field updater ──────────────────────────────────────────────────
+  // ── Field updaters ─────────────────────────────────────────────────
 
   function updateField<K extends keyof NominationFormData>(
     key: K,
@@ -827,6 +360,73 @@ export default function NominationDetailPage() {
         (_, i) => i !== index,
       ),
     }));
+  }
+
+  // ── Submit handler ─────────────────────────────────────────────────
+
+  async function handleSubmit() {
+    setConfirmSubmitOpen(false);
+    setSubmitting(true);
+    try {
+      // Save any pending changes first
+      if (formDirtyFlag) await onSave();
+
+      if (isNew) {
+        // For new: create with submitted: true
+        const res = await fetch("/api/nominations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "create",
+            name: form.name.trim(),
+            description: form.description.trim(),
+            ...(form.notes.trim() && { notes: form.notes.trim() }),
+            type: form.type,
+            publishStartDate: form.publishStartDate!.toISOString(),
+            ...(form.deviceFamilies.length > 0 && {
+              deviceFamilies: form.deviceFamilies,
+            }),
+            ...(form.locales.length > 0 && { locales: form.locales }),
+            hasInAppEvents: form.hasInAppEvents,
+            launchInSelectMarketsFirst: form.launchInSelectMarketsFirst,
+            preOrderEnabled: form.preOrderEnabled,
+            ...(form.supplementalMaterialsUris.filter((u) => u.trim()).length > 0 && {
+              supplementalMaterialsUris: form.supplementalMaterialsUris.filter((u) => u.trim()),
+            }),
+            submitted: true,
+            relatedAppIds: form.relatedAppIds,
+          }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error ?? "Failed to submit nomination");
+        }
+        toast.success("Nomination submitted");
+        setDirty(false);
+        router.push(`/dashboard/apps/${appId}/nominations`);
+      } else {
+        // For existing draft: patch submitted: true
+        const res = await fetch("/api/nominations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "update",
+            id: nominationId,
+            attributes: { submitted: true },
+          }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error ?? "Failed to submit nomination");
+        }
+        toast.success("Nomination submitted");
+        await fetchNomination();
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to submit");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   // ── Render ─────────────────────────────────────────────────────────
@@ -1108,7 +708,7 @@ export default function NominationDetailPage() {
             <Textarea
               value={form.notes}
               onChange={(e) => updateField("notes", e.target.value)}
-              placeholder="Additional context for Apple's editorial team…"
+              placeholder="Additional context for Apple's editorial team..."
               className="border-0 p-0 shadow-none focus-visible:ring-0 resize-none text-sm min-h-0 dark:bg-transparent"
               disabled={readOnly}
             />
@@ -1260,88 +860,11 @@ export default function NominationDetailPage() {
       )}
 
       {/* Submit confirmation */}
-      <AlertDialog open={confirmSubmitOpen} onOpenChange={(open) => !open && setConfirmSubmitOpen(false)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Submit nomination?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Your nomination will be submitted to Apple&apos;s editorial team for review.
-              You can still edit most fields after submission, but the type and related apps cannot be changed.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={async () => {
-                setConfirmSubmitOpen(false);
-                setSubmitting(true);
-                try {
-                  // Save any pending changes first
-                  if (formDirtyFlag) await onSave();
-
-                  if (isNew) {
-                    // For new: create with submitted: true
-                    const res = await fetch("/api/nominations", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        action: "create",
-                        name: form.name.trim(),
-                        description: form.description.trim(),
-                        ...(form.notes.trim() && { notes: form.notes.trim() }),
-                        type: form.type,
-                        publishStartDate: form.publishStartDate!.toISOString(),
-                        ...(form.deviceFamilies.length > 0 && {
-                          deviceFamilies: form.deviceFamilies,
-                        }),
-                        ...(form.locales.length > 0 && { locales: form.locales }),
-                        hasInAppEvents: form.hasInAppEvents,
-                        launchInSelectMarketsFirst: form.launchInSelectMarketsFirst,
-                        preOrderEnabled: form.preOrderEnabled,
-                        ...(form.supplementalMaterialsUris.filter((u) => u.trim()).length > 0 && {
-                          supplementalMaterialsUris: form.supplementalMaterialsUris.filter((u) => u.trim()),
-                        }),
-                        submitted: true,
-                        relatedAppIds: form.relatedAppIds,
-                      }),
-                    });
-                    if (!res.ok) {
-                      const data = await res.json().catch(() => ({}));
-                      throw new Error(data.error ?? "Failed to submit nomination");
-                    }
-                    toast.success("Nomination submitted");
-                    setDirty(false);
-                    router.push(`/dashboard/apps/${appId}/nominations`);
-                  } else {
-                    // For existing draft: patch submitted: true
-                    const res = await fetch("/api/nominations", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({
-                        action: "update",
-                        id: nominationId,
-                        attributes: { submitted: true },
-                      }),
-                    });
-                    if (!res.ok) {
-                      const data = await res.json().catch(() => ({}));
-                      throw new Error(data.error ?? "Failed to submit nomination");
-                    }
-                    toast.success("Nomination submitted");
-                    await fetchNomination();
-                  }
-                } catch (err) {
-                  toast.error(err instanceof Error ? err.message : "Failed to submit");
-                } finally {
-                  setSubmitting(false);
-                }
-              }}
-            >
-              Submit
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <SubmitNominationDialog
+        open={confirmSubmitOpen}
+        onOpenChange={setConfirmSubmitOpen}
+        onConfirm={handleSubmit}
+      />
     </div>
   );
 }

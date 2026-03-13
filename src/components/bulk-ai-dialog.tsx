@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useCallback } from "react";
 import { Check, Warning, CircleNotch } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -13,12 +13,10 @@ import {
 } from "@/components/ui/dialog";
 import { localeName } from "@/lib/asc/locale-names";
 import { CharCount } from "@/components/char-count";
+import { useBulkAI } from "@/lib/hooks/use-bulk-ai";
 
-export interface BulkField {
-  key: string;
-  label: string;
-  charLimit?: number;
-}
+// Re-export for backwards compatibility
+export type { BulkField } from "@/lib/hooks/use-bulk-ai";
 
 interface BulkAIDialogProps {
   open: boolean;
@@ -28,16 +26,9 @@ interface BulkAIDialogProps {
   primaryLocale: string;
   /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
   localeData: Record<string, Record<string, any>>;
-  fields: BulkField[];
+  fields: import("@/lib/hooks/use-bulk-ai").BulkField[];
   appName?: string;
   onApply: (updates: Record<string, Record<string, string>>) => void;
-}
-
-type FieldStatus = "pending" | "loading" | "done" | "error";
-
-interface FieldResult {
-  status: FieldStatus;
-  value: string;
 }
 
 /**
@@ -65,126 +56,26 @@ export function BulkAIDialog({
   appName,
   onApply,
 }: BulkAIDialogProps) {
-  const [results, setResults] = useState<Record<string, FieldResult>>({});
   const [checked, setChecked] = useState<Record<string, boolean>>({});
-  const [authError, setAuthError] = useState(false);
-  const abortRef = useRef<AbortController | null>(null);
 
-  function initState() {
-    setAuthError(false);
-    const initialChecked: Record<string, boolean> = {};
+  const initChecked = useCallback(() => {
+    const initial: Record<string, boolean> = {};
     for (const f of fields) {
-      initialChecked[f.key] = true;
+      initial[f.key] = true;
     }
-    setChecked(initialChecked);
-  }
+    setChecked(initial);
+  }, [fields]);
 
-  function runCopy() {
-    initState();
-    const baseFields = localeData[primaryLocale] ?? {};
-    const newResults: Record<string, FieldResult> = {};
-    for (const f of fields) {
-      newResults[f.key] = {
-        status: "done",
-        value: String(baseFields[f.key] ?? ""),
-      };
-    }
-    setResults(newResults);
-  }
-
-  function runTranslate() {
-    initState();
-    const controller = new AbortController();
-    abortRef.current = controller;
-    const baseFields = localeData[primaryLocale] ?? {};
-
-    // Set all to loading
-    const loading: Record<string, FieldResult> = {};
-    for (const f of fields) {
-      loading[f.key] = { status: "loading", value: "" };
-    }
-    setResults(loading);
-
-    for (const field of fields) {
-      const baseValue = String(baseFields[field.key] ?? "");
-      if (!baseValue.trim()) {
-        setResults((prev) => ({
-          ...prev,
-          [field.key]: { status: "done", value: "" },
-        }));
-        continue;
-      }
-
-      fetch("/api/ai", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "translate",
-          text: baseValue,
-          field: field.key,
-          fromLocale: primaryLocale,
-          toLocale: targetLocale,
-          appName,
-          charLimit: field.charLimit,
-        }),
-        signal: controller.signal,
-      })
-        .then(async (res) => {
-          const data = await res.json();
-          if (data.error === "ai_auth_error") {
-            controller.abort();
-            setAuthError(true);
-            setResults((prev) => {
-              const next = { ...prev };
-              for (const f of fields) {
-                if (next[f.key]?.status === "loading") {
-                  next[f.key] = { status: "error", value: "" };
-                }
-              }
-              return next;
-            });
-            return;
-          }
-          setResults((prev) => ({
-            ...prev,
-            [field.key]: res.ok
-              ? { status: "done", value: data.result }
-              : { status: "error", value: "" },
-          }));
-        })
-        .catch(() => {
-          if (controller.signal.aborted) return;
-          setResults((prev) => ({
-            ...prev,
-            [field.key]: { status: "error", value: "" },
-          }));
-        });
-    }
-  }
-
-  // Run on open
-  useEffect(() => {
-    if (!open) {
-      abortRef.current?.abort();
-      abortRef.current = null;
-      return;
-    }
-
-    // Defer to avoid synchronous setState in effect body
-    const frame = requestAnimationFrame(() => {
-      if (mode === "copy") {
-        runCopy();
-      } else {
-        runTranslate();
-      }
-    });
-
-    return () => {
-      cancelAnimationFrame(frame);
-      abortRef.current?.abort();
-      abortRef.current = null;
-    };
-  }, [open]);
+  const { authError, getResult } = useBulkAI({
+    open,
+    mode,
+    primaryLocale,
+    targetLocales: [targetLocale],
+    localeData,
+    fields,
+    appName,
+    onInit: initChecked,
+  });
 
   // --- Checkbox logic ---
 
@@ -193,11 +84,10 @@ export function BulkAIDialog({
   }
 
   function toggleAll() {
-    const allChecked = fields.every((f) => checked[f.key]);
-    const newVal = !allChecked;
+    const allChk = fields.every((f) => checked[f.key]);
     const next: Record<string, boolean> = {};
     for (const f of fields) {
-      next[f.key] = newVal;
+      next[f.key] = !allChk;
     }
     setChecked(next);
   }
@@ -208,7 +98,7 @@ export function BulkAIDialog({
     const fieldUpdates: Record<string, string> = {};
     for (const f of fields) {
       if (!checked[f.key]) continue;
-      const fr = results[f.key];
+      const fr = getResult(targetLocale, f.key);
       if (fr?.status === "done") {
         fieldUpdates[f.key] = fr.value;
       }
@@ -225,12 +115,12 @@ export function BulkAIDialog({
   const allChecked = checkedCount === fields.length;
 
   const allFinished = fields.every((f) => {
-    const s = results[f.key]?.status;
+    const s = getResult(targetLocale, f.key)?.status;
     return s === "done" || s === "error";
   });
 
   const anyApplicable = fields.some(
-    (f) => checked[f.key] && results[f.key]?.status === "done",
+    (f) => checked[f.key] && getResult(targetLocale, f.key)?.status === "done",
   );
 
   const targetLabel = localeName(targetLocale);
@@ -261,7 +151,7 @@ export function BulkAIDialog({
         <ScrollArea className="min-h-0 overflow-hidden">
           <div className="space-y-4 pr-3">
             {fields.map((field) => {
-              const fr = results[field.key];
+              const fr = getResult(targetLocale, field.key);
               const before = String(currentFields[field.key] ?? "");
               const after = fr?.status === "done" ? fr.value : "";
               const isLoading = fr?.status === "loading";

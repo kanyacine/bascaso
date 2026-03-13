@@ -27,6 +27,7 @@ import { useErrorReport } from "@/lib/error-report-context";
 import type { AscErrorReportData } from "@/components/error-report-dialog";
 import { resolveVersion, type AscVersion } from "@/lib/asc/version-types";
 import { useApps } from "@/lib/apps-context";
+import { ActionFooter } from "@/components/layout/action-footer";
 
 /** Brief pause to let ASC propagate state changes before re-fetching. */
 const ASC_PROPAGATION_DELAY = 3000;
@@ -291,7 +292,7 @@ export function VersionActionFooter() {
     return (
       <>
         {loading && <LoadingOverlay label="Cancelling submission…" />}
-        <Footer>
+        <ActionFooter>
           <Button
             variant="destructive"
             disabled={loading}
@@ -299,7 +300,7 @@ export function VersionActionFooter() {
           >
             Cancel submission
           </Button>
-        </Footer>
+        </ActionFooter>
         <AlertDialog open={confirmOpen} onOpenChange={(open) => !open && setConfirmOpen(false)}>
           <AlertDialogContent size="sm">
             <AlertDialogHeader>
@@ -342,7 +343,7 @@ export function VersionActionFooter() {
     return (
       <>
         {loading && <LoadingOverlay label="Cancelling submission…" />}
-        <Footer>
+        <ActionFooter>
           <Button
             variant="destructive"
             disabled={loading}
@@ -350,7 +351,7 @@ export function VersionActionFooter() {
           >
             Cancel submission
           </Button>
-        </Footer>
+        </ActionFooter>
         <AlertDialog open={confirmOpen} onOpenChange={(open) => !open && setConfirmOpen(false)}>
           <AlertDialogContent size="sm">
             <AlertDialogHeader>
@@ -418,7 +419,7 @@ export function VersionActionFooter() {
     return (
       <>
         {loading && <LoadingOverlay label="Releasing version…" />}
-        <Footer>
+        <ActionFooter>
           <Button
             disabled={loading}
             onClick={async () => {
@@ -439,7 +440,7 @@ export function VersionActionFooter() {
           >
             Release now
           </Button>
-        </Footer>
+        </ActionFooter>
       </>
     );
   }
@@ -514,11 +515,11 @@ function SubmitFooter({
   return (
     <>
       {loading && <LoadingOverlay label="Submitting for review…" />}
-      <Footer left={<SubmissionChecklist version={version} isFirstVersion={isFirstVersion} />}>
+      <ActionFooter left={<SubmissionChecklist version={version} isFirstVersion={isFirstVersion} />}>
         <Button disabled={!canSubmit || loading} onClick={() => setConfirmOpen(true)}>
           Submit for review
         </Button>
-      </Footer>
+      </ActionFooter>
       <AlertDialog open={confirmOpen} onOpenChange={(open) => !open && setConfirmOpen(false)}>
         <AlertDialogContent size="sm">
           <AlertDialogHeader>
@@ -550,11 +551,3 @@ function LoadingOverlay({ label }: { label: string }) {
   );
 }
 
-function Footer({ left, children }: { left?: React.ReactNode; children: React.ReactNode }) {
-  return (
-    <div className="flex shrink-0 items-center justify-between gap-4 border-t bg-sidebar px-6 py-3">
-      <div className="min-w-0 flex-1">{left}</div>
-      <div className="shrink-0">{children}</div>
-    </div>
-  );
-}

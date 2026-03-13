@@ -316,59 +316,16 @@ export function HeaderVersionPicker() {
       </Popover>
 
       {showCreateActions && (
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent className="sm:max-w-sm">
-            <DialogHeader>
-              <DialogTitle>New App Store version</DialogTitle>
-            </DialogHeader>
-            <div className="grid gap-4 py-2">
-              <div className="grid gap-2">
-                <Label htmlFor="version-string">Version</Label>
-                <Input
-                  id="version-string"
-                  placeholder="e.g. 1.2.0"
-                  value={versionString}
-                  onChange={(e) => setVersionString(e.target.value)}
-                  className="font-mono"
-                  autoFocus
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && versionValid && platform) {
-                      e.preventDefault();
-                      handleCreate();
-                    }
-                  }}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="platform-select">Platform</Label>
-                <Select value={platform} onValueChange={setPlatform}>
-                  <SelectTrigger id="platform-select">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(PLATFORM_LABELS).map(([value, label]) => (
-                      <SelectItem key={value} value={value}>
-                        {label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            {trimmedVersion !== "" && hasInvalidVersionChars(trimmedVersion) && (
-              <p className="text-sm text-destructive">
-                Use digits and dots only (e.g. 1.2.0)
-              </p>
-            )}
-            <Button
-              onClick={handleCreate}
-              disabled={!versionValid || !platform || creating}
-            >
-              {creating && <Spinner className="size-3.5" />}
-              {creating ? "Creating\u2026" : "Create"}
-            </Button>
-          </DialogContent>
-        </Dialog>
+        <CreateVersionDialog
+          open={dialogOpen}
+          onOpenChange={setDialogOpen}
+          versionString={versionString}
+          onVersionStringChange={setVersionString}
+          platform={platform}
+          onPlatformChange={setPlatform}
+          creating={creating}
+          onSubmit={handleCreate}
+        />
       )}
     </>
   );
@@ -491,61 +448,97 @@ export function HeaderVersionActions() {
       )}
 
       {showNewVersion && (
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent className="sm:max-w-sm">
-            <DialogHeader>
-              <DialogTitle>New App Store version</DialogTitle>
-            </DialogHeader>
-            <div className="grid gap-4 py-2">
-              <div className="grid gap-2">
-                <Label htmlFor="version-string">Version</Label>
-                <Input
-                  id="version-string"
-                  placeholder="e.g. 1.2.0"
-                  value={versionString}
-                  onChange={(e) => setVersionString(e.target.value)}
-                  className="font-mono"
-                  autoFocus
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && versionValid && platform) {
-                      e.preventDefault();
-                      handleCreate();
-                    }
-                  }}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="platform-select">Platform</Label>
-                <Select value={platform} onValueChange={setPlatform}>
-                  <SelectTrigger id="platform-select">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(PLATFORM_LABELS).map(([value, label]) => (
-                      <SelectItem key={value} value={value}>
-                        {label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            {trimmedVersion !== "" && hasInvalidVersionChars(trimmedVersion) && (
-              <p className="text-sm text-destructive">
-                Use digits and dots only (e.g. 1.2.0)
-              </p>
-            )}
-            <Button
-              onClick={handleCreate}
-              disabled={!versionValid || !platform || creating}
-            >
-              {creating && <Spinner className="size-3.5" />}
-              {creating ? "Creating\u2026" : "Create"}
-            </Button>
-          </DialogContent>
-        </Dialog>
+        <CreateVersionDialog
+          open={dialogOpen}
+          onOpenChange={setDialogOpen}
+          versionString={versionString}
+          onVersionStringChange={setVersionString}
+          platform={platform}
+          onPlatformChange={setPlatform}
+          creating={creating}
+          onSubmit={handleCreate}
+        />
       )}
     </>
+  );
+}
+
+function CreateVersionDialog({
+  open,
+  onOpenChange,
+  versionString,
+  onVersionStringChange,
+  platform,
+  onPlatformChange,
+  creating,
+  onSubmit,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  versionString: string;
+  onVersionStringChange: (value: string) => void;
+  platform: string;
+  onPlatformChange: (value: string) => void;
+  creating: boolean;
+  onSubmit: () => void;
+}) {
+  const trimmed = versionString.trim();
+  const valid = trimmed !== "" && isValidVersionString(trimmed);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>New App Store version</DialogTitle>
+        </DialogHeader>
+        <div className="grid gap-4 py-2">
+          <div className="grid gap-2">
+            <Label htmlFor="version-string">Version</Label>
+            <Input
+              id="version-string"
+              placeholder="e.g. 1.2.0"
+              value={versionString}
+              onChange={(e) => onVersionStringChange(e.target.value)}
+              className="font-mono"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && valid && platform) {
+                  e.preventDefault();
+                  onSubmit();
+                }
+              }}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="platform-select">Platform</Label>
+            <Select value={platform} onValueChange={onPlatformChange}>
+              <SelectTrigger id="platform-select">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(PLATFORM_LABELS).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        {trimmed !== "" && hasInvalidVersionChars(trimmed) && (
+          <p className="text-sm text-destructive">
+            Use digits and dots only (e.g. 1.2.0)
+          </p>
+        )}
+        <Button
+          onClick={onSubmit}
+          disabled={!valid || !platform || creating}
+        >
+          {creating && <Spinner className="size-3.5" />}
+          {creating ? "Creating\u2026" : "Create"}
+        </Button>
+      </DialogContent>
+    </Dialog>
   );
 }
 
