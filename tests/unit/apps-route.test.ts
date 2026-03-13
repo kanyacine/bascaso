@@ -1,16 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mockListApps = vi.fn();
+const mockHasCredentials = vi.fn();
 const mockCacheGetMeta = vi.fn();
 const mockIsPro = vi.fn();
 const mockGetFreeSelectedAppId = vi.fn();
 const mockIsDemoMode = vi.fn();
+const mockGetDemoApps = vi.fn();
+const mockErrorJson = vi.fn();
 
 vi.mock("@/lib/asc/apps", () => ({
   listApps: () => mockListApps(),
 }));
 vi.mock("@/lib/asc/client", () => ({
-  hasCredentials: () => true,
+  hasCredentials: () => mockHasCredentials(),
 }));
 vi.mock("@/lib/cache", () => ({
   cacheGetMeta: (...args: unknown[]) => mockCacheGetMeta(...args),
@@ -21,11 +24,18 @@ vi.mock("@/lib/license", () => ({
 }));
 vi.mock("@/lib/demo", () => ({
   isDemoMode: () => mockIsDemoMode(),
-  getDemoApps: () => [],
+  getDemoApps: () => mockGetDemoApps(),
 }));
 vi.mock("@/lib/app-preferences", () => ({
   getFreeSelectedAppId: () => mockGetFreeSelectedAppId(),
 }));
+vi.mock("@/lib/api-helpers", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/api-helpers")>();
+  return {
+    ...actual,
+    errorJson: (...args: unknown[]) => mockErrorJson(...args),
+  };
+});
 
 import { GET } from "@/app/api/apps/route";
 
@@ -40,10 +50,18 @@ const app3 = { id: "3", attributes: { name: "Gamma" } };
 describe("GET /api/apps", () => {
   beforeEach(() => {
     mockListApps.mockReset();
+    mockHasCredentials.mockReset();
+    mockHasCredentials.mockReturnValue(true);
     mockCacheGetMeta.mockReturnValue(null);
     mockIsPro.mockReturnValue(false);
     mockGetFreeSelectedAppId.mockReturnValue(null);
     mockIsDemoMode.mockReturnValue(false);
+    mockGetDemoApps.mockReturnValue([]);
+    mockErrorJson.mockReset();
+    mockErrorJson.mockImplementation(
+      (_err, status = 500) =>
+        new Response(JSON.stringify({ error: "mapped" }), { status: status as number }),
+    );
   });
 
   it("returns all apps for pro users", async () => {
@@ -115,5 +133,36 @@ describe("GET /api/apps", () => {
     expect(data.apps).toHaveLength(1);
     expect(data.truncated).toBe(false);
     expect(data.needsAppSelection).toBe(false);
+  });
+
+  it("returns demo apps in demo mode", async () => {
+    mockIsDemoMode.mockReturnValue(true);
+    mockGetDemoApps.mockReturnValue([{ id: "demo-1" }]);
+
+    const res = await GET(makeRequest());
+    const data = await res.json();
+
+    expect(data).toEqual({ apps: [{ id: "demo-1" }], meta: null, truncated: false, needsAppSelection: false });
+    expect(mockListApps).not.toHaveBeenCalled();
+  });
+
+  it("returns empty apps when credentials are missing", async () => {
+    mockHasCredentials.mockReturnValue(false);
+
+    const res = await GET(makeRequest());
+    const data = await res.json();
+
+    expect(data).toEqual({ apps: [], meta: null, truncated: false, needsAppSelection: false });
+    expect(mockListApps).not.toHaveBeenCalled();
+  });
+
+  it("returns errorJson when listApps throws", async () => {
+    mockListApps.mockRejectedValue(new Error("network error"));
+
+    const res = await GET(makeRequest());
+
+    expect(mockErrorJson).toHaveBeenCalledWith(expect.any(Error));
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: "mapped" });
   });
 });

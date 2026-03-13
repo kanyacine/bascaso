@@ -1,12 +1,17 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { listVersions } from "@/lib/asc/versions";
 import { createVersion, updateVersionAttributes, invalidateVersionsCache } from "@/lib/asc/version-mutations";
 import { hasCredentials } from "@/lib/asc/client";
 import { EDITABLE_STATES } from "@/lib/asc/version-types";
 import { cacheGetMeta } from "@/lib/cache";
-import { errorJson } from "@/lib/api-helpers";
+import { errorJson, parseBody } from "@/lib/api-helpers";
 import { isDemoMode, getDemoVersions } from "@/lib/demo";
 
+const createVersionSchema = z.object({
+  versionString: z.string().min(1),
+  platform: z.string().min(1),
+});
 
 export async function GET(
   _request: Request,
@@ -45,18 +50,11 @@ export async function POST(
     return NextResponse.json({ error: "No ASC credentials" }, { status: 400 });
   }
 
-  const body = await request.json();
-  const { versionString, platform } = body as {
-    versionString: string;
-    platform: string;
-  };
-
-  if (!versionString || !platform) {
-    return NextResponse.json(
-      { error: "versionString and platform are required" },
-      { status: 400 },
-    );
+  const parsed = await parseBody(request, createVersionSchema);
+  if (parsed instanceof Response) {
+    return parsed;
   }
+  const { versionString, platform } = parsed;
 
   try {
     // Check if there's already an editable version for this platform

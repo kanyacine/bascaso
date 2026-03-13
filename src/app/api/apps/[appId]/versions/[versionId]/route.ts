@@ -1,8 +1,25 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { updateVersionAttributes, selectBuildForVersion, deleteVersion, invalidateVersionsCache } from "@/lib/asc/version-mutations";
 import { hasCredentials } from "@/lib/asc/client";
-import { errorJson } from "@/lib/api-helpers";
+import { errorJson, parseBody } from "@/lib/api-helpers";
 import { isDemoMode } from "@/lib/demo";
+
+const updateVersionSchema = z
+  .object({
+    versionString: z.string().min(1).optional(),
+    buildId: z.string().nullable().optional(),
+    copyright: z.string().optional(),
+  })
+  .refine(
+    (value) =>
+      value.versionString !== undefined ||
+      value.buildId !== undefined ||
+      value.copyright !== undefined,
+    {
+      message: "versionString, buildId, or copyright is required",
+    },
+  );
 
 export async function PATCH(
   request: Request,
@@ -18,19 +35,11 @@ export async function PATCH(
     return NextResponse.json({ error: "No ASC credentials" }, { status: 400 });
   }
 
-  const body = await request.json();
-  const { versionString, buildId, copyright } = body as {
-    versionString?: string;
-    buildId?: string | null;
-    copyright?: string;
-  };
-
-  if (!versionString && buildId === undefined && copyright === undefined) {
-    return NextResponse.json(
-      { error: "versionString, buildId, or copyright is required" },
-      { status: 400 },
-    );
+  const parsed = await parseBody(request, updateVersionSchema);
+  if (parsed instanceof Response) {
+    return parsed;
   }
+  const { versionString, buildId, copyright } = parsed;
 
   try {
     const attrs: Record<string, string> = {};
