@@ -32,7 +32,7 @@ vi.mock("@/db/schema", () => ({
 // Replace global fetch
 vi.stubGlobal("fetch", mockFetch);
 
-import { buildAnalyticsData, parseTsv, fetchPerfPowerMetrics } from "@/lib/asc/analytics";
+import { buildAnalyticsData, parseTsv, fetchPerfPowerMetrics, getReportInitiatedAt } from "@/lib/asc/analytics";
 
 // ---------- Helpers ----------
 
@@ -110,6 +110,7 @@ function segmentsResponse(segments: Array<{ id: string; url: string }>) {
 
 let consoleLogSpy: ReturnType<typeof vi.spyOn>;
 let consoleWarnSpy: ReturnType<typeof vi.spyOn>;
+let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
 
 beforeEach(() => {
   mockAscFetch.mockReset();
@@ -118,6 +119,7 @@ beforeEach(() => {
   mockFetch.mockReset();
   consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {});
   consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+  consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
 // ---------- Tests ----------
@@ -131,6 +133,22 @@ describe("buildAnalyticsData", () => {
     expect(result).toBe(cachedData);
     expect(mockAscFetch).not.toHaveBeenCalled();
     expect(mockCacheGet).toHaveBeenCalledWith("analytics:app-cached");
+  });
+
+  it("deduplicates concurrent builds for the same app", async () => {
+    mockCacheGet.mockReturnValue(null);
+    mockAscFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/perfPowerMetrics")) return { productData: [] };
+      if (url.includes("/analyticsReportRequests") && !url.includes("/reports")) {
+        return reportRequestsResponse(["req-dedup"]);
+      }
+      return { data: [] };
+    });
+
+    const first = buildAnalyticsData("app-dedup");
+    const second = buildAnalyticsData("app-dedup");
+    const [r1, r2] = await Promise.all([first, second]);
+    expect(r1).toBe(r2);
   });
 
   it("creates ONGOING and ONE_TIME_SNAPSHOT report requests when none exist", async () => {
@@ -3374,5 +3392,417 @@ describe("dailyCrashes aggregation", () => {
 
     const result = await buildAnalyticsData("app-dc-empty");
     expect(result.dailyCrashes).toEqual([]);
+  });
+
+  it("returns empty analytics data when findReportRequestIds returns empty", async () => {
+    mockCacheGet.mockReturnValue(null);
+
+    // List returns empty, and both POST create calls fail
+    mockAscFetch
+      .mockResolvedValueOnce({ data: [] }) // list report requests
+      .mockRejectedValueOnce(new Error("ONGOING create failed")) // POST ONGOING
+      .mockRejectedValueOnce(new Error("SNAPSHOT create failed")); // POST ONE_TIME_SNAPSHOT
+
+    const result = await buildAnalyticsData("app-empty-rr");
+    expect(result.dailyDownloads).toEqual([]);
+    expect(result.dailyRevenue).toEqual([]);
+    expect(result.dailySessions).toEqual([]);
+    expect(mockCacheSet).toHaveBeenCalled();
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("no ONGOING or ONE_TIME_SNAPSHOT report requests"),
+    );
+  });
+
+  it("uses short cache TTL when data has no rows", async () => {
+    mockCacheGet.mockReturnValue(null);
+
+    mockAscFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/perfPowerMetrics")) {
+        return { productData: [] };
+      }
+      if (url.includes("/analyticsReportRequests") && !url.includes("/reports")) {
+        return reportRequestsResponse(["req-norows"]);
+      }
+      return { data: [] };
+    });
+
+    const result = await buildAnalyticsData("app-norows-ttl");
+    expect(result.dailyDownloads).toEqual([]);
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("no rows, using short cache TTL"),
+    );
+  });
+
+  it("calls startBackfill when isBackfilled returns false", async () => {
+    mockCacheGet.mockReturnValue(null);
+
+    // Override db mock so isBackfilled returns false (get() returns undefined)
+    const dbModule = await import("@/db");
+    const origSelect = (dbModule.db as any).select;
+    (dbModule.db as any).select = () => ({
+      from: () => ({
+        where: () => ({ get: () => undefined }),
+      }),
+    });
+
+    mockAscFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/perfPowerMetrics")) {
+        return { productData: [] };
+      }
+      if (url.includes("/analyticsReportRequests") && !url.includes("/reports")) {
+        return reportRequestsResponse(["req-bf"]);
+      }
+      return { data: [] };
+    });
+
+    const result = await buildAnalyticsData("app-backfill-test");
+    expect(result).toBeDefined();
+
+    // startBackfill logs when it starts
+    // Wait a tick for the async backfill to fire
+    await new Promise((r) => setTimeout(r, 50));
+    expect(consoleLogSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Backfill app-backfill-test"),
+    );
+
+    // Restore original select
+    (dbModule.db as any).select = origSelect;
+  });
+
+  it("marks app as backfilled when backfill produces data", async () => {
+    mockCacheGet.mockReturnValue(null);
+
+    const dbModule = await import("@/db");
+    const origSelect = (dbModule.db as any).select;
+    const origInsert = (dbModule.db as any).insert;
+
+    // isBackfilled returns false
+    (dbModule.db as any).select = () => ({
+      from: () => ({
+        where: () => ({ get: () => undefined }),
+      }),
+    });
+
+    // Track insert calls (markBackfilled)
+    const insertRunSpy = vi.fn();
+    (dbModule.db as any).insert = () => ({
+      values: () => ({ onConflictDoNothing: () => ({ run: insertRunSpy }) }),
+    });
+
+    const downloadTsv = tsvString(
+      ["Date", "App Apple Identifier", "Download Type", "Source Type", "Territory", "Counts"],
+      [["2026-02-01", "app-bf-data", "First-time download", "App Store search", "US", "10"]],
+    );
+
+    mockAscFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/perfPowerMetrics")) {
+        return { productData: [] };
+      }
+      if (url.includes("/analyticsReportRequests") && !url.includes("/reports")) {
+        return reportRequestsResponse(["req-bf-data"]);
+      }
+      if (url.includes("/reports?filter[category]=")) {
+        const category = url.match(/filter\[category\]=([^&]+)/)?.[1] ?? "";
+        if (category === "COMMERCE") {
+          return reportsResponse([
+            { id: "rpt-bf-dl", name: "App Downloads Standard", category: "COMMERCE" },
+          ]);
+        }
+        return reportsResponse([]);
+      }
+      if (url.includes("/instances?")) {
+        return instancesResponse([
+          { id: "inst-bf-dl", processingDate: "2026-02-01", granularity: "DAILY" },
+        ]);
+      }
+      if (url.includes("/segments")) {
+        return segmentsResponse([
+          { id: "seg-bf-dl", url: "https://s3.example.com/bf-dl.tsv.gz" },
+        ]);
+      }
+      return { data: [] };
+    });
+
+    mockFetch.mockImplementation(async () => makeFetchResponse(downloadTsv));
+
+    const result = await buildAnalyticsData("app-bf-data");
+    expect(result).toBeDefined();
+
+    // Wait for fire-and-forget backfill to complete
+    await new Promise((r) => setTimeout(r, 300));
+
+    expect(consoleLogSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Backfill complete for app-bf-data"),
+    );
+    expect(insertRunSpy).toHaveBeenCalled();
+
+    (dbModule.db as any).select = origSelect;
+    (dbModule.db as any).insert = origInsert;
+  });
+
+  it("catches and logs backfill errors", async () => {
+    mockCacheGet.mockReturnValue(null);
+
+    const dbModule = await import("@/db");
+    const origSelect = (dbModule.db as any).select;
+
+    // isBackfilled returns false
+    (dbModule.db as any).select = () => ({
+      from: () => ({
+        where: () => ({ get: () => undefined }),
+      }),
+    });
+
+    mockAscFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/perfPowerMetrics")) {
+        return { productData: [] };
+      }
+      if (url.includes("/analyticsReportRequests") && !url.includes("/reports")) {
+        return reportRequestsResponse(["req-bf-err"]);
+      }
+      return { data: [] };
+    });
+
+    // Make cacheSet throw for the backfill's cacheSet call.
+    // Both phase 1 and backfill call cacheSet with key "analytics:app-bf-err".
+    // Count calls with that specific key and throw on the second one (backfill).
+    let analyticsCacheSetCount = 0;
+    mockCacheSet.mockImplementation((key: string) => {
+      if (key === "analytics:app-bf-err") {
+        analyticsCacheSetCount++;
+        if (analyticsCacheSetCount > 1) {
+          throw new Error("backfill-boom");
+        }
+      }
+    });
+
+    const result = await buildAnalyticsData("app-bf-err");
+    expect(result).toBeDefined();
+
+    // Wait for fire-and-forget backfill to hit the error
+    await new Promise((r) => setTimeout(r, 300));
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Backfill failed for app-bf-err"),
+      expect.any(Error),
+    );
+
+    // Restore mocks
+    mockCacheSet.mockReset();
+    (dbModule.db as any).select = origSelect;
+  });
+
+  it("re-throws when findReportRequestIds fails", async () => {
+    mockCacheGet.mockReturnValue(null);
+
+    mockAscFetch.mockRejectedValueOnce(new Error("API unavailable"));
+
+    await expect(buildAnalyticsData("app-rr-fail")).rejects.toThrow("API unavailable");
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("failed to load report request IDs"),
+      expect.any(Error),
+    );
+  });
+
+});
+
+describe("normalized report name matching", () => {
+  it("uses normalized name match when exact report name differs", async () => {
+    const appId = "app-norm-match";
+    mockCacheGet.mockReturnValue(null);
+
+    // TSV data for download report
+    const downloadTsv = tsvString(
+      ["Date", "App Apple Identifier", "Download Type", "Source Type", "Territory", "Counts"],
+      [["2026-03-01", appId, "First-time download", "App Store search", "US", "5"]],
+    );
+
+    // Empty TSV for other report types
+    const emptyTsv = tsvString(["Date", "App Apple Identifier"], []);
+
+    // Report name mapping – note the double space in the download report name
+    const reports: Record<string, { id: string; name: string; category: string }> = {
+      downloads: { id: "rep-dl-norm", name: "App Downloads  Standard", category: "COMMERCE" },
+      purchases: { id: "rep-purch-norm", name: "App Store Purchases Standard", category: "COMMERCE" },
+      engagement: { id: "rep-eng-norm", name: "App Store Discovery and Engagement Standard", category: "APP_STORE_ENGAGEMENT" },
+      webPreview: { id: "rep-wp-norm", name: "App Store Web Preview Engagement Standard", category: "APP_STORE_ENGAGEMENT" },
+      sessions: { id: "rep-sess-norm", name: "App Sessions Standard", category: "APP_USAGE" },
+      installDelete: { id: "rep-id-norm", name: "App Store Installation and Deletion Standard", category: "APP_USAGE" },
+      optIn: { id: "rep-opt-norm", name: "App Opt In", category: "APP_USAGE" },
+      crashes: { id: "rep-crash-norm", name: "App Crashes", category: "APP_USAGE" },
+      expandedCrashes: { id: "rep-excrash-norm", name: "App Crashes Expanded", category: "PERFORMANCE" },
+    };
+
+    const allReports = Object.values(reports);
+
+    // Map report IDs to TSV data
+    const reportTsvById: Record<string, string> = {};
+    for (const r of allReports) {
+      reportTsvById[r.id] = r.name.includes("Downloads") ? downloadTsv : emptyTsv;
+    }
+
+    mockAscFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/perfPowerMetrics")) {
+        return { productData: [], insights: {} };
+      }
+
+      if (url.includes("/analyticsReportRequests") && !url.includes("/reports")) {
+        return reportRequestsResponse(["req-norm", "req-norm-snap"], ["ONGOING", "ONE_TIME_SNAPSHOT"]);
+      }
+
+      if (url.includes("/reports?filter[category]=")) {
+        const category = url.match(/filter\[category\]=([^&]+)/)?.[1] ?? "";
+        const matching = allReports
+          .filter((r) => r.category === category)
+          .map((r) => ({ id: r.id, name: r.name, category: r.category }));
+        return reportsResponse(matching);
+      }
+
+      if (url.includes("/instances?")) {
+        const reportId = url.match(/analyticsReports\/([^/]+)/)?.[1] ?? "";
+        return instancesResponse([
+          { id: `inst-${reportId}`, processingDate: "2026-03-01", granularity: "DAILY" },
+        ]);
+      }
+
+      if (url.includes("/segments")) {
+        const instanceId = url.match(/Instances\/([^/]+)/)?.[1] ?? "";
+        const reportId = instanceId.replace("inst-", "");
+        return segmentsResponse([
+          { id: `seg-${reportId}`, url: `https://s3.example.com/${reportId}.tsv.gz` },
+        ]);
+      }
+
+      return { data: [] };
+    });
+
+    mockFetch.mockImplementation(async (url: string) => {
+      const reportId = url.match(/s3\.example\.com\/(.+)\.tsv\.gz/)?.[1] ?? "";
+      const tsv = reportTsvById[reportId] ?? "";
+      return makeFetchResponse(tsv);
+    });
+
+    const result = await buildAnalyticsData(appId);
+
+    // The pipeline should complete and return download data
+    expect(result.dailyDownloads).toHaveLength(1);
+    expect(result.dailyDownloads[0]).toEqual({
+      date: "2026-03-01",
+      firstTime: 5,
+      redownload: 0,
+      update: 0,
+    });
+
+    // The normalized match should have triggered a warning
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("report name mismatch"),
+    );
+  });
+});
+
+describe("fetchReport error handling in buildPhase", () => {
+  it("logs and re-throws when fetchReportData fails inside buildPhase", async () => {
+    const appId = "app-fetch-err";
+    mockCacheGet.mockReturnValue(null);
+
+    // Reports – only downloads will have a valid report; its instances fetch will throw
+    const downloadReportId = "rep-dl-err";
+
+    mockAscFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/perfPowerMetrics")) {
+        return { productData: [], insights: {} };
+      }
+
+      if (url.includes("/analyticsReportRequests") && !url.includes("/reports")) {
+        return reportRequestsResponse(["req-err", "req-err-snap"], ["ONGOING", "ONE_TIME_SNAPSHOT"]);
+      }
+
+      if (url.includes("/reports?filter[category]=")) {
+        const category = url.match(/filter\[category\]=([^&]+)/)?.[1] ?? "";
+        if (category === "COMMERCE") {
+          return reportsResponse([
+            { id: downloadReportId, name: "App Downloads Standard", category: "COMMERCE" },
+            { id: "rep-purch-err", name: "App Store Purchases Standard", category: "COMMERCE" },
+          ]);
+        }
+        if (category === "APP_STORE_ENGAGEMENT") {
+          return reportsResponse([
+            { id: "rep-eng-err", name: "App Store Discovery and Engagement Standard", category: "APP_STORE_ENGAGEMENT" },
+            { id: "rep-wp-err", name: "App Store Web Preview Engagement Standard", category: "APP_STORE_ENGAGEMENT" },
+          ]);
+        }
+        if (category === "APP_USAGE") {
+          return reportsResponse([
+            { id: "rep-sess-err", name: "App Sessions Standard", category: "APP_USAGE" },
+            { id: "rep-id-err", name: "App Store Installation and Deletion Standard", category: "APP_USAGE" },
+            { id: "rep-opt-err", name: "App Opt In", category: "APP_USAGE" },
+            { id: "rep-crash-err", name: "App Crashes", category: "APP_USAGE" },
+          ]);
+        }
+        if (category === "PERFORMANCE") {
+          return reportsResponse([
+            { id: "rep-excrash-err", name: "App Crashes Expanded", category: "PERFORMANCE" },
+          ]);
+        }
+        return { data: [] };
+      }
+
+      // Instances fetch: throw for the download report to trigger fetchReport's catch
+      if (url.includes("/instances?")) {
+        const reportId = url.match(/analyticsReports\/([^/]+)/)?.[1] ?? "";
+        if (reportId === downloadReportId) {
+          throw new Error("instances API exploded");
+        }
+        // All other reports return empty instances so they resolve quickly
+        return instancesResponse([]);
+      }
+
+      if (url.includes("/segments")) {
+        return segmentsResponse([]);
+      }
+
+      return { data: [] };
+    });
+
+    await expect(buildAnalyticsData(appId)).rejects.toThrow("instances API exploded");
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect.stringContaining(`${appId}: downloads fetch failed`),
+      expect.any(Error),
+    );
+  });
+});
+
+describe("getReportInitiatedAt", () => {
+  it("returns cached timestamp when set", () => {
+    mockCacheGet.mockReturnValue(1710000000000);
+    expect(getReportInitiatedAt("app-init")).toBe(1710000000000);
+    expect(mockCacheGet).toHaveBeenCalledWith("report-initiated:app-init", true);
+  });
+
+  it("returns null when not cached", () => {
+    mockCacheGet.mockReturnValue(null);
+    expect(getReportInitiatedAt("app-none")).toBeNull();
+  });
+});
+
+describe("findReportRequestIds – all invalid types", () => {
+  it("warns when report requests exist but none are ONGOING or ONE_TIME_SNAPSHOT", async () => {
+    mockCacheGet.mockReturnValue(null);
+    mockAscFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/perfPowerMetrics")) {
+        return { productData: [] };
+      }
+      if (url.includes("/analyticsReportRequests") && !url.includes("/reports")) {
+        return reportRequestsResponse(["req-del"], ["DELETED"]);
+      }
+      return { data: [] };
+    });
+
+    const result = await buildAnalyticsData("app-all-invalid");
+    expect(result.dailyDownloads).toEqual([]);
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("report requests exist but none are ONGOING/ONE_TIME_SNAPSHOT"),
+    );
   });
 });

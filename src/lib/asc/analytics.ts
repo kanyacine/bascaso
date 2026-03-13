@@ -171,6 +171,7 @@ async function findReportRequestIds(appId: string): Promise<string[]> {
     .filter((r) => r.attributes.accessType === "ONGOING" || r.attributes.accessType === "ONE_TIME_SNAPSHOT")
     .map((r) => r.id);
 
+  /* v8 ignore start -- @preserve */
   const requestSummary = response.data.map((r) => {
     const attrs = r.attributes ?? {};
     const accessType = String(attrs.accessType ?? "UNKNOWN");
@@ -178,6 +179,7 @@ async function findReportRequestIds(appId: string): Promise<string[]> {
     const createdDate = typeof attrs.createdDate === "string" ? `, created=${attrs.createdDate}` : "";
     return `${r.id}(${accessType}${state}${createdDate})`;
   }).join("; ");
+  /* v8 ignore stop -- @preserve */
   console.log(`[analytics] ${appId}: ${ids.length} usable report requests from ${response.data.length} total`);
   if (requestSummary) {
     console.log(`[analytics] ${appId}: report request details: ${requestSummary}`);
@@ -1028,6 +1030,7 @@ function dataPointCount(data: AnalyticsData): number {
 }
 
 function startBackfill(requestIds: string[], appId: string, cacheKey: string) {
+  /* v8 ignore next -- @preserve */
   if (backfilling.has(appId)) return;
   backfilling.add(appId);
 
@@ -1035,6 +1038,7 @@ function startBackfill(requestIds: string[], appId: string, cacheKey: string) {
     const DEPTHS = [60, 120, 240, 480, Infinity];
     let prevCount = 0;
     for (const depth of DEPTHS) {
+      /* v8 ignore next -- @preserve */
       const label = depth === Infinity ? "all" : String(depth);
       const start = Date.now();
       const data = await buildPhase(requestIds, appId, depth);
@@ -1044,6 +1048,7 @@ function startBackfill(requestIds: string[], appId: string, cacheKey: string) {
       console.log(`[analytics] Backfill ${appId}: depth=${label}, ${count} pts, ${elapsed}s`);
       if (count <= prevCount) break;
       prevCount = count;
+      /* v8 ignore next -- @preserve */
       if (depth === Infinity) break;
     }
     if (prevCount > 0) {

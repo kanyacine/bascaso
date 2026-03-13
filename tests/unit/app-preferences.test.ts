@@ -60,6 +60,11 @@ describe("app-preferences", () => {
       mockGet.mockReturnValue({ value: "app-123" });
       expect(getFreeSelectedAppId()).toBe("app-123");
     });
+
+    it("returns null when db throws", () => {
+      mockGet.mockImplementation(() => { throw new Error("DB error"); });
+      expect(getFreeSelectedAppId()).toBeNull();
+    });
   });
 
   describe("setFreeSelectedAppId", () => {

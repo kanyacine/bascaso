@@ -1,10 +1,20 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { parseRange, filterByDateRange, previousRange, pctChange } from "@/lib/analytics-range";
+import { parseRange, filterByDateRange, previousRange, pctChange, getStoredRange, setStoredRange } from "@/lib/analytics-range";
+
+const mockLocalStorage = {
+  getItem: vi.fn(),
+  setItem: vi.fn(),
+  removeItem: vi.fn(),
+};
+vi.stubGlobal("localStorage", mockLocalStorage);
 
 // Fix "today" to 2026-02-28 for deterministic tests
 beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date("2026-02-28T12:00:00Z"));
+  mockLocalStorage.getItem.mockReset();
+  mockLocalStorage.setItem.mockReset();
+  mockLocalStorage.removeItem.mockReset();
 });
 
 afterEach(() => {
@@ -252,5 +262,36 @@ describe("previousRange", () => {
     // Feb 2026 has 28 days, so previous 28-day period
     expect(prev.from).toBe("2026-01-04");
     expect(prev.to).toBe("2026-01-31");
+  });
+});
+
+// ---------- getStoredRange / setStoredRange ----------
+
+describe("getStoredRange", () => {
+  it("returns the stored value", () => {
+    mockLocalStorage.getItem.mockReturnValue("7d");
+    expect(getStoredRange()).toBe("7d");
+  });
+
+  it("returns null when localStorage throws", () => {
+    mockLocalStorage.getItem.mockImplementation(() => { throw new Error("SecurityError"); });
+    expect(getStoredRange()).toBeNull();
+  });
+});
+
+describe("setStoredRange", () => {
+  it("stores the value", () => {
+    setStoredRange("30d");
+    expect(mockLocalStorage.setItem).toHaveBeenCalledWith("range:analytics", "30d");
+  });
+
+  it("removes when null", () => {
+    setStoredRange(null);
+    expect(mockLocalStorage.removeItem).toHaveBeenCalledWith("range:analytics");
+  });
+
+  it("ignores errors", () => {
+    mockLocalStorage.setItem.mockImplementation(() => { throw new Error("QuotaExceeded"); });
+    expect(() => setStoredRange("90d")).not.toThrow();
   });
 });

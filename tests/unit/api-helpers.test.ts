@@ -42,6 +42,26 @@ describe("api-helpers", () => {
       expect(body.ascPath).toBeUndefined();
     });
 
+    it("includes associatedErrors from AscApiError", async () => {
+      const ascErr = new AscApiError({
+        category: "api",
+        message: "Submission failed",
+        statusCode: 409,
+        associatedErrors: {
+          "/data/attributes/versionString": [
+            { code: "STATE_ERROR", title: "State Error", detail: "Version in wrong state" },
+          ],
+        },
+      });
+      const res = errorJson(ascErr);
+      const body = await res.json();
+
+      expect(res.status).toBe(409);
+      expect(body.ascAssociatedErrors).toBeDefined();
+      expect(body.ascAssociatedErrors["/data/attributes/versionString"]).toHaveLength(1);
+      expect(body.ascAssociatedErrors["/data/attributes/versionString"][0].code).toBe("STATE_ERROR");
+    });
+
     it("extracts structured fields from AscApiError", async () => {
       const ascErr = new AscApiError({
         category: "api",

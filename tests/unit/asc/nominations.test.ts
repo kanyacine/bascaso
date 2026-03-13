@@ -148,6 +148,37 @@ describe("getNomination", () => {
     mockAscFetch.mockReset();
   });
 
+  it("returns empty relatedAppIds when response has no relationships", async () => {
+    mockAscFetch.mockResolvedValue({
+      data: {
+        id: "n2",
+        type: "nominations",
+        attributes: {
+          name: "Solo",
+          description: "No related apps",
+          notes: null,
+          type: "NEW_CONTENT",
+          state: "DRAFT",
+          publishStartDate: "2026-04-01T00:00:00Z",
+          publishEndDate: null,
+          deviceFamilies: null,
+          locales: null,
+          hasInAppEvents: null,
+          launchInSelectMarketsFirst: null,
+          preOrderEnabled: null,
+          supplementalMaterialsUris: null,
+          createdDate: "2026-03-01T00:00:00Z",
+          lastModifiedDate: "2026-03-01T00:00:00Z",
+          submittedDate: null,
+        },
+      },
+    });
+
+    const result = await getNomination("n2");
+    expect(result.id).toBe("n2");
+    expect(result.relatedAppIds).toEqual([]);
+  });
+
   it("fetches a single nomination by ID", async () => {
     mockAscFetch.mockResolvedValue({
       data: {

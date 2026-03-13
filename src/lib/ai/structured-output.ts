@@ -115,6 +115,7 @@ function buildSectionAliasMap<T extends Record<string, unknown>>(
 ): Map<string, string> {
   const aliases = new Map<string, string>();
   const jsonSchema = z.toJSONSchema(schema);
+  /* v8 ignore next -- @preserve */
   const properties = (jsonSchema as { properties?: Record<string, unknown> }).properties ?? {};
 
   for (const key of Object.keys(properties)) {

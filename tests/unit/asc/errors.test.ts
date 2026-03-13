@@ -68,6 +68,96 @@ describe("parseAscError", () => {
     expect(result.category).toBe("connection");
     expect(result.message).toBe("DB timeout");
   });
+
+  it("parses associatedErrors from meta", () => {
+    const body = JSON.stringify({
+      errors: [{
+        code: "ENTITY_ERROR",
+        title: "Conflict",
+        detail: "Submission failed",
+        meta: {
+          associatedErrors: {
+            "app-1": [
+              { code: "FIELD_ERROR", title: "Invalid", detail: "Missing screenshot", source: { pointer: "/data" } },
+            ],
+          },
+        },
+      }],
+    });
+    const result = parseAscError(409, body);
+    expect(result.associatedErrors).toBeDefined();
+    expect(result.associatedErrors!["app-1"]).toHaveLength(1);
+    expect(result.associatedErrors!["app-1"][0].detail).toBe("Missing screenshot");
+  });
+
+  it("extracts associatedErrors with populated entry fields", () => {
+    const body = JSON.stringify({
+      errors: [{
+        code: "CONFLICT",
+        title: "Conflict",
+        detail: "Version conflict",
+        meta: {
+          associatedErrors: {
+            "/data/attributes/versionString": [
+              { code: "STATE_ERROR", title: "State Error", detail: "Version in wrong state", source: { pointer: "/data" } },
+            ],
+          },
+        },
+      }],
+    });
+    const result = parseAscError(409, body);
+    expect(result.associatedErrors).toBeDefined();
+    const errs = result.associatedErrors!["/data/attributes/versionString"];
+    expect(errs).toHaveLength(1);
+    expect(errs![0].code).toBe("STATE_ERROR");
+    expect(errs![0].title).toBe("State Error");
+    expect(errs![0].detail).toBe("Version in wrong state");
+    expect(errs![0].source).toEqual({ pointer: "/data" });
+  });
+
+  it("handles associated error entries with undefined code, title, and detail", () => {
+    const body = JSON.stringify({
+      errors: [{
+        code: "ENTITY_ERROR",
+        title: "Conflict",
+        detail: "Submission failed",
+        meta: {
+          associatedErrors: {
+            "app-1": [
+              { source: { pointer: "/data" } },
+            ],
+          },
+        },
+      }],
+    });
+    const result = parseAscError(409, body);
+    expect(result.associatedErrors).toBeDefined();
+    const entry = result.associatedErrors!["app-1"][0];
+    expect(entry.code).toBe("");
+    expect(entry.title).toBe("");
+    expect(entry.detail).toBe("");
+    expect(entry.source).toEqual({ pointer: "/data" });
+  });
+
+  it("skips non-array values in associatedErrors", () => {
+    const body = JSON.stringify({
+      errors: [{
+        code: "ENTITY_ERROR",
+        title: "Conflict",
+        detail: "Submission failed",
+        meta: {
+          associatedErrors: {
+            "app-1": "not-an-array",
+            "app-2": [{ code: "X", title: "Y", detail: "Z" }],
+          },
+        },
+      }],
+    });
+    const result = parseAscError(409, body);
+    expect(result.associatedErrors).toBeDefined();
+    expect(result.associatedErrors!["app-1"]).toBeUndefined();
+    expect(result.associatedErrors!["app-2"]).toHaveLength(1);
+  });
 });
 
 describe("networkError", () => {

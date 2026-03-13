@@ -25,14 +25,14 @@ vi.mock("@/lib/asc/rate-limit", () => ({
 const mockFetch = vi.fn();
 vi.stubGlobal("fetch", mockFetch);
 
-import { ascFetch, hasCredentials, resetToken } from "@/lib/asc/client";
+import { ascFetch, hasCredentials, isActiveDemoCredential, resetToken } from "@/lib/asc/client";
 import { generateAscJwt } from "@/lib/asc/jwt";
 
-function insertCred(active = true) {
+function insertCred(active = true, { isDemo = false, id = "cred-1" }: { isDemo?: boolean; id?: string } = {}) {
   testDb
     .insert(ascCredentials)
     .values({
-      id: "cred-1",
+      id,
       issuerId: "issuer-1",
       keyId: "KEY123",
       encryptedPrivateKey: "enc-pk",
@@ -40,6 +40,7 @@ function insertCred(active = true) {
       authTag: "tag",
       encryptedDek: "dek",
       isActive: active,
+      isDemo,
       createdAt: new Date().toISOString(),
     })
     .run();
@@ -75,6 +76,13 @@ describe("ascFetch", () => {
   it("throws when no credentials are configured", async () => {
     await expect(ascFetch("/v1/apps")).rejects.toThrow(
       "No active ASC credentials configured",
+    );
+  });
+
+  it("throws when active credential is demo mode", async () => {
+    insertCred(true, { isDemo: true });
+    await expect(ascFetch("/v1/apps")).rejects.toThrow(
+      "ASC API is not available in demo mode",
     );
   });
 
@@ -180,6 +188,30 @@ describe("ascFetch", () => {
     await expect(ascFetch("/v1/apps")).rejects.toThrow();
   });
 
+  it("handles response.text() throwing on retryable error", async () => {
+    insertCred();
+    vi.useFakeTimers();
+
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 429,
+        text: () => Promise.reject(new Error("body read failed")),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: [] }),
+      });
+
+    const promise = ascFetch("/v1/apps");
+    await vi.advanceTimersByTimeAsync(1000);
+    const result = await promise;
+    expect(result).toEqual({ data: [] });
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+
+    vi.useRealTimers();
+  });
+
   it("returns null for 204 no-content responses", async () => {
     insertCred();
     mockFetch.mockResolvedValueOnce({
@@ -257,5 +289,25 @@ describe("ascFetch", () => {
 
     await ascFetch("/v1/apps");
     expect(generateAscJwt).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("isActiveDemoCredential", () => {
+  beforeEach(() => {
+    testDb = createTestDb();
+  });
+
+  it("returns true when active credential is demo", () => {
+    insertCred(true, { isDemo: true });
+    expect(isActiveDemoCredential()).toBe(true);
+  });
+
+  it("returns false when no credentials exist", () => {
+    expect(isActiveDemoCredential()).toBe(false);
+  });
+
+  it("returns false when active credential is not demo", () => {
+    insertCred(true, { isDemo: false });
+    expect(isActiveDemoCredential()).toBe(false);
   });
 });

@@ -181,4 +181,12 @@ describe("validateApiKey", () => {
     const result = await validateApiKey("anthropic", "claude-sonnet-4-6", "sk-valid");
     expect(result).toBe("API key validation failed: string error");
   });
+
+  it("returns local server error message for unknown errors with local-openai", async () => {
+    const { generateText } = await import("ai");
+    vi.mocked(generateText).mockRejectedValueOnce(new Error("some random error"));
+
+    const result = await validateApiKey("local-openai", "model", "key");
+    expect(result).toContain("local AI server");
+  });
 });

@@ -22,6 +22,12 @@ describe("normalizeOpenAICompatibleBaseUrl", () => {
   it("returns null for invalid urls", () => {
     expect(normalizeOpenAICompatibleBaseUrl("not a url")).toBeNull();
   });
+
+  it("appends /v1 to custom path", () => {
+    expect(normalizeOpenAICompatibleBaseUrl("http://127.0.0.1:1234/api")).toBe(
+      "http://127.0.0.1:1234/api/v1",
+    );
+  });
 });
 
 describe("resolveLocalOpenAIBaseUrl", () => {
@@ -75,6 +81,25 @@ describe("ensureLocalModelLoaded", () => {
     expect(result).toBeNull();
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0]?.[0]).toBe("http://127.0.0.1:1234/api/v1/models");
+  });
+
+  it("matches model by instance id when key differs", async () => {
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL) =>
+      new Response(
+        JSON.stringify({
+          models: [
+            { key: "other-key", loaded_instances: [{ id: "my-model" }] },
+          ],
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await ensureLocalModelLoaded("my-model", "http://127.0.0.1:1234/v1", undefined);
+
+    expect(result).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("returns null when load endpoint is unsupported", async () => {
@@ -232,5 +257,192 @@ describe("ensureLocalModelLoaded", () => {
     expect(fetchMock.mock.calls[0]?.[0]).toBe("http://127.0.0.1:1234/api/v1/models");
     expect(fetchMock.mock.calls[1]?.[0]).toBe("http://127.0.0.1:1234/api/v1/models/load");
     expect(fetchMock.mock.calls[2]?.[0]).toBe("http://127.0.0.1:1234/api/v1/models/load");
+  });
+
+  it("handles network errors in model list check gracefully", async () => {
+    const fetchMock = vi.fn()
+      .mockRejectedValueOnce(new Error("ECONNREFUSED"))  // model list
+      .mockResolvedValueOnce(new Response("{}", { status: 200 })); // model load
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await ensureLocalModelLoaded("gemma-3", "http://127.0.0.1:1234/v1", undefined);
+    expect(result).toBeNull();
+  });
+
+  it("returns error for invalid server URL", async () => {
+    // localServerRootFromBaseUrl returns null when URL parsing fails internally.
+    // Force this by making URL constructor always throw so all URL parsing fails.
+    const OriginalURL = globalThis.URL;
+    vi.stubGlobal("URL", class extends OriginalURL {
+      constructor(_input: string | URL, _base?: string | URL) {
+        throw new Error("Invalid URL");
+      }
+    });
+
+    const result = await ensureLocalModelLoaded("gemma-3", "http://127.0.0.1:1234/v1", undefined);
+    expect(result).toBe("Invalid local server URL");
+  });
+
+  it("sends Authorization header when apiKey is provided", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ models: [] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response("{}", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await ensureLocalModelLoaded("gemma-3", "http://127.0.0.1:1234/v1", "my-key");
+    expect(result).toBeNull();
+    // Verify auth header was sent
+    const headers = fetchMock.mock.calls[0]?.[1]?.headers;
+    expect(headers?.Authorization).toBe("Bearer my-key");
+  });
+
+  it("handles non-JSON error response from load endpoint", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ models: [] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response("not json at all", { status: 500 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await ensureLocalModelLoaded("gemma-3", "http://127.0.0.1:1234/v1", undefined);
+    expect(result).toContain("500");
+  });
+
+  it("treats non-ok model list response as unknown status", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response("{}", { status: 500 })) // model list 500
+      .mockResolvedValueOnce(new Response("{}", { status: 200 })); // load OK
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await ensureLocalModelLoaded("gemma-3", "http://127.0.0.1:1234/v1", undefined);
+    expect(result).toBeNull();
+  });
+
+  it("treats empty model list response body as unknown", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response("", { status: 200 })) // empty body
+      .mockResolvedValueOnce(new Response("{}", { status: 200 })); // load OK
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await ensureLocalModelLoaded("gemma-3", "http://127.0.0.1:1234/v1", undefined);
+    expect(result).toBeNull();
+  });
+
+  it("treats invalid JSON model list as unknown", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response("not json", { status: 200 })) // bad JSON
+      .mockResolvedValueOnce(new Response("{}", { status: 200 })); // load OK
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await ensureLocalModelLoaded("gemma-3", "http://127.0.0.1:1234/v1", undefined);
+    expect(result).toBeNull();
+  });
+
+  it("detects model present but not loaded (no loaded_instances)", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        models: [{ key: "gemma-3" }],
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response("{}", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await ensureLocalModelLoaded("gemma-3", "http://127.0.0.1:1234/v1", undefined);
+    expect(result).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(2); // still loads since not-loaded
+  });
+
+  it("surfaces message field from 404 response", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ models: [] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ message: "No such model" }), { status: 404 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await ensureLocalModelLoaded("missing-model", "http://127.0.0.1:1234/v1", undefined);
+    expect(result).toBe("No such model");
+  });
+
+  it("uses default base URL when baseUrl is undefined", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ models: [] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response("{}", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await ensureLocalModelLoaded("gemma-3", undefined, undefined);
+
+    expect(result).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("http://127.0.0.1:1234/api/v1/models");
+    expect(fetchMock.mock.calls[1]?.[0]).toBe("http://127.0.0.1:1234/api/v1/models/load");
+  });
+
+  it("handles model with non-array loaded_instances", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        models: [{ key: "other-key", loaded_instances: null }],
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response("{}", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await ensureLocalModelLoaded("gemma-3", "http://127.0.0.1:1234/v1", undefined);
+
+    expect(result).toBeNull();
+    // Model key doesn't match and loaded_instances is null (not an array),
+    // so the find falls through to instances check which yields empty array.
+    // Result is "not-loaded", triggering the load call.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[1]?.[0]).toBe("http://127.0.0.1:1234/api/v1/models/load");
+  });
+
+  it("handles empty response body from load endpoint", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ models: [] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response("", { status: 500 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await ensureLocalModelLoaded("gemma-3", "http://127.0.0.1:1234/v1", undefined);
+
+    // Empty body means raw is "", so the ternary yields {} with no message fields.
+    // Falls through to the generic status error.
+    expect(result).toBe("Model load failed with status 500");
+  });
+
+  it("handles non-array models in response", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ models: "not-array" }), { status: 200 }))
+      .mockResolvedValueOnce(new Response("{}", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await ensureLocalModelLoaded("gemma-3", "http://127.0.0.1:1234/v1", undefined);
+    expect(result).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("handles model with non-string key", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        models: [{ key: 123, loaded_instances: [{ id: "gemma-3" }] }],
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response("{}", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    // key is not a string, so key check falls through to instances check
+    // Instance id matches, so model is considered loaded
+    const result = await ensureLocalModelLoaded("gemma-3", "http://127.0.0.1:1234/v1", undefined);
+    expect(result).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(1); // no load needed
+  });
+
+  it("handles non-Error throw from load endpoint", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/api/v1/models")) {
+        return new Response(JSON.stringify({ models: [] }), { status: 200 });
+      }
+      // eslint-disable-next-line no-throw-literal
+      throw "something went wrong";
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await ensureLocalModelLoaded("gemma-3", "http://127.0.0.1:1234/v1", undefined);
+
+    expect(result).toBe("Could not switch local model: something went wrong");
   });
 });

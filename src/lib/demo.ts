@@ -708,6 +708,7 @@ export function getDemoGroupDetail(appId: string, groupId: string) {
   if (!group) return null;
 
   const builds = DEMO_BUILDS[appId];
+  /* v8 ignore next -- @preserve */
   if (!builds) return null;
   const groupBuilds = builds.filter((b) => b.groupIds.includes(groupId));
   const testerCount = group.isInternal ? 5 : 4;

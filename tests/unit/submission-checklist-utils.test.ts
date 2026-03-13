@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeFieldIssues, computeStoreListingFlags } from "@/lib/submission-checklist-utils";
+import { computeFieldIssues, computeStoreListingFlags, computeLocaleFieldIssues, computeAppDetailsFlags } from "@/lib/submission-checklist-utils";
 import type { LocaleFields } from "@/app/dashboard/apps/[appId]/store-listing/_components/locale-fields";
 
 function makeLocaleData(overrides: Record<string, Partial<LocaleFields>>): Record<string, LocaleFields> {
@@ -166,5 +166,68 @@ describe("computeStoreListingFlags", () => {
     expect(flags.keywords.status).toBe("ok");
     expect(flags.whatsNew.status).toBe("ok");
     expect(flags.supportUrl.status).toBe("ok");
+  });
+});
+
+describe("computeLocaleFieldIssues", () => {
+  it("returns 'missing' when primary locale field is empty", () => {
+    const data = { "en-US": { name: "" } };
+    const result = computeLocaleFieldIssues(data, "en-US", "name", 1);
+    expect(result).toEqual({ status: "missing", localesWithIssues: [] });
+  });
+
+  it("returns 'ok' when all locales have the field", () => {
+    const data = {
+      "en-US": { name: "My App" },
+      "de-DE": { name: "Meine App" },
+    };
+    const result = computeLocaleFieldIssues(data, "en-US", "name", 1);
+    expect(result).toEqual({ status: "ok", localesWithIssues: [] });
+  });
+
+  it("returns 'warn' when secondary locale fails", () => {
+    const data = {
+      "en-US": { name: "My App" },
+      "de-DE": { name: "" },
+      "fr-FR": { name: "Mon App" },
+    };
+    const result = computeLocaleFieldIssues(data, "en-US", "name", 1);
+    expect(result.status).toBe("warn");
+    expect(result.localesWithIssues).toEqual(["de-DE"]);
+  });
+
+  it("returns 'missing' when primary has null field value", () => {
+    const data = { "en-US": { name: null as unknown as string } };
+    const result = computeLocaleFieldIssues(data, "en-US", "name", 1);
+    expect(result.status).toBe("missing");
+  });
+
+  it("warns when secondary locale has undefined field value", () => {
+    const data = {
+      "en-US": { name: "My App" },
+      "de-DE": {} as Record<string, string>,
+    };
+    const result = computeLocaleFieldIssues(data, "en-US", "name", 1);
+    expect(result.status).toBe("warn");
+    expect(result.localesWithIssues).toContain("de-DE");
+  });
+});
+
+describe("computeAppDetailsFlags", () => {
+  it("returns name and privacyPolicyUrl flags", () => {
+    const data = {
+      "en-US": { name: "My App", privacyPolicyUrl: "https://example.com/privacy" },
+      "de-DE": { name: "Meine App", privacyPolicyUrl: "" },
+    };
+    const flags = computeAppDetailsFlags(data, "en-US");
+    expect(flags.name.status).toBe("ok");
+    expect(flags.privacyPolicyUrl.status).toBe("warn");
+    expect(flags.privacyPolicyUrl.localesWithIssues).toEqual(["de-DE"]);
+  });
+
+  it("returns all 'missing' when primary locale is absent", () => {
+    const flags = computeAppDetailsFlags({}, "en-US");
+    expect(flags.name.status).toBe("missing");
+    expect(flags.privacyPolicyUrl.status).toBe("missing");
   });
 });

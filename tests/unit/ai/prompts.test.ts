@@ -6,6 +6,9 @@ import {
   buildReplyPrompt,
   buildAppealPrompt,
   buildAnalyticsInsightsPrompt,
+  buildInsightsPrompt,
+  buildIncrementalInsightsPrompt,
+  buildNominationPrompt,
 } from "@/lib/ai/prompts";
 
 describe("buildTranslatePrompt", () => {
@@ -168,6 +171,19 @@ describe("buildFixKeywordsPrompt", () => {
 
     expect(prompt).toContain("English (US)");
     expect(prompt).not.toContain("Keep these:");
+  });
+
+  it("truncates long descriptions over 500 characters", () => {
+    const longDesc = "A".repeat(600);
+    const prompt = buildFixKeywordsPrompt(
+      "rain",
+      "en-US",
+      [],
+      { field: "keywords", appName: "TestApp", description: longDesc },
+    );
+
+    expect(prompt).toContain("...");
+    expect(prompt).not.toContain("A".repeat(600));
   });
 });
 
@@ -349,6 +365,107 @@ describe("buildAnalyticsInsightsPrompt", () => {
     expect(prompt).not.toContain("Sessions");
   });
 
+  it("handles zero impressions without conversion funnel", () => {
+    const prompt = buildAnalyticsInsightsPrompt(makeData({
+      dailyEngagement: [
+        { date: "2026-03-01", impressions: 0, pageViews: 0 },
+      ],
+    }));
+
+    expect(prompt).not.toContain("Conversion funnel");
+  });
+
+  it("handles impressions > 0 but pageViews === 0 (downloadRate fallback)", () => {
+    const prompt = buildAnalyticsInsightsPrompt(makeData({
+      dailyEngagement: [
+        { date: "2026-03-01", impressions: 500, pageViews: 0 },
+      ],
+    }));
+
+    expect(prompt).toContain("Conversion funnel");
+    expect(prompt).toContain("0 page views");
+  });
+
+  it("handles zero revenue", () => {
+    const prompt = buildAnalyticsInsightsPrompt(makeData({
+      dailyRevenue: [
+        { date: "2026-03-01", proceeds: 0, sales: 0 },
+      ],
+    }));
+
+    expect(prompt).not.toContain("Revenue");
+  });
+
+  it("handles zero sessions", () => {
+    const prompt = buildAnalyticsInsightsPrompt(makeData({
+      dailySessions: [
+        { date: "2026-03-01", sessions: 0, uniqueDevices: 0, avgDuration: 0 },
+      ],
+    }));
+
+    expect(prompt).not.toContain("Sessions");
+  });
+
+  it("handles zero installs and deletes", () => {
+    const prompt = buildAnalyticsInsightsPrompt(makeData({
+      dailyInstallsDeletes: [
+        { date: "2026-03-01", installs: 0, deletes: 0 },
+      ],
+    }));
+
+    expect(prompt).not.toContain("Installs");
+  });
+
+  it("omits download trend when fewer than 6 days", () => {
+    const prompt = buildAnalyticsInsightsPrompt(makeData({
+      dailyDownloads: [
+        { date: "2026-03-01", firstTime: 100, redownload: 20, update: 50 },
+        { date: "2026-03-02", firstTime: 120, redownload: 25, update: 55 },
+      ],
+    }));
+
+    expect(prompt).not.toContain("Download trend");
+  });
+
+  it("handles pageViews > 0 but 0 downloads for conversion rate", () => {
+    const prompt = buildAnalyticsInsightsPrompt(makeData({
+      dailyDownloads: [
+        { date: "2026-03-01", firstTime: 0, redownload: 0, update: 0 },
+        { date: "2026-03-02", firstTime: 0, redownload: 0, update: 0 },
+        { date: "2026-03-03", firstTime: 0, redownload: 0, update: 0 },
+        { date: "2026-03-04", firstTime: 0, redownload: 0, update: 0 },
+        { date: "2026-03-05", firstTime: 0, redownload: 0, update: 0 },
+        { date: "2026-03-06", firstTime: 0, redownload: 0, update: 0 },
+      ],
+      dailyEngagement: [
+        { date: "2026-03-01", impressions: 100, pageViews: 50 },
+      ],
+    }));
+
+    expect(prompt).toContain("Conversion funnel");
+    expect(prompt).toContain("0%");
+  });
+
+  it("handles empty discovery sources", () => {
+    const prompt = buildAnalyticsInsightsPrompt(makeData({
+      discoverySources: [],
+    }));
+
+    expect(prompt).not.toContain("Discovery sources");
+  });
+
+  it("handles crashes with no crashesByVersion", () => {
+    const prompt = buildAnalyticsInsightsPrompt(makeData({
+      dailyCrashes: [
+        { date: "2026-03-01", crashes: 5, uniqueDevices: 3 },
+      ],
+      crashesByVersion: [],
+    }));
+
+    expect(prompt).toContain("Crashes");
+    expect(prompt).not.toContain("By version");
+  });
+
   it("handles empty downloads array", () => {
     const prompt = buildAnalyticsInsightsPrompt(makeData({
       dailyDownloads: [],
@@ -370,5 +487,139 @@ describe("buildAnalyticsInsightsPrompt", () => {
     expect(prompt).toContain("3–5 highlights");
     expect(prompt).toContain("2–4 opportunities");
     expect(prompt).toContain("actionable");
+  });
+});
+
+describe("buildInsightsPrompt", () => {
+  it("includes reviews and app name", () => {
+    const prompt = buildInsightsPrompt(
+      [{ rating: 5, title: "Great", body: "Love it" }],
+      "Weatherly",
+    );
+
+    expect(prompt).toContain("Weatherly");
+    expect(prompt).toContain("[5/5] Great: Love it");
+    expect(prompt).toContain("Strengths");
+    expect(prompt).toContain("Weaknesses");
+    expect(prompt).toContain("Potential");
+  });
+
+  it("works without appName", () => {
+    const prompt = buildInsightsPrompt(
+      [{ rating: 3, title: "OK", body: "Decent app" }],
+    );
+
+    expect(prompt).not.toContain("app is called");
+    expect(prompt).toContain("[3/5] OK: Decent app");
+  });
+});
+
+describe("buildIncrementalInsightsPrompt", () => {
+  it("includes existing insights, new reviews, and correct grammar", () => {
+    const prompt = buildIncrementalInsightsPrompt(
+      [{ rating: 4, title: "Nice", body: "Good update" }],
+      {
+        strengths: ["Fast performance"],
+        weaknesses: ["Battery drain"],
+        potential: ["Add widgets"],
+      },
+      11,
+    );
+
+    expect(prompt).toContain("10 App Store reviews");
+    expect(prompt).toContain("- Fast performance");
+    expect(prompt).toContain("- Battery drain");
+    expect(prompt).toContain("- Add widgets");
+    expect(prompt).toContain("[4/5] Nice: Good update");
+    // Singular grammar for 1 new review
+    expect(prompt).toContain("1 new review has");
+  });
+
+  it("uses plural grammar for multiple new reviews", () => {
+    const prompt = buildIncrementalInsightsPrompt(
+      [
+        { rating: 5, title: "A", body: "B" },
+        { rating: 3, title: "C", body: "D" },
+      ],
+      { strengths: [], weaknesses: [], potential: [] },
+      5,
+    );
+
+    expect(prompt).toContain("2 new reviews have");
+  });
+});
+
+describe("buildNominationPrompt", () => {
+  it("includes all fields", () => {
+    const prompt = buildNominationPrompt({
+      appName: "Weatherly",
+      versionString: "2.1.0",
+      whatsNew: "New radar feature",
+      promotionalText: "Best weather app",
+      description: "Check the weather easily.",
+      isLaunch: false,
+    });
+
+    expect(prompt).toContain("Weatherly");
+    expect(prompt).toContain("2.1.0");
+    expect(prompt).toContain("New radar feature");
+    expect(prompt).toContain("Best weather app");
+    expect(prompt).toContain("Check the weather easily.");
+    expect(prompt).toContain("app update");
+  });
+
+  it("truncates long descriptions over 1500 characters", () => {
+    const longDesc = "B".repeat(2000);
+    const prompt = buildNominationPrompt({
+      versionString: "1.0",
+      whatsNew: "Launch",
+      promotionalText: "",
+      description: longDesc,
+      isLaunch: true,
+    });
+
+    expect(prompt).toContain("...");
+    expect(prompt).not.toContain("B".repeat(2000));
+    expect(prompt).toContain("app launch");
+  });
+
+  it("omits whatsNew and promotionalText when empty", () => {
+    const prompt = buildNominationPrompt({
+      appName: "TestApp",
+      versionString: "1.0",
+      whatsNew: "",
+      promotionalText: "",
+      description: "A great app.",
+      isLaunch: true,
+    });
+
+    expect(prompt).not.toContain("What's new");
+    expect(prompt).not.toContain("Promotional text");
+    expect(prompt).toContain("A great app.");
+  });
+
+  it("includes description section when description is provided", () => {
+    const prompt = buildNominationPrompt({
+      versionString: "1.0",
+      whatsNew: "",
+      promotionalText: "",
+      description: "A powerful weather app.",
+      isLaunch: false,
+    });
+
+    expect(prompt).toContain("App description:");
+    expect(prompt).toContain("A powerful weather app.");
+  });
+
+  it("omits description section when description is empty", () => {
+    const prompt = buildNominationPrompt({
+      versionString: "1.0",
+      whatsNew: "Bug fixes",
+      promotionalText: "",
+      description: "",
+      isLaunch: false,
+    });
+
+    expect(prompt).not.toContain("App description:");
   });
 });

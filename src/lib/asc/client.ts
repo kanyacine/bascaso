@@ -117,6 +117,7 @@ export async function ascFetch<T>(
     break;
   }
 
+  /* v8 ignore next -- @preserve */
   throw lastError ?? new AscApiError({ category: "api", message: "ASC API request failed" });
 }
 

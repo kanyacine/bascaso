@@ -41,4 +41,8 @@ describe("sanitiseText", () => {
     expect(sanitiseText(undefined)).toBe("");
     expect(sanitiseText(null)).toBe("");
   });
+
+  it("converts numbers to string", () => {
+    expect(sanitiseText(42)).toBe("42");
+  });
 });

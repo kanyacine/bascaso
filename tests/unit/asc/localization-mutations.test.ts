@@ -3,14 +3,30 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const mockAscFetch = vi.fn();
 const mockCacheInvalidate = vi.fn();
 
-vi.mock("@/lib/asc/client", () => ({
-  ascFetch: (...args: unknown[]) => mockAscFetch(...args),
-}));
+vi.mock("@/lib/asc/client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/asc/client")>();
+  return {
+    ...actual,
+    ascFetch: (...args: unknown[]) => mockAscFetch(...args),
+  };
+});
 
 vi.mock("@/lib/cache", () => ({
   cacheInvalidate: (...args: unknown[]) => mockCacheInvalidate(...args),
 }));
 
+const mockListLocalizations = vi.fn();
+vi.mock("@/lib/asc/localizations", () => ({
+  listLocalizations: (...args: unknown[]) => mockListLocalizations(...args),
+}));
+
+const mockListAppInfoLocalizations = vi.fn();
+vi.mock("@/lib/asc/app-info", () => ({
+  listAppInfoLocalizations: (...args: unknown[]) => mockListAppInfoLocalizations(...args),
+}));
+
+import { AscApiError } from "@/lib/asc/client";
+import type { AscError } from "@/lib/asc/errors";
 import {
   updateVersionLocalization,
   createVersionLocalization,
@@ -22,10 +38,27 @@ import {
   invalidateAppInfoLocalizationsCache,
 } from "@/lib/asc/localization-mutations";
 
+function make409(): AscApiError {
+  const ascError: AscError = { category: "api", message: "Conflict", statusCode: 409 };
+  return new AscApiError(ascError);
+}
+
+function make404(): AscApiError {
+  const ascError: AscError = { category: "api", message: "Not found", statusCode: 404 };
+  return new AscApiError(ascError);
+}
+
+function make500(): AscApiError {
+  const ascError: AscError = { category: "connection", message: "Server error", statusCode: 500 };
+  return new AscApiError(ascError);
+}
+
 describe("localization-mutations", () => {
   beforeEach(() => {
     mockAscFetch.mockReset();
     mockCacheInvalidate.mockReset();
+    mockListLocalizations.mockReset();
+    mockListAppInfoLocalizations.mockReset();
   });
 
   describe("updateVersionLocalization", () => {
@@ -72,6 +105,46 @@ describe("localization-mutations", () => {
       expect(body.data.attributes.description).toBeUndefined();
       expect(body.data.relationships.appStoreVersion.data.id).toBe("ver-1");
     });
+
+    it("falls back to update on 409 when existing locale is found", async () => {
+      mockAscFetch
+        .mockRejectedValueOnce(make409())
+        .mockResolvedValueOnce({}); // the PATCH from updateVersionLocalization
+      mockListLocalizations.mockResolvedValue([
+        { id: "existing-loc-1", attributes: { locale: "de-DE" } },
+      ]);
+
+      const id = await createVersionLocalization("ver-1", "de-DE", { whatsNew: "Fix" });
+
+      expect(id).toBe("existing-loc-1");
+      expect(mockListLocalizations).toHaveBeenCalledWith("ver-1", true);
+      // Second call is the PATCH update
+      expect(mockAscFetch).toHaveBeenCalledTimes(2);
+    });
+
+    it("re-throws 409 when no existing locale matches", async () => {
+      mockAscFetch.mockRejectedValueOnce(make409());
+      mockListLocalizations.mockResolvedValue([
+        { id: "existing-loc-1", attributes: { locale: "fr-FR" } },
+      ]);
+
+      await expect(createVersionLocalization("ver-1", "de-DE", { whatsNew: "Fix" }))
+        .rejects.toThrow("Conflict");
+    });
+
+    it("re-throws non-409 errors", async () => {
+      mockAscFetch.mockRejectedValueOnce(make500());
+
+      await expect(createVersionLocalization("ver-1", "de-DE", { whatsNew: "Fix" }))
+        .rejects.toThrow("Server error");
+    });
+
+    it("re-throws non-AscApiError errors without checking statusCode", async () => {
+      mockAscFetch.mockRejectedValueOnce(new Error("Network failure"));
+
+      await expect(createVersionLocalization("ver-1", "de-DE", { whatsNew: "Fix" }))
+        .rejects.toThrow("Network failure");
+    });
   });
 
   describe("deleteVersionLocalization", () => {
@@ -84,6 +157,18 @@ describe("localization-mutations", () => {
         "/v1/appStoreVersionLocalizations/loc-1",
         expect.objectContaining({ method: "DELETE" }),
       );
+    });
+
+    it("swallows 404 errors", async () => {
+      mockAscFetch.mockRejectedValueOnce(make404());
+
+      await expect(deleteVersionLocalization("loc-1")).resolves.toBeUndefined();
+    });
+
+    it("throws non-404 errors", async () => {
+      mockAscFetch.mockRejectedValueOnce(make500());
+
+      await expect(deleteVersionLocalization("loc-1")).rejects.toThrow("Server error");
     });
   });
 
@@ -127,6 +212,38 @@ describe("localization-mutations", () => {
       expect(body.data.attributes.subtitle).toBeUndefined();
       expect(body.data.relationships.appInfo.data.id).toBe("info-1");
     });
+
+    it("falls back to update on 409 when existing locale is found", async () => {
+      mockAscFetch
+        .mockRejectedValueOnce(make409())
+        .mockResolvedValueOnce({}); // the PATCH from updateAppInfoLocalization
+      mockListAppInfoLocalizations.mockResolvedValue([
+        { id: "existing-info-loc-1", attributes: { locale: "fr-FR" } },
+      ]);
+
+      const id = await createAppInfoLocalization("info-1", "fr-FR", { name: "Mon App" });
+
+      expect(id).toBe("existing-info-loc-1");
+      expect(mockListAppInfoLocalizations).toHaveBeenCalledWith("info-1", true);
+      expect(mockAscFetch).toHaveBeenCalledTimes(2);
+    });
+
+    it("re-throws 409 when no existing locale matches", async () => {
+      mockAscFetch.mockRejectedValueOnce(make409());
+      mockListAppInfoLocalizations.mockResolvedValue([
+        { id: "existing-info-loc-1", attributes: { locale: "de-DE" } },
+      ]);
+
+      await expect(createAppInfoLocalization("info-1", "fr-FR", { name: "Mon App" }))
+        .rejects.toThrow("Conflict");
+    });
+
+    it("re-throws non-AscApiError errors without checking statusCode", async () => {
+      mockAscFetch.mockRejectedValueOnce(new Error("Network failure"));
+
+      await expect(createAppInfoLocalization("info-1", "fr-FR", { name: "Mon App" }))
+        .rejects.toThrow("Network failure");
+    });
   });
 
   describe("deleteAppInfoLocalization", () => {
@@ -139,6 +256,18 @@ describe("localization-mutations", () => {
         "/v1/appInfoLocalizations/info-loc-1",
         expect.objectContaining({ method: "DELETE" }),
       );
+    });
+
+    it("swallows 404 errors", async () => {
+      mockAscFetch.mockRejectedValueOnce(make404());
+
+      await expect(deleteAppInfoLocalization("info-loc-1")).resolves.toBeUndefined();
+    });
+
+    it("throws non-404 errors", async () => {
+      mockAscFetch.mockRejectedValueOnce(make500());
+
+      await expect(deleteAppInfoLocalization("info-loc-1")).rejects.toThrow("Server error");
     });
   });
 
