@@ -17,7 +17,7 @@ vi.mock("@/lib/license-shared", async (importOriginal) => {
   return { ...original, IS_MAS: true };
 });
 
-import { resetProCache, isPro, getLicense, clearLicense } from "@/lib/license";
+import { resetProCache, isPro, getLicense } from "@/lib/license";
 
 describe("license/storekit route", () => {
   let originalKey: string | undefined;

@@ -93,8 +93,8 @@ describe("credentials: activate (switch account)", () => {
   });
 
   it("only one credential is active after switching", () => {
-    const id1 = insertCred(db, { name: "A", isActive: true });
-    const id2 = insertCred(db, { name: "B", isActive: false });
+    insertCred(db, { name: "A", isActive: true });
+    insertCred(db, { name: "B", isActive: false });
     const id3 = insertCred(db, { name: "C", isActive: false });
 
     // Switch to C

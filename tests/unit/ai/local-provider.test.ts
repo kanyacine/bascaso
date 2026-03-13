@@ -274,7 +274,8 @@ describe("ensureLocalModelLoaded", () => {
     // Force this by making URL constructor always throw so all URL parsing fails.
     const OriginalURL = globalThis.URL;
     vi.stubGlobal("URL", class extends OriginalURL {
-      constructor(_input: string | URL, _base?: string | URL) {
+      constructor(input: string | URL, base?: string | URL) {
+        super(input, base);
         throw new Error("Invalid URL");
       }
     });
@@ -436,8 +437,7 @@ describe("ensureLocalModelLoaded", () => {
       if (url.endsWith("/api/v1/models")) {
         return new Response(JSON.stringify({ models: [] }), { status: 200 });
       }
-      // eslint-disable-next-line no-throw-literal
-      throw "something went wrong";
+      throw new Error("something went wrong");
     });
     vi.stubGlobal("fetch", fetchMock);
 

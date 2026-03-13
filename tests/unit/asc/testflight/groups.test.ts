@@ -868,7 +868,7 @@ describe("listGroups – branch coverage", () => {
     mockCacheGet.mockReturnValue(null);
 
     let callCount = 0;
-    mockAscFetch.mockImplementation((url: string) => {
+    mockAscFetch.mockImplementation((_url: string) => {
       callCount++;
       // First call: betaGroups list
       if (callCount === 1) {
@@ -1103,7 +1103,7 @@ describe("getGroupDetail – branch coverage", () => {
     const build = makeBuildResource("b1");
 
     let callCount = 0;
-    mockAscFetch.mockImplementation((url: string) => {
+    mockAscFetch.mockImplementation((_url: string) => {
       callCount++;
       // 1) Group fetch
       if (callCount === 1) return Promise.resolve({ data: group });
