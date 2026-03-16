@@ -368,8 +368,10 @@ export default function NominationDetailPage() {
     setConfirmSubmitOpen(false);
     setSubmitting(true);
     try {
-      // Save any pending changes first
-      if (formDirtyFlag) await onSave();
+      // Save any pending changes first (existing drafts only – new
+      // nominations go straight to create-with-submitted to avoid a
+      // duplicate draft).
+      if (!isNew && formDirtyFlag) await onSave();
 
       if (isNew) {
         // For new: create with submitted: true
