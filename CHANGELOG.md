@@ -7,6 +7,7 @@
 - Fix submitting a new nomination creating a duplicate draft
 - Fix ASC rate limit errors when saving many locales at once
 - Only save changed locales instead of all locales on store listing and app details
+- Fix control characters from AI models causing ASC save failures on name and subtitle
 - Fix all linting and React compiler errors, make lint failures block CI
 
 ## 1.6.1

@@ -9,10 +9,37 @@ const URL_FIELDS = new Set([
   "privacyChoicesUrl",
 ]);
 
+/** Multi-line fields where newlines (\n) are valid content. */
+const MULTILINE_FIELDS = new Set([
+  "description",
+  "whatsNew",
+  "promotionalText",
+]);
+
+/**
+ * Strip control characters that ASC rejects (null, carriage return, tab,
+ * escape, zero-width chars, etc.). For multi-line fields, preserve \n.
+ */
+function stripControlChars(value: string, allowNewlines: boolean): string {
+  // \x00-\x1f covers null, tab, newline, carriage return, escape, etc.
+  // \x7f is DEL. \u200b-\u200f and \ufeff are zero-width/invisible chars.
+  if (allowNewlines) {
+    // Keep \n, strip everything else
+    return value.replace(/[\x00-\x09\x0b-\x1f\x7f\u200b-\u200f\ufeff]/g, "");
+  }
+  return value.replace(/[\x00-\x1f\x7f\u200b-\u200f\ufeff]/g, "");
+}
+
 function cleanAttributes(attrs: Record<string, unknown>): Record<string, unknown> {
   const cleaned: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(attrs)) {
-    cleaned[k] = URL_FIELDS.has(k) && v === "" ? null : v;
+    if (URL_FIELDS.has(k) && v === "") {
+      cleaned[k] = null;
+    } else if (typeof v === "string") {
+      cleaned[k] = stripControlChars(v, MULTILINE_FIELDS.has(k));
+    } else {
+      cleaned[k] = v;
+    }
   }
   return cleaned;
 }

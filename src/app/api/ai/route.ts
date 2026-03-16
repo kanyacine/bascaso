@@ -231,9 +231,15 @@ export async function POST(request: Request) {
       );
     }
 
+    // Strip control characters from single-line fields (name, subtitle, keywords).
+    // LLMs (especially local models) sometimes output newlines or invisible chars.
+    const singleLineField = field === "keywords" || field === "name" || field === "subtitle";
+    let cleaned = singleLineField
+      ? result.replace(/[\x00-\x1f\x7f\u200b-\u200f\ufeff]/g, "").trim()
+      : result;
+
     // For fix-keywords: split multi-word keywords first (Apple indexes words
     // individually), then strip forbidden words so individual words are caught.
-    let cleaned = result;
     if (action === "fix-keywords") {
       // Split multi-word keywords: "clipboard history" → "clipboard,history"
       const splitWords = (s: string) =>
