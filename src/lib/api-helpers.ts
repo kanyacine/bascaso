@@ -86,74 +86,74 @@ export async function syncLocalizations(
   const { locales, originalLocaleIds } = body;
   const errors: SyncError[] = [];
   const createdIds: Record<string, string> = {};
-  const ops: Promise<void>[] = [];
 
   console.log("[syncLocalizations] parentId=%s locales=%s existing=%s", parentId, Object.keys(locales).join(","), Object.keys(originalLocaleIds).join(","));
+
+  // Process mutations sequentially to avoid hitting ASC rate limits.
+  // Parallel requests caused RATE_LIMIT_EXCEEDED errors for users with many locales.
 
   for (const [locale, fields] of Object.entries(locales)) {
     const existingId = originalLocaleIds[locale];
     if (existingId) {
       console.log("[syncLocalizations] update locale=%s id=%s fields=%s", locale, existingId, Object.keys(fields).join(","));
-      ops.push(
-        mutations.update(existingId, fields).catch((err) => {
-          const syncErr: SyncError = {
-            operation: "update",
-            locale,
-            message: err instanceof Error ? err.message : "failed",
-          };
-          if (err instanceof AscApiError) {
-            syncErr.ascErrors = err.ascError.entries;
-            syncErr.ascMethod = err.ascError.method;
-            syncErr.ascPath = err.ascError.path;
-          }
-          errors.push(syncErr);
-        }),
-      );
+      try {
+        await mutations.update(existingId, fields);
+      } catch (err) {
+        const syncErr: SyncError = {
+          operation: "update",
+          locale,
+          message: err instanceof Error ? err.message : "failed",
+        };
+        if (err instanceof AscApiError) {
+          syncErr.ascErrors = err.ascError.entries;
+          syncErr.ascMethod = err.ascError.method;
+          syncErr.ascPath = err.ascError.path;
+        }
+        errors.push(syncErr);
+      }
     } else {
       console.log("[syncLocalizations] create locale=%s fields=%s", locale, Object.keys(fields).join(","));
-      ops.push(
-        mutations.create(parentId, locale, fields).then((id) => {
-          console.log("[syncLocalizations] created locale=%s id=%s", locale, id);
-          createdIds[locale] = id;
-        }).catch((err) => {
-          const syncErr: SyncError = {
-            operation: "create",
-            locale,
-            message: err instanceof Error ? err.message : "failed",
-          };
-          if (err instanceof AscApiError) {
-            syncErr.ascErrors = err.ascError.entries;
-            syncErr.ascMethod = err.ascError.method;
-            syncErr.ascPath = err.ascError.path;
-          }
-          errors.push(syncErr);
-        }),
-      );
+      try {
+        const id = await mutations.create(parentId, locale, fields);
+        console.log("[syncLocalizations] created locale=%s id=%s", locale, id);
+        createdIds[locale] = id;
+      } catch (err) {
+        const syncErr: SyncError = {
+          operation: "create",
+          locale,
+          message: err instanceof Error ? err.message : "failed",
+        };
+        if (err instanceof AscApiError) {
+          syncErr.ascErrors = err.ascError.entries;
+          syncErr.ascMethod = err.ascError.method;
+          syncErr.ascPath = err.ascError.path;
+        }
+        errors.push(syncErr);
+      }
     }
   }
 
   for (const [locale, locId] of Object.entries(originalLocaleIds)) {
     if (!locales[locale]) {
-      ops.push(
-        mutations.delete(locId).catch((err) => {
-          const syncErr: SyncError = {
-            operation: "delete",
-            locale,
-            message: err instanceof Error ? err.message : "failed",
-          };
-          if (err instanceof AscApiError) {
-            syncErr.ascErrors = err.ascError.entries;
-            syncErr.ascMethod = err.ascError.method;
-            syncErr.ascPath = err.ascError.path;
-          }
-          errors.push(syncErr);
-        }),
-      );
+      try {
+        await mutations.delete(locId);
+      } catch (err) {
+        const syncErr: SyncError = {
+          operation: "delete",
+          locale,
+          message: err instanceof Error ? err.message : "failed",
+        };
+        if (err instanceof AscApiError) {
+          syncErr.ascErrors = err.ascError.entries;
+          syncErr.ascMethod = err.ascError.method;
+          syncErr.ascPath = err.ascError.path;
+        }
+        errors.push(syncErr);
+      }
     }
   }
 
-  await Promise.allSettled(ops);
-  console.log("[syncLocalizations] all ops settled, errors=%d created=%s", errors.length, Object.keys(createdIds).join(","));
+  console.log("[syncLocalizations] all ops done, errors=%d created=%s", errors.length, Object.keys(createdIds).join(","));
   mutations.invalidateCache();
 
   if (errors.length > 0) {

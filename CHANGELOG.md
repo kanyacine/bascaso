@@ -5,6 +5,7 @@
 - Add magic wand button to app name field in app details (translate, copy, improve)
 - Fix app details allowing locale add/delete when version is locked
 - Fix submitting a new nomination creating a duplicate draft
+- Fix ASC rate limit errors when saving many locales at once
 - Fix all linting and React compiler errors, make lint failures block CI
 
 ## 1.6.1
