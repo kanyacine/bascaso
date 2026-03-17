@@ -5,15 +5,51 @@ import { hasCredentials } from "@/lib/asc/client";
 import { listVersions } from "@/lib/asc/versions";
 import { listLocalizations } from "@/lib/asc/localizations";
 import { listAppInfos, listAppInfoLocalizations } from "@/lib/asc/app-info";
+import { pickAppInfo } from "@/lib/asc/app-info-utils";
 import { updateVersionLocalization } from "@/lib/asc/localization-mutations";
 import { updateAppInfoLocalization } from "@/lib/asc/localization-mutations";
 import { EDITABLE_STATES } from "@/lib/asc/version-types";
+import { buildForbiddenKeywords } from "@/lib/asc/keyword-utils";
+import { FIELD_LIMITS } from "@/lib/asc/locale-names";
 import { emitChange } from "@/mcp/events";
 import { cacheSet } from "@/lib/cache";
 
 const LISTING_FIELDS = ["whatsNew", "description", "keywords", "promotionalText"] as const;
 const DETAIL_FIELDS = ["name", "subtitle"] as const;
 const ALL_FIELDS = [...LISTING_FIELDS, ...DETAIL_FIELDS] as const;
+
+async function fixKeywords(
+  translatedKeywords: string,
+  locale: string,
+  appName: string,
+  subtitle: string | undefined,
+  description: string | undefined,
+  forbiddenWords: string[],
+): Promise<string> {
+  const res = await fetch("http://127.0.0.1:" + (process.env.PORT ?? "3000") + "/api/ai", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action: "fix-keywords",
+      text: translatedKeywords,
+      field: "keywords",
+      locale,
+      appName,
+      subtitle,
+      description,
+      charLimit: 100,
+      forbiddenWords,
+    }),
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error((data as { error?: string }).error ?? `AI fix-keywords failed (${res.status})`);
+  }
+
+  const data = await res.json() as { result: string };
+  return data.result;
+}
 
 async function translateText(
   text: string,
@@ -32,6 +68,7 @@ async function translateText(
       fromLocale,
       toLocale,
       appName,
+      charLimit: FIELD_LIMITS[field],
     }),
   });
 
@@ -114,7 +151,7 @@ export function registerTranslate(server: McpServer): void {
           };
         }
 
-        const localizations = await listLocalizations(versionId);
+        const localizations = await listLocalizations(versionId, true);
         const localeMap = new Map(localizations.map((l) => [l.attributes.locale, l]));
 
         const sourceLoc = localeMap.get(sourceLocale);
@@ -129,6 +166,12 @@ export function registerTranslate(server: McpServer): void {
           ? targetLocales.filter((l) => l !== sourceLocale && localeMap.has(l))
           : [...localeMap.keys()].filter((l) => l !== sourceLocale);
 
+        // Collect other locales' keywords for forbidden-word deduplication
+        const otherKeywords: Record<string, string> = {};
+        for (const [loc, data] of localeMap) {
+          if (data.attributes.keywords) otherKeywords[loc] = data.attributes.keywords;
+        }
+
         for (const field of listingFields) {
           const sourceText = sourceLoc.attributes[field];
           if (!sourceText) {
@@ -139,8 +182,33 @@ export function registerTranslate(server: McpServer): void {
           for (const locale of targets) {
             try {
               const translated = await translateText(sourceText, sourceLocale, locale, field, appName);
+
+              let finalValue = translated;
+              if (field === "keywords") {
+                // Keywords need special handling: translate → strip forbidden → fix budget
+                const forbidden = buildForbiddenKeywords({
+                  appName,
+                  subtitle: sourceLoc.attributes.promotionalText || undefined,
+                  otherLocaleKeywords: otherKeywords,
+                });
+                const forbiddenSet = new Set(forbidden.map((w) => w.toLowerCase()));
+                const stripped = translated
+                  .split(",")
+                  .map((w) => w.trim())
+                  .filter((w) => w && !forbiddenSet.has(w.toLowerCase()))
+                  .join(",");
+                finalValue = await fixKeywords(
+                  stripped,
+                  locale,
+                  appName,
+                  sourceLoc.attributes.description || undefined,
+                  undefined,
+                  forbidden,
+                );
+              }
+
               const loc = localeMap.get(locale)!;
-              await updateVersionLocalization(loc.id, { [field]: translated });
+              await updateVersionLocalization(loc.id, { [field]: finalValue });
               results.push(`${field} → ${locale}: done`);
             } catch (err) {
               errors.push(`${field} → ${locale}: ${err instanceof Error ? err.message : String(err)}`);
@@ -158,8 +226,8 @@ export function registerTranslate(server: McpServer): void {
         if (appInfos.length === 0) {
           errors.push("No app info found.");
         } else {
-          const appInfo = appInfos[0]!;
-          const localizations = await listAppInfoLocalizations(appInfo.id);
+          const appInfo = pickAppInfo(appInfos)!;
+          const localizations = await listAppInfoLocalizations(appInfo.id, true);
           const localeMap = new Map(localizations.map((l) => [l.attributes.locale, l]));
 
           const sourceLoc = localeMap.get(sourceLocale);

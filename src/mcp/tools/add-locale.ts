@@ -2,9 +2,11 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import * as z from "zod/v4";
 import { hasCredentials } from "@/lib/asc/client";
+import { listApps } from "@/lib/asc/apps";
 import { listVersions } from "@/lib/asc/versions";
 import { listLocalizations } from "@/lib/asc/localizations";
 import { listAppInfos, listAppInfoLocalizations } from "@/lib/asc/app-info";
+import { pickAppInfo } from "@/lib/asc/app-info-utils";
 import {
   createVersionLocalization,
   invalidateLocalizationsCache,
@@ -64,8 +66,11 @@ export function registerAddLocale(server: McpServer): void {
       }
 
       // Get primary locale's fields to copy as initial values
+      const apps = await listApps();
+      const app = apps.find((a) => a.id === appId);
+      const primaryLocaleCode = app?.attributes.primaryLocale ?? "en-US";
       const primaryLocale = existing.find(
-        (l) => l.attributes.locale === (version.attributes as Record<string, unknown>).primaryLocale,
+        (l) => l.attributes.locale === primaryLocaleCode,
       ) ?? existing[0];
 
       const attrs: Record<string, unknown> = {};
@@ -86,14 +91,14 @@ export function registerAddLocale(server: McpServer): void {
         // Apple auto-creates the app info localization – update it with primary locale's name/subtitle
         const appInfos = await listAppInfos(appId);
         if (appInfos.length > 0) {
-          const appInfo = appInfos[0]!;
+          const appInfo = pickAppInfo(appInfos)!;
           const infoLocs = await listAppInfoLocalizations(appInfo.id, true);
           const autoCreated = infoLocs.find((l) => l.attributes.locale === locale);
           if (autoCreated) {
             // Copy name/subtitle from primary locale
             const primaryInfo = infoLocs.find(
-              (l) => l.attributes.locale !== locale,
-            );
+              (l) => l.attributes.locale === primaryLocaleCode,
+            ) ?? infoLocs.find((l) => l.attributes.locale !== locale);
             if (primaryInfo) {
               const infoAttrs: Record<string, unknown> = {};
               if (primaryInfo.attributes.name) infoAttrs.name = primaryInfo.attributes.name;

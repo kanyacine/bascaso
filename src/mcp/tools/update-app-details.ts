@@ -3,6 +3,7 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import * as z from "zod/v4";
 import { hasCredentials } from "@/lib/asc/client";
 import { listAppInfos, listAppInfoLocalizations } from "@/lib/asc/app-info";
+import { pickAppInfo } from "@/lib/asc/app-info-utils";
 import { updateAppInfoLocalization } from "@/lib/asc/localization-mutations";
 import { cacheSet } from "@/lib/cache";
 import { emitChange } from "@/mcp/events";
@@ -46,7 +47,7 @@ export function registerUpdateAppDetails(server: McpServer): void {
         };
       }
 
-      const appInfo = appInfos[0]!;
+      const appInfo = pickAppInfo(appInfos)!;
       const localizations = await listAppInfoLocalizations(appInfo.id);
       const loc = localizations.find((l) => l.attributes.locale === locale);
       if (!loc) {

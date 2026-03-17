@@ -5,6 +5,7 @@ import { hasCredentials } from "@/lib/asc/client";
 import { listVersions } from "@/lib/asc/versions";
 import { listLocalizations } from "@/lib/asc/localizations";
 import { listAppInfos, listAppInfoLocalizations } from "@/lib/asc/app-info";
+import { pickAppInfo } from "@/lib/asc/app-info-utils";
 import {
   deleteVersionLocalization,
   deleteAppInfoLocalization,
@@ -28,11 +29,11 @@ export function registerRemoveLocale(server: McpServer): void {
         appId: z.string().describe("The App Store Connect app ID"),
         versionId: z.string().describe("The app store version ID"),
         locale: z.string().describe("Locale code to remove (e.g. 'de-DE')"),
-        confirm: z.boolean().describe("Must be true to confirm deletion"),
+        confirm: z.string().describe("Must be 'true' to confirm deletion"),
       }),
     },
     async ({ appId, versionId, locale, confirm }): Promise<CallToolResult> => {
-      if (!confirm) {
+      if (confirm !== "true") {
         return {
           isError: true,
           content: [{ type: "text", text: "Set confirm=true to proceed. This will permanently delete all content for this locale." }],
@@ -94,7 +95,7 @@ export function registerRemoveLocale(server: McpServer): void {
       // Delete app info localization (app details)
       const appInfos = await listAppInfos(appId);
       if (appInfos.length > 0) {
-        const appInfo = appInfos[0]!;
+        const appInfo = pickAppInfo(appInfos)!;
         const infoLocs = await listAppInfoLocalizations(appInfo.id, true);
         const infoLoc = infoLocs.find((l) => l.attributes.locale === locale);
         if (infoLoc) {
