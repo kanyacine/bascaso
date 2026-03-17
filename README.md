@@ -16,7 +16,7 @@
 
 ---
 
-A macOS desktop app that replaces Apple's App Store Connect web dashboard. Edit metadata across all locales at once, manage TestFlight builds and testers, review analytics, respond to customer reviews, and submit nominations – all from a single desktop window. AI translates your descriptions, keywords, review replies, and even screenshots into every language with one click.
+A desktop app and self-hosted web dashboard that replaces Apple's App Store Connect. Edit metadata across all locales at once, manage TestFlight builds and testers, review analytics, respond to customer reviews, and submit nominations – all from a single desktop window. AI translates your descriptions, keywords, review replies, and even screenshots into every language with one click.
 
 Everything runs locally. One SQLite database, no cloud, no accounts, no telemetry. Credentials are encrypted with AES-256-GCM and the master key lives in the macOS Keychain.
 
@@ -53,6 +53,8 @@ Everything runs locally. One SQLite database, no cloud, no accounts, no telemetr
 
 **Nominations** – browse, edit, and submit App Store nominations. AI-powered fill generates nomination answers from your app metadata with one click.
 
+**Dark mode** – full light and dark theme support, follows your system appearance or can be set manually.
+
 **Privacy and security** – local-first architecture. All data stays on your Mac in a single SQLite file. Credentials encrypted with AES-256-GCM envelope encryption, master key stored in the macOS Keychain. No cloud, no accounts, no telemetry.
 
 ## Free vs Pro
@@ -80,6 +82,65 @@ npm run electron:dev
 ```
 
 The setup wizard will guide you through connecting your App Store Connect credentials.
+
+## Self-hosting with Docker
+
+Run Itsyconnect as a web app on your local network or server.
+
+```bash
+# Generate a master key
+export ENCRYPTION_MASTER_KEY=$(openssl rand -hex 32)
+
+# Start the container
+docker compose up -d
+```
+
+The app will be available at `http://localhost:3000`. The setup wizard will guide you through connecting your App Store Connect credentials.
+
+If you don't provide `ENCRYPTION_MASTER_KEY`, one is auto-generated and saved to the data volume on first run.
+
+### Reverse proxy with authentication
+
+The Docker container has no built-in authentication. If you expose it beyond your local machine, put it behind a reverse proxy with basic auth.
+
+**Caddy** (recommended – automatic HTTPS):
+
+```
+itsyconnect.example.com {
+    basicauth {
+        admin $2a$14$... # caddy hash-password
+    }
+    reverse_proxy localhost:3000
+}
+```
+
+Generate a password hash with `caddy hash-password`, then paste it into the Caddyfile.
+
+**Nginx:**
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name itsyconnect.example.com;
+
+    auth_basic "Itsyconnect";
+    auth_basic_user_file /etc/nginx/.htpasswd;
+
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+```
+
+Generate credentials with `htpasswd -c /etc/nginx/.htpasswd admin`.
+
+**Tailscale** – if you just want access from your own devices without exposing anything to the public internet, put the machine on your tailnet and access it via the Tailscale IP. No auth config needed.
+
+### Data persistence
+
+All data (SQLite database, master key) is stored in the `/app/data` volume. Back up this directory to preserve your configuration and cached analytics.
 
 ## Development
 

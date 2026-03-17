@@ -1,0 +1,13 @@
+node_modules
+.next
+out
+coverage
+data
+.git
+.DS_Store
+*.provisionprofile
+*.pem
+electron/*.js
+electron/*.js.map
+scripts/output
+npm-debug.log*
