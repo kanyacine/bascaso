@@ -4,15 +4,30 @@ import { listLocalizations } from "@/lib/asc/localizations";
 import { listAppInfos, listAppInfoLocalizations } from "@/lib/asc/app-info";
 import { pickAppInfo } from "@/lib/asc/app-info-utils";
 import { EDITABLE_STATES } from "@/lib/asc/version-types";
+import { isPro, FREE_LIMITS } from "@/lib/license";
+import { getFreeSelectedAppId } from "@/lib/app-preferences";
 import type { AscApp } from "@/lib/asc/apps";
 import type { AscVersion } from "@/lib/asc/version-types";
 
 export type ResolveError = { error: string };
 
+/** Return apps respecting the free tier limit. */
+export async function visibleApps(): Promise<AscApp[]> {
+  const all = await listApps();
+  if (isPro()) return all;
+  if (all.length <= FREE_LIMITS.apps) return all;
+  const selectedId = getFreeSelectedAppId();
+  if (selectedId) {
+    const selected = all.find((a) => a.id === selectedId);
+    if (selected) return [selected];
+  }
+  return all.slice(0, FREE_LIMITS.apps);
+}
+
 export async function resolveApp(
   appName: string,
 ): Promise<AscApp | ResolveError> {
-  const apps = await listApps();
+  const apps = await visibleApps();
 
   // Try exact match first, then case-insensitive, then partial
   const exact = apps.find((a) => a.attributes.name === appName);

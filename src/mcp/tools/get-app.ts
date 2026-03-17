@@ -2,13 +2,12 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import * as z from "zod/v4";
 import { hasCredentials } from "@/lib/asc/client";
-import { listApps } from "@/lib/asc/apps";
 import { listVersions } from "@/lib/asc/versions";
 import { listLocalizations } from "@/lib/asc/localizations";
 import { listAppInfos, listAppInfoLocalizations } from "@/lib/asc/app-info";
 import { pickAppInfo } from "@/lib/asc/app-info-utils";
 import { EDITABLE_STATES } from "@/lib/asc/version-types";
-import { resolveApp, resolveVersion, isError } from "@/mcp/resolve";
+import { resolveApp, resolveVersion, visibleApps, isError } from "@/mcp/resolve";
 
 export function registerGetApp(server: McpServer): void {
   server.registerTool(
@@ -37,7 +36,7 @@ export function registerGetApp(server: McpServer): void {
 
       // No app specified – list all apps
       if (!app) {
-        const apps = await listApps();
+        const apps = await visibleApps();
         const lines = apps.map(
           (a) => `${a.attributes.name} (${a.attributes.primaryLocale})`,
         );
