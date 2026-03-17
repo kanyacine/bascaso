@@ -248,12 +248,20 @@ function McpSection({
   onCopy: (name: string, text: string) => void;
 }) {
   return (
-    <section className="space-y-4">
+    <section className="space-y-2">
       <h3 className="section-title">MCP server</h3>
       <p className="text-sm text-muted-foreground">
         Expose an MCP server so AI coding assistants can interact with your App Store Connect data.
+        {" "}
+        <button
+          type="button"
+          onClick={() => window.open("https://github.com/nickustinov/itsyconnect-macos/blob/main/docs/MCP.md", "_blank")}
+          className="underline underline-offset-4 hover:text-foreground"
+        >
+          Learn more
+        </button>
       </p>
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 pt-2">
         <Switch id="mcp-enabled" checked={enabled} onCheckedChange={onToggle} />
         <Label htmlFor="mcp-enabled" className="text-sm">
           Enable MCP server
