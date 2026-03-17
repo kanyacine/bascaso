@@ -2,9 +2,8 @@
 
 ## 1.7.0
 
-- Add self-hosting with Docker – run Itsyconnect as a web app on your local network or server
 - Add MCP server – manage your app listings from AI coding tools (Claude Code, Codex, Cursor, OpenCode)
-- Add dark mode – full light and dark theme support
+- Add self-hosting with Docker – run Itsyconnect as a web app on your local network or server
 - Add magic wand button on app name field in app details (translate, copy, improve)
 - Only save changed locales instead of all locales on store listing and app details
 - Fix duplicate "Toggle full screen" item in the View menu on macOS
