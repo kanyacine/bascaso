@@ -12,7 +12,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Monitor, Moon, Sun, CheckCircle, XCircle } from "@phosphor-icons/react";
+import { Input } from "@/components/ui/input";
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
+import { Monitor, Moon, Sun, CheckCircle, XCircle, Copy, Check, CaretRight } from "@phosphor-icons/react";
 import { Spinner } from "@/components/ui/spinner";
 import { IS_MAS } from "@/lib/license-shared";
 
@@ -30,9 +32,23 @@ export default function GeneralPage() {
   const [autoCheck, setAutoCheck] = useState(true);
   const [updateState, setUpdateState] = useState<UpdateState>("idle");
   const [errorMessage, setErrorMessage] = useState("");
+  const [mcpEnabled, setMcpEnabled] = useState(false);
+  const [mcpPort, setMcpPort] = useState(3100);
+  const [mcpLoading, setMcpLoading] = useState(true);
+  const [copiedSnippet, setCopiedSnippet] = useState<string | null>(null);
 
   // eslint-disable-next-line react-hooks/set-state-in-effect -- mounted guard for SSR hydration
   useEffect(() => { setMounted(true); }, []);
+
+  useEffect(() => {
+    fetch("/api/settings/mcp")
+      .then((r) => r.json())
+      .then((d) => {
+        setMcpEnabled(d.enabled);
+        setMcpPort(d.port);
+      })
+      .finally(() => setMcpLoading(false));
+  }, []);
 
   useEffect(() => {
     if (IS_MAS) return;
@@ -52,6 +68,34 @@ export default function GeneralPage() {
     setUpdateState("checking");
     setErrorMessage("");
     window.electron?.updates.checkNow();
+  }
+
+  async function handleMcpToggle(enabled: boolean) {
+    setMcpEnabled(enabled);
+    await fetch("/api/settings/mcp", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled }),
+    });
+  }
+
+  async function handleMcpPortChange(port: number) {
+    setMcpPort(port);
+  }
+
+  async function handleMcpPortBlur() {
+    if (mcpPort < 1024 || mcpPort > 65535) return;
+    await fetch("/api/settings/mcp", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ port: mcpPort }),
+    });
+  }
+
+  function copySnippet(name: string, text: string) {
+    navigator.clipboard.writeText(text);
+    setCopiedSnippet(name);
+    setTimeout(() => setCopiedSnippet(null), 2000);
   }
 
   if (!mounted) return null;
@@ -132,6 +176,137 @@ export default function GeneralPage() {
           System follows your macOS appearance setting.
         </p>
       </section>
+
+      {!mcpLoading && !IS_MAS && (
+        <McpSection
+          enabled={mcpEnabled}
+          port={mcpPort}
+          copiedSnippet={copiedSnippet}
+          onToggle={handleMcpToggle}
+          onPortChange={handleMcpPortChange}
+          onPortBlur={handleMcpPortBlur}
+          onCopy={copySnippet}
+        />
+      )}
     </div>
+  );
+}
+
+interface McpClientConfig {
+  name: string;
+  key: string;
+  snippet: (port: number) => string;
+  description: string;
+}
+
+const MCP_CLIENTS: McpClientConfig[] = [
+  {
+    name: "Claude Code",
+    key: "claude-code",
+    description: "Run in your terminal:",
+    snippet: (port) =>
+      `claude mcp add --transport http itsyconnect http://127.0.0.1:${port}/mcp`,
+  },
+  {
+    name: "Codex",
+    key: "codex",
+    description: "Add to ~/.codex/config.toml:",
+    snippet: (port) =>
+      `[mcp.itsyconnect]\ntype = "remote"\nurl = "http://127.0.0.1:${port}/mcp"`,
+  },
+  {
+    name: "Cursor",
+    key: "cursor",
+    description: "Add to ~/.cursor/mcp.json:",
+    snippet: (port) =>
+      JSON.stringify({ mcpServers: { itsyconnect: { url: `http://127.0.0.1:${port}/mcp` } } }, null, 2),
+  },
+  {
+    name: "OpenCode",
+    key: "opencode",
+    description: "Add to opencode.json under mcp:",
+    snippet: (port) =>
+      JSON.stringify({ itsyconnect: { type: "remote", url: `http://127.0.0.1:${port}/mcp` } }, null, 2),
+  },
+];
+
+function McpSection({
+  enabled,
+  port,
+  copiedSnippet,
+  onToggle,
+  onPortChange,
+  onPortBlur,
+  onCopy,
+}: {
+  enabled: boolean;
+  port: number;
+  copiedSnippet: string | null;
+  onToggle: (v: boolean) => void;
+  onPortChange: (v: number) => void;
+  onPortBlur: () => void;
+  onCopy: (name: string, text: string) => void;
+}) {
+  return (
+    <section className="space-y-4">
+      <h3 className="section-title">MCP server</h3>
+      <p className="text-sm text-muted-foreground">
+        Expose an MCP server so AI coding assistants can interact with your App Store Connect data.
+      </p>
+      <div className="flex items-center gap-3">
+        <Switch id="mcp-enabled" checked={enabled} onCheckedChange={onToggle} />
+        <Label htmlFor="mcp-enabled" className="text-sm">
+          Enable MCP server
+        </Label>
+      </div>
+      {enabled && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <Label className="w-12 text-sm">Port</Label>
+            <Input
+              type="number"
+              value={port}
+              onChange={(e) => onPortChange(Number(e.target.value))}
+              onBlur={onPortBlur}
+              className="w-24 font-mono text-sm"
+              min={1024}
+              max={65535}
+            />
+          </div>
+          <div className="space-y-1">
+            <p className="text-sm text-muted-foreground">
+              Connect your AI coding tool:
+            </p>
+            {MCP_CLIENTS.map(({ name, key, description, snippet }) => {
+              const text = snippet(port);
+              const isCopied = copiedSnippet === key;
+              return (
+                <Collapsible key={key}>
+                  <CollapsibleTrigger className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted/50 [&[data-state=open]>svg]:rotate-90">
+                    <CaretRight size={12} className="shrink-0 transition-transform" />
+                    {name}
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="pl-6 pt-1 pb-2">
+                    <p className="mb-1.5 text-xs text-muted-foreground">{description}</p>
+                    <div className="relative">
+                      <pre className="rounded-md border bg-muted/50 p-3 pr-10 font-mono text-xs overflow-x-auto whitespace-pre-wrap break-all">
+                        {text}
+                      </pre>
+                      <button
+                        type="button"
+                        onClick={() => onCopy(key, text)}
+                        className="absolute right-2 top-2 rounded p-1 text-muted-foreground hover:text-foreground hover:bg-muted"
+                      >
+                        {isCopied ? <Check size={14} /> : <Copy size={14} />}
+                      </button>
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </section>
   );
 }

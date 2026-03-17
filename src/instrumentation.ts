@@ -6,5 +6,9 @@ export async function register() {
     // Start background sync worker (guards on hasCredentials() internally)
     const { startSyncWorker } = await import("./lib/sync/worker");
     startSyncWorker();
+
+    // Start MCP server if enabled in preferences
+    const { initMcpServer } = await import("./mcp");
+    initMcpServer();
   }
 }
