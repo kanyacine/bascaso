@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.6.3
+
+- Fix duplicate "Toggle full screen" item in the View menu on macOS
+- Fix portfolio "Proceeds yesterday" KPI showing inflated total when apps have different latest data dates
+
 ## 1.6.2
 
 - Add magic wand button to app name field in app details (translate, copy, improve)

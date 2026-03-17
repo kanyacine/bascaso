@@ -223,7 +223,8 @@ export default function DashboardPage() {
     let downloads = 0;
     let proceeds = 0;
     let p7d = 0;
-    let pYesterday = 0;
+    let latestDate = "";
+    const sortedRevByApp: { date: string; proceeds: number }[][] = [];
 
     for (const entry of Object.values(analytics)) {
       if (!entry.data) continue;
@@ -234,15 +235,21 @@ export default function DashboardPage() {
       for (const r of rev) {
         proceeds += r.proceeds;
       }
-      // Last entry is yesterday (most recent complete day)
+      // Yesterday = most recent complete day across all apps
       const sorted = [...rev].sort((a, b) => a.date.localeCompare(b.date));
-      if (sorted.length > 0) {
-        pYesterday += sorted[sorted.length - 1].proceeds;
+      if (sorted.length > 0 && sorted[sorted.length - 1].date > latestDate) {
+        latestDate = sorted[sorted.length - 1].date;
       }
+      sortedRevByApp.push(sorted);
       const last7 = sorted.slice(-7);
       for (const r of last7) {
         p7d += r.proceeds;
       }
+    }
+    let pYesterday = 0;
+    for (const sorted of sortedRevByApp) {
+      const entry = sorted.find((r) => r.date === latestDate);
+      if (entry) pYesterday += entry.proceeds;
     }
     return { totalDownloads: downloads, totalProceeds: proceeds, proceeds7d: p7d, proceedsYesterday: pYesterday };
   }, [analytics]);
