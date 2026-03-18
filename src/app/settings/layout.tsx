@@ -9,6 +9,7 @@ import { LicenseProvider } from "@/lib/license-context";
 
 const TABS = [
   { label: "General", segment: "" },
+  { label: "Appearance", segment: "/appearance" },
   { label: "Teams", segment: "/teams" },
   { label: "AI", segment: "/ai" },
   { label: "License", segment: "/license" },

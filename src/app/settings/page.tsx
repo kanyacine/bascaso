@@ -1,33 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
-import { Monitor, Moon, Sun, CheckCircle, XCircle, Copy, Check, CaretRight } from "@phosphor-icons/react";
+import { CheckCircle, XCircle, Copy, Check, CaretRight } from "@phosphor-icons/react";
 import { Spinner } from "@/components/ui/spinner";
 import { IS_MAS } from "@/lib/license-shared";
-
-const THEME_OPTIONS = [
-  { value: "system", label: "System", icon: Monitor },
-  { value: "light", label: "Light", icon: Sun },
-  { value: "dark", label: "Dark", icon: Moon },
-] as const;
 
 type UpdateState = "idle" | "checking" | "up-to-date" | "available" | "downloaded" | "error";
 
 export default function GeneralPage() {
-  const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   const [autoCheck, setAutoCheck] = useState(true);
   const [updateState, setUpdateState] = useState<UpdateState>("idle");
@@ -171,26 +156,6 @@ export default function GeneralPage() {
           </div>
         </section>
       )}
-
-      <section className="space-y-2">
-        <h3 className="section-title">Theme</h3>
-        <Select value={theme} onValueChange={setTheme}>
-          <SelectTrigger className="w-[200px] text-sm">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {THEME_OPTIONS.map(({ value, label, icon: Icon }) => (
-              <SelectItem key={value} value={value}>
-                <Icon size={14} className="mr-2 inline-block" />
-                {label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <p className="text-xs text-muted-foreground">
-          System follows your macOS appearance setting.
-        </p>
-      </section>
 
       {!reviewModeLoading && (
         <section className="space-y-2">

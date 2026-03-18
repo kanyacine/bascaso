@@ -660,25 +660,43 @@ function HeaderReviewChangesActions({ appId }: { appId: string }) {
         // Apply published data to version cache so UI reflects changes immediately
         for (const change of snapshot) {
           if (change.section === "store-listing" || change.section === "keywords") {
-            updateVersion(change.scope, (v) => ({
-              ...v,
-              attributes: {
-                ...v.attributes,
-                ...(change.data.copyright !== undefined && { copyright: change.data.copyright as string }),
-                ...(change.data.releaseType !== undefined && {
-                  releaseType: change.data.releaseType === "manually" ? "MANUAL"
-                    : change.data.releaseType === "after-date" ? "SCHEDULED" : "AFTER_APPROVAL",
+            updateVersion(change.scope, (v) => {
+              const d = change.data;
+              const updated = {
+                ...v,
+                attributes: {
+                  ...v.attributes,
+                  ...(d.copyright !== undefined && { copyright: d.copyright as string }),
+                  ...(d.releaseType !== undefined && {
+                    releaseType: d.releaseType === "manually" ? "MANUAL"
+                      : d.releaseType === "after-date" ? "SCHEDULED" : "AFTER_APPROVAL",
+                  }),
+                  ...(d.scheduledDate !== undefined && {
+                    earliestReleaseDate: d.scheduledDate as string | null,
+                  }),
+                },
+                ...(d.phasedRelease !== undefined && {
+                  phasedRelease: d.phasedRelease
+                    ? (v.phasedRelease ?? { id: "", attributes: { phasedReleaseState: "INACTIVE", currentDayNumber: null, startDate: null } })
+                    : null,
                 }),
-                ...(change.data.scheduledDate !== undefined && {
-                  earliestReleaseDate: change.data.scheduledDate as string | null,
-                }),
-              },
-              ...(change.data.phasedRelease !== undefined && {
-                phasedRelease: change.data.phasedRelease
-                  ? (v.phasedRelease ?? { id: "", attributes: { phasedReleaseState: "INACTIVE", currentDayNumber: null, startDate: null } })
-                  : null,
-              }),
-            }));
+              };
+              // Update build reference
+              if (d.buildId !== undefined) {
+                if (d.buildId === null) {
+                  updated.build = null;
+                } else {
+                  updated.build = v.build?.id === d.buildId
+                    ? v.build
+                    : { id: d.buildId as string, attributes: { version: "", uploadedDate: "", processingState: "VALID", minOsVersion: "", iconAssetToken: null } };
+                }
+              }
+              return updated;
+            });
+            // Invalidate localizations cache so next page load fetches fresh
+            if (change.data.locales) {
+              fetch(`/api/apps/${appId}/versions/${change.scope}/localizations?refresh`).catch(() => {});
+            }
           }
           if (change.section === "review") {
             const d = change.data;
@@ -701,6 +719,10 @@ function HeaderReviewChangesActions({ appId }: { appId: string }) {
                 },
               };
             });
+          }
+          // Invalidate details locales cache
+          if (change.section === "details" && change.data.locales) {
+            fetch(`/api/apps/${appId}/info/${change.scope}/localizations?refresh`).catch(() => {});
           }
         }
       } else {
