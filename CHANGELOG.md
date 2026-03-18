@@ -3,6 +3,7 @@
 ## 1.8.0
 
 - Add diff mode – accumulate changes locally and review a full diff before pushing to App Store Connect
+- Allow editing text fields on versions waiting for review
 
 ## 1.7.0
 

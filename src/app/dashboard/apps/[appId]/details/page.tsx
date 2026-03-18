@@ -44,7 +44,7 @@ import { EmptyState } from "@/components/empty-state";
 import { useTabNavigation } from "@/lib/hooks/use-tab-navigation";
 import { useRegisterRefresh } from "@/lib/refresh-context";
 import { useVersions } from "@/lib/versions-context";
-import { resolveVersion, EDITABLE_STATES } from "@/lib/asc/version-types";
+import { resolveVersion, EDITABLE_STATES, TEXT_EDITABLE_STATES } from "@/lib/asc/version-types";
 
 const SORTED_CATEGORIES = Object.keys(CATEGORIES).sort((a, b) =>
   CATEGORIES[a].localeCompare(CATEGORIES[b]),
@@ -119,6 +119,9 @@ export default function AppDetailsPage() {
   );
   const versionId = selectedVersion?.id ?? "";
   const readOnly = selectedVersion
+    ? !TEXT_EDITABLE_STATES.has(selectedVersion.attributes.appVersionState)
+    : false;
+  const structuralReadOnly = selectedVersion
     ? !EDITABLE_STATES.has(selectedVersion.attributes.appVersionState)
     : false;
 
@@ -587,7 +590,7 @@ export default function AppDetailsPage() {
     onBulkCopyAll: () => setBulkAllMode({ mode: "copy" }),
     section: "details",
     otherSectionLocales,
-    readOnly,
+    readOnly: structuralReadOnly,
   });
 
   if (!app) {

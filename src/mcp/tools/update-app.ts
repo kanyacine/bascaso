@@ -15,7 +15,7 @@ import {
   createReviewDetail,
   invalidateVersionsCache,
 } from "@/lib/asc/review-mutations";
-import { EDITABLE_STATES } from "@/lib/asc/version-types";
+import { TEXT_EDITABLE_STATES } from "@/lib/asc/version-types";
 import { cacheSet } from "@/lib/cache";
 import { resolveApp, resolveVersion, isError, categorizeField, ALL_WRITABLE_FIELDS } from "@/mcp/resolve";
 import { emitChange } from "@/mcp/events";
@@ -162,7 +162,7 @@ export function registerUpdateApp(server: McpServer): void {
       }
 
       if (category === "listing") {
-        if (field !== "promotionalText" && !EDITABLE_STATES.has(versionResult.attributes.appVersionState)) {
+        if (field !== "promotionalText" && !TEXT_EDITABLE_STATES.has(versionResult.attributes.appVersionState)) {
           return {
             isError: true,
             content: [{ type: "text", text: `Version ${versionResult.attributes.versionString} is not editable (${versionResult.attributes.appVersionState}).` }],

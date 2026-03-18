@@ -3,7 +3,7 @@ import { listVersions } from "@/lib/asc/versions";
 import { listLocalizations } from "@/lib/asc/localizations";
 import { listAppInfos, listAppInfoLocalizations } from "@/lib/asc/app-info";
 import { pickAppInfo } from "@/lib/asc/app-info-utils";
-import { EDITABLE_STATES } from "@/lib/asc/version-types";
+import { TEXT_EDITABLE_STATES } from "@/lib/asc/version-types";
 import { isPro, FREE_LIMITS } from "@/lib/license";
 import { getFreeSelectedAppId } from "@/lib/app-preferences";
 import type { AscApp } from "@/lib/asc/apps";
@@ -60,7 +60,7 @@ export async function resolveVersion(
   }
 
   // Default to the editable version
-  const editable = versions.find((v) => EDITABLE_STATES.has(v.attributes.appVersionState));
+  const editable = versions.find((v) => TEXT_EDITABLE_STATES.has(v.attributes.appVersionState));
   if (editable) return editable;
 
   return {

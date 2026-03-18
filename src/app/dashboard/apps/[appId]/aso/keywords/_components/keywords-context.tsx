@@ -9,7 +9,7 @@ import { useVersions } from "@/lib/versions-context";
 import { useFormDirty } from "@/lib/form-dirty-context";
 import { useErrorReport } from "@/lib/error-report-context";
 import { useChangeBuffer, useSectionBuffer } from "@/lib/change-buffer-context";
-import { resolveVersion, EDITABLE_STATES } from "@/lib/asc/version-types";
+import { resolveVersion, TEXT_EDITABLE_STATES } from "@/lib/asc/version-types";
 import { useLocalizations } from "@/lib/hooks/use-localizations";
 import { useAppInfo, useAppInfoLocalizations } from "@/lib/hooks/use-app-info";
 import { pickAppInfo } from "@/lib/asc/app-info-utils";
@@ -61,7 +61,7 @@ export function KeywordsProvider({ children }: { children: React.ReactNode }) {
   const { bufferedData, save: saveToBuffer, discard: discardBuffer } = useSectionBuffer(appId, "keywords", versionId);
 
   const readOnly = selectedVersion
-    ? !EDITABLE_STATES.has(selectedVersion.attributes.appVersionState)
+    ? !TEXT_EDITABLE_STATES.has(selectedVersion.attributes.appVersionState)
     : false;
 
   const { localizations, loading: locLoading } = useLocalizations(appId, versionId);

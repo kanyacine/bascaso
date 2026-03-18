@@ -64,11 +64,18 @@ export function getVersionsByPlatform(
   return versions.filter((v) => v.attributes.platform === platform);
 }
 
+/** Version states where all changes are allowed (locales, screenshots, text). */
 export const EDITABLE_STATES = new Set([
   "PREPARE_FOR_SUBMISSION",
   "REJECTED",
   "METADATA_REJECTED",
   "DEVELOPER_REJECTED",
+]);
+
+/** Version states where text fields can be updated but locale/screenshot changes are blocked. */
+export const TEXT_EDITABLE_STATES = new Set([
+  ...EDITABLE_STATES,
+  "WAITING_FOR_REVIEW",
 ]);
 
 export const PLATFORM_LABELS: Record<string, string> = {

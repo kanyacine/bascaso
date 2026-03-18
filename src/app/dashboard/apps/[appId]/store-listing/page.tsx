@@ -14,7 +14,7 @@ import { useSectionBuffer } from "@/lib/change-buffer-context";
 import { useApps } from "@/lib/apps-context";
 import { useVersions } from "@/lib/versions-context";
 import { useFormDirty } from "@/lib/form-dirty-context";
-import { resolveVersion, EDITABLE_STATES, type AscVersion } from "@/lib/asc/version-types";
+import { resolveVersion, EDITABLE_STATES, TEXT_EDITABLE_STATES, type AscVersion } from "@/lib/asc/version-types";
 import { useLocalizations } from "@/lib/hooks/use-localizations";
 import { useAppInfo, useAppInfoLocalizations } from "@/lib/hooks/use-app-info";
 import { pickAppInfo } from "@/lib/asc/app-info-utils";
@@ -92,6 +92,11 @@ export default function StoreListingPage() {
   const versionId = selectedVersion?.id ?? "";
 
   const readOnly = selectedVersion
+    ? !TEXT_EDITABLE_STATES.has(selectedVersion.attributes.appVersionState)
+    : false;
+
+  // Locale add/remove and screenshots blocked in WAITING_FOR_REVIEW
+  const structuralReadOnly = selectedVersion
     ? !EDITABLE_STATES.has(selectedVersion.attributes.appVersionState)
     : false;
 
@@ -756,7 +761,7 @@ export default function StoreListingPage() {
     onBulkCopyAll: () => setBulkAllMode({ mode: "copy" }),
     section: "store-listing",
     otherSectionLocales,
-    readOnly,
+    readOnly: structuralReadOnly,
   });
 
   if (!app) {

@@ -7,7 +7,7 @@ import { listAppInfos, listAppInfoLocalizations } from "@/lib/asc/app-info";
 import { pickAppInfo } from "@/lib/asc/app-info-utils";
 import { updateVersionLocalization } from "@/lib/asc/localization-mutations";
 import { updateAppInfoLocalization } from "@/lib/asc/localization-mutations";
-import { EDITABLE_STATES } from "@/lib/asc/version-types";
+import { TEXT_EDITABLE_STATES } from "@/lib/asc/version-types";
 import { buildForbiddenKeywords } from "@/lib/asc/keyword-utils";
 import { FIELD_LIMITS } from "@/lib/asc/locale-names";
 import { cacheSet } from "@/lib/cache";
@@ -97,7 +97,7 @@ export function registerTranslate(server: McpServer): void {
         const versionResult = await resolveVersion(appResult.id, version);
         if (isError(versionResult)) {
           errors.push(versionResult.error);
-        } else if (!EDITABLE_STATES.has(versionResult.attributes.appVersionState)) {
+        } else if (!TEXT_EDITABLE_STATES.has(versionResult.attributes.appVersionState)) {
           errors.push(`Version ${versionResult.attributes.versionString} is not editable.`);
         } else {
           const localizations = await listLocalizations(versionResult.id, true);

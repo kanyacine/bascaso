@@ -70,7 +70,7 @@ import {
   stateLabel,
   isValidVersionString,
   hasInvalidVersionChars,
-  EDITABLE_STATES,
+  TEXT_EDITABLE_STATES,
   PLATFORM_LABELS,
   STATE_DOT_COLORS,
   type AscVersion,
@@ -397,7 +397,7 @@ export function HeaderVersionActions() {
   const selectedVersion = resolveVersion(versions, searchParams.get("version"));
   const currentPlatform = selectedVersion?.attributes.platform ?? platforms[0] ?? "IOS";
   const readOnly = selectedVersion
-    ? !EDITABLE_STATES.has(selectedVersion.attributes.appVersionState)
+    ? !TEXT_EDITABLE_STATES.has(selectedVersion.attributes.appVersionState)
     : true;
 
   function openDialog() {

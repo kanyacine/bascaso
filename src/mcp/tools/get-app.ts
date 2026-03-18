@@ -6,7 +6,7 @@ import { listVersions } from "@/lib/asc/versions";
 import { listLocalizations } from "@/lib/asc/localizations";
 import { listAppInfos, listAppInfoLocalizations } from "@/lib/asc/app-info";
 import { pickAppInfo } from "@/lib/asc/app-info-utils";
-import { EDITABLE_STATES } from "@/lib/asc/version-types";
+import { TEXT_EDITABLE_STATES } from "@/lib/asc/version-types";
 import { resolveApp, resolveVersion, visibleApps, isError } from "@/mcp/resolve";
 
 export function registerGetApp(server: McpServer): void {
@@ -57,7 +57,7 @@ export function registerGetApp(server: McpServer): void {
         const lines = [`${appResult.attributes.name} (${appResult.attributes.primaryLocale})`, ""];
 
         for (const v of versions) {
-          const editable = EDITABLE_STATES.has(v.attributes.appVersionState);
+          const editable = TEXT_EDITABLE_STATES.has(v.attributes.appVersionState);
           let line = `${v.attributes.versionString} (${v.attributes.platform}) – ${v.attributes.appVersionState}`;
           if (editable) {
             const locs = await listLocalizations(v.id);
