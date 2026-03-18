@@ -305,7 +305,7 @@ export default function ScreenshotsPage() {
 
       {isEmpty && readOnly ? (
         <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-          No screenshots for {selectedCategory} on this version.
+          No screenshots on this version.
         </div>
       ) : isEmpty && !readOnly ? (
         <div className="space-y-2">
