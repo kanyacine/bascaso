@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input";
 import { ApiError, apiFetch } from "@/lib/api-fetch";
 import { useErrorReport } from "@/lib/error-report-context";
 import type { SyncError } from "@/lib/api-helpers";
+import { useChangeBuffer } from "@/lib/change-buffer-context";
+import { useSectionBuffer } from "@/lib/change-buffer-context";
 import { useApps } from "@/lib/apps-context";
 import { useVersions } from "@/lib/versions-context";
 import { useFormDirty } from "@/lib/form-dirty-context";
@@ -204,6 +206,8 @@ export default function StoreListingPage() {
   const { reportStoreListing } = useSubmissionChecklist();
   const { setDirty, registerSave, registerDiscard, setValidationErrors } = useFormDirty();
   const { showAscError, showSyncErrors } = useErrorReport();
+  const { bufferEnabled } = useChangeBuffer();
+  const { bufferedData, save: saveToBuffer, discard: discardBuffer } = useSectionBuffer(appId, "store-listing", versionId);
 
   const bulkFields: BulkField[] = [
     { key: "description", label: "Description", charLimit: FIELD_LIMITS.description },
@@ -278,15 +282,32 @@ export default function StoreListingPage() {
   const [prevSnapshotKey, setPrevSnapshotKey] = useState(snapshotKey);
   if (snapshotKey !== prevSnapshotKey) {
     setPrevSnapshotKey(snapshotKey);
-    setReleaseType(derived.releaseType);
-    setScheduledDate(derived.scheduledDate);
-    setPhasedRelease(derived.phasedRelease);
-    const buildId = selectedVersion?.build?.id ?? null;
-    setSelectedBuildId(buildId);
-    originalBuildIdRef.current = buildId;
-    const cr = selectedVersion?.attributes.copyright ?? "";
-    setCopyright(cr);
-    originalCopyrightRef.current = cr;
+    if (bufferEnabled) {
+      // Use buffered values if present, otherwise ASC values
+      setReleaseType((bufferedData?.releaseType as string) ?? derived.releaseType);
+      setScheduledDate(
+        bufferedData?.scheduledDate !== undefined
+          ? (bufferedData.scheduledDate ? new Date(bufferedData.scheduledDate as string) : undefined)
+          : derived.scheduledDate,
+      );
+      setPhasedRelease((bufferedData?.phasedRelease as boolean) ?? derived.phasedRelease);
+      const buildId = (bufferedData?.buildId !== undefined ? bufferedData.buildId : selectedVersion?.build?.id ?? null) as string | null;
+      setSelectedBuildId(buildId);
+      originalBuildIdRef.current = selectedVersion?.build?.id ?? null;
+      const cr = (bufferedData?.copyright as string) ?? selectedVersion?.attributes.copyright ?? "";
+      setCopyright(cr);
+      originalCopyrightRef.current = selectedVersion?.attributes.copyright ?? "";
+    } else {
+      setReleaseType(derived.releaseType);
+      setScheduledDate(derived.scheduledDate);
+      setPhasedRelease(derived.phasedRelease);
+      const buildId = selectedVersion?.build?.id ?? null;
+      setSelectedBuildId(buildId);
+      originalBuildIdRef.current = buildId;
+      const cr = selectedVersion?.attributes.copyright ?? "";
+      setCopyright(cr);
+      originalCopyrightRef.current = cr;
+    }
   }
 
   // Track original locale → localization ID mapping and data for diffing saves
@@ -297,7 +318,18 @@ export default function StoreListingPage() {
   const [prevLocalizations, setPrevLocalizations] = useState(localizations);
   if (localizations !== prevLocalizations) {
     setPrevLocalizations(localizations);
-    const data = buildLocaleData(localizations);
+    const ascData = buildLocaleData(localizations);
+
+    // Merge with buffered locale changes if present
+    const bl = bufferEnabled ? bufferedData?.locales as Record<string, Partial<LocaleFields>> | undefined : undefined;
+    let data = ascData;
+    if (bl) {
+      data = { ...ascData };
+      for (const [locale, fields] of Object.entries(bl)) {
+        if (data[locale]) data[locale] = { ...data[locale], ...fields };
+      }
+    }
+
     setLocaleData(data);
     const sorted = sortLocales(Object.keys(data), primaryLocale);
     setLocales(sorted);
@@ -309,7 +341,7 @@ export default function StoreListingPage() {
       if (fromUrl && sorted.includes(fromUrl)) return fromUrl;
       return sorted[0] ?? "";
     });
-    setDirty(false);
+    if (!bufferEnabled) setDirty(false);
   }
 
   // Snapshot original locale IDs and data for save diffing
@@ -359,9 +391,109 @@ export default function StoreListingPage() {
     reportStoreListing(computeStoreListingFlags(localeData, primaryLocale));
   }, [localeData, primaryLocale, reportStoreListing]);
 
+  // When buffer loads after ASC data, re-apply overlay and mark dirty
+  const bufferAppliedRef = useRef(false);
+  useEffect(() => {
+    if (!bufferEnabled) return;
+    if (!bufferedData || bufferAppliedRef.current) return;
+    bufferAppliedRef.current = true;
+    const bl = bufferedData.locales as Record<string, Partial<LocaleFields>> | undefined;
+    if (bl && Object.keys(localeData).length > 0) {
+      setLocaleData((prev) => {
+        const next = { ...prev };
+        for (const [locale, fields] of Object.entries(bl)) {
+          if (next[locale]) next[locale] = { ...next[locale], ...fields };
+        }
+        return next;
+      });
+    }
+    if (bufferedData.copyright !== undefined) setCopyright(bufferedData.copyright as string);
+    if (bufferedData.releaseType !== undefined) setReleaseType(bufferedData.releaseType as string);
+    if (bufferedData.scheduledDate !== undefined) {
+      const d = bufferedData.scheduledDate as string | null;
+      setScheduledDate(d ? new Date(d) : undefined);
+    }
+    if (bufferedData.phasedRelease !== undefined) setPhasedRelease(bufferedData.phasedRelease as boolean);
+    if (bufferedData.buildId !== undefined) setSelectedBuildId(bufferedData.buildId as string | null);
+  }, [bufferEnabled, bufferedData]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Register save handler for the header Save button
   useEffect(() => {
     registerSave(async () => {
+      if (bufferEnabled) {
+        // --- Buffer save path ---
+        const data: Record<string, unknown> = {};
+        const originalData: Record<string, unknown> = {
+          localeIds: originalLocaleIdsRef.current,
+          phasedReleaseId: selectedVersion?.phasedRelease?.id ?? null,
+        };
+        const orig = originalLocaleDataRef.current;
+
+        // Locale diffs
+        const localeChanges: Record<string, Record<string, string>> = {};
+        const origLocaleChanges: Record<string, Record<string, string>> = {};
+        for (const [locale, fields] of Object.entries(localeData)) {
+          const origFields = orig[locale];
+          if (!origFields) { localeChanges[locale] = { ...fields }; continue; }
+          const diffs: Record<string, string> = {};
+          const origDiffs: Record<string, string> = {};
+          for (const [key, val] of Object.entries(fields)) {
+            if (val === origFields[key as keyof LocaleFields]) continue;
+            if (readOnly && key !== "promotionalText") continue;
+            if (isFirstVersion && key === "whatsNew") continue;
+            diffs[key] = val;
+            origDiffs[key] = origFields[key as keyof LocaleFields];
+          }
+          if (Object.keys(diffs).length > 0) {
+            localeChanges[locale] = diffs;
+            origLocaleChanges[locale] = origDiffs;
+          }
+        }
+        if (Object.keys(localeChanges).length > 0) {
+          data.locales = localeChanges;
+          originalData.locales = origLocaleChanges;
+        }
+
+        // Non-locale diffs
+        if (!readOnly) {
+          const origDerived = deriveReleaseSettings(selectedVersion);
+          if (copyright !== originalCopyrightRef.current) {
+            data.copyright = copyright;
+            originalData.copyright = originalCopyrightRef.current;
+          }
+          if (releaseType !== origDerived.releaseType) {
+            data.releaseType = releaseType;
+            originalData.releaseType = origDerived.releaseType;
+          }
+          if (scheduledDate?.toISOString() !== origDerived.scheduledDate?.toISOString()) {
+            data.scheduledDate = scheduledDate?.toISOString() ?? null;
+            originalData.scheduledDate = origDerived.scheduledDate?.toISOString() ?? null;
+          }
+          if (phasedRelease !== origDerived.phasedRelease) {
+            data.phasedRelease = phasedRelease;
+            originalData.phasedRelease = origDerived.phasedRelease;
+          }
+          if (selectedBuildId !== originalBuildIdRef.current) {
+            data.buildId = selectedBuildId;
+            originalData.buildId = originalBuildIdRef.current;
+          }
+        }
+
+        if (Object.keys(data).length === 0) {
+          bufferAppliedRef.current = true;
+          discardBuffer();
+          setDirty(false);
+          return;
+        }
+
+        bufferAppliedRef.current = true;
+        saveToBuffer(data, originalData);
+        toast.success("Changes saved locally");
+        setDirty(false);
+        return;
+      }
+
+      // --- Direct ASC save path ---
       const promises: Promise<void>[] = [];
       const allSyncErrors: SyncError[] = [];
 
@@ -375,8 +507,6 @@ export default function StoreListingPage() {
         // New locale or any field differs → include it
         if (!origFields || Object.keys(fields).some((k) => fields[k as keyof LocaleFields] !== origFields[k as keyof LocaleFields])) {
           changedLocaleIds[locale] = originalLocaleIdsRef.current[locale];
-          // When read-only, only promotional text is editable.
-          // For the first-ever version, strip whatsNew – ASC rejects it.
           if (readOnly) {
             changedLocales[locale] = { promotionalText: fields.promotionalText };
           } else if (isFirstVersion) {
@@ -388,14 +518,12 @@ export default function StoreListingPage() {
           }
         }
       }
-      // Detect deleted locales
       for (const locale of Object.keys(originalLocaleIdsRef.current)) {
         if (!localeData[locale]) {
           changedLocaleIds[locale] = originalLocaleIdsRef.current[locale];
         }
       }
 
-      // Save localizations (skip if nothing changed)
       let locCreatedIds: Record<string, string> = {};
       if (Object.keys(changedLocales).length > 0 || Object.keys(changedLocaleIds).length > Object.keys(changedLocales).length) {
         promises.push(
@@ -417,7 +545,6 @@ export default function StoreListingPage() {
         );
       }
 
-      // Release settings are locked on live versions
       if (!readOnly) {
         const ascReleaseType = releaseType === "manually"
           ? "MANUAL"
@@ -447,7 +574,6 @@ export default function StoreListingPage() {
           }),
         );
 
-        // Save build selection if changed (including removal)
         if (selectedBuildId !== originalBuildIdRef.current) {
           promises.push(
             apiFetch(`/api/apps/${appId}/versions/${versionId}`, {
@@ -458,7 +584,6 @@ export default function StoreListingPage() {
           );
         }
 
-        // Save copyright if changed
         if (copyright !== originalCopyrightRef.current) {
           promises.push(
             apiFetch(`/api/apps/${appId}/versions/${versionId}`, {
@@ -493,7 +618,6 @@ export default function StoreListingPage() {
 
       toast.success(readOnly ? "Promotional text saved" : "Store listing saved");
 
-      // Update original snapshots so subsequent saves only send new diffs
       const ids = { ...originalLocaleIdsRef.current };
       for (const [locale, id] of Object.entries(locCreatedIds)) {
         ids[locale] = id;
@@ -504,7 +628,6 @@ export default function StoreListingPage() {
       originalLocaleIdsRef.current = ids;
       originalLocaleDataRef.current = { ...localeData };
 
-      // Update cached version with release settings + build
       if (!readOnly && selectedVersion) {
         const ascReleaseType = releaseType === "manually"
           ? "MANUAL"
@@ -515,7 +638,6 @@ export default function StoreListingPage() {
           ? scheduledDate.toISOString()
           : null;
 
-        // Find selected build from allBuilds to update the cached version
         const newBuild = selectedBuildId
           ? allBuilds.find((b) => b.id === selectedBuildId) ?? null
           : null;
@@ -545,7 +667,6 @@ export default function StoreListingPage() {
             : null,
         }));
 
-        // Update original refs so subsequent discards reflect the saved state
         if (selectedBuildId !== originalBuildIdRef.current) {
           originalBuildIdRef.current = selectedBuildId;
         }
@@ -556,25 +677,55 @@ export default function StoreListingPage() {
 
       setDirty(false);
     });
-  }, [appId, versionId, localeData, readOnly, isFirstVersion, releaseType, scheduledDate, phasedRelease, selectedBuildId, copyright, allBuilds, selectedVersion, registerSave, setDirty, updateVersion, showAscError, showSyncErrors]);
+  }, [appId, versionId, localeData, readOnly, isFirstVersion, releaseType, scheduledDate, phasedRelease, selectedBuildId, copyright, allBuilds, selectedVersion, bufferEnabled, registerSave, setDirty, updateVersion, showAscError, showSyncErrors, saveToBuffer, discardBuffer, bufferedData]);
 
   // Register discard handler for the header Discard button
   useEffect(() => {
     registerDiscard(() => {
-      setLocaleData(buildLocaleData(localizations));
-      const sorted = sortLocales(localizations.map((l) => l.attributes.locale), primaryLocale);
-      setLocales(sorted);
-      if (!sorted.includes(selectedLocale)) {
-        changeLocale(sorted[0] ?? "");
+      if (bufferEnabled) {
+        const ascData = buildLocaleData(localizations);
+        const bl = bufferedData?.locales as Record<string, Partial<LocaleFields>> | undefined;
+        let data = ascData;
+        if (bl) {
+          data = { ...ascData };
+          for (const [locale, fields] of Object.entries(bl)) {
+            if (data[locale]) data[locale] = { ...data[locale], ...fields };
+          }
+        }
+        setLocaleData(data);
+        const sorted = sortLocales(Object.keys(data), primaryLocale);
+        setLocales(sorted);
+        if (!sorted.includes(selectedLocale)) {
+          changeLocale(sorted[0] ?? "");
+        }
+        const reset = deriveReleaseSettings(selectedVersion);
+        setReleaseType((bufferedData?.releaseType as string) ?? reset.releaseType);
+        setScheduledDate(
+          bufferedData?.scheduledDate !== undefined
+            ? (bufferedData.scheduledDate ? new Date(bufferedData.scheduledDate as string) : undefined)
+            : reset.scheduledDate,
+        );
+        setPhasedRelease((bufferedData?.phasedRelease as boolean) ?? reset.phasedRelease);
+        setSelectedBuildId(
+          (bufferedData?.buildId !== undefined ? bufferedData.buildId : originalBuildIdRef.current) as string | null,
+        );
+        setCopyright((bufferedData?.copyright as string) ?? originalCopyrightRef.current);
+      } else {
+        setLocaleData(buildLocaleData(localizations));
+        const sorted = sortLocales(localizations.map((l) => l.attributes.locale), primaryLocale);
+        setLocales(sorted);
+        if (!sorted.includes(selectedLocale)) {
+          changeLocale(sorted[0] ?? "");
+        }
+        const reset = deriveReleaseSettings(selectedVersion);
+        setReleaseType(reset.releaseType);
+        setScheduledDate(reset.scheduledDate);
+        setPhasedRelease(reset.phasedRelease);
+        setSelectedBuildId(originalBuildIdRef.current);
+        setCopyright(originalCopyrightRef.current);
       }
-      const reset = deriveReleaseSettings(selectedVersion);
-      setReleaseType(reset.releaseType);
-      setScheduledDate(reset.scheduledDate);
-      setPhasedRelease(reset.phasedRelease);
-      setSelectedBuildId(originalBuildIdRef.current);
-      setCopyright(originalCopyrightRef.current);
     });
-  }, [localizations, primaryLocale, selectedLocale, selectedVersion, setLocales, changeLocale, registerDiscard]);
+  }, [localizations, primaryLocale, selectedLocale, selectedVersion, bufferEnabled, bufferedData, setLocales, changeLocale, registerDiscard]);
 
   function updateField(field: keyof LocaleFields, value: string) {
     setLocaleData((prev) => ({

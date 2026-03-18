@@ -17,6 +17,7 @@ const PAGE_TITLES: Record<string, string> = {
   "store-listing": "Store listing",
   screenshots: "Screenshots",
   review: "App review",
+  "review-changes": "Pending changes",
   reviews: "Customer reviews",
   analytics: "Analytics",
   sales: "Sales",
@@ -52,6 +53,9 @@ export function DashboardBreadcrumb() {
     : [];
 
   const pageSegment = segments[0] ?? "";
+
+  // Publish page uses the full header for filters – no breadcrumb needed
+  if (pageSegment === "review-changes") return null;
 
   // Build breadcrumb items for TestFlight routes
   function renderTestFlightCrumbs() {

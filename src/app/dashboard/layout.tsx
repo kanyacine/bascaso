@@ -27,12 +27,18 @@ const HeaderLocalePicker = dynamic(
   () => import("@/components/layout/header-locale-picker").then(m => ({ default: m.HeaderLocalePicker })),
   { ssr: false },
 );
+const HeaderReviewFilters = dynamic(
+  () => import("@/components/layout/header-version-picker").then(m => ({ default: m.HeaderReviewFilters })),
+  { ssr: false },
+);
 import { VersionActionFooter } from "@/components/layout/version-action-footer";
 import { BuildActionFooter } from "@/components/layout/build-action-footer";
 import { AppsProvider, useApps } from "@/lib/apps-context";
 import { VersionsProvider } from "@/lib/versions-context";
 import { PreReleaseVersionsProvider } from "@/lib/pre-release-versions-context";
 import { FormDirtyProvider } from "@/lib/form-dirty-context";
+import { ChangeBufferProvider } from "@/lib/change-buffer-context";
+import { ReviewChangesProvider } from "@/lib/review-changes-context";
 import { HeaderLocaleProvider } from "@/lib/header-locale-context";
 import { SubmissionChecklistProvider } from "@/lib/submission-checklist-context";
 import { BuildActionProvider } from "@/lib/build-action-context";
@@ -132,7 +138,9 @@ export default function DashboardLayout({
     <AppsProvider>
       <VersionsProvider>
       <PreReleaseVersionsProvider>
+      <ChangeBufferProvider>
       <FormDirtyProvider>
+      <ReviewChangesProvider>
       <ErrorReportProvider>
       <HeaderLocaleProvider>
       <SubmissionChecklistProvider>
@@ -151,8 +159,8 @@ export default function DashboardLayout({
         <SidebarInset className="h-screen overflow-hidden">
           <InsightsPanelProvider>
           <header className="drag flex h-16 shrink-0 items-center gap-2 border-b bg-sidebar transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
-            <div className="drag flex flex-1 items-center gap-2 px-4">
-              <div className="no-drag flex items-center gap-2">
+            <div className="drag flex flex-1 items-center gap-2 px-4 overflow-hidden">
+              <div className="no-drag flex items-center gap-2 min-w-0">
                 <Suspense>
                   <DashboardBreadcrumb />
                 </Suspense>
@@ -161,6 +169,9 @@ export default function DashboardLayout({
                 </Suspense>
                 <Suspense>
                   <HeaderLocalePicker />
+                </Suspense>
+                <Suspense>
+                  <HeaderReviewFilters />
                 </Suspense>
               </div>
               <div className="no-drag ml-auto flex items-center gap-2">
@@ -202,7 +213,9 @@ export default function DashboardLayout({
       </SubmissionChecklistProvider>
       </HeaderLocaleProvider>
       </ErrorReportProvider>
+      </ReviewChangesProvider>
       </FormDirtyProvider>
+      </ChangeBufferProvider>
       </PreReleaseVersionsProvider>
       </VersionsProvider>
     </AppsProvider>

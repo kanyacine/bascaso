@@ -8,6 +8,7 @@ import { useApps } from "@/lib/apps-context";
 import { useVersions } from "@/lib/versions-context";
 import { useFormDirty } from "@/lib/form-dirty-context";
 import { useErrorReport } from "@/lib/error-report-context";
+import { useChangeBuffer, useSectionBuffer } from "@/lib/change-buffer-context";
 import { resolveVersion, EDITABLE_STATES } from "@/lib/asc/version-types";
 import { useLocalizations } from "@/lib/hooks/use-localizations";
 import { useAppInfo, useAppInfoLocalizations } from "@/lib/hooks/use-app-info";
@@ -50,12 +51,14 @@ export function KeywordsProvider({ children }: { children: React.ReactNode }) {
   const { versions, loading: versionsLoading } = useVersions();
   const { setDirty, registerSave, registerDiscard } = useFormDirty();
   const { showAscError, showSyncErrors } = useErrorReport();
+  const { bufferEnabled } = useChangeBuffer();
 
   const selectedVersion = useMemo(
     () => resolveVersion(versions, searchParams.get("version")),
     [versions, searchParams],
   );
   const versionId = selectedVersion?.id ?? "";
+  const { bufferedData, save: saveToBuffer, discard: discardBuffer } = useSectionBuffer(appId, "keywords", versionId);
 
   const readOnly = selectedVersion
     ? !EDITABLE_STATES.has(selectedVersion.attributes.appVersionState)
@@ -76,26 +79,89 @@ export function KeywordsProvider({ children }: { children: React.ReactNode }) {
   const [prevLocalizations, setPrevLocalizations] = useState(localizations);
   if (localizations !== prevLocalizations) {
     setPrevLocalizations(localizations);
+    const ascKw: Record<string, string> = {};
+    const ids: Record<string, string> = {};
+    for (const loc of localizations) {
+      ascKw[loc.attributes.locale] = loc.attributes.keywords ?? "";
+      ids[loc.attributes.locale] = loc.id;
+    }
+    // Merge buffered keyword edits on top of ASC data
+    const bl = bufferEnabled ? bufferedData?.locales as Record<string, { keywords: string }> | undefined : undefined;
+    const kw = bl ? { ...ascKw } : ascKw;
+    if (bl) {
+      for (const [locale, fields] of Object.entries(bl)) {
+        if (locale in kw) kw[locale] = fields.keywords;
+      }
+    }
+    setKeywordEdits(kw);
+    if (!bufferEnabled) setDirty(false);
+  }
+
+  // Snapshot originals for save diffing (must be in effect, not render)
+  useEffect(() => {
     const kw: Record<string, string> = {};
     const ids: Record<string, string> = {};
     for (const loc of localizations) {
       kw[loc.attributes.locale] = loc.attributes.keywords ?? "";
       ids[loc.attributes.locale] = loc.id;
     }
-    setKeywordEdits(kw);
     originalKeywordsRef.current = kw;
     originalLocaleIdsRef.current = ids;
-    setDirty(false);
-  }
+  }, [localizations]);
 
   function handleKeywordsChange(locale: string, keywords: string) {
     setKeywordEdits((prev) => ({ ...prev, [locale]: keywords }));
     setDirty(true);
   }
 
+  // Overlay buffered keyword changes on initial load
+  const bufferAppliedRef = useRef(false);
+  useEffect(() => {
+    if (!bufferEnabled) return;
+    if (!bufferedData || bufferAppliedRef.current) return;
+    bufferAppliedRef.current = true;
+    const bl = bufferedData.locales as Record<string, { keywords: string }> | undefined;
+    if (bl) {
+      setKeywordEdits((prev) => {
+        const next = { ...prev };
+        for (const [locale, fields] of Object.entries(bl)) {
+          next[locale] = fields.keywords;
+        }
+        return next;
+      });
+    }
+  }, [bufferEnabled, bufferedData]);
+
   // Register save handler
   useEffect(() => {
     registerSave(async () => {
+      if (bufferEnabled) {
+        // --- Buffer save path ---
+        const changed: Record<string, { keywords: string }> = {};
+        const origChanged: Record<string, { keywords: string }> = {};
+        for (const [locale, kw] of Object.entries(keywordEdits)) {
+          if (kw !== originalKeywordsRef.current[locale]) {
+            changed[locale] = { keywords: kw };
+            origChanged[locale] = { keywords: originalKeywordsRef.current[locale] };
+          }
+        }
+        if (Object.keys(changed).length === 0) {
+          bufferAppliedRef.current = true;
+          discardBuffer();
+          setDirty(false);
+          return;
+        }
+        bufferAppliedRef.current = true;
+        saveToBuffer(
+          { locales: changed },
+          { locales: origChanged, localeIds: originalLocaleIdsRef.current },
+        );
+        toast.success("Keywords saved locally");
+        setDirty(false);
+        return;
+      }
+
+      // --- Direct ASC save path ---
       const changed: Record<string, { keywords: string }> = {};
       for (const [locale, kw] of Object.entries(keywordEdits)) {
         if (kw !== originalKeywordsRef.current[locale]) {
@@ -107,7 +173,6 @@ export function KeywordsProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       try {
-        // Only send changed locales + their IDs – never trigger creates or deletes
         const changedLocaleIds: Record<string, string> = {};
         for (const locale of Object.keys(changed)) {
           const id = originalLocaleIdsRef.current[locale];
@@ -146,14 +211,18 @@ export function KeywordsProvider({ children }: { children: React.ReactNode }) {
         }
       }
     });
-  }, [appId, versionId, keywordEdits, registerSave, setDirty, showAscError, showSyncErrors]);
+  }, [appId, versionId, keywordEdits, bufferEnabled, registerSave, setDirty, showAscError, showSyncErrors, saveToBuffer, discardBuffer]);
 
   // Register discard handler
   useEffect(() => {
     registerDiscard(() => {
       setKeywordEdits({ ...originalKeywordsRef.current });
+      if (bufferEnabled) {
+        bufferAppliedRef.current = true;
+        discardBuffer();
+      }
     });
-  }, [registerDiscard]);
+  }, [bufferEnabled, registerDiscard, discardBuffer]);
 
   const loading = versionsLoading || locLoading || infoLoading || infoLocLoading;
 

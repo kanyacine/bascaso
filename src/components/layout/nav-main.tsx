@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname, useSearchParams, useRouter } from "next/navigation";
 import { useFormDirty } from "@/lib/form-dirty-context";
+import { GitDiff } from "@phosphor-icons/react";
+import { useChangeBuffer } from "@/lib/change-buffer-context";
 import {
   Gauge,
   Storefront,
@@ -87,6 +89,20 @@ export function NavMain({ appId }: { appId: string }) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { isDirty, guardNavigation } = useFormDirty();
+  const { changes, bufferEnabled } = useChangeBuffer();
+  const appChanges = changes.filter((c) => c.appId === appId);
+  const appChangeCount = appChanges.reduce((sum, c) => {
+    let count = 0;
+    const locales = c.data.locales as Record<string, Record<string, unknown>> | undefined;
+    if (locales) {
+      for (const fields of Object.values(locales)) count += Object.keys(fields).length;
+    }
+    const skip = new Set(["locales", "localeIds", "phasedReleaseId", "_reviewDetailId"]);
+    for (const key of Object.keys(c.data)) {
+      if (!skip.has(key)) count++;
+    }
+    return sum + count;
+  }, 0);
   const base = `/dashboard/apps/${appId}`;
   const groups = getNavGroups(appId);
 
@@ -120,7 +136,7 @@ export function NavMain({ appId }: { appId: string }) {
 
   return (
     <>
-      {groups.map((group) => (
+      {groups.map((group, groupIdx) => (
         <SidebarGroup key={group.label}>
           <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
           <SidebarMenu>
@@ -150,6 +166,25 @@ export function NavMain({ appId }: { appId: string }) {
               </SidebarMenuItem>
             ))}
           </SidebarMenu>
+          {groupIdx === 0 && bufferEnabled && appChangeCount > 0 && (
+            <SidebarMenu className="mt-2 border-t pt-2">
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  tooltip="Diff"
+                  isActive={isActive(`${base}/review-changes`)}
+                >
+                  <Link href={`${base}/review-changes${suffix}`}>
+                    <GitDiff size={16} />
+                    <span>Diff</span>
+                    <span className="ml-auto inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-medium text-white">
+                      {appChangeCount}
+                    </span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          )}
         </SidebarGroup>
       ))}
     </>

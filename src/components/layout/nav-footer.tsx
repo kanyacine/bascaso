@@ -65,8 +65,7 @@ export function NavFooter() {
   const active = accounts.find((a) => a.isActive);
   const displayName = isDemo ? "Sample data" : (active?.name || "My team");
 
-  async function handleSwitch(id: string) {
-    if (switching) return;
+  async function doSwitch(id: string) {
     setSwitching(true);
     try {
       const res = await fetch(`/api/settings/credentials/${id}/activate`, {
@@ -82,11 +81,18 @@ export function NavFooter() {
     }
   }
 
+  function handleSwitch(id: string) {
+    if (switching) return;
+    guardNavigation(() => doSwitch(id));
+  }
+
   async function handleAccountAdded() {
     setDialogOpen(false);
     await fetchAccounts();
-    router.push("/dashboard?entry=1");
-    router.refresh();
+    guardNavigation(() => {
+      router.push("/dashboard?entry=1");
+      router.refresh();
+    });
   }
 
   return (
@@ -117,7 +123,7 @@ export function NavFooter() {
                   disabled={switching}
                   onClick={() => {
                     if (account.isActive) return;
-                    guardNavigation(() => handleSwitch(account.id));
+                    handleSwitch(account.id);
                   }}
                 >
                   {account.isActive ? (

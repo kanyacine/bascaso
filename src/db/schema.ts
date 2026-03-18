@@ -84,3 +84,21 @@ export const feedbackCompleted = sqliteTable("feedback_completed", {
     .notNull()
     .$defaultFn(() => new Date().toISOString()),
 });
+
+// --- Pending changes (local change buffer) ---
+
+export const pendingChanges = sqliteTable("pending_changes", {
+  id: text("id").primaryKey().$defaultFn(ulid),
+  appId: text("app_id").notNull(),
+  section: text("section").notNull(),
+  scope: text("scope").notNull(),
+  field: text("field").notNull(),
+  value: text("value").notNull(),
+  originalValue: text("original_value"),
+  createdAt: text("created_at")
+    .notNull()
+    .$defaultFn(() => new Date().toISOString()),
+  updatedAt: text("updated_at")
+    .notNull()
+    .$defaultFn(() => new Date().toISOString()),
+});

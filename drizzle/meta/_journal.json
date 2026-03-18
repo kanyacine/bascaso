@@ -43,6 +43,13 @@
       "when": 1772807687575,
       "tag": "0005_app_preferences",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1773670573701,
+      "tag": "0006_yielding_callisto",
+      "breakpoints": true
     }
   ]
 }

@@ -7,13 +7,14 @@ import {
   useSearchParams,
   useRouter,
 } from "next/navigation";
-import { ArrowsClockwise, CaretDown, Check, Plus } from "@phosphor-icons/react";
+import { ArrowsClockwise, CaretDown, Check, Plus, Trash, CloudArrowUp } from "@phosphor-icons/react";
 import { Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
 import {
   Command,
   CommandEmpty,
   CommandGroup,
+  CommandInput,
   CommandItem,
   CommandList,
   CommandSeparator,
@@ -39,13 +40,26 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { apiFetch } from "@/lib/api-fetch";
 import { useApps } from "@/lib/apps-context";
 import { useVersions } from "@/lib/versions-context";
 import { usePreReleaseVersions } from "@/lib/pre-release-versions-context";
 import { useFormDirty } from "@/lib/form-dirty-context";
+import { useChangeBuffer } from "@/lib/change-buffer-context";
+import { useReviewChanges, type ReviewViewMode } from "@/lib/review-changes-context";
 import { useRefresh } from "@/lib/refresh-context";
+import { localeName, sortLocales } from "@/lib/asc/locale-names";
 import {
   getVersionPlatforms,
   getVersionsByPlatform,
@@ -369,6 +383,10 @@ export function HeaderVersionActions() {
     .replace(/^\//, "")
     .split("/")[0];
 
+  if (pageSegment === "review-changes") {
+    return <HeaderReviewChangesActions appId={appId} />;
+  }
+
   // Show save/discard on dedicated save pages, or any page that marked
   // the form dirty (e.g. testflight build detail editing "what's new").
   const showSave = SAVE_PAGES.has(pageSegment) || isDirty;
@@ -463,6 +481,173 @@ export function HeaderVersionActions() {
   );
 }
 
+const REVIEW_SECTION_LABELS: Record<string, string> = {
+  "store-listing": "Store listing",
+  details: "App details",
+  keywords: "Keywords",
+  review: "App review",
+};
+
+/** Left-side filters for the review-changes page (renders next to breadcrumb). */
+export function HeaderReviewFilters() {
+  const { appId } = useParams<{ appId?: string }>();
+  const pathname = usePathname();
+  const { changes, bufferEnabled } = useChangeBuffer();
+  const { apps } = useApps();
+  const { mode, setMode, sectionFilter, setSectionFilter, localeFilter, setLocaleFilter } = useReviewChanges();
+  const [sectionOpen, setSectionOpen] = useState(false);
+  const [localeOpen, setLocaleOpen] = useState(false);
+
+  if (!appId) return null;
+  const pageSegment = pathname.replace(`/dashboard/apps/${appId}`, "").replace(/^\//, "").split("/")[0];
+  if (pageSegment !== "review-changes") return null;
+
+  const primaryLocale = apps.find((a) => a.id === appId)?.primaryLocale ?? "";
+  const appChanges = changes.filter((c) => c.appId === appId);
+  if (appChanges.length === 0) return null;
+
+  const allSections = [...new Set(appChanges.map((c) => c.section))].sort();
+  const localeSet = new Set<string>();
+  for (const c of appChanges) {
+    const dl = c.data.locales as Record<string, unknown> | undefined;
+    if (dl) for (const l of Object.keys(dl)) localeSet.add(l);
+  }
+  const allLocales = sortLocales([...localeSet], primaryLocale);
+
+  return (
+    <>
+      <div className="inline-flex rounded-md border bg-muted/50 p-0.5">
+        {(["changes", "before", "after"] as const).map((v) => (
+          <button
+            key={v}
+            type="button"
+            onClick={() => setMode(v)}
+            className={`rounded-sm px-2.5 py-1 text-sm font-medium transition-colors ${
+              mode === v
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {v === "changes" ? "Diff" : v === "before" ? "Current" : "Updated"}
+          </button>
+        ))}
+      </div>
+      <Separator orientation="vertical" className="mx-2 !h-4" />
+      <Popover open={sectionOpen} onOpenChange={setSectionOpen}>
+        <PopoverTrigger asChild>
+          <Button variant="outline" className="h-8 gap-1.5 px-2.5 text-sm">
+            {sectionFilter === "all" ? "All sections" : REVIEW_SECTION_LABELS[sectionFilter] ?? sectionFilter}
+            <CaretDown size={12} className="text-muted-foreground" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-48 p-1" align="start">
+          <Command>
+            <CommandList>
+              <CommandGroup>
+                <CommandItem value="all" onSelect={() => { setSectionFilter("all"); setSectionOpen(false); }}>
+                  <Check size={14} className={sectionFilter === "all" ? "opacity-100" : "opacity-0"} />
+                  All sections
+                </CommandItem>
+                {allSections.map((s) => (
+                  <CommandItem key={s} value={s} onSelect={() => { setSectionFilter(s); setSectionOpen(false); }}>
+                    <Check size={14} className={sectionFilter === s ? "opacity-100" : "opacity-0"} />
+                    {REVIEW_SECTION_LABELS[s] ?? s}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+      <Popover open={localeOpen} onOpenChange={setLocaleOpen}>
+        <PopoverTrigger asChild>
+          <Button variant="outline" className="h-8 gap-1.5 px-2.5 text-sm">
+            {localeFilter === "all" ? "All locales" : localeName(localeFilter)}
+            {localeFilter !== "all" && <span className="text-muted-foreground">{localeFilter}</span>}
+            <CaretDown size={12} className="text-muted-foreground" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-64 p-0" align="start">
+          <Command>
+            <CommandInput placeholder="Search locales..." />
+            <CommandList>
+              <CommandEmpty>No locale found.</CommandEmpty>
+              <CommandGroup>
+                <CommandItem value="all" onSelect={() => { setLocaleFilter("all"); setLocaleOpen(false); }}>
+                  <Check size={14} className={localeFilter === "all" ? "opacity-100" : "opacity-0"} />
+                  All locales
+                </CommandItem>
+                {allLocales.map((loc) => (
+                  <CommandItem key={loc} value={`${localeName(loc)} ${loc}`} onSelect={() => { setLocaleFilter(loc); setLocaleOpen(false); }}>
+                    <Check size={14} className={localeFilter === loc ? "opacity-100" : "opacity-0"} />
+                    {localeName(loc)}
+                    <span className="ml-auto text-muted-foreground">{loc}</span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+    </>
+  );
+}
+
+/** Right-side buttons for the review-changes page (renders in actions area). */
+function HeaderReviewChangesActions({ appId }: { appId: string }) {
+  const { changes, discardAll, publishAll } = useChangeBuffer();
+  const [publishing, setPublishing] = useState(false);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+
+  const appChanges = changes.filter((c) => c.appId === appId);
+
+  async function handlePublish() {
+    setPublishing(true);
+    try {
+      const ok = await publishAll(appId);
+      if (ok) {
+        toast.success("All changes saved to App Store Connect");
+      } else {
+        toast.error("Some changes failed to publish – check the remaining items");
+      }
+    } catch {
+      toast.error("Publish failed");
+    } finally {
+      setPublishing(false);
+    }
+  }
+
+  if (appChanges.length === 0) return null;
+
+  return (
+    <>
+      <Button variant="outline" size="sm" className="h-8 text-sm" onClick={() => setConfirmDiscard(true)}>
+        Discard all
+      </Button>
+      <Button size="sm" className="h-8 text-sm" onClick={handlePublish} disabled={publishing}>
+        {publishing && <Spinner className="size-3.5 mr-1.5" />}
+        Push to App Store Connect
+      </Button>
+      <AlertDialog open={confirmDiscard} onOpenChange={setConfirmDiscard}>
+        <AlertDialogContent size="sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Discard all changes?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove all pending changes. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={() => discardAll(appId)}>
+              Discard all
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+}
+
 function CreateVersionDialog({
   open,
   onOpenChange,
@@ -551,6 +736,9 @@ export function HeaderRefreshButton() {
   const { busy: sectionBusy, hasHandler, doRefresh: sectionRefresh } = useRefresh();
   const [refreshing, setRefreshing] = useState(false);
 
+  const pathname = usePathname();
+  const isReviewChanges = appId && pathname.replace(`/dashboard/apps/${appId}`, "").replace(/^\//, "").startsWith("review-changes");
+  if (isReviewChanges) return null;
   if (!appId && !hasHandler) return null;
 
   async function doDefaultRefresh() {

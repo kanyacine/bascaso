@@ -155,7 +155,7 @@ export function AppSwitcher() {
             </div>
             {truncated && (
               <DropdownMenuItem
-                onClick={() => router.push("/settings/license")}
+                onClick={() => guardNavigation(() => router.push("/settings/license"))}
                 className="gap-2 p-2 text-muted-foreground"
               >
                 <Package size={16} weight="duotone" />

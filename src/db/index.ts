@@ -41,6 +41,7 @@ function init() {
     "ALTER TABLE ai_settings ADD COLUMN base_url text",
     "ALTER TABLE asc_credentials ADD COLUMN is_demo integer DEFAULT false",
     "CREATE TABLE IF NOT EXISTS app_preferences (key text PRIMARY KEY NOT NULL, value text NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS pending_changes (id text PRIMARY KEY NOT NULL, app_id text NOT NULL, section text NOT NULL, scope text NOT NULL, field text NOT NULL, value text NOT NULL, original_value text, created_at text NOT NULL, updated_at text NOT NULL)",
   ];
   for (const stmt of safeguardStatements) {
     try { _sqlite.exec(stmt); } catch { /* already applied */ }

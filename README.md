@@ -57,7 +57,9 @@ Everything runs locally. One SQLite database, no cloud, no accounts, no telemetr
 
 **Self-hosted Docker** – run Itsyconnect as a web app on your local network or server. One command to start, auto-generated encryption key, persistent SQLite volume. See [self-hosting with Docker](#self-hosting-with-docker).
 
-**MCP server** – optional [Model Context Protocol](https://modelcontextprotocol.io) server lets AI coding tools (Claude Code, Codex, Cursor, OpenCode) manage your app listings directly. Update release notes, translate fields, add locales – all from your terminal. See [docs/MCP.md](docs/MCP.md).
+**Diff mode** – opt-in setting that accumulates store listing, app details, app review, and keyword changes locally instead of saving to App Store Connect immediately. Review a full before/after diff across all sections and locales, discard individual fields, then push everything in one go.
+
+**MCP server** – optional [Model Context Protocol](https://modelcontextprotocol.io) server lets AI coding tools (Claude Code, Codex, Cursor, OpenCode) manage your app listings directly. Update release notes, translate fields, add locales – all from your terminal. Respects diff mode when enabled. See [docs/MCP.md](docs/MCP.md).
 
 **Privacy and security** – local-first architecture. All data stays on your Mac in a single SQLite file. Credentials encrypted with AES-256-GCM envelope encryption, master key stored in the macOS Keychain. No cloud, no accounts, no telemetry.
 

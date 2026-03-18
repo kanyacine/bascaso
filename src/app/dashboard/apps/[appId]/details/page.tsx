@@ -19,6 +19,8 @@ import { toast } from "sonner";
 import { ApiError } from "@/lib/api-fetch";
 import { useErrorReport } from "@/lib/error-report-context";
 import type { SyncError } from "@/lib/api-helpers";
+import { useChangeBuffer } from "@/lib/change-buffer-context";
+import { useSectionBuffer } from "@/lib/change-buffer-context";
 import { useApps } from "@/lib/apps-context";
 import { useFormDirty } from "@/lib/form-dirty-context";
 import { useAppInfo, useAppInfoLocalizations } from "@/lib/hooks/use-app-info";
@@ -161,6 +163,8 @@ export default function AppDetailsPage() {
 
   const { setDirty, registerSave, registerDiscard, setValidationErrors } = useFormDirty();
   const { showAscError, showSyncErrors } = useErrorReport();
+  const { bufferEnabled } = useChangeBuffer();
+  const { bufferedData, save: saveToBuffer, discard: discardBuffer } = useSectionBuffer(appId, "details", appInfoId);
 
   const bulkFields: BulkField[] = [
     { key: "name", label: "Name", charLimit: FIELD_LIMITS.name },
@@ -196,7 +200,15 @@ export default function AppDetailsPage() {
   const [syncedLocalizations, setSyncedLocalizations] = useState(localizations);
   if (localizations !== syncedLocalizations) {
     setSyncedLocalizations(localizations);
-    const data = buildLocaleData(localizations);
+    const ascData = buildLocaleData(localizations);
+    const bl = bufferEnabled ? bufferedData?.locales as Record<string, Partial<AppInfoLocaleFields>> | undefined : undefined;
+    let data = ascData;
+    if (bl) {
+      data = { ...ascData };
+      for (const [locale, fields] of Object.entries(bl)) {
+        if (data[locale]) data[locale] = { ...data[locale], ...fields };
+      }
+    }
     setLocaleData(data);
     const sorted = sortLocales(Object.keys(data), primaryLocale);
     setLocales(sorted);
@@ -208,7 +220,7 @@ export default function AppDetailsPage() {
       if (fromUrl && sorted.includes(fromUrl)) return fromUrl;
       return sorted[0] ?? "";
     });
-    setDirty(false);
+    if (!bufferEnabled) setDirty(false);
   }
 
   // Keep ref snapshots in sync via effect (refs cannot be written during render)
@@ -226,7 +238,10 @@ export default function AppDetailsPage() {
   if (app?.contentRightsDeclaration !== syncedContentRights) {
     setSyncedContentRights(app?.contentRightsDeclaration);
     if (app?.contentRightsDeclaration) {
-      setContentRights(app.contentRightsDeclaration as ContentRights);
+      setContentRights(
+        (bufferEnabled ? bufferedData?.contentRights as ContentRights | undefined : undefined) ??
+        app.contentRightsDeclaration as ContentRights,
+      );
     }
   }
   useEffect(() => {
@@ -239,8 +254,8 @@ export default function AppDetailsPage() {
   const [syncedNotifUrls, setSyncedNotifUrls] = useState({ prod: app?.subscriptionStatusUrl, sandbox: app?.subscriptionStatusUrlForSandbox });
   if (app?.subscriptionStatusUrl !== syncedNotifUrls.prod || app?.subscriptionStatusUrlForSandbox !== syncedNotifUrls.sandbox) {
     setSyncedNotifUrls({ prod: app?.subscriptionStatusUrl, sandbox: app?.subscriptionStatusUrlForSandbox });
-    setNotifUrl(app?.subscriptionStatusUrl ?? "");
-    setNotifSandboxUrl(app?.subscriptionStatusUrlForSandbox ?? "");
+    setNotifUrl((bufferEnabled ? bufferedData?.notifUrl as string | undefined : undefined) ?? app?.subscriptionStatusUrl ?? "");
+    setNotifSandboxUrl((bufferEnabled ? bufferedData?.notifSandboxUrl as string | undefined : undefined) ?? app?.subscriptionStatusUrlForSandbox ?? "");
   }
   useEffect(() => {
     notifUrlOriginalRef.current = app?.subscriptionStatusUrl ?? "";
@@ -252,8 +267,14 @@ export default function AppDetailsPage() {
   if (appInfo !== syncedAppInfo) {
     setSyncedAppInfo(appInfo);
     if (appInfo) {
-      setPrimaryCategoryId(appInfo.primaryCategory?.id ?? "");
-      setSecondaryCategoryId(appInfo.secondaryCategory?.id ?? "");
+      setPrimaryCategoryId(
+        (bufferEnabled ? bufferedData?.primaryCategoryId as string | undefined : undefined) ??
+        appInfo.primaryCategory?.id ?? "",
+      );
+      setSecondaryCategoryId(
+        (bufferEnabled ? bufferedData?.secondaryCategoryId as string | undefined : undefined) ??
+        appInfo.secondaryCategory?.id ?? "",
+      );
     }
   }
   useEffect(() => {
@@ -292,12 +313,101 @@ export default function AppDetailsPage() {
     reportAppDetails(computeAppDetailsFlags(mapped, primaryLocale));
   }, [localeData, primaryLocale, reportAppDetails]);
 
+  // Overlay buffered changes on initial load (fallback for when buffer loads after ASC data)
+  const bufferAppliedRef = useRef(false);
+  useEffect(() => {
+    if (!bufferEnabled) return;
+    if (!bufferedData || bufferAppliedRef.current) return;
+    bufferAppliedRef.current = true;
+    const bl = bufferedData.locales as Record<string, Partial<AppInfoLocaleFields>> | undefined;
+    if (bl) {
+      setLocaleData((prev) => {
+        const next = { ...prev };
+        for (const [locale, fields] of Object.entries(bl)) {
+          if (next[locale]) next[locale] = { ...next[locale], ...fields };
+        }
+        return next;
+      });
+    }
+    if (bufferedData.contentRights !== undefined) setContentRights(bufferedData.contentRights as ContentRights);
+    if (bufferedData.primaryCategoryId !== undefined) setPrimaryCategoryId(bufferedData.primaryCategoryId as string);
+    if (bufferedData.secondaryCategoryId !== undefined) setSecondaryCategoryId(bufferedData.secondaryCategoryId as string);
+    if (bufferedData.notifUrl !== undefined) setNotifUrl(bufferedData.notifUrl as string);
+    if (bufferedData.notifSandboxUrl !== undefined) setNotifSandboxUrl(bufferedData.notifSandboxUrl as string);
+  }, [bufferEnabled, bufferedData]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Register save handler for the header Save button
   useEffect(() => {
     registerSave(async () => {
+      if (bufferEnabled) {
+        // --- Buffer save path ---
+        const data: Record<string, unknown> = {};
+        const originalData: Record<string, unknown> = {
+          localeIds: originalLocaleIdsRef.current,
+        };
+        const orig = originalLocaleDataRef.current;
+
+        const localeChanges: Record<string, Record<string, string>> = {};
+        const origLocaleChanges: Record<string, Record<string, string>> = {};
+        for (const [locale, fields] of Object.entries(localeData)) {
+          const origFields = orig[locale];
+          if (!origFields) { localeChanges[locale] = { ...fields }; continue; }
+          const diffs: Record<string, string> = {};
+          const origDiffs: Record<string, string> = {};
+          for (const [key, val] of Object.entries(fields)) {
+            if (val !== origFields[key as keyof AppInfoLocaleFields]) {
+              diffs[key] = val;
+              origDiffs[key] = origFields[key as keyof AppInfoLocaleFields];
+            }
+          }
+          if (Object.keys(diffs).length > 0) {
+            localeChanges[locale] = diffs;
+            origLocaleChanges[locale] = origDiffs;
+          }
+        }
+        if (Object.keys(localeChanges).length > 0) {
+          data.locales = localeChanges;
+          originalData.locales = origLocaleChanges;
+        }
+
+        if (contentRights !== contentRightsOriginalRef.current) {
+          data.contentRights = contentRights;
+          originalData.contentRights = contentRightsOriginalRef.current;
+        }
+        if (primaryCategoryId !== primaryCategoryOriginalRef.current) {
+          data.primaryCategoryId = primaryCategoryId;
+          originalData.primaryCategoryId = primaryCategoryOriginalRef.current;
+        }
+        if (secondaryCategoryId !== secondaryCategoryOriginalRef.current) {
+          data.secondaryCategoryId = secondaryCategoryId;
+          originalData.secondaryCategoryId = secondaryCategoryOriginalRef.current;
+        }
+        if (notifUrl !== notifUrlOriginalRef.current) {
+          data.notifUrl = notifUrl;
+          originalData.notifUrl = notifUrlOriginalRef.current;
+        }
+        if (notifSandboxUrl !== notifSandboxUrlOriginalRef.current) {
+          data.notifSandboxUrl = notifSandboxUrl;
+          originalData.notifSandboxUrl = notifSandboxUrlOriginalRef.current;
+        }
+
+        if (Object.keys(data).length === 0) {
+          bufferAppliedRef.current = true;
+          discardBuffer();
+          setDirty(false);
+          return;
+        }
+
+        bufferAppliedRef.current = true;
+        saveToBuffer(data, originalData);
+        toast.success("Changes saved locally");
+        setDirty(false);
+        return;
+      }
+
+      // --- Direct ASC save path ---
       const promises: Promise<void>[] = [];
 
-      // Only send locales that actually changed (or are new/deleted)
       const changedLocales: Record<string, AppInfoLocaleFields> = {};
       const changedLocaleIds: Record<string, string> = {};
       const orig = originalLocaleDataRef.current;
@@ -309,14 +419,12 @@ export default function AppDetailsPage() {
           changedLocaleIds[locale] = originalLocaleIdsRef.current[locale];
         }
       }
-      // Detect deleted locales
       for (const locale of Object.keys(originalLocaleIdsRef.current)) {
         if (!localeData[locale]) {
           changedLocaleIds[locale] = originalLocaleIdsRef.current[locale];
         }
       }
 
-      // Save localizations (skip if nothing changed)
       let locCreatedIds: Record<string, string> = {};
       const syncErrors: SyncError[] = [];
       if (Object.keys(changedLocales).length > 0 || Object.keys(changedLocaleIds).length > Object.keys(changedLocales).length) {
@@ -339,7 +447,6 @@ export default function AppDetailsPage() {
         );
       }
 
-      // Save app attributes if changed (content rights + notification URLs)
       const appAttrs: Record<string, string | null> = {};
       if (contentRights !== contentRightsOriginalRef.current) {
         appAttrs.contentRightsDeclaration = contentRights;
@@ -364,7 +471,6 @@ export default function AppDetailsPage() {
         );
       }
 
-      // Save categories if changed
       if (
         primaryCategoryId !== primaryCategoryOriginalRef.current ||
         secondaryCategoryId !== secondaryCategoryOriginalRef.current
@@ -407,7 +513,6 @@ export default function AppDetailsPage() {
 
       toast.success("App details saved");
 
-      // Update original snapshots so subsequent saves only send new diffs
       const ids: Record<string, string> = { ...originalLocaleIdsRef.current };
       for (const [locale, id] of Object.entries(locCreatedIds)) {
         ids[locale] = id;
@@ -418,7 +523,6 @@ export default function AppDetailsPage() {
       originalLocaleIdsRef.current = ids;
       originalLocaleDataRef.current = { ...localeData };
 
-      // Update app name in context if primary locale name changed
       const primaryName = localeData[primaryLocale]?.name;
       if (primaryName && primaryName !== app?.name) {
         updateApp(appId, (a) => ({ ...a, name: primaryName }));
@@ -426,7 +530,7 @@ export default function AppDetailsPage() {
 
       setDirty(false);
     });
-  }, [appId, appInfoId, localeData, contentRights, primaryCategoryId, secondaryCategoryId, notifUrl, notifSandboxUrl, primaryLocale, app?.name, updateApp, registerSave, setDirty, showAscError, showSyncErrors]);
+  }, [appId, appInfoId, localeData, contentRights, primaryCategoryId, secondaryCategoryId, notifUrl, notifSandboxUrl, primaryLocale, app?.name, updateApp, bufferEnabled, registerSave, setDirty, showAscError, showSyncErrors, saveToBuffer, discardBuffer]);
 
   // Register discard handler for the header Discard button
   useEffect(() => {
@@ -445,8 +549,12 @@ export default function AppDetailsPage() {
       setSecondaryCategoryId(secondaryCategoryOriginalRef.current);
       setNotifUrl(notifUrlOriginalRef.current);
       setNotifSandboxUrl(notifSandboxUrlOriginalRef.current);
+      if (bufferEnabled) {
+        bufferAppliedRef.current = true;
+        discardBuffer();
+      }
     });
-  }, [localizations, primaryLocale, selectedLocale, setLocales, changeLocale, registerDiscard]);
+  }, [localizations, primaryLocale, selectedLocale, bufferEnabled, setLocales, changeLocale, registerDiscard, discardBuffer]);
 
   const updateField = useCallback(
     (field: keyof AppInfoLocaleFields, value: string) => {

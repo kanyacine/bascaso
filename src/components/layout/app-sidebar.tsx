@@ -27,13 +27,14 @@ import { useApps } from "@/lib/apps-context";
 function ProBanner() {
   const router = useRouter();
   const { isPro, loading } = useLicense();
+  const { guardNavigation } = useFormDirty();
   const { open } = useSidebar();
 
   if (loading || isPro) return null;
 
   return (
     <div
-      onClick={() => router.push("/settings/license")}
+      onClick={() => guardNavigation(() => router.push("/settings/license"))}
       className="cursor-pointer rounded-lg bg-blue-500/10 px-3 py-2.5 transition-colors hover:bg-blue-500/15"
     >
       {open ? (

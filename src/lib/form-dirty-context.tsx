@@ -30,7 +30,7 @@ interface FormDirtyContextValue {
   /** Pages register a discard handler; the header button calls it. */
   onDiscard: () => void;
   registerDiscard: (handler: () => void) => void;
-  /** Guard a navigation action – shows a confirmation dialog if dirty. */
+  /** Guard a navigation action – prompts to save if dirty. */
   guardNavigation: (onProceed: () => void) => void;
   /** Pages call this with current validation errors (empty array = valid). */
   setValidationErrors: (errors: string[]) => void;
@@ -116,25 +116,17 @@ export function FormDirtyProvider({ children }: { children: React.ReactNode }) {
     [isDirty],
   );
 
-  // Auto-close dialog if dirty state clears (e.g. save completed elsewhere)
+  // Auto-close dialog if dirty state clears (e.g. save completed)
   useEffect(() => {
     if (!isDirty && guardOpen) {
       setGuardOpen(false);
+      pendingRef.current?.();
       pendingRef.current = null;
     }
   }, [isDirty, guardOpen]);
 
-  // Warn on tab close / refresh
-  useEffect(() => {
-    if (!isDirty) return;
-    function handleBeforeUnload(e: BeforeUnloadEvent) {
-      e.preventDefault();
-    }
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [isDirty]);
-
   function handleDiscard() {
+    if (discardRef.current) discardRef.current();
     setIsDirty(false);
     setGuardOpen(false);
     pendingRef.current?.();

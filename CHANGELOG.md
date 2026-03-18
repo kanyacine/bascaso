@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.8.0
+
+- Add diff mode – accumulate changes locally and review a full diff before pushing to App Store Connect
+
 ## 1.7.0
 
 - Add MCP server – manage your app listings from AI coding tools (Claude Code, Codex, Cursor, OpenCode)

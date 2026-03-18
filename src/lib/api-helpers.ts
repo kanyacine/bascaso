@@ -70,20 +70,15 @@ export interface SyncLocalizationsMutations {
 }
 
 /**
- * Sync localizations: update existing, create new, delete removed.
- * Used by version, app info, and TestFlight localization PUT handlers.
+ * Core localization sync logic: update existing, create new, delete removed.
+ * Accepts data directly – no Request parsing.
  */
-export async function syncLocalizations(
-  request: Request,
+export async function syncLocalizationsFromData(
+  locales: Record<string, Record<string, unknown>>,
+  originalLocaleIds: Record<string, string>,
   parentId: string,
   mutations: SyncLocalizationsMutations,
-): Promise<NextResponse> {
-  const body = await request.json() as {
-    locales: Record<string, Record<string, unknown>>;
-    originalLocaleIds: Record<string, string>;
-  };
-
-  const { locales, originalLocaleIds } = body;
+): Promise<{ ok: boolean; errors: SyncError[]; createdIds: Record<string, string> }> {
   const errors: SyncError[] = [];
   const createdIds: Record<string, string> = {};
 
@@ -156,10 +151,33 @@ export async function syncLocalizations(
   console.log("[syncLocalizations] all ops done, errors=%d created=%s", errors.length, Object.keys(createdIds).join(","));
   mutations.invalidateCache();
 
-  if (errors.length > 0) {
-    console.log("[syncLocalizations] returning 207 with errors:", JSON.stringify(errors));
-    return NextResponse.json({ ok: false, errors, createdIds }, { status: 207 });
+  return { ok: errors.length === 0, errors, createdIds };
+}
+
+/**
+ * Sync localizations: parse request body, then delegate to syncLocalizationsFromData.
+ * Used by version, app info, and TestFlight localization PUT handlers.
+ */
+export async function syncLocalizations(
+  request: Request,
+  parentId: string,
+  mutations: SyncLocalizationsMutations,
+): Promise<NextResponse> {
+  const body = await request.json() as {
+    locales: Record<string, Record<string, unknown>>;
+    originalLocaleIds: Record<string, string>;
+  };
+
+  const result = await syncLocalizationsFromData(
+    body.locales,
+    body.originalLocaleIds,
+    parentId,
+    mutations,
+  );
+
+  if (!result.ok) {
+    return NextResponse.json(result, { status: 207 });
   }
 
-  return NextResponse.json({ ok: true, errors: [], createdIds });
+  return NextResponse.json(result);
 }

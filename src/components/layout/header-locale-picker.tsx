@@ -13,21 +13,19 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { LocalePicker } from "@/components/locale-picker";
 import { useHeaderLocale } from "@/lib/header-locale-context";
-import { useFormDirty } from "@/lib/form-dirty-context";
 import { useAIStatus } from "@/lib/hooks/use-ai-status";
 import { localeName } from "@/lib/asc/locale-names";
 import { AIRequiredDialog } from "@/components/ai-required-dialog";
 
 export function HeaderLocalePicker() {
   const { configRef, config } = useHeaderLocale();
-  const { guardNavigation } = useFormDirty();
   const { configured } = useAIStatus();
   const [showRequired, setShowRequired] = useState(false);
 
   // Stable wrappers that always read from the ref at call time
   const onLocaleChange = useCallback(
-    (code: string) => guardNavigation(() => configRef.current?.onLocaleChange(code)),
-    [configRef, guardNavigation],
+    (code: string) => configRef.current?.onLocaleChange(code),
+    [configRef],
   );
   const onLocaleAdd = useCallback(
     (code: string) => configRef.current?.onLocaleAdd?.(code),

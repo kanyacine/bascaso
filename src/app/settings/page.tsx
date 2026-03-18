@@ -32,6 +32,8 @@ export default function GeneralPage() {
   const [autoCheck, setAutoCheck] = useState(true);
   const [updateState, setUpdateState] = useState<UpdateState>("idle");
   const [errorMessage, setErrorMessage] = useState("");
+  const [reviewMode, setReviewMode] = useState(false);
+  const [reviewModeLoading, setReviewModeLoading] = useState(true);
   const [mcpEnabled, setMcpEnabled] = useState(false);
   const [mcpPort, setMcpPort] = useState(3100);
   const [mcpLoading, setMcpLoading] = useState(true);
@@ -41,6 +43,10 @@ export default function GeneralPage() {
   useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => {
+    fetch("/api/app-preferences/review-mode")
+      .then((r) => r.json())
+      .then((d) => setReviewMode(d.enabled))
+      .finally(() => setReviewModeLoading(false));
     fetch("/api/settings/mcp")
       .then((r) => r.json())
       .then((d) => {
@@ -68,6 +74,15 @@ export default function GeneralPage() {
     setUpdateState("checking");
     setErrorMessage("");
     window.electron?.updates.checkNow();
+  }
+
+  async function handleReviewModeToggle(enabled: boolean) {
+    setReviewMode(enabled);
+    await fetch("/api/app-preferences/review-mode", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled }),
+    });
   }
 
   async function handleMcpToggle(enabled: boolean) {
@@ -177,6 +192,25 @@ export default function GeneralPage() {
         </p>
       </section>
 
+      {!reviewModeLoading && (
+        <section className="space-y-2">
+          <h3 className="section-title">Diff mode</h3>
+          <div className="flex items-center gap-3">
+            <Switch
+              id="review-before-saving"
+              checked={reviewMode}
+              onCheckedChange={handleReviewModeToggle}
+            />
+            <Label htmlFor="review-before-saving" className="text-sm">
+              Enable diff mode
+            </Label>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Accumulate changes locally and review before pushing to App Store Connect.
+          </p>
+        </section>
+      )}
+
       {!mcpLoading && !IS_MAS && (
         <McpSection
           enabled={mcpEnabled}
@@ -250,7 +284,13 @@ function McpSection({
   return (
     <section className="space-y-2">
       <h3 className="section-title">MCP server</h3>
-      <p className="text-sm text-muted-foreground">
+      <div className="flex items-center gap-3">
+        <Switch id="mcp-enabled" checked={enabled} onCheckedChange={onToggle} />
+        <Label htmlFor="mcp-enabled" className="text-sm">
+          Enable MCP server
+        </Label>
+      </div>
+      <p className="text-xs text-muted-foreground">
         Expose an MCP server so AI coding assistants can interact with your App Store Connect data.
         {" "}
         <button
@@ -261,12 +301,6 @@ function McpSection({
           Learn more
         </button>
       </p>
-      <div className="flex items-center gap-3 pt-2">
-        <Switch id="mcp-enabled" checked={enabled} onCheckedChange={onToggle} />
-        <Label htmlFor="mcp-enabled" className="text-sm">
-          Enable MCP server
-        </Label>
-      </div>
       {enabled && (
         <div className="space-y-4">
           <div className="flex items-center gap-3">

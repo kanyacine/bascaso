@@ -19,6 +19,8 @@ import { EDITABLE_STATES } from "@/lib/asc/version-types";
 import { cacheSet } from "@/lib/cache";
 import { resolveApp, resolveVersion, isError, categorizeField, ALL_WRITABLE_FIELDS } from "@/mcp/resolve";
 import { emitChange } from "@/mcp/events";
+import { getReviewBeforeSaving } from "@/lib/app-preferences";
+import { getSectionChange, upsertSectionChange } from "@/lib/change-buffer";
 
 export function registerUpdateApp(server: McpServer): void {
   server.registerTool(
@@ -64,6 +66,66 @@ export function registerUpdateApp(server: McpServer): void {
       const versionResult = await resolveVersion(appResult.id, version);
       if (isError(versionResult)) {
         return { isError: true, content: [{ type: "text", text: versionResult.error }] };
+      }
+
+      // Buffer mode: save to local change buffer instead of ASC
+      if (getReviewBeforeSaving()) {
+        try {
+          const sectionMap: Record<string, string> = {
+            listing: "store-listing",
+            details: "details",
+            review: "review",
+          };
+          const section = sectionMap[category];
+          const scope = category === "details"
+            ? appResult.id // details uses appInfo scope but we use app ID as proxy
+            : versionResult.id;
+
+          const existing = getSectionChange(appResult.id, section, scope);
+          const data = existing ? { ...existing.data } : {};
+          const originalData = existing ? { ...existing.originalData } : {};
+
+          if (category === "review") {
+            // Review fields are top-level
+            const parsedValue = field === "demoAccountRequired" ? value === "true" : value;
+            data[field] = parsedValue;
+            data._reviewDetailId = versionResult.reviewDetail?.id ?? null;
+            if (!(field in originalData)) {
+              const rd = versionResult.reviewDetail?.attributes;
+              originalData[field] = rd ? (rd as Record<string, unknown>)[field] ?? null : null;
+              originalData._reviewDetailId = versionResult.reviewDetail?.id ?? null;
+            }
+          } else {
+            // Listing and details fields are locale-scoped
+            if (!locale) {
+              return {
+                isError: true,
+                content: [{ type: "text", text: `Locale is required for ${category} field "${field}".` }],
+              };
+            }
+            const locales = (data.locales ?? {}) as Record<string, Record<string, unknown>>;
+            const origLocales = (originalData.locales ?? {}) as Record<string, Record<string, unknown>>;
+            locales[locale] = { ...(locales[locale] ?? {}), [field]: value };
+            data.locales = locales;
+            // Only set original if not already tracked for this locale+field
+            if (!origLocales[locale]?.[field]) {
+              origLocales[locale] = { ...(origLocales[locale] ?? {}), [field]: "" };
+              originalData.locales = origLocales;
+            }
+          }
+
+          upsertSectionChange(appResult.id, section, scope, data, originalData);
+          emitChange({ scope: category === "listing" ? "listing" : category === "details" ? "details" : "review", appId: appResult.id, versionId: versionResult.id });
+          const localeLabel = locale ? ` for ${locale}` : "";
+          return {
+            content: [{ type: "text", text: `Buffered ${field}${localeLabel} on ${appResult.attributes.name} ${versionResult.attributes.versionString}.` }],
+          };
+        } catch (err) {
+          return {
+            isError: true,
+            content: [{ type: "text", text: `Failed to buffer: ${err instanceof Error ? err.message : String(err)}` }],
+          };
+        }
       }
 
       // Review fields – no locale needed
