@@ -159,7 +159,29 @@ function DiffField({ label, oldValue, newValue, mode, onDiscard }: {
       );
     } else {
       const segments = diffWords(oldValue, newValue);
-      content = <UnifiedDiff segments={segments} />;
+      const equalChars = segments
+        .filter((s) => s.type === "equal")
+        .reduce((sum, s) => sum + s.text.replace(/\s/g, "").length, 0);
+      const totalChars = Math.max(
+        oldValue.replace(/\s/g, "").length,
+        newValue.replace(/\s/g, "").length,
+        1,
+      );
+      // If less than 30% of content is shared, show stacked before/after
+      if (equalChars / totalChars < 0.3) {
+        content = (
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded border border-red-200 bg-red-500/5 p-2 dark:border-red-900">
+              <span className="text-red-700 dark:text-red-400">{oldValue}</span>
+            </div>
+            <div className="rounded border border-green-200 bg-green-500/5 p-2 dark:border-green-900">
+              <span className="text-green-700 dark:text-green-400">{newValue}</span>
+            </div>
+          </div>
+        );
+      } else {
+        content = <UnifiedDiff segments={segments} />;
+      }
     }
   }
 
@@ -192,6 +214,7 @@ function SectionDiff({
   originalData,
   mode,
   localeFilter,
+  fieldFilter,
   onDiscard,
 }: {
   appId: string;
@@ -201,10 +224,10 @@ function SectionDiff({
   originalData: Record<string, unknown>;
   mode: ViewMode;
   localeFilter: string;
+  fieldFilter: string;
   onDiscard: () => void;
 }) {
   const { discardField } = useChangeBuffer();
-  const label = SECTION_LABELS[section] ?? section;
 
   // Collect locale-level diffs
   const localeDiffs: { locale: string; field: string; oldVal: string; newVal: string }[] = [];
@@ -215,6 +238,7 @@ function SectionDiff({
     if (localeFilter !== "all" && locale !== localeFilter) continue;
     const origFields = origLocales[locale] ?? {};
     for (const [key, val] of Object.entries(fields)) {
+      if (fieldFilter !== "all" && key !== fieldFilter) continue;
       const origVal = origFields[key] ?? "";
       if (val !== origVal) {
         localeDiffs.push({ locale, field: key, oldVal: origVal, newVal: val });
@@ -222,11 +246,12 @@ function SectionDiff({
     }
   }
 
-  // Collect non-locale diffs (always shown regardless of locale filter)
+  // Collect non-locale diffs
   const attrDiffs: { key: string; oldVal: string; newVal: string }[] = [];
   const skipKeys = new Set(["locales", "localeIds", "phasedReleaseId", "_reviewDetailId"]);
   for (const [key, val] of Object.entries(data)) {
     if (skipKeys.has(key)) continue;
+    if (fieldFilter !== "all" && key !== fieldFilter) continue;
     const origVal = originalData[key];
     const valStr = val == null ? "" : String(val);
     const origStr = origVal == null ? "" : String(origVal);
@@ -239,45 +264,28 @@ function SectionDiff({
   if (totalDiffs === 0) return null;
 
   return (
-    <Card className="gap-0 py-0">
-      <CardContent className="py-5 space-y-5">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <h3 className="text-sm font-semibold">{label}</h3>
-            <Badge variant="secondary" className="text-[11px]">
-              {totalDiffs} change{totalDiffs !== 1 ? "s" : ""}
-            </Badge>
-          </div>
-          <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={onDiscard}>
-            <Trash size={14} className="mr-1.5" />
-            Discard section
-          </Button>
-        </div>
-
-        <div className="space-y-4">
-          {localeDiffs.map((d) => (
-            <DiffField
-              key={`${d.locale}:${d.field}`}
-              label={`${localeName(d.locale)} – ${FIELD_LABELS[d.field] ?? d.field}`}
-              oldValue={d.oldVal}
-              newValue={d.newVal}
-              mode={mode}
-              onDiscard={() => discardField(appId, section, scope, d.locale, d.field)}
-            />
-          ))}
-          {attrDiffs.map((d) => (
-            <DiffField
-              key={d.key}
-              label={FIELD_LABELS[d.key] ?? d.key}
-              oldValue={d.oldVal}
-              newValue={d.newVal}
-              mode={mode}
-              onDiscard={() => discardField(appId, section, scope, null, d.key)}
-            />
-          ))}
-        </div>
-      </CardContent>
-    </Card>
+    <div className="space-y-4">
+      {localeDiffs.map((d) => (
+        <DiffField
+          key={`${d.locale}:${d.field}`}
+          label={`${localeName(d.locale)} – ${FIELD_LABELS[d.field] ?? d.field}`}
+          oldValue={d.oldVal}
+          newValue={d.newVal}
+          mode={mode}
+          onDiscard={() => discardField(appId, section, scope, d.locale, d.field)}
+        />
+      ))}
+      {attrDiffs.map((d) => (
+        <DiffField
+          key={d.key}
+          label={FIELD_LABELS[d.key] ?? d.key}
+          oldValue={d.oldVal}
+          newValue={d.newVal}
+          mode={mode}
+          onDiscard={() => discardField(appId, section, scope, null, d.key)}
+        />
+      ))}
+    </div>
   );
 }
 
@@ -285,21 +293,23 @@ function SectionDiff({
 
 export default function ReviewChangesPage() {
   const { appId } = useParams<{ appId: string }>();
-  const { changes, discardSection } = useChangeBuffer();
-  const { mode, localeFilter, sectionFilter, setSectionFilter } = useReviewChanges();
+  const { changes, discardSection, discardField } = useChangeBuffer();
+  const { mode, localeFilter, fieldFilter, setFieldFilter } = useReviewChanges();
 
-  const allAppChanges = changes.filter((c) => c.appId === appId);
+  const appChanges = changes.filter((c) => c.appId === appId);
 
-  // Reset stale section filter
+  // Reset stale field filter
   useEffect(() => {
-    if (sectionFilter !== "all" && !allAppChanges.some((c) => c.section === sectionFilter)) {
-      setSectionFilter("all");
-    }
-  }, [sectionFilter, allAppChanges, setSectionFilter]);
-
-  const appChanges = sectionFilter === "all"
-    ? allAppChanges
-    : allAppChanges.filter((c) => c.section === sectionFilter);
+    if (fieldFilter === "all") return;
+    const hasField = appChanges.some((c) => {
+      const locales = (c.data.locales ?? {}) as Record<string, Record<string, unknown>>;
+      for (const fields of Object.values(locales)) {
+        if (fieldFilter in fields) return true;
+      }
+      return fieldFilter in c.data;
+    });
+    if (!hasField) setFieldFilter("all");
+  }, [fieldFilter, appChanges, setFieldFilter]);
 
   if (appChanges.length === 0) {
     return (
@@ -310,20 +320,92 @@ export default function ReviewChangesPage() {
     );
   }
 
+  // Group changes by section, filtering out sections with no visible diffs
+  const sectionOrder = ["store-listing", "details", "keywords", "review"];
+  const skipKeys = new Set(["locales", "localeIds", "phasedReleaseId", "_reviewDetailId"]);
+
+  function sectionHasVisibleDiffs(c: typeof appChanges[number]): boolean {
+    const dl = (c.data.locales ?? {}) as Record<string, Record<string, string>>;
+    const ol = (c.originalData.locales ?? {}) as Record<string, Record<string, string>>;
+    for (const [locale, fields] of Object.entries(dl)) {
+      if (localeFilter !== "all" && locale !== localeFilter) continue;
+      for (const [key, val] of Object.entries(fields)) {
+        if (fieldFilter !== "all" && key !== fieldFilter) continue;
+        if (val !== (ol[locale]?.[key] ?? "")) return true;
+      }
+    }
+    for (const [key, val] of Object.entries(c.data)) {
+      if (skipKeys.has(key)) continue;
+      if (fieldFilter !== "all" && key !== fieldFilter) continue;
+      if (String(val ?? "") !== String(c.originalData[key] ?? "")) return true;
+    }
+    return false;
+  }
+
+  const grouped = sectionOrder
+    .map((s) => ({
+      section: s,
+      changes: appChanges.filter((c) => c.section === s && sectionHasVisibleDiffs(c)),
+    }))
+    .filter((g) => g.changes.length > 0);
+
+  const isFiltered = fieldFilter !== "all" || localeFilter !== "all";
+
+  function handleDiscardGroup(group: typeof grouped[number]) {
+    if (fieldFilter === "all" && localeFilter === "all") {
+      // Discard entire section
+      for (const c of group.changes) discardSection(appId, c.section, c.scope);
+    } else {
+      // Discard only filtered fields
+      for (const c of group.changes) {
+        const dl = (c.data.locales ?? {}) as Record<string, Record<string, string>>;
+        for (const [locale, fields] of Object.entries(dl)) {
+          if (localeFilter !== "all" && locale !== localeFilter) continue;
+          for (const key of Object.keys(fields)) {
+            if (fieldFilter !== "all" && key !== fieldFilter) continue;
+            discardField(appId, c.section, c.scope, locale, key);
+          }
+        }
+        for (const key of Object.keys(c.data)) {
+          if (skipKeys.has(key)) continue;
+          if (fieldFilter !== "all" && key !== fieldFilter) continue;
+          discardField(appId, c.section, c.scope, null, key);
+        }
+      }
+    }
+  }
+
   return (
-    <div className="space-y-6">
-      {appChanges.map((change) => (
-        <SectionDiff
-          key={`${change.section}:${change.scope}`}
-          appId={appId}
-          section={change.section}
-          scope={change.scope}
-          data={change.data}
-          originalData={change.originalData}
-          mode={mode}
-          localeFilter={localeFilter}
-          onDiscard={() => discardSection(appId, change.section, change.scope)}
-        />
+    <div className="space-y-8">
+      {grouped.map((group) => (
+        <div key={group.section} className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-semibold">{SECTION_LABELS[group.section] ?? group.section}</h2>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground"
+              onClick={() => handleDiscardGroup(group)}
+            >
+              <Trash size={14} className="mr-1.5" />
+              {isFiltered ? "Discard filtered" : "Discard section"}
+            </Button>
+          </div>
+          {group.changes.map((change) => (
+            <SectionDiff
+              key={`${change.section}:${change.scope}`}
+              appId={appId}
+              section={change.section}
+              scope={change.scope}
+              data={change.data}
+              originalData={change.originalData}
+              mode={mode}
+              localeFilter={localeFilter}
+              fieldFilter={fieldFilter}
+              onDiscard={() => handleDiscardGroup(group)}
+            />
+          ))}
+        </div>
       ))}
     </div>
   );

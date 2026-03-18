@@ -10,7 +10,6 @@ import {
   deleteAppInfoLocalization,
   invalidateAppInfoLocalizationsCache,
 } from "@/lib/asc/localization-mutations";
-import { apiFetch } from "@/lib/api-fetch";
 import type { SectionChange } from "@/lib/change-buffer";
 
 function uiToAscReleaseType(ui: string): string {
@@ -38,6 +37,8 @@ export async function publishSection(
   const { appId, section, scope, data, originalData } = change;
   const allErrors: SyncError[] = [];
 
+  console.log(`[publish] section=${section} scope=${scope} data=${JSON.stringify(data)} originalData=${JSON.stringify(originalData)}`);
+
   try {
     switch (section) {
       case "store-listing":
@@ -50,7 +51,7 @@ export async function publishSection(
         await publishKeywords(appId, scope, data, originalData, allErrors);
         break;
       case "review":
-        await publishReview(appId, scope, data);
+        await publishReview(appId, scope, data, allErrors);
         break;
       default:
         allErrors.push({ operation: "update", locale: "", message: `Unknown section: ${section}` });
@@ -75,10 +76,14 @@ async function publishStoreListing(
   originalData: Record<string, unknown>,
   errors: SyncError[],
 ) {
-  // Localizations
+  // Localizations – buffer stores only changed locales, so filter IDs to match
   const locales = data.locales as Record<string, Record<string, unknown>> | undefined;
-  const localeIds = (originalData.localeIds ?? {}) as Record<string, string>;
+  const allLocaleIds = (originalData.localeIds ?? {}) as Record<string, string>;
   if (locales && Object.keys(locales).length > 0) {
+    const localeIds: Record<string, string> = {};
+    for (const locale of Object.keys(locales)) {
+      if (allLocaleIds[locale]) localeIds[locale] = allLocaleIds[locale];
+    }
     const result = await syncLocalizationsFromData(locales, localeIds, versionId, {
       update: updateVersionLocalization,
       create: createVersionLocalization,
@@ -89,21 +94,26 @@ async function publishStoreListing(
   }
 
   // Release settings (UI format → ASC format)
-  if (data.releaseType !== undefined) {
-    const ascReleaseType = uiToAscReleaseType(data.releaseType as string);
-    const scheduledDate = data.scheduledDate as string | null | undefined;
-    const earliestReleaseDate = (data.releaseType === "after-date" && scheduledDate) ? scheduledDate : null;
+  const hasReleaseChanges = data.releaseType !== undefined || data.phasedRelease !== undefined || data.scheduledDate !== undefined;
+  if (hasReleaseChanges) {
+    const releaseBody: Record<string, unknown> = {
+      phasedReleaseId: (originalData.phasedReleaseId as string) ?? null,
+    };
+    if (data.releaseType !== undefined) {
+      releaseBody.releaseType = uiToAscReleaseType(data.releaseType as string);
+      const scheduledDate = data.scheduledDate as string | null | undefined;
+      releaseBody.earliestReleaseDate = (data.releaseType === "after-date" && scheduledDate) ? scheduledDate : null;
+    }
+    if (data.phasedRelease !== undefined) {
+      releaseBody.phasedRelease = data.phasedRelease;
+    }
+    console.log("[publish] release settings:", JSON.stringify(releaseBody));
     const res = await fetch(
       `${baseUrl()}/api/apps/${appId}/versions/${versionId}/release`,
       {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          releaseType: ascReleaseType,
-          earliestReleaseDate,
-          phasedRelease: data.phasedRelease ?? false,
-          phasedReleaseId: (originalData.phasedReleaseId as string) ?? null,
-        }),
+        body: JSON.stringify(releaseBody),
       },
     );
     if (!res.ok) {
@@ -117,11 +127,15 @@ async function publishStoreListing(
   if (data.buildId !== undefined) versionAttrs.buildId = data.buildId;
   if (data.copyright !== undefined) versionAttrs.copyright = data.copyright;
   if (Object.keys(versionAttrs).length > 0) {
-    await apiFetch(`/api/apps/${appId}/versions/${versionId}`, {
+    const res = await fetch(`${baseUrl()}/api/apps/${appId}/versions/${versionId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(versionAttrs),
     });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      errors.push({ operation: "update", locale: "", message: d.error ?? "Version attributes failed" });
+    }
   }
 }
 
@@ -134,10 +148,14 @@ async function publishAppDetails(
   originalData: Record<string, unknown>,
   errors: SyncError[],
 ) {
-  // Localizations
+  // Localizations – buffer stores only changed locales, so filter IDs to match
   const locales = data.locales as Record<string, Record<string, unknown>> | undefined;
-  const localeIds = (originalData.localeIds ?? {}) as Record<string, string>;
+  const allLocaleIds = (originalData.localeIds ?? {}) as Record<string, string>;
   if (locales && Object.keys(locales).length > 0) {
+    const localeIds: Record<string, string> = {};
+    for (const locale of Object.keys(locales)) {
+      if (allLocaleIds[locale]) localeIds[locale] = allLocaleIds[locale];
+    }
     const result = await syncLocalizationsFromData(locales, localeIds, appInfoId, {
       update: updateAppInfoLocalization,
       create: createAppInfoLocalization,
@@ -153,16 +171,20 @@ async function publishAppDetails(
   if (data.notifUrl !== undefined) appAttrs.subscriptionStatusUrl = (data.notifUrl as string) || null;
   if (data.notifSandboxUrl !== undefined) appAttrs.subscriptionStatusUrlForSandbox = (data.notifSandboxUrl as string) || null;
   if (Object.keys(appAttrs).length > 0) {
-    await apiFetch(`/api/apps/${appId}/attributes`, {
+    const res = await fetch(`${baseUrl()}/api/apps/${appId}/attributes`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(appAttrs),
     });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      errors.push({ operation: "update", locale: "", message: d.error ?? "App attributes failed" });
+    }
   }
 
   // Categories
   if (data.primaryCategoryId !== undefined || data.secondaryCategoryId !== undefined) {
-    await apiFetch(`/api/apps/${appId}/info/${appInfoId}/categories`, {
+    const res = await fetch(`${baseUrl()}/api/apps/${appId}/info/${appInfoId}/categories`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -170,6 +192,10 @@ async function publishAppDetails(
         secondaryCategoryId: (data.secondaryCategoryId as string) || null,
       }),
     });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      errors.push({ operation: "update", locale: "", message: d.error ?? "Categories failed" });
+    }
   }
 }
 
@@ -183,8 +209,12 @@ async function publishKeywords(
   errors: SyncError[],
 ) {
   const locales = data.locales as Record<string, Record<string, unknown>> | undefined;
-  const localeIds = (originalData.localeIds ?? {}) as Record<string, string>;
+  const allLocaleIds = (originalData.localeIds ?? {}) as Record<string, string>;
   if (locales && Object.keys(locales).length > 0) {
+    const localeIds: Record<string, string> = {};
+    for (const locale of Object.keys(locales)) {
+      if (allLocaleIds[locale]) localeIds[locale] = allLocaleIds[locale];
+    }
     const result = await syncLocalizationsFromData(locales, localeIds, versionId, {
       update: updateVersionLocalization,
       create: createVersionLocalization,
@@ -201,6 +231,7 @@ async function publishReview(
   appId: string,
   versionId: string,
   data: Record<string, unknown>,
+  errors: SyncError[],
 ) {
   // Reconstruct attributes from flattened fields (exclude internal keys)
   const skipKeys = new Set(["_reviewDetailId", "locales", "localeIds", "phasedReleaseId"]);
@@ -208,7 +239,7 @@ async function publishReview(
   for (const [k, v] of Object.entries(data)) {
     if (!skipKeys.has(k)) attributes[k] = v;
   }
-  await fetch(`${baseUrl()}/api/apps/${appId}/versions/${versionId}/review`, {
+  const res = await fetch(`${baseUrl()}/api/apps/${appId}/versions/${versionId}/review`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -216,6 +247,10 @@ async function publishReview(
       attributes,
     }),
   });
+  if (!res.ok) {
+    const d = await res.json().catch(() => ({}));
+    errors.push({ operation: "update", locale: "", message: d.error ?? "Review info failed" });
+  }
 }
 
 function baseUrl(): string {

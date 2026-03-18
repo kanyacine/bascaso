@@ -55,3 +55,14 @@ export function formatDuration(seconds: number, compact = false): string {
   if (compact) return m === 0 ? `${h}h` : `${h}h`;
   return m > 0 ? `${h}h ${m}m` : `${h}h`;
 }
+
+/** Check if a string is a valid HTTP(S) URL. Empty strings return true (optional fields). */
+export function isValidUrl(s: string): boolean {
+  if (!s) return true;
+  try {
+    const url = new URL(s);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return false;
+    // Hostname must be a valid domain (letters, digits, hyphens, dots only)
+    return /^[a-zA-Z0-9.-]+$/.test(url.hostname) && url.hostname.includes(".");
+  } catch { return false; }
+}

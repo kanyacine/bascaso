@@ -481,11 +481,30 @@ export function HeaderVersionActions() {
   );
 }
 
-const REVIEW_SECTION_LABELS: Record<string, string> = {
-  "store-listing": "Store listing",
-  details: "App details",
+const REVIEW_FIELD_LABELS: Record<string, string> = {
+  description: "Description",
   keywords: "Keywords",
-  review: "App review",
+  whatsNew: "What's new",
+  promotionalText: "Promotional text",
+  supportUrl: "Support URL",
+  marketingUrl: "Marketing URL",
+  name: "Name",
+  subtitle: "Subtitle",
+  privacyPolicyUrl: "Privacy policy URL",
+  privacyChoicesUrl: "Privacy choices URL",
+  copyright: "Copyright",
+  releaseType: "Release type",
+  scheduledDate: "Scheduled date",
+  phasedRelease: "Phased release",
+  buildId: "Build",
+  notes: "Notes",
+  demoAccountRequired: "Sign-in required",
+  demoAccountName: "Demo username",
+  demoAccountPassword: "Demo password",
+  contactFirstName: "First name",
+  contactLastName: "Last name",
+  contactPhone: "Phone",
+  contactEmail: "Email",
 };
 
 /** Left-side filters for the review-changes page (renders next to breadcrumb). */
@@ -494,8 +513,8 @@ export function HeaderReviewFilters() {
   const pathname = usePathname();
   const { changes, bufferEnabled } = useChangeBuffer();
   const { apps } = useApps();
-  const { mode, setMode, sectionFilter, setSectionFilter, localeFilter, setLocaleFilter } = useReviewChanges();
-  const [sectionOpen, setSectionOpen] = useState(false);
+  const { mode, setMode, fieldFilter, setFieldFilter, localeFilter, setLocaleFilter } = useReviewChanges();
+  const [fieldOpen, setFieldOpen] = useState(false);
   const [localeOpen, setLocaleOpen] = useState(false);
 
   if (!appId) return null;
@@ -506,7 +525,31 @@ export function HeaderReviewFilters() {
   const appChanges = changes.filter((c) => c.appId === appId);
   if (appChanges.length === 0) return null;
 
-  const allSections = [...new Set(appChanges.map((c) => c.section))].sort();
+  // Collect fields grouped by section
+  const SECTION_LABELS: Record<string, string> = {
+    "store-listing": "Store listing",
+    details: "App details",
+    keywords: "Keywords",
+    review: "App review",
+  };
+  const skipKeys = new Set(["locales", "localeIds", "phasedReleaseId", "_reviewDetailId"]);
+  const sectionFields: { section: string; fields: string[] }[] = [];
+  const sectionOrder = ["store-listing", "details", "keywords", "review"];
+  for (const sec of sectionOrder) {
+    const secChanges = appChanges.filter((c) => c.section === sec);
+    if (secChanges.length === 0) continue;
+    const fieldSet = new Set<string>();
+    for (const c of secChanges) {
+      const dl = c.data.locales as Record<string, Record<string, unknown>> | undefined;
+      if (dl) for (const fields of Object.values(dl)) for (const k of Object.keys(fields)) fieldSet.add(k);
+      for (const k of Object.keys(c.data)) if (!skipKeys.has(k)) fieldSet.add(k);
+    }
+    sectionFields.push({
+      section: sec,
+      fields: [...fieldSet].sort((a, b) => (REVIEW_FIELD_LABELS[a] ?? a).localeCompare(REVIEW_FIELD_LABELS[b] ?? b)),
+    });
+  }
+
   const localeSet = new Set<string>();
   for (const c of appChanges) {
     const dl = c.data.locales as Record<string, unknown> | undefined;
@@ -533,28 +576,32 @@ export function HeaderReviewFilters() {
         ))}
       </div>
       <Separator orientation="vertical" className="mx-2 !h-4" />
-      <Popover open={sectionOpen} onOpenChange={setSectionOpen}>
+      <Popover open={fieldOpen} onOpenChange={setFieldOpen}>
         <PopoverTrigger asChild>
           <Button variant="outline" className="h-8 gap-1.5 px-2.5 text-sm">
-            {sectionFilter === "all" ? "All sections" : REVIEW_SECTION_LABELS[sectionFilter] ?? sectionFilter}
+            {fieldFilter === "all" ? "All fields" : REVIEW_FIELD_LABELS[fieldFilter] ?? fieldFilter}
             <CaretDown size={12} className="text-muted-foreground" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-48 p-1" align="start">
+        <PopoverContent className="w-52 p-1" align="start">
           <Command>
             <CommandList>
               <CommandGroup>
-                <CommandItem value="all" onSelect={() => { setSectionFilter("all"); setSectionOpen(false); }}>
-                  <Check size={14} className={sectionFilter === "all" ? "opacity-100" : "opacity-0"} />
-                  All sections
+                <CommandItem value="all" onSelect={() => { setFieldFilter("all"); setFieldOpen(false); }}>
+                  <Check size={14} className={fieldFilter === "all" ? "opacity-100" : "opacity-0"} />
+                  All fields
                 </CommandItem>
-                {allSections.map((s) => (
-                  <CommandItem key={s} value={s} onSelect={() => { setSectionFilter(s); setSectionOpen(false); }}>
-                    <Check size={14} className={sectionFilter === s ? "opacity-100" : "opacity-0"} />
-                    {REVIEW_SECTION_LABELS[s] ?? s}
-                  </CommandItem>
-                ))}
               </CommandGroup>
+              {sectionFields.map((group) => (
+                <CommandGroup key={group.section} heading={SECTION_LABELS[group.section] ?? group.section}>
+                  {group.fields.map((f) => (
+                    <CommandItem key={f} value={`${group.section}:${f}`} onSelect={() => { setFieldFilter(f); setFieldOpen(false); }}>
+                      <Check size={14} className={fieldFilter === f ? "opacity-100" : "opacity-0"} />
+                      {REVIEW_FIELD_LABELS[f] ?? f}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              ))}
             </CommandList>
           </Command>
         </PopoverContent>
@@ -596,6 +643,7 @@ export function HeaderReviewFilters() {
 /** Right-side buttons for the review-changes page (renders in actions area). */
 function HeaderReviewChangesActions({ appId }: { appId: string }) {
   const { changes, discardAll, publishAll } = useChangeBuffer();
+  const { updateVersion } = useVersions();
   const [publishing, setPublishing] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
 
@@ -603,10 +651,58 @@ function HeaderReviewChangesActions({ appId }: { appId: string }) {
 
   async function handlePublish() {
     setPublishing(true);
+    // Snapshot buffer data before publish clears it
+    const snapshot = appChanges.map((c) => ({ ...c }));
     try {
       const ok = await publishAll(appId);
       if (ok) {
-        toast.success("All changes saved to App Store Connect");
+        toast.success("All changes pushed to App Store Connect");
+        // Apply published data to version cache so UI reflects changes immediately
+        for (const change of snapshot) {
+          if (change.section === "store-listing" || change.section === "keywords") {
+            updateVersion(change.scope, (v) => ({
+              ...v,
+              attributes: {
+                ...v.attributes,
+                ...(change.data.copyright !== undefined && { copyright: change.data.copyright as string }),
+                ...(change.data.releaseType !== undefined && {
+                  releaseType: change.data.releaseType === "manually" ? "MANUAL"
+                    : change.data.releaseType === "after-date" ? "SCHEDULED" : "AFTER_APPROVAL",
+                }),
+                ...(change.data.scheduledDate !== undefined && {
+                  earliestReleaseDate: change.data.scheduledDate as string | null,
+                }),
+              },
+              ...(change.data.phasedRelease !== undefined && {
+                phasedRelease: change.data.phasedRelease
+                  ? (v.phasedRelease ?? { id: "", attributes: { phasedReleaseState: "INACTIVE", currentDayNumber: null, startDate: null } })
+                  : null,
+              }),
+            }));
+          }
+          if (change.section === "review") {
+            const d = change.data;
+            updateVersion(change.scope, (v) => {
+              const prev = v.reviewDetail?.attributes;
+              return {
+                ...v,
+                reviewDetail: {
+                  id: (d._reviewDetailId as string) ?? v.reviewDetail?.id ?? "",
+                  attributes: {
+                    notes: (d.notes as string | null) ?? prev?.notes ?? null,
+                    demoAccountRequired: (d.demoAccountRequired as boolean | undefined) ?? prev?.demoAccountRequired ?? false,
+                    demoAccountName: (d.demoAccountName as string | null) ?? prev?.demoAccountName ?? null,
+                    demoAccountPassword: (d.demoAccountPassword as string | null) ?? prev?.demoAccountPassword ?? null,
+                    contactFirstName: (d.contactFirstName as string | null) ?? prev?.contactFirstName ?? null,
+                    contactLastName: (d.contactLastName as string | null) ?? prev?.contactLastName ?? null,
+                    contactPhone: (d.contactPhone as string | null) ?? prev?.contactPhone ?? null,
+                    contactEmail: (d.contactEmail as string | null) ?? prev?.contactEmail ?? null,
+                  },
+                },
+              };
+            });
+          }
+        }
       } else {
         toast.error("Some changes failed to publish – check the remaining items");
       }

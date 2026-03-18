@@ -42,7 +42,7 @@ import { BuildSection } from "./_components/build-section";
 import { ReleaseSettings } from "./_components/release-settings";
 import { EmptyState } from "@/components/empty-state";
 import { useTabNavigation } from "@/lib/hooks/use-tab-navigation";
-
+import { isValidUrl } from "@/lib/format";
 
 function deriveReleaseSettings(version: AscVersion | undefined) {
   if (!version) return { releaseType: "automatically" as const, scheduledDate: undefined as Date | undefined, phasedRelease: false };
@@ -83,7 +83,7 @@ export default function StoreListingPage() {
   const searchParams = useSearchParams();
   const { apps } = useApps();
   const app = apps.find((a) => a.id === appId);
-  const { versions, loading: versionsLoading, updateVersion } = useVersions();
+  const { versions, loading: versionsLoading, updateVersion, refresh: refreshVersions } = useVersions();
 
   const selectedVersion = useMemo(
     () => resolveVersion(versions, searchParams.get("version")),
@@ -117,7 +117,7 @@ export default function StoreListingPage() {
 
   useRegisterRefresh({
     onRefresh: async () => {
-      await Promise.all([refreshLocalizations(), refreshInfoLocalizations()]);
+      await Promise.all([refreshVersions(), refreshLocalizations(), refreshInfoLocalizations()]);
     },
     busy: locLoading || infoLocLoading,
   });
@@ -379,6 +379,13 @@ export default function StoreListingPage() {
         const min = FIELD_MIN_LIMITS[field];
         if (min && len > 0 && len < min) {
           errors.push(`${fieldLabels[field]} must be at least ${min} characters in ${name}`);
+        }
+      }
+      // URL validation
+      for (const urlField of ["supportUrl", "marketingUrl"] as const) {
+        const val = fields[urlField];
+        if (val && !isValidUrl(val)) {
+          errors.push(`${urlField === "supportUrl" ? "Support URL" : "Marketing URL"} is invalid in ${name}`);
         }
       }
     }

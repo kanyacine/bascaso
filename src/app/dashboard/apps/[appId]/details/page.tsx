@@ -19,8 +19,8 @@ import { toast } from "sonner";
 import { ApiError } from "@/lib/api-fetch";
 import { useErrorReport } from "@/lib/error-report-context";
 import type { SyncError } from "@/lib/api-helpers";
-import { useChangeBuffer } from "@/lib/change-buffer-context";
-import { useSectionBuffer } from "@/lib/change-buffer-context";
+import { useChangeBuffer, useSectionBuffer } from "@/lib/change-buffer-context";
+import { isValidUrl } from "@/lib/format";
 import { useApps } from "@/lib/apps-context";
 import { useFormDirty } from "@/lib/form-dirty-context";
 import { useAppInfo, useAppInfoLocalizations } from "@/lib/hooks/use-app-info";
@@ -297,6 +297,12 @@ export default function AppDetailsPage() {
       }
       if (fields.subtitle.length > FIELD_LIMITS.subtitle) {
         errors.push(`Subtitle (${fields.subtitle.length}/${FIELD_LIMITS.subtitle}) in ${lName}`);
+      }
+      for (const urlField of ["privacyPolicyUrl", "privacyChoicesUrl"] as const) {
+        const val = fields[urlField];
+        if (val && !isValidUrl(val)) {
+          errors.push(`${urlField === "privacyPolicyUrl" ? "Privacy policy URL" : "Privacy choices URL"} is invalid in ${lName}`);
+        }
       }
     }
     setValidationErrors(errors);

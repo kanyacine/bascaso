@@ -13,6 +13,8 @@ import { FIELD_LIMITS } from "@/lib/asc/locale-names";
 import { cacheSet } from "@/lib/cache";
 import { resolveApp, resolveVersion, isError, ALL_TRANSLATABLE_FIELDS } from "@/mcp/resolve";
 import { emitChange } from "@/mcp/events";
+import { getReviewBeforeSaving } from "@/lib/app-preferences";
+import { getSectionChange, upsertSectionChange } from "@/lib/change-buffer";
 
 const LISTING_FIELDS = new Set(["whatsNew", "description", "keywords", "promotionalText"]);
 const DETAIL_FIELDS = new Set(["name", "subtitle"]);
@@ -88,6 +90,8 @@ export function registerTranslate(server: McpServer): void {
       const results: string[] = [];
       const errors: string[] = [];
 
+      const bufferMode = getReviewBeforeSaving();
+
       // Translate store listing fields
       if (listingFields.length > 0) {
         const versionResult = await resolveVersion(appResult.id, version);
@@ -138,16 +142,37 @@ export function registerTranslate(server: McpServer): void {
                     finalValue = await fixKeywords(stripped, locale, appName, sourceLoc.attributes.description || undefined, forbidden);
                   }
 
-                  const loc = localeMap.get(locale)!;
-                  await updateVersionLocalization(loc.id, { [field]: finalValue });
-                  results.push(`${field} → ${locale}: done`);
+                  if (bufferMode) {
+                    const existing = getSectionChange(appResult.id, "store-listing", versionResult.id);
+                    const data = { ...(existing?.data ?? {}) };
+                    const originalData = { ...(existing?.originalData ?? {}) };
+                    if (!originalData.localeIds) {
+                      const ids: Record<string, string> = {};
+                      for (const [l, loc] of localeMap) ids[l] = loc.id;
+                      originalData.localeIds = ids;
+                    }
+                    const locales = { ...(data.locales as Record<string, Record<string, unknown>> ?? {}) };
+                    locales[locale] = { ...(locales[locale] ?? {}), [field]: finalValue };
+                    data.locales = locales;
+                    const origLocales = { ...(originalData.locales as Record<string, Record<string, unknown>> ?? {}) };
+                    const currentValue = (localeMap.get(locale)?.attributes as Record<string, string | null>)?.[field] ?? "";
+                    origLocales[locale] = { ...(origLocales[locale] ?? {}), [field]: currentValue };
+                    originalData.locales = origLocales;
+                    upsertSectionChange(appResult.id, "store-listing", versionResult.id, data, originalData);
+                  } else {
+                    const loc = localeMap.get(locale)!;
+                    await updateVersionLocalization(loc.id, { [field]: finalValue });
+                  }
+                  results.push(`${field} → ${locale}: ${bufferMode ? "buffered" : "done"}`);
                 } catch (err) {
                   errors.push(`${field} → ${locale}: ${err instanceof Error ? err.message : String(err)}`);
                 }
               }
             }
 
-            cacheSet(`localizations:${versionResult.id}`, null, 0);
+            if (!bufferMode) {
+              cacheSet(`localizations:${versionResult.id}`, null, 0);
+            }
             emitChange({ scope: "listing", appId: appResult.id, versionId: versionResult.id });
           }
         }
@@ -181,16 +206,38 @@ export function registerTranslate(server: McpServer): void {
               for (const locale of targets) {
                 try {
                   const translated = await translateText(sourceText, sourceLocale, locale, field, appName);
-                  const loc = localeMap.get(locale)!;
-                  await updateAppInfoLocalization(loc.id, { [field]: translated });
-                  results.push(`${field} → ${locale}: done`);
+
+                  if (bufferMode) {
+                    const existing = getSectionChange(appResult.id, "details", appInfo.id);
+                    const data = { ...(existing?.data ?? {}) };
+                    const originalData = { ...(existing?.originalData ?? {}) };
+                    if (!originalData.localeIds) {
+                      const ids: Record<string, string> = {};
+                      for (const [l, loc] of localeMap) ids[l] = loc.id;
+                      originalData.localeIds = ids;
+                    }
+                    const locales = { ...(data.locales as Record<string, Record<string, unknown>> ?? {}) };
+                    locales[locale] = { ...(locales[locale] ?? {}), [field]: translated };
+                    data.locales = locales;
+                    const origLocales = { ...(originalData.locales as Record<string, Record<string, unknown>> ?? {}) };
+                    const currentValue = (localeMap.get(locale)?.attributes as Record<string, string | null>)?.[field] ?? "";
+                    origLocales[locale] = { ...(origLocales[locale] ?? {}), [field]: currentValue };
+                    originalData.locales = origLocales;
+                    upsertSectionChange(appResult.id, "details", appInfo.id, data, originalData);
+                  } else {
+                    const loc = localeMap.get(locale)!;
+                    await updateAppInfoLocalization(loc.id, { [field]: translated });
+                  }
+                  results.push(`${field} → ${locale}: ${bufferMode ? "buffered" : "done"}`);
                 } catch (err) {
                   errors.push(`${field} → ${locale}: ${err instanceof Error ? err.message : String(err)}`);
                 }
               }
             }
 
-            cacheSet(`appInfoLocalizations:${appInfo.id}`, null, 0);
+            if (!bufferMode) {
+              cacheSet(`appInfoLocalizations:${appInfo.id}`, null, 0);
+            }
             emitChange({ scope: "details", appId: appResult.id });
           }
         }
