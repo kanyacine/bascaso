@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.8.1
+
+- Add `get_insights` MCP tool – ask your AI assistant how your app is doing (reviews, analytics, stability, overview)
+
 ## 1.8.0
 
 - Add diff mode – accumulate changes locally and review a full diff before pushing to App Store Connect

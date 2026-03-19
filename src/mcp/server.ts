@@ -4,6 +4,7 @@ import { registerGetApp } from "./tools/get-app";
 import { registerUpdateApp } from "./tools/update-app";
 import { registerTranslate } from "./tools/translate";
 import { registerManageLocales } from "./tools/manage-locales";
+import { registerGetInsights } from "./tools/get-insights";
 
 export function createMcpServer(): McpServer {
   const server = new McpServer({
@@ -15,6 +16,7 @@ export function createMcpServer(): McpServer {
   registerUpdateApp(server);
   registerTranslate(server);
   registerManageLocales(server);
+  registerGetInsights(server);
 
   return server;
 }
