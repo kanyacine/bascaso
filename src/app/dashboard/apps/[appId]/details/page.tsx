@@ -44,7 +44,7 @@ import { EmptyState } from "@/components/empty-state";
 import { useTabNavigation } from "@/lib/hooks/use-tab-navigation";
 import { useRegisterRefresh } from "@/lib/refresh-context";
 import { useVersions } from "@/lib/versions-context";
-import { resolveVersion, EDITABLE_STATES, TEXT_EDITABLE_STATES } from "@/lib/asc/version-types";
+import { resolveVersion, EDITABLE_STATES } from "@/lib/asc/version-types";
 
 const SORTED_CATEGORIES = Object.keys(CATEGORIES).sort((a, b) =>
   CATEGORIES[a].localeCompare(CATEGORIES[b]),
@@ -118,9 +118,6 @@ export default function AppDetailsPage() {
     [versions, searchParams],
   );
   const versionId = selectedVersion?.id ?? "";
-  const readOnly = selectedVersion
-    ? !TEXT_EDITABLE_STATES.has(selectedVersion.attributes.appVersionState)
-    : false;
   const structuralReadOnly = selectedVersion
     ? !EDITABLE_STATES.has(selectedVersion.attributes.appVersionState)
     : false;
@@ -324,6 +321,7 @@ export default function AppDetailsPage() {
 
   // Overlay buffered changes on initial load (fallback for when buffer loads after ASC data)
   const bufferAppliedRef = useRef(false);
+  /* eslint-disable react-hooks/set-state-in-effect -- intentional: apply buffered overlay after async load */
   useEffect(() => {
     if (!bufferEnabled) return;
     if (!bufferedData || bufferAppliedRef.current) return;
@@ -344,6 +342,7 @@ export default function AppDetailsPage() {
     if (bufferedData.notifUrl !== undefined) setNotifUrl(bufferedData.notifUrl as string);
     if (bufferedData.notifSandboxUrl !== undefined) setNotifSandboxUrl(bufferedData.notifSandboxUrl as string);
   }, [bufferEnabled, bufferedData]); // eslint-disable-line react-hooks/exhaustive-deps
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Register save handler for the header Save button
   useEffect(() => {

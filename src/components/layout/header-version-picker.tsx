@@ -7,7 +7,7 @@ import {
   useSearchParams,
   useRouter,
 } from "next/navigation";
-import { ArrowsClockwise, CaretDown, Check, Plus, Trash, CloudArrowUp } from "@phosphor-icons/react";
+import { ArrowsClockwise, CaretDown, Check, Plus } from "@phosphor-icons/react";
 import { Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
 import {
@@ -57,7 +57,7 @@ import { useVersions } from "@/lib/versions-context";
 import { usePreReleaseVersions } from "@/lib/pre-release-versions-context";
 import { useFormDirty } from "@/lib/form-dirty-context";
 import { useChangeBuffer } from "@/lib/change-buffer-context";
-import { useReviewChanges, type ReviewViewMode } from "@/lib/review-changes-context";
+import { useReviewChanges } from "@/lib/review-changes-context";
 import { useRefresh } from "@/lib/refresh-context";
 import { localeName, sortLocales } from "@/lib/asc/locale-names";
 import {
@@ -511,7 +511,7 @@ const REVIEW_FIELD_LABELS: Record<string, string> = {
 export function HeaderReviewFilters() {
   const { appId } = useParams<{ appId?: string }>();
   const pathname = usePathname();
-  const { changes, bufferEnabled } = useChangeBuffer();
+  const { changes } = useChangeBuffer();
   const { apps } = useApps();
   const { mode, setMode, fieldFilter, setFieldFilter, localeFilter, setLocaleFilter } = useReviewChanges();
   const [fieldOpen, setFieldOpen] = useState(false);

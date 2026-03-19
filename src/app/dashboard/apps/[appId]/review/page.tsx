@@ -114,6 +114,7 @@ export default function AppReviewPage() {
 
   // Overlay buffered changes on initial load
   const bufferAppliedRef = useRef(false);
+  /* eslint-disable react-hooks/set-state-in-effect -- intentional: apply buffered overlay after async load */
   useEffect(() => {
     if (!bufferEnabled) return;
     if (!bufferedData || bufferAppliedRef.current) return;
@@ -128,6 +129,7 @@ export default function AppReviewPage() {
     if (buf.contactPhone !== undefined) setPhone(buf.contactPhone as string);
     if (buf.contactEmail !== undefined) setEmail(buf.contactEmail as string);
   }, [bufferEnabled, bufferedData]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Register save handler
   useEffect(() => {
