@@ -2,7 +2,9 @@
 
 import { Suspense, useCallback, useEffect } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
-import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
+import { SidebarProvider, SidebarInset, useSidebar } from "@/components/ui/sidebar";
+import { List } from "@phosphor-icons/react";
+import { Button } from "@/components/ui/button";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { DashboardBreadcrumb } from "@/components/layout/dashboard-breadcrumb";
 import dynamic from "next/dynamic";
@@ -120,12 +122,24 @@ function McpRefreshListener() {
 function NavigationTracker() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const { setOpenMobile } = useSidebar();
 
   useEffect(() => {
     saveNavigation(pathname, searchParams.toString());
-  }, [pathname, searchParams]);
+    setOpenMobile(false);
+  }, [pathname, searchParams, setOpenMobile]);
 
   return null;
+}
+
+function MobileSidebarTrigger() {
+  const { toggleSidebar } = useSidebar();
+  return (
+    <Button variant="ghost" size="icon" className="md:hidden" onClick={toggleSidebar}>
+      <List size={20} />
+      <span className="sr-only">Toggle menu</span>
+    </Button>
+  );
 }
 
 export default function DashboardLayout({
@@ -149,10 +163,10 @@ export default function DashboardLayout({
       <McpRefreshListener />
       <BreadcrumbProvider>
       <ReadySignal />
-      <Suspense>
-        <NavigationTracker />
-      </Suspense>
       <SidebarProvider>
+        <Suspense>
+          <NavigationTracker />
+        </Suspense>
         <Suspense>
           <AppSidebar />
         </Suspense>
@@ -161,6 +175,7 @@ export default function DashboardLayout({
           <header className="drag flex h-16 shrink-0 items-center gap-2 border-b bg-sidebar transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
             <div className="drag flex flex-1 items-center gap-2 px-4 overflow-hidden">
               <div className="no-drag flex items-center gap-2 min-w-0">
+                <MobileSidebarTrigger />
                 <Suspense>
                   <DashboardBreadcrumb />
                 </Suspense>
