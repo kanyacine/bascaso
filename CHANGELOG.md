@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.8.2
+
+- Fix "what's new" field appearing on first-ever version for a new platform, causing ASC save errors
+- Fix update check failing with "Command disabled" when triggered while an auto-check is already running
+
 ## 1.8.1
 
 - Add `get_insights` MCP tool – ask your AI assistant how your app is doing (reviews, analytics, stability, overview)
