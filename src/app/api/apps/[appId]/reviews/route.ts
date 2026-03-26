@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { listCustomerReviews, createReviewResponse, deleteReviewResponse, invalidateReviewsCache } from "@/lib/asc/reviews";
+import { listCustomerReviews, listCustomerReviewsByPlatform, createReviewResponse, deleteReviewResponse, invalidateReviewsCache } from "@/lib/asc/reviews";
 import { hasCredentials } from "@/lib/asc/client";
 import { cacheGetMeta } from "@/lib/cache";
 import { errorJson } from "@/lib/api-helpers";
@@ -23,6 +23,7 @@ export async function GET(
   const url = new URL(request.url);
   const sortParam = url.searchParams.get("sort") ?? "newest";
   const sort = SORT_MAP[sortParam] ?? "-createdDate";
+  const platform = url.searchParams.get("platform");
 
   const forceRefresh = url.searchParams.get("refresh") === "1";
 
@@ -35,8 +36,13 @@ export async function GET(
   }
 
   try {
-    const reviews = await listCustomerReviews(appId, sort, forceRefresh);
-    const meta = cacheGetMeta(`reviews:${appId}:${sort}`);
+    const reviews = platform
+      ? await listCustomerReviewsByPlatform(appId, platform, sort, forceRefresh)
+      : await listCustomerReviews(appId, sort, forceRefresh);
+    const cacheKey = platform
+      ? `reviews:${appId}:${platform}:${sort}`
+      : `reviews:${appId}:${sort}`;
+    const meta = cacheGetMeta(cacheKey);
     return NextResponse.json({ reviews, meta });
   } catch (err) {
     return errorJson(err);

@@ -26,6 +26,7 @@ import { ReviewFilters } from "./_components/review-filters";
 import { ReviewCard } from "./_components/review-card";
 import { ReplyDialog } from "./_components/reply-dialog";
 import { AppealDialog } from "./_components/appeal-dialog";
+import { readReviewsPlatform, REVIEWS_PLATFORM_CHANGE } from "@/components/layout/header-version-picker";
 
 // ── Main page ──────────────────────────────────────────────────────
 
@@ -83,7 +84,11 @@ export default function ReviewsPage() {
     setLoading(true);
     setError(null);
     try {
-      const url = `/api/apps/${appId}/reviews?sort=${sortBy}${forceRefresh ? "&refresh=1" : ""}`;
+      const params = new URLSearchParams({ sort: sortBy });
+      const platform = readReviewsPlatform(appId);
+      if (platform) params.set("platform", platform);
+      if (forceRefresh) params.set("refresh", "1");
+      const url = `/api/apps/${appId}/reviews?${params}`;
       const res = await fetch(url);
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -103,6 +108,13 @@ export default function ReviewsPage() {
 
   useEffect(() => {
     fetchReviews();
+  }, [fetchReviews]);
+
+  // Re-fetch when platform picker changes
+  useEffect(() => {
+    const handler = () => fetchReviews();
+    window.addEventListener(REVIEWS_PLATFORM_CHANGE, handler);
+    return () => window.removeEventListener(REVIEWS_PLATFORM_CHANGE, handler);
   }, [fetchReviews]);
 
   // Register with header refresh button – force refresh from ASC

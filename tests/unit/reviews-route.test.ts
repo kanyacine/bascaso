@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockListCustomerReviews = vi.fn();
+const mockListCustomerReviewsByPlatform = vi.fn();
 const mockCreateReviewResponse = vi.fn();
 const mockDeleteReviewResponse = vi.fn();
 const mockInvalidateReviewsCache = vi.fn();
@@ -12,6 +13,7 @@ const mockGetDemoReviews = vi.fn();
 
 vi.mock("@/lib/asc/reviews", () => ({
   listCustomerReviews: (...args: unknown[]) => mockListCustomerReviews(...args),
+  listCustomerReviewsByPlatform: (...args: unknown[]) => mockListCustomerReviewsByPlatform(...args),
   createReviewResponse: (...args: unknown[]) => mockCreateReviewResponse(...args),
   deleteReviewResponse: (...args: unknown[]) => mockDeleteReviewResponse(...args),
   invalidateReviewsCache: (...args: unknown[]) => mockInvalidateReviewsCache(...args),
@@ -45,6 +47,7 @@ function makeParams(appId = "app-1") {
 describe("reviews route", () => {
   beforeEach(() => {
     mockListCustomerReviews.mockReset();
+    mockListCustomerReviewsByPlatform.mockReset();
     mockCreateReviewResponse.mockReset();
     mockDeleteReviewResponse.mockReset();
     mockInvalidateReviewsCache.mockReset();
@@ -86,6 +89,41 @@ describe("reviews route", () => {
       true,
     );
     expect(data).toEqual({ reviews: [{ id: "r1" }], meta: { fetchedAt: 1 } });
+  });
+
+  it("GET uses listCustomerReviewsByPlatform when platform param is set", async () => {
+    const { GET } = await import("@/app/api/apps/[appId]/reviews/route");
+
+    mockListCustomerReviewsByPlatform.mockResolvedValue([{ id: "r-ios" }]);
+    mockCacheGetMeta.mockReturnValue(null);
+
+    const response = await GET(
+      new Request("http://localhost/api/reviews?sort=newest&platform=IOS"),
+      makeParams("app-1"),
+    );
+    const data = await response.json();
+
+    expect(mockListCustomerReviewsByPlatform).toHaveBeenCalledWith(
+      "app-1",
+      "IOS",
+      "-createdDate",
+      false,
+    );
+    expect(mockListCustomerReviews).not.toHaveBeenCalled();
+    expect(data.reviews).toEqual([{ id: "r-ios" }]);
+  });
+
+  it("GET uses correct cache key for platform-filtered reviews", async () => {
+    const { GET } = await import("@/app/api/apps/[appId]/reviews/route");
+
+    mockListCustomerReviewsByPlatform.mockResolvedValue([]);
+
+    await GET(
+      new Request("http://localhost/api/reviews?platform=MAC_OS&sort=highest"),
+      makeParams("app-2"),
+    );
+
+    expect(mockCacheGetMeta).toHaveBeenCalledWith("reviews:app-2:MAC_OS:-rating");
   });
 
   it("POST rejects invalid JSON", async () => {

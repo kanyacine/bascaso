@@ -1,6 +1,7 @@
 import { ascFetch } from "./client";
 import { cacheInvalidate } from "@/lib/cache";
 import { withCache } from "./helpers";
+import { listVersions } from "./versions";
 
 const REVIEWS_TTL = 5 * 60 * 1000; // 5 min
 
@@ -91,6 +92,71 @@ export async function listCustomerReviews(
   });
 }
 
+/**
+ * Fetch reviews filtered by platform. The app-level endpoint doesn't support
+ * platform filtering, so we fetch via each appStoreVersion for the given
+ * platform and deduplicate by review ID.
+ */
+export async function listCustomerReviewsByPlatform(
+  appId: string,
+  platform: string,
+  sort: ReviewSort = "-createdDate",
+  forceRefresh = false,
+): Promise<AscCustomerReview[]> {
+  return withCache(`reviews:${appId}:${platform}:${sort}`, REVIEWS_TTL, forceRefresh, async () => {
+    const versions = await listVersions(appId);
+    const platformVersionIds = versions
+      .filter((v) => v.attributes.platform === platform)
+      .map((v) => v.id);
+
+    if (platformVersionIds.length === 0) return [];
+
+    const params = new URLSearchParams({
+      "fields[customerReviews]": "rating,title,body,reviewerNickname,createdDate,territory,response",
+      "fields[customerReviewResponses]": "responseBody,lastModifiedDate,state",
+      include: "response",
+      sort,
+      limit: "200",
+    });
+
+    const results = await Promise.all(
+      platformVersionIds.map((versionId) =>
+        ascFetch<AscCustomerReviewsResponse>(
+          `/v1/appStoreVersions/${versionId}/customerReviews?${params}`,
+        ).catch(() => null),
+      ),
+    );
+
+    // Deduplicate by review ID across versions
+    const seen = new Map<string, AscCustomerReview>();
+    for (const response of results) {
+      if (!response) continue;
+
+      const responseMap = new Map<string, AscReviewResponse>();
+      if (response.included) {
+        for (const inc of response.included) {
+          if (inc.type === "customerReviewResponses") {
+            responseMap.set(inc.id, { id: inc.id, attributes: inc.attributes });
+          }
+        }
+      }
+
+      for (const r of response.data) {
+        if (seen.has(r.id)) continue;
+        const responseRef = r.relationships?.response?.data;
+        const reviewResponse = responseRef ? responseMap.get(responseRef.id) : undefined;
+        seen.set(r.id, {
+          id: r.id,
+          attributes: r.attributes,
+          ...(reviewResponse ? { response: reviewResponse } : {}),
+        });
+      }
+    }
+
+    return [...seen.values()];
+  });
+}
+
 export async function createReviewResponse(
   reviewId: string,
   responseBody: string,
@@ -127,8 +193,6 @@ export async function deleteReviewResponse(responseId: string): Promise<void> {
 }
 
 export function invalidateReviewsCache(appId: string): void {
-  // Invalidate all sort variants
-  for (const sort of ["-createdDate", "createdDate", "-rating", "rating"]) {
-    cacheInvalidate(`reviews:${appId}:${sort}`);
-  }
+  // Invalidate all sort and platform variants
+  cacheInvalidate(`reviews:${appId}:`);
 }

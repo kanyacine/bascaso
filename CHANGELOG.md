@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.8.3
+
+- Add platform picker to reviews page – filter reviews by iOS, macOS, tvOS, or visionOS with persistent selection
+
 ## 1.8.2
 
 - Fix "what's new" field appearing on first-ever version for a new platform, causing ASC save errors
