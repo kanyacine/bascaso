@@ -3,6 +3,8 @@
 ## 1.8.3
 
 - Add platform picker to reviews page – filter reviews by iOS, macOS, tvOS, or visionOS with persistent selection
+- Fix mobile footer pushed below visible area by browser chrome
+- Fix proceeds chart skipping days with no transactions instead of showing zero
 
 ## 1.8.2
 
