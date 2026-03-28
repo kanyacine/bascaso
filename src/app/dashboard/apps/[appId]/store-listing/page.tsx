@@ -100,8 +100,11 @@ export default function StoreListingPage() {
     ? !EDITABLE_STATES.has(selectedVersion.attributes.appVersionState)
     : false;
 
-  // No version has been distributed yet – "what's new" is not applicable
-  const isFirstVersion = !versions.some((v) => v.attributes.appStoreState === "READY_FOR_SALE");
+  // No version has been distributed on this platform yet – "what's new" is not applicable
+  const isFirstVersion = !versions.some((v) =>
+    v.attributes.platform === selectedVersion?.attributes.platform
+    && v.attributes.appStoreState === "READY_FOR_SALE",
+  );
 
   const { localizations, loading: locLoading, refresh: refreshLocalizations } = useLocalizations(appId, versionId);
   const { appInfos } = useAppInfo(appId);

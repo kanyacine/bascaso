@@ -1,8 +1,21 @@
 # Changelog
 
+## 1.8.3
+
+- Add platform picker to reviews page – filter reviews by iOS, macOS, tvOS, or visionOS with persistent selection
+
+## 1.8.2
+
+- Fix "what's new" field appearing on first-ever version for a new platform, causing ASC save errors
+- Fix TestFlight build "what's new" save failing on new builds with no existing localization
+- Fix crash on TestFlight beta app info page when editing fields on a new platform with no localizations
+- Fix update check failing with "Command disabled" when triggered while an auto-check is already running
+
 ## 1.8.1
 
 - Add `get_insights` MCP tool – ask your AI assistant how your app is doing (reviews, analytics, stability, overview)
+- Improve mobile experience for self-hosted version – sidebar navigation, scrollable settings tabs, chart layout fixes
+- Allow editing text fields on versions waiting for review
 
 ## 1.8.0
 

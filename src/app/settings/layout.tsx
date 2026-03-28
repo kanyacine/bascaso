@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { ArrowLeft } from "@phosphor-icons/react";
@@ -25,6 +26,10 @@ export default function SettingsLayout({
   const router = useRouter();
   const base = "/settings";
 
+  useEffect(() => {
+    document.body.style.removeProperty("pointer-events");
+  }, []);
+
   return (
     <LicenseProvider>
     <div className="flex h-screen flex-col bg-background">
@@ -41,7 +46,7 @@ export default function SettingsLayout({
             Back
           </Button>
         </div>
-        <div className="mb-0 flex items-center border-b">
+        <div className="mb-0 flex items-center border-b overflow-x-auto scrollbar-hide">
           <nav className="-mb-px flex">
             {TABS.map((tab) => {
               const href = `${base}${tab.segment}`;

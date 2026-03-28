@@ -266,7 +266,10 @@ export function VersionActionFooter() {
 
   if (!appId || !FOOTER_PAGES.has(pageSegment) || !version) return null;
 
-  const isFirstVersion = !versions.some((v) => v.attributes.appStoreState === "READY_FOR_SALE");
+  const isFirstVersion = !versions.some((v) =>
+    v.attributes.platform === version.attributes.platform
+    && v.attributes.appStoreState === "READY_FOR_SALE",
+  );
 
   if (SUBMIT_STATES.has(state)) {
     return (

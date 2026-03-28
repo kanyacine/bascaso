@@ -77,6 +77,17 @@ import {
 } from "@/lib/asc/version-types";
 
 const VERSION_PAGES = new Set(["store-listing", "screenshots", "review", "testflight", "aso"]);
+const PLATFORM_ONLY_PAGES = new Set(["reviews"]);
+
+const REVIEWS_PLATFORM_KEY = "reviews:platform:";
+export const REVIEWS_PLATFORM_CHANGE = "reviews-platform-change";
+export function readReviewsPlatform(appId: string): string | null {
+  try { return localStorage.getItem(`${REVIEWS_PLATFORM_KEY}${appId}`); } catch { return null; }
+}
+function writeReviewsPlatform(appId: string, platform: string) {
+  try { localStorage.setItem(`${REVIEWS_PLATFORM_KEY}${appId}`, platform); } catch {}
+  window.dispatchEvent(new CustomEvent(REVIEWS_PLATFORM_CHANGE, { detail: platform }));
+}
 const SAVE_PAGES = new Set(["details", "store-listing", "review", "aso", "nominations"]);
 const OVERVIEW_PAGE = "";
 
@@ -111,6 +122,9 @@ export function HeaderVersionPicker() {
   const [versionString, setVersionString] = useState("");
   const [platform, setPlatform] = useState("");
   const [creating, setCreating] = useState(false);
+  const [persistedPlatform, setPersistedPlatform] = useState(() =>
+    appId ? readReviewsPlatform(appId) : null,
+  );
 
   if (!appId) return null;
 
@@ -121,11 +135,12 @@ export function HeaderVersionPicker() {
 
   // Show on testflight root (builds list) and group detail pages
   const isTestFlight = subpath === "testflight" || /^testflight\/groups\/[^/]+$/.test(subpath);
-  if (!VERSION_PAGES.has(pageSegment) && !isTestFlight) return null;
+  const isPlatformOnly = PLATFORM_ONLY_PAGES.has(pageSegment);
+  if (!VERSION_PAGES.has(pageSegment) && !isTestFlight && !isPlatformOnly) return null;
   if (pageSegment === "testflight" && !isTestFlight) return null;
 
   // Hide "New version/platform" on pages that only browse versions
-  const showCreateActions = !isTestFlight && pageSegment !== "aso";
+  const showCreateActions = !isTestFlight && !isPlatformOnly && pageSegment !== "aso";
 
   const versionParam = searchParams.get("version");
 
@@ -137,9 +152,11 @@ export function HeaderVersionPicker() {
   const selectedVersion = isTestFlight ? undefined : resolveVersion(versions, versionParam);
   const selectedPreRelease = isTestFlight ? resolvePreReleaseVersion(preReleaseVersions, versionParam) : undefined;
 
-  const currentPlatform = isTestFlight
-    ? (selectedPreRelease?.platform ?? platforms[0] ?? "IOS")
-    : (selectedVersion?.attributes.platform ?? platforms[0] ?? "IOS");
+  const currentPlatform = isPlatformOnly
+    ? (persistedPlatform && platforms.includes(persistedPlatform) ? persistedPlatform : platforms[0] ?? "IOS")
+    : isTestFlight
+      ? (selectedPreRelease?.platform ?? platforms[0] ?? "IOS")
+      : (selectedVersion?.attributes.platform ?? platforms[0] ?? "IOS");
 
   const platformVersions = isTestFlight
     ? getPreReleasesByPlatform(preReleaseVersions, currentPlatform)
@@ -153,6 +170,11 @@ export function HeaderVersionPicker() {
   }
 
   function handlePlatformChange(newPlatform: string) {
+    if (isPlatformOnly) {
+      setPersistedPlatform(newPlatform);
+      writeReviewsPlatform(appId!, newPlatform);
+      return;
+    }
     if (isTestFlight) {
       const pvs = getPreReleasesByPlatform(preReleaseVersions, newPlatform);
       if (pvs.length > 0) navigate(pvs[0].id);
@@ -249,85 +271,87 @@ export function HeaderVersionPicker() {
         </PopoverContent>
       </Popover>
 
-      <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
-        <PopoverTrigger asChild>
-          <Button variant="outline" className="h-8 gap-1.5 px-2.5 font-mono text-sm">
-            {triggerVersionString}
-            {!isTestFlight && selectedVersion && (
-              <span
-                className={`size-1.5 shrink-0 rounded-full ${STATE_DOT_COLORS[selectedVersion.attributes.appVersionState] ?? "bg-muted-foreground"}`}
-              />
-            )}
-            <CaretDown size={12} className="text-muted-foreground" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-64 p-0" align="start">
-          <Command>
-            <CommandList>
-              <CommandEmpty>No versions found.</CommandEmpty>
-              <CommandGroup>
-                {isTestFlight
-                  ? (platformVersions as ReturnType<typeof getPreReleasesByPlatform>).map((v) => (
-                      <CommandItem
-                        key={v.id}
-                        value={v.version}
-                        onSelect={() => {
-                          navigate(v.id);
-                          setPickerOpen(false);
-                        }}
-                      >
-                        {v.id === selectedId && (
-                          <Check size={14} className="text-foreground" />
-                        )}
-                        <span className={`font-mono ${v.id !== selectedId ? "pl-[22px]" : ""}`}>
-                          {v.version}
-                        </span>
-                      </CommandItem>
-                    ))
-                  : (platformVersions as AscVersion[]).map((v) => (
-                      <CommandItem
-                        key={v.id}
-                        value={`${v.attributes.versionString} ${stateLabel(v.attributes.appVersionState)}`}
-                        onSelect={() => {
-                          navigate(v.id);
-                          setPickerOpen(false);
-                        }}
-                      >
-                        {v.id === selectedId && (
-                          <Check size={14} className="text-foreground" />
-                        )}
-                        <span className={`font-mono ${v.id !== selectedId ? "pl-[22px]" : ""}`}>
-                          {v.attributes.versionString}
-                        </span>
-                        <span className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground">
-                          <span
-                            className={`size-1.5 shrink-0 rounded-full ${STATE_DOT_COLORS[v.attributes.appVersionState] ?? "bg-muted-foreground"}`}
-                          />
-                          {stateLabel(v.attributes.appVersionState)}
-                        </span>
-                      </CommandItem>
-                    ))}
-              </CommandGroup>
-              {showCreateActions && (
-                <>
-                  <CommandSeparator />
-                  <CommandGroup>
-                    <CommandItem
-                      onSelect={() => {
-                        setPickerOpen(false);
-                        guardNavigation(openDialog);
-                      }}
-                    >
-                      <Plus size={14} className="text-muted-foreground" />
-                      {"New version\u2026"}
-                    </CommandItem>
-                  </CommandGroup>
-                </>
+      {!isPlatformOnly && (
+        <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
+          <PopoverTrigger asChild>
+            <Button variant="outline" className="h-8 gap-1.5 px-2.5 font-mono text-sm">
+              {triggerVersionString}
+              {!isTestFlight && selectedVersion && (
+                <span
+                  className={`size-1.5 shrink-0 rounded-full ${STATE_DOT_COLORS[selectedVersion.attributes.appVersionState] ?? "bg-muted-foreground"}`}
+                />
               )}
-            </CommandList>
-          </Command>
-        </PopoverContent>
-      </Popover>
+              <CaretDown size={12} className="text-muted-foreground" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-64 p-0" align="start">
+            <Command>
+              <CommandList>
+                <CommandEmpty>No versions found.</CommandEmpty>
+                <CommandGroup>
+                  {isTestFlight
+                    ? (platformVersions as ReturnType<typeof getPreReleasesByPlatform>).map((v) => (
+                        <CommandItem
+                          key={v.id}
+                          value={v.version}
+                          onSelect={() => {
+                            navigate(v.id);
+                            setPickerOpen(false);
+                          }}
+                        >
+                          {v.id === selectedId && (
+                            <Check size={14} className="text-foreground" />
+                          )}
+                          <span className={`font-mono ${v.id !== selectedId ? "pl-[22px]" : ""}`}>
+                            {v.version}
+                          </span>
+                        </CommandItem>
+                      ))
+                    : (platformVersions as AscVersion[]).map((v) => (
+                        <CommandItem
+                          key={v.id}
+                          value={`${v.attributes.versionString} ${stateLabel(v.attributes.appVersionState)}`}
+                          onSelect={() => {
+                            navigate(v.id);
+                            setPickerOpen(false);
+                          }}
+                        >
+                          {v.id === selectedId && (
+                            <Check size={14} className="text-foreground" />
+                          )}
+                          <span className={`font-mono ${v.id !== selectedId ? "pl-[22px]" : ""}`}>
+                            {v.attributes.versionString}
+                          </span>
+                          <span className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <span
+                              className={`size-1.5 shrink-0 rounded-full ${STATE_DOT_COLORS[v.attributes.appVersionState] ?? "bg-muted-foreground"}`}
+                            />
+                            {stateLabel(v.attributes.appVersionState)}
+                          </span>
+                        </CommandItem>
+                      ))}
+                </CommandGroup>
+                {showCreateActions && (
+                  <>
+                    <CommandSeparator />
+                    <CommandGroup>
+                      <CommandItem
+                        onSelect={() => {
+                          setPickerOpen(false);
+                          guardNavigation(openDialog);
+                        }}
+                      >
+                        <Plus size={14} className="text-muted-foreground" />
+                        {"New version\u2026"}
+                      </CommandItem>
+                    </CommandGroup>
+                  </>
+                )}
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
+      )}
 
       {showCreateActions && (
         <CreateVersionDialog
