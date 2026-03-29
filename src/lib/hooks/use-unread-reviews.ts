@@ -1,18 +1,24 @@
 "use client";
 
 import { useRef, useEffect, useCallback, useSyncExternalStore } from "react";
+import { readReviewsPlatform } from "@/components/layout/header-version-picker";
 
 const STORAGE_KEY_PREFIX = "reviews-seen:";
 const POLL_INTERVAL = 5 * 60 * 1000; // 5 minutes
 
+function seenKey(appId: string): string {
+  const platform = readReviewsPlatform(appId);
+  return platform ? `${STORAGE_KEY_PREFIX}${appId}:${platform}` : `${STORAGE_KEY_PREFIX}${appId}`;
+}
+
 function getSeenCount(appId: string): number {
   if (typeof window === "undefined") return 0;
-  const raw = localStorage.getItem(`${STORAGE_KEY_PREFIX}${appId}`);
+  const raw = localStorage.getItem(seenKey(appId));
   return raw ? parseInt(raw, 10) || 0 : 0;
 }
 
 function setSeenCount(appId: string, count: number): void {
-  localStorage.setItem(`${STORAGE_KEY_PREFIX}${appId}`, String(count));
+  localStorage.setItem(seenKey(appId), String(count));
 }
 
 // External store for cross-component reactivity
@@ -44,7 +50,10 @@ export function useUnreadReviewsPoller(appIds: string[]) {
   const checkAll = useCallback(async () => {
     for (const appId of appIds) {
       try {
-        const res = await fetch(`/api/apps/${appId}/reviews?sort=newest`);
+        const platform = readReviewsPlatform(appId);
+        const params = new URLSearchParams({ sort: "newest" });
+        if (platform) params.set("platform", platform);
+        const res = await fetch(`/api/apps/${appId}/reviews?${params}`);
         if (!res.ok) continue;
         const data = await res.json();
         const total = data.reviews?.length ?? 0;

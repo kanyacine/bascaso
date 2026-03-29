@@ -4,6 +4,7 @@
 
 - Fix reviews platform picker showing wrong platform on first visit
 - Fix review insights not filtering by selected platform
+- Fix unread reviews badge not respecting selected platform
 
 ## 1.8.4
 
