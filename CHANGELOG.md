@@ -3,6 +3,7 @@
 ## 1.8.5
 
 - Fix reviews platform picker showing wrong platform on first visit
+- Fix review insights not filtering by selected platform
 
 ## 1.8.4
 

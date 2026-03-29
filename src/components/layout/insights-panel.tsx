@@ -16,6 +16,7 @@ import {
 import { toast } from "sonner";
 import { useAIStatus } from "@/lib/hooks/use-ai-status";
 import { useInsightsPanel } from "@/lib/insights-panel-context";
+import { readReviewsPlatform, REVIEWS_PLATFORM_CHANGE } from "@/components/layout/header-version-picker";
 
 // ── Review insights ─────────────────────────────────────────────────
 
@@ -40,6 +41,11 @@ function ReviewInsightsContent({
   const [currentReviewCount, setCurrentReviewCount] = useState<number | null>(null);
   const fetchedForApp = useRef<string | null>(null);
 
+  function platformQuery(): string {
+    const p = readReviewsPlatform(appId);
+    return p ? `platform=${p}` : "";
+  }
+
   const generate = useCallback(async (force = false) => {
     if (!aiConfigured) return;
 
@@ -47,7 +53,9 @@ function ReviewInsightsContent({
     onLoading(true);
     setHasNewReviews(false);
     try {
-      const url = `/api/apps/${appId}/reviews/insights${force ? "?force=1" : ""}`;
+      const pq = platformQuery();
+      const qs = [pq, force ? "force=1" : ""].filter(Boolean).join("&");
+      const url = `/api/apps/${appId}/reviews/insights${qs ? `?${qs}` : ""}`;
       const res = await fetch(url, { method: "POST" });
 
       if (!res.ok) {
@@ -65,11 +73,14 @@ function ReviewInsightsContent({
       setLoading(false);
       onLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appId, aiConfigured, onLoading]);
 
   const fetchCachedAndAutoGenerate = useCallback(async () => {
     try {
-      const res = await fetch(`/api/apps/${appId}/reviews/insights`);
+      const pq = platformQuery();
+      const url = `/api/apps/${appId}/reviews/insights${pq ? `?${pq}` : ""}`;
+      const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
         if (data.insights) {
@@ -87,6 +98,7 @@ function ReviewInsightsContent({
     }
 
     if (aiConfigured) generate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appId, generate, aiConfigured]);
 
   useEffect(() => {
@@ -99,6 +111,20 @@ function ReviewInsightsContent({
       fetchCachedAndAutoGenerate();
     }
   }, [appId, fetchCachedAndAutoGenerate]);
+
+  // Re-generate when platform changes
+  useEffect(() => {
+    const handler = () => {
+      setInsights(null);
+      setCachedReviewCount(null);
+      setCurrentReviewCount(null);
+      setHasNewReviews(false);
+      fetchedForApp.current = null;
+      fetchCachedAndAutoGenerate();
+    };
+    window.addEventListener(REVIEWS_PLATFORM_CHANGE, handler);
+    return () => window.removeEventListener(REVIEWS_PLATFORM_CHANGE, handler);
+  }, [fetchCachedAndAutoGenerate]);
 
   const newReviewCount = cachedReviewCount != null && currentReviewCount != null
     ? currentReviewCount - cachedReviewCount

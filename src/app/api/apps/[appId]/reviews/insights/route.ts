@@ -5,7 +5,7 @@ import { getAISettings } from "@/lib/ai/settings";
 import { ensureLocalModelLoaded, isLocalOpenAIProvider } from "@/lib/ai/local-provider";
 import { buildInsightsPrompt, buildIncrementalInsightsPrompt } from "@/lib/ai/prompts";
 import { generateObjectWithRepair } from "@/lib/ai/structured-output";
-import { listCustomerReviews } from "@/lib/asc/reviews";
+import { listCustomerReviews, listCustomerReviewsByPlatform } from "@/lib/asc/reviews";
 import { hasCredentials } from "@/lib/asc/client";
 import { isDemoMode, getDemoReviews } from "@/lib/demo";
 import { cacheGet, cacheSet } from "@/lib/cache";
@@ -26,17 +26,18 @@ interface CachedInsights {
   reviewCount: number;
 }
 
-function cacheKey(appId: string): string {
-  return `review-insights:${appId}`;
+function cacheKey(appId: string, platform?: string | null): string {
+  return platform ? `review-insights:${appId}:${platform}` : `review-insights:${appId}`;
 }
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ appId: string }> },
 ) {
   const { appId } = await params;
+  const platform = new URL(request.url).searchParams.get("platform");
 
-  const cached = cacheGet<CachedInsights>(cacheKey(appId));
+  const cached = cacheGet<CachedInsights>(cacheKey(appId, platform));
   if (cached) {
     // Get current review count to let client know if update is needed
     let currentCount = cached.reviewCount;
@@ -44,7 +45,9 @@ export async function GET(
       if (isDemoMode()) {
         currentCount = getDemoReviews(appId).length;
       } else if (hasCredentials()) {
-        const reviews = await listCustomerReviews(appId, "-createdDate");
+        const reviews = platform
+          ? await listCustomerReviewsByPlatform(appId, platform, "-createdDate")
+          : await listCustomerReviews(appId, "-createdDate");
         currentCount = reviews.length;
       }
     } catch {
@@ -69,6 +72,7 @@ export async function POST(
   const { appId } = await params;
   const { searchParams } = new URL(request.url);
   const force = searchParams.get("force") === "1";
+  const platform = searchParams.get("platform");
 
   // 1. Get reviews
   let reviews: Array<{ rating: number; title: string; body: string }>;
@@ -80,7 +84,9 @@ export async function POST(
         body: r.attributes.body,
       }));
     } else if (hasCredentials()) {
-      const raw = await listCustomerReviews(appId, "-createdDate");
+      const raw = platform
+        ? await listCustomerReviewsByPlatform(appId, platform, "-createdDate")
+        : await listCustomerReviews(appId, "-createdDate");
       reviews = raw.map((r) => ({
         rating: r.attributes.rating,
         title: r.attributes.title,
@@ -98,7 +104,7 @@ export async function POST(
   }
 
   // Check cache – if count matches and not forced, return cached
-  const cached = cacheGet<CachedInsights>(cacheKey(appId));
+  const cached = cacheGet<CachedInsights>(cacheKey(appId, platform));
   if (!force && cached && cached.reviewCount === reviews.length) {
     return NextResponse.json({
       insights: cached.insights,
@@ -184,7 +190,7 @@ export async function POST(
     });
 
     // Cache the result with review count
-    cacheSet(cacheKey(appId), { insights, reviewCount: reviews.length }, INSIGHTS_TTL);
+    cacheSet(cacheKey(appId, platform), { insights, reviewCount: reviews.length }, INSIGHTS_TTL);
 
     return NextResponse.json({
       insights,
