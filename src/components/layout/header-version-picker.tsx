@@ -126,25 +126,16 @@ export function HeaderVersionPicker() {
     appId ? readReviewsPlatform(appId) : null,
   );
 
-  if (!appId) return null;
-
-  const subpath = pathname
-    .replace(`/dashboard/apps/${appId}`, "")
-    .replace(/^\//, "");
+  const subpath = appId
+    ? pathname.replace(`/dashboard/apps/${appId}`, "").replace(/^\//, "")
+    : "";
   const pageSegment = subpath.split("/")[0];
 
-  // Show on testflight root (builds list) and group detail pages
   const isTestFlight = subpath === "testflight" || /^testflight\/groups\/[^/]+$/.test(subpath);
   const isPlatformOnly = PLATFORM_ONLY_PAGES.has(pageSegment);
-  if (!VERSION_PAGES.has(pageSegment) && !isTestFlight && !isPlatformOnly) return null;
-  if (pageSegment === "testflight" && !isTestFlight) return null;
-
-  // Hide "New version/platform" on pages that only browse versions
-  const showCreateActions = !isTestFlight && !isPlatformOnly && pageSegment !== "aso";
 
   const versionParam = searchParams.get("version");
 
-  // Branch data source based on TestFlight vs App Store
   const platforms = isTestFlight
     ? getPreReleasePlatforms(preReleaseVersions)
     : getVersionPlatforms(versions);
@@ -160,11 +151,20 @@ export function HeaderVersionPicker() {
 
   // Seed localStorage so the reviews page reads the same default platform.
   useEffect(() => {
-    if (isPlatformOnly && currentPlatform && currentPlatform !== readReviewsPlatform(appId!)) {
-      writeReviewsPlatform(appId!, currentPlatform);
+    if (isPlatformOnly && appId && currentPlatform && currentPlatform !== readReviewsPlatform(appId)) {
+      writeReviewsPlatform(appId, currentPlatform);
       setPersistedPlatform(currentPlatform);
     }
   }, [isPlatformOnly, currentPlatform, appId]);
+
+  if (!appId) return null;
+
+  // Show on testflight root (builds list) and group detail pages
+  if (!VERSION_PAGES.has(pageSegment) && !isTestFlight && !isPlatformOnly) return null;
+  if (pageSegment === "testflight" && !isTestFlight) return null;
+
+  // Hide "New version/platform" on pages that only browse versions
+  const showCreateActions = !isTestFlight && !isPlatformOnly && pageSegment !== "aso";
 
   const platformVersions = isTestFlight
     ? getPreReleasesByPlatform(preReleaseVersions, currentPlatform)
