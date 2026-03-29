@@ -158,6 +158,14 @@ export function HeaderVersionPicker() {
       ? (selectedPreRelease?.platform ?? platforms[0] ?? "IOS")
       : (selectedVersion?.attributes.platform ?? platforms[0] ?? "IOS");
 
+  // Seed localStorage so the reviews page reads the same default platform.
+  useEffect(() => {
+    if (isPlatformOnly && currentPlatform && currentPlatform !== readReviewsPlatform(appId!)) {
+      writeReviewsPlatform(appId!, currentPlatform);
+      setPersistedPlatform(currentPlatform);
+    }
+  }, [isPlatformOnly, currentPlatform, appId]);
+
   const platformVersions = isTestFlight
     ? getPreReleasesByPlatform(preReleaseVersions, currentPlatform)
     : filterPickerVersions(getVersionsByPlatform(versions, currentPlatform));

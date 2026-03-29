@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.8.5
+
+- Fix reviews platform picker showing wrong platform on first visit
+
 ## 1.8.4
 
 - Fix proceeds chart not autofilling zero for days with no data while excluding today (data not yet available)

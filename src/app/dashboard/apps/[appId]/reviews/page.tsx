@@ -27,6 +27,8 @@ import { ReviewCard } from "./_components/review-card";
 import { ReplyDialog } from "./_components/reply-dialog";
 import { AppealDialog } from "./_components/appeal-dialog";
 import { readReviewsPlatform, REVIEWS_PLATFORM_CHANGE } from "@/components/layout/header-version-picker";
+import { useVersions } from "@/lib/versions-context";
+import { getVersionPlatforms } from "@/lib/asc/version-types";
 
 // ── Main page ──────────────────────────────────────────────────────
 
@@ -35,6 +37,8 @@ export default function ReviewsPage() {
   const { apps } = useApps();
   const app = apps.find((a) => a.id === appId);
   const { configured: aiConfigured } = useAIStatus();
+  const { versions } = useVersions();
+  const platforms = useMemo(() => getVersionPlatforms(versions), [versions]);
 
   // Data fetching
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -85,7 +89,8 @@ export default function ReviewsPage() {
     setError(null);
     try {
       const params = new URLSearchParams({ sort: sortBy });
-      const platform = readReviewsPlatform(appId);
+      const stored = readReviewsPlatform(appId);
+      const platform = stored && platforms.includes(stored) ? stored : platforms[0];
       if (platform) params.set("platform", platform);
       if (forceRefresh) params.set("refresh", "1");
       const url = `/api/apps/${appId}/reviews?${params}`;
@@ -104,7 +109,8 @@ export default function ReviewsPage() {
     } finally {
       setLoading(false);
     }
-  }, [appId, sortBy]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appId, sortBy, platforms.join()]);
 
   useEffect(() => {
     fetchReviews();
