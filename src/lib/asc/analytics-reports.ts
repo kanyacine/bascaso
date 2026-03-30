@@ -1,6 +1,6 @@
 import { gunzipSync } from "node:zlib";
-import { ascFetch } from "./client";
-import { cacheGet, cacheSet } from "@/lib/cache";
+import { ascFetch, AscApiError } from "./client";
+import { cacheGet, cacheSet, cacheInvalidate } from "@/lib/cache";
 import {
   REPORT_ID_TTL,
   INSTANCE_TTL,
@@ -26,6 +26,24 @@ const reportIdCache = new Map<string, string>();
 
 function normalizeReportName(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+/** Clear a cached report ID from both in-memory and SQLite caches. */
+function invalidateReportId(requestId: string, reportName: string): void {
+  const key = `${requestId}:${reportName}`;
+  reportIdCache.delete(key);
+  cacheInvalidate(`asc-report-id:${key}`);
+}
+
+/** Clear cached report request IDs so the next call re-discovers from API and runs health checks. */
+export function invalidateReportRequestIds(appId: string): void {
+  reportRequestIdsCache.delete(appId);
+  cacheInvalidate(`asc-report-requests:${appId}`);
+}
+
+/** Check if report request IDs were invalidated (cache is empty). */
+export function reportRequestIdsInvalidated(appId: string): boolean {
+  return !reportRequestIdsCache.has(appId);
 }
 
 /** Probe whether a report request has any downloadable instances. */
@@ -181,9 +199,19 @@ async function findReportId(
   }
 
   // Tier 3: API
-  const reportsResp = await ascFetch<AscListResponse<AscReport>>(
-    `/v1/analyticsReportRequests/${requestId}/reports?filter[category]=${category}`,
-  );
+  let reportsResp: AscListResponse<AscReport>;
+  try {
+    reportsResp = await ascFetch<AscListResponse<AscReport>>(
+      `/v1/analyticsReportRequests/${requestId}/reports?filter[category]=${category}`,
+    );
+  } catch (err) {
+    if (err instanceof AscApiError && err.ascError.statusCode === 404) {
+      console.warn(`[analytics] ${appId}: report request ${requestId} returned 404, invalidating request IDs`);
+      invalidateReportRequestIds(appId);
+      return null;
+    }
+    throw err;
+  }
 
   console.log(
     `[analytics] ${appId}: request ${requestId} category=${category} returned ${reportsResp.data.length} reports`,
@@ -324,7 +352,7 @@ export async function fetchReportData(
   let matchedRequests = 0;
 
   for (const requestId of requestIds) {
-    const reportId = await findReportId(appId, requestId, category, reportName);
+    let reportId = await findReportId(appId, requestId, category, reportName);
     if (!reportId) {
       console.warn(
         `[analytics] ${appId}: ${category}/${reportName} missing for request ${requestId}`,
@@ -338,8 +366,33 @@ export async function fetchReportData(
     const before = uniqueInstances.length;
 
     while (url && uniqueInstances.length < maxInstances) {
-      const resp: AscListResponse<AscReportInstance> =
-        await ascFetch<AscListResponse<AscReportInstance>>(url);
+      let resp: AscListResponse<AscReportInstance>;
+      try {
+        resp = await ascFetch<AscListResponse<AscReportInstance>>(url);
+      } catch (err) {
+        if (err instanceof AscApiError && err.ascError.statusCode === 404) {
+          console.warn(`[analytics] ${appId}: report ${reportId} returned 404, invalidating cache and retrying`);
+          invalidateReportId(requestId, reportName);
+          reportId = await findReportId(appId, requestId, category, reportName);
+          if (!reportId) {
+            invalidateReportRequestIds(appId);
+            break;
+          }
+          url = `/v1/analyticsReports/${reportId}/instances?filter[granularity]=${granularity}&limit=${Math.min(limit, 200)}`;
+          try {
+            resp = await ascFetch<AscListResponse<AscReportInstance>>(url);
+          } catch (retryErr) {
+            if (retryErr instanceof AscApiError && retryErr.ascError.statusCode === 404) {
+              console.warn(`[analytics] ${appId}: report ${reportId} still 404 after re-resolve, invalidating request IDs`);
+              invalidateReportRequestIds(appId);
+              break;
+            }
+            throw retryErr;
+          }
+        } else {
+          throw err;
+        }
+      }
 
       for (const inst of resp.data) {
         const date = inst.attributes.processingDate;

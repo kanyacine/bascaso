@@ -29,20 +29,28 @@ const PRESET_DAYS: Record<string, number> = {
   "90d": 90,
 };
 
+/** Format a Date as YYYY-MM-DD in local time (not UTC). */
+function localDateStr(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 function todayStr(): string {
-  return new Date().toISOString().slice(0, 10);
+  return localDateStr(new Date());
 }
 
 function subtractDays(dateStr: string, days: number): string {
   const d = new Date(dateStr + "T00:00:00");
   d.setDate(d.getDate() - days);
-  return d.toISOString().slice(0, 10);
+  return localDateStr(d);
 }
 
 function lastDayOfMonth(year: number, month: number): string {
   // month is 1-based; Date(year, month, 0) gives last day of that month
   const d = new Date(year, month, 0);
-  return d.toISOString().slice(0, 10);
+  return localDateStr(d);
 }
 
 function monthLabel(year: number, month: number): string {
@@ -146,9 +154,9 @@ export function filterByDateRange<T extends { date: string }>(
   const result: T[] = [];
   const cur = new Date(range.from + "T00:00:00");
   const end = new Date(range.to + "T00:00:00");
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayStr();
   while (cur <= end) {
-    const dateStr = cur.toISOString().slice(0, 10);
+    const dateStr = localDateStr(cur);
     const existing = byDate.get(dateStr);
     if (existing) {
       result.push(existing);

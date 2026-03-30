@@ -30,6 +30,7 @@ import {
   findReportRequestIds,
   fetchReportData,
   fetchPerfPowerMetrics,
+  reportRequestIdsInvalidated,
 } from "./analytics-reports";
 
 // ---------- Re-exports ----------
@@ -239,7 +240,18 @@ async function buildAnalyticsDataInner(
 
   // Phase 1: fetch recent 30 instances for fast initial load
   const phase1Start = Date.now();
-  const data = await buildPhase(requestIds, appId, 30);
+  let data = await buildPhase(requestIds, appId, 30);
+
+  // If a stale report request was detected and invalidated during the build,
+  // re-resolve IDs and retry so the user doesn't have to restart.
+  if (reportRequestIdsInvalidated(appId)) {
+    console.log(`[analytics] ${appId}: stale request IDs detected, re-resolving and retrying`);
+    requestIds = await findReportRequestIds(appId);
+    if (requestIds.length > 0) {
+      data = await buildPhase(requestIds, appId, 30);
+    }
+  }
+
   const phase1Ms = Date.now() - phase1Start;
 
   const reports = [

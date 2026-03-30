@@ -3,6 +3,8 @@
 ## 1.8.6
 
 - Auto-detect and recreate stale analytics snapshots – when Apple expires historical report instances, the app now deletes the dead snapshot request and creates a fresh one to recover the data
+- Auto-recover from stale analytics report IDs – expired report requests and report IDs are invalidated on 404 and re-resolved within the same sync cycle instead of requiring a restart
+- Fix duplicate data point at the end of charts caused by UTC/local timezone mismatch in date gap-filling
 
 ## 1.8.5
 
