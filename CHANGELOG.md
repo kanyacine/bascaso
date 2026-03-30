@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.8.6
+
+- Auto-detect and recreate stale analytics snapshots – when Apple expires historical report instances, the app now deletes the dead snapshot request and creates a fresh one to recover the data
+
 ## 1.8.5
 
 - Fix reviews platform picker showing wrong platform on first visit

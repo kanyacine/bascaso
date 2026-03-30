@@ -2148,14 +2148,14 @@ describe("findReportId caches all reports from a category", () => {
     expect(cachedNames).toContain("App Store Purchases Standard");
 
     // Both Commerce report types (Downloads + Purchases) call findReportId
-    // in parallel for each report request ID (ONGOING + ONE_TIME_SNAPSHOT),
-    // so the COMMERCE category may be fetched up to 4 times. The key
-    // invariant is that both report names get cached.
+    // in parallel for each request ID (ONGOING + ONE_TIME_SNAPSHOT), plus
+    // the stale snapshot probe adds 1 more. The key invariant is that both
+    // report names get cached.
     const commerceCalls = mockAscFetch.mock.calls.filter(
       (c: string[]) => c[0].includes("filter[category]=COMMERCE"),
     );
     expect(commerceCalls.length).toBeGreaterThanOrEqual(1);
-    expect(commerceCalls.length).toBeLessThanOrEqual(4);
+    expect(commerceCalls.length).toBeLessThanOrEqual(5);
   });
 });
 
@@ -2431,9 +2431,9 @@ describe("in-memory cache hit for report request IDs", () => {
 
     await buildAnalyticsData(appId);
 
-    // Verify the API was called for report requests on the first call
+    // Verify the list-report-requests API was called on the first call
     const firstCallRRCalls = mockAscFetch.mock.calls.filter(
-      (c: string[]) => c[0].includes("/analyticsReportRequests") && !c[0].includes("/reports"),
+      (c: string[]) => c[0].includes("/apps/") && c[0].endsWith("/analyticsReportRequests"),
     );
     expect(firstCallRRCalls).toHaveLength(1);
 

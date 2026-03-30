@@ -28,6 +28,27 @@ function normalizeReportName(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
+/** Probe whether a report request has any downloadable instances. */
+async function snapshotHasInstances(appId: string, requestId: string): Promise<boolean> {
+  try {
+    const reports = await ascFetch<AscListResponse<AscReport>>(
+      `/v1/analyticsReportRequests/${requestId}/reports?filter[category]=COMMERCE`,
+    );
+    const probe = reports.data.find((r) =>
+      normalizeReportName(r.attributes.name).includes("download"),
+    );
+    if (!probe) return false;
+    const instances = await ascFetch<AscListResponse<AscReportInstance>>(
+      `/v1/analyticsReports/${probe.id}/instances?filter[granularity]=DAILY&limit=1`,
+    );
+    return instances.data.length > 0;
+  } catch {
+    // If the probe fails, assume valid to avoid deleting a working request
+    console.warn(`[analytics] ${appId}: snapshot probe failed for ${requestId}, assuming valid`);
+    return true;
+  }
+}
+
 export async function findReportRequestIds(appId: string): Promise<string[]> {
   // Tier 1: in-memory
   const memCached = reportRequestIdsCache.get(appId);
@@ -69,6 +90,25 @@ export async function findReportRequestIds(appId: string): Promise<string[]> {
   }
   if (response.data.length > 0 && ids.length === 0) {
     console.warn(`[analytics] ${appId}: report requests exist but none are ONGOING/ONE_TIME_SNAPSHOT`);
+  }
+
+  // Check if the snapshot is stale (exists but has 0 downloadable instances).
+  // Apple expires instances server-side, leaving a dead request that blocks
+  // creation of a fresh one. Delete it so the create loop below picks it up.
+  const snapshotReq = response.data.find(
+    (r) => ids.includes(r.id) && r.attributes.accessType === "ONE_TIME_SNAPSHOT",
+  );
+  if (snapshotReq) {
+    const hasData = await snapshotHasInstances(appId, snapshotReq.id);
+    if (!hasData) {
+      console.log(`[analytics] ${appId}: ONE_TIME_SNAPSHOT ${snapshotReq.id} is empty, deleting to request a fresh one`);
+      try {
+        await ascFetch(`/v1/analyticsReportRequests/${snapshotReq.id}`, { method: "DELETE" });
+        ids.splice(ids.indexOf(snapshotReq.id), 1);
+      } catch (err) {
+        console.warn(`[analytics] ${appId}: failed to delete stale snapshot`, err);
+      }
+    }
   }
 
   // Create any missing report request types. ASC requires a POST before
