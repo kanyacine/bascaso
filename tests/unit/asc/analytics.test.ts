@@ -8,13 +8,25 @@ const mockCacheGet = vi.fn();
 const mockCacheSet = vi.fn();
 const mockFetch = vi.fn();
 
-vi.mock("@/lib/asc/client", () => ({
-  ascFetch: (...args: unknown[]) => mockAscFetch(...args),
-}));
+vi.mock("@/lib/asc/client", () => {
+  class AscApiError extends Error {
+    readonly ascError: { statusCode?: number; message: string; category: string };
+    constructor(ascError: { statusCode?: number; message: string; category: string }) {
+      super(ascError.message);
+      this.name = "AscApiError";
+      this.ascError = ascError;
+    }
+  }
+  return {
+    ascFetch: (...args: unknown[]) => mockAscFetch(...args),
+    AscApiError,
+  };
+});
 
 vi.mock("@/lib/cache", () => ({
   cacheGet: (...args: unknown[]) => mockCacheGet(...args),
   cacheSet: (...args: unknown[]) => mockCacheSet(...args),
+  cacheInvalidate: () => {},
 }));
 
 vi.mock("@/db", () => ({
