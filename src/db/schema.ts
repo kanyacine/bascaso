@@ -85,6 +85,19 @@ export const feedbackCompleted = sqliteTable("feedback_completed", {
     .$defaultFn(() => new Date().toISOString()),
 });
 
+// --- App markers (timeline events shown on charts) ---
+
+export const appMarkers = sqliteTable("app_markers", {
+  id: text("id").primaryKey().$defaultFn(ulid),
+  appId: text("app_id").notNull(),
+  date: text("date").notNull(), // YYYY-MM-DD
+  label: text("label").notNull(),
+  color: text("color"),
+  createdAt: text("created_at")
+    .notNull()
+    .$defaultFn(() => new Date().toISOString()),
+});
+
 // --- Pending changes (local change buffer) ---
 
 export const pendingChanges = sqliteTable("pending_changes", {

@@ -1,14 +1,19 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import {
   useParams,
   usePathname,
   useSearchParams,
 } from "next/navigation";
+import { BookmarkSimple } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { AnalyticsProvider } from "@/lib/analytics-context";
 import { AnalyticsRangePicker } from "@/components/analytics-range-picker";
+import { Button } from "@/components/ui/button";
+import { MarkersDialog } from "@/components/markers-dialog";
+import { useAppMarkers } from "@/lib/hooks/use-app-markers";
 
 const TABS = [
   { label: "Overview", segment: "" },
@@ -26,6 +31,8 @@ export default function AnalyticsLayout({
   const { appId } = useParams<{ appId: string }>();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const [markersOpen, setMarkersOpen] = useState(false);
+  const { markers } = useAppMarkers(appId);
   const base = `/dashboard/apps/${appId}/analytics`;
   const range = searchParams.get("range") || "30d";
 
@@ -71,8 +78,26 @@ export default function AnalyticsLayout({
               );
             })}
           </nav>
-          {showRangePicker && <AnalyticsRangePicker />}
+          <div className="mb-1 flex items-center gap-2">
+            {showRangePicker && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setMarkersOpen(true)}
+              >
+                <BookmarkSimple className="size-4" />
+                Markers
+                {markers.length > 0 && (
+                  <span className="ml-1 text-xs text-muted-foreground">
+                    {markers.length}
+                  </span>
+                )}
+              </Button>
+            )}
+            {showRangePicker && <AnalyticsRangePicker />}
+          </div>
         </div>
+        <MarkersDialog appId={appId} open={markersOpen} onOpenChange={setMarkersOpen} />
         {children}
       </div>
     </AnalyticsProvider>

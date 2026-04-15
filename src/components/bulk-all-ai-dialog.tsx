@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { CaretRight, Check, Warning, CircleNotch } from "@phosphor-icons/react";
+import { CaretRight, Check, Warning, CircleNotch, ArrowClockwise } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -74,7 +74,7 @@ export function BulkAllAIDialog({
     setExpanded({});
   }, [targetLocales]);
 
-  const { results, authError, getResult } = useBulkAI({
+  const { results, authError, getResult, retryField, retryLocale } = useBulkAI({
     open,
     mode,
     primaryLocale,
@@ -186,12 +186,23 @@ export function BulkAllAIDialog({
                       />
                       <span className="text-sm font-medium">{localeName(loc)}</span>
                       <span className="text-xs text-muted-foreground">{loc}</span>
-                      <span className="ml-auto flex items-center">
+                      <span className="ml-auto flex items-center gap-1">
                         {isLoading && (
                           <CircleNotch size={14} className="animate-spin text-muted-foreground" />
                         )}
                         {isError && (
                           <Warning size={14} className="text-destructive" />
+                        )}
+                        {mode === "translate" && (
+                          <button
+                            type="button"
+                            onClick={() => retryLocale(loc)}
+                            disabled={isLoading}
+                            title="Re-translate this language"
+                            className="inline-flex items-center justify-center rounded p-1 text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            <ArrowClockwise size={12} />
+                          </button>
                         )}
                       </span>
                     </div>
@@ -238,7 +249,7 @@ export function BulkAllAIDialog({
                       <span className="font-medium">{localeName(loc)}</span>
                       <span className="text-muted-foreground text-xs">{loc}</span>
                     </CollapsibleTrigger>
-                    <div className="flex items-center">
+                    <div className="flex items-center gap-1">
                       {status === "loading" && (
                         <CircleNotch size={14} className="animate-spin text-muted-foreground" />
                       )}
@@ -247,6 +258,20 @@ export function BulkAllAIDialog({
                       )}
                       {(status === "error" || status === "partial") && (
                         <Warning size={14} className="text-destructive" />
+                      )}
+                      {mode === "translate" && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            retryLocale(loc);
+                          }}
+                          disabled={status === "loading"}
+                          title="Re-translate this language"
+                          className="inline-flex items-center justify-center rounded p-1 text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <ArrowClockwise size={12} />
+                        </button>
                       )}
                     </div>
                   </div>
@@ -271,6 +296,17 @@ export function BulkAllAIDialog({
                               )}
                               {isError && (
                                 <span className="text-xs text-destructive">Failed</span>
+                              )}
+                              {mode === "translate" && (
+                                <button
+                                  type="button"
+                                  onClick={() => retryField(loc, field.key)}
+                                  disabled={isLoading}
+                                  title="Re-translate this field"
+                                  className="ml-auto inline-flex items-center justify-center rounded p-1 text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  <ArrowClockwise size={10} />
+                                </button>
                               )}
                             </div>
                             {isLoading ? (

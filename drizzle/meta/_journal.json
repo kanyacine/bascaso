@@ -50,6 +50,13 @@
       "when": 1773670573701,
       "tag": "0006_yielding_callisto",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1776244023995,
+      "tag": "0007_sturdy_prism",
+      "breakpoints": true
     }
   ]
 }

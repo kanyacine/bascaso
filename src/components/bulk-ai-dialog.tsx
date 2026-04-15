@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { Check, Warning, CircleNotch } from "@phosphor-icons/react";
+import { Check, Warning, CircleNotch, ArrowClockwise } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -66,7 +66,7 @@ export function BulkAIDialog({
     setChecked(initial);
   }, [fields]);
 
-  const { authError, getResult } = useBulkAI({
+  const { authError, getResult, retryField } = useBulkAI({
     open,
     mode,
     primaryLocale,
@@ -184,6 +184,17 @@ export function BulkAIDialog({
                         <Check size={12} />
                         No change
                       </span>
+                    )}
+                    {mode === "translate" && (
+                      <button
+                        type="button"
+                        onClick={() => retryField(targetLocale, field.key)}
+                        disabled={isLoading}
+                        title="Re-translate this field"
+                        className="ml-auto inline-flex items-center justify-center rounded p-1 text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <ArrowClockwise size={12} />
+                      </button>
                     )}
                   </div>
                   <div className="grid grid-cols-2 gap-x-3 gap-y-0 pl-6">

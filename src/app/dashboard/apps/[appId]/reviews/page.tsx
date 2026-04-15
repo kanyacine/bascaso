@@ -37,7 +37,7 @@ export default function ReviewsPage() {
   const { apps } = useApps();
   const app = apps.find((a) => a.id === appId);
   const { configured: aiConfigured } = useAIStatus();
-  const { versions } = useVersions();
+  const { versions, loading: versionsLoading } = useVersions();
   const platforms = useMemo(() => getVersionPlatforms(versions), [versions]);
 
   // Data fetching
@@ -112,9 +112,16 @@ export default function ReviewsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appId, sortBy, platforms.join()]);
 
+  // Clear stale reviews when the app changes so we don't show the previous app's data.
   useEffect(() => {
+    setReviews([]);
+    setLoading(true);
+  }, [appId]);
+
+  useEffect(() => {
+    if (versionsLoading || platforms.length === 0) return;
     fetchReviews();
-  }, [fetchReviews]);
+  }, [fetchReviews, versionsLoading, platforms.length]);
 
   // Re-fetch when platform picker changes
   useEffect(() => {

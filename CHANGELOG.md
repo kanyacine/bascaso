@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.9.0
+
+- Fix reviews page showing all platforms on app switch via cmd-X
+- Add retry icon next to each language and field in bulk translation dialogs so failed translations can be re-run without closing the dialog
+- Add timeline markers for annotating events like price changes, promotions, or features – markers show as vertical lines on every time-series chart for the app; manage them from the Markers button on the app overview and analytics pages
+
 ## 1.8.6
 
 - Auto-detect and recreate stale analytics snapshots – when Apple expires historical report instances, the app now deletes the dead snapshot request and creates a fresh one to recover the data

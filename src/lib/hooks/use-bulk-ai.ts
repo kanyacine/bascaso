@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 
 export interface BulkField {
   key: string;
@@ -35,6 +35,8 @@ interface UseBulkAIReturn {
   results: Record<string, FieldResult>;
   authError: boolean;
   getResult: (locale: string, fieldKey: string) => FieldResult | undefined;
+  retryField: (locale: string, fieldKey: string) => void;
+  retryLocale: (locale: string) => void;
 }
 
 /**
@@ -74,12 +76,74 @@ export function useBulkAI({
     setResults(newResults);
   }
 
+  function fireTranslate(
+    locale: string,
+    field: BulkField,
+    controller: AbortController,
+  ) {
+    const baseFields = localeData[primaryLocale] ?? {};
+    const baseValue = String(baseFields[field.key] ?? "");
+    const key = resultKey(locale, field.key);
+
+    if (!baseValue.trim()) {
+      setResults((prev) => ({
+        ...prev,
+        [key]: { status: "done", value: "" },
+      }));
+      return;
+    }
+
+    fetch("/api/ai", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "translate",
+        text: baseValue,
+        field: field.key,
+        fromLocale: primaryLocale,
+        toLocale: locale,
+        appName,
+        charLimit: field.charLimit,
+      }),
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        const data = await res.json();
+        if (data.error === "ai_auth_error") {
+          controller.abort();
+          setAuthError(true);
+          setResults((prev) => {
+            const next = { ...prev };
+            for (const k of Object.keys(next)) {
+              if (next[k].status === "loading") {
+                next[k] = { status: "error", value: "" };
+              }
+            }
+            return next;
+          });
+          return;
+        }
+        setResults((prev) => ({
+          ...prev,
+          [key]: res.ok
+            ? { status: "done", value: data.result }
+            : { status: "error", value: "" },
+        }));
+      })
+      .catch(() => {
+        if (controller.signal.aborted) return;
+        setResults((prev) => ({
+          ...prev,
+          [key]: { status: "error", value: "" },
+        }));
+      });
+  }
+
   function runTranslate() {
     onInit?.();
     setAuthError(false);
     const controller = new AbortController();
     abortRef.current = controller;
-    const baseFields = localeData[primaryLocale] ?? {};
 
     // Set all to loading
     const loading: Record<string, FieldResult> = {};
@@ -93,64 +157,51 @@ export function useBulkAI({
     // Fire requests for each locale x field
     for (const loc of targetLocales) {
       for (const field of fields) {
-        const baseValue = String(baseFields[field.key] ?? "");
-        const key = resultKey(loc, field.key);
-
-        if (!baseValue.trim()) {
-          setResults((prev) => ({
-            ...prev,
-            [key]: { status: "done", value: "" },
-          }));
-          continue;
-        }
-
-        fetch("/api/ai", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "translate",
-            text: baseValue,
-            field: field.key,
-            fromLocale: primaryLocale,
-            toLocale: loc,
-            appName,
-            charLimit: field.charLimit,
-          }),
-          signal: controller.signal,
-        })
-          .then(async (res) => {
-            const data = await res.json();
-            if (data.error === "ai_auth_error") {
-              controller.abort();
-              setAuthError(true);
-              setResults((prev) => {
-                const next = { ...prev };
-                for (const k of Object.keys(next)) {
-                  if (next[k].status === "loading") {
-                    next[k] = { status: "error", value: "" };
-                  }
-                }
-                return next;
-              });
-              return;
-            }
-            setResults((prev) => ({
-              ...prev,
-              [key]: res.ok
-                ? { status: "done", value: data.result }
-                : { status: "error", value: "" },
-            }));
-          })
-          .catch(() => {
-            if (controller.signal.aborted) return;
-            setResults((prev) => ({
-              ...prev,
-              [key]: { status: "error", value: "" },
-            }));
-          });
+        fireTranslate(loc, field, controller);
       }
     }
   }
+
+  const retryField = useCallback(
+    (locale: string, fieldKey: string) => {
+      const field = fields.find((f) => f.key === fieldKey);
+      if (!field) return;
+      setAuthError(false);
+      let controller = abortRef.current;
+      if (!controller || controller.signal.aborted) {
+        controller = new AbortController();
+        abortRef.current = controller;
+      }
+      const key = resultKey(locale, fieldKey);
+      setResults((prev) => ({ ...prev, [key]: { status: "loading", value: "" } }));
+      fireTranslate(locale, field, controller);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [fields, primaryLocale, appName, localeData],
+  );
+
+  const retryLocale = useCallback(
+    (locale: string) => {
+      setAuthError(false);
+      let controller = abortRef.current;
+      if (!controller || controller.signal.aborted) {
+        controller = new AbortController();
+        abortRef.current = controller;
+      }
+      setResults((prev) => {
+        const next = { ...prev };
+        for (const f of fields) {
+          next[resultKey(locale, f.key)] = { status: "loading", value: "" };
+        }
+        return next;
+      });
+      for (const f of fields) {
+        fireTranslate(locale, f, controller);
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [fields, primaryLocale, appName, localeData],
+  );
 
   // Run on open
   useEffect(() => {
@@ -180,5 +231,5 @@ export function useBulkAI({
     return results[resultKey(locale, fieldKey)];
   }
 
-  return { results, authError, getResult };
+  return { results, authError, getResult, retryField, retryLocale };
 }

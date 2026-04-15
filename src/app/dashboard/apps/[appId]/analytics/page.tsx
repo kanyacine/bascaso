@@ -1,7 +1,9 @@
 "use client";
 
 import { useMemo } from "react";
-import { useSearchParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
+import { useAppMarkers } from "@/lib/hooks/use-app-markers";
+import { renderMarkers } from "@/components/chart-markers";
 import {
   Bar,
   BarChart,
@@ -61,6 +63,8 @@ const funnelConfig = {
 
 export default function AnalyticsOverviewPage() {
   const searchParams = useSearchParams();
+  const { appId } = useParams<{ appId: string }>();
+  const { markers } = useAppMarkers(appId);
   const { data, lastDate } = useAnalytics();
   const range = useMemo(() => parseRange(searchParams.get("range") ?? getStoredRange(), lastDate), [searchParams, lastDate]);
   const prevRange = useMemo(() => previousRange(range), [range]);
@@ -226,6 +230,10 @@ export default function AnalyticsOverviewPage() {
                   fill="var(--color-update)"
                   radius={[2, 2, 0, 0]}
                 />
+                {renderMarkers({
+                  markers,
+                  visibleDates: downloads.map((d) => d.date),
+                })}
               </BarChart>
             </ChartContainer>
           </CardContent>
@@ -291,6 +299,10 @@ export default function AnalyticsOverviewPage() {
                   dot={false}
                   strokeDasharray="4 4"
                 />
+                {renderMarkers({
+                  markers,
+                  visibleDates: revenue.map((d) => d.date),
+                })}
               </LineChart>
             </ChartContainer>
           </CardContent>

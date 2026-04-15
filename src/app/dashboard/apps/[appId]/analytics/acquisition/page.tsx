@@ -1,7 +1,9 @@
 "use client";
 
 import { useMemo } from "react";
-import { useSearchParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
+import { useAppMarkers } from "@/lib/hooks/use-app-markers";
+import { renderMarkers } from "@/components/chart-markers";
 import {
   Bar,
   BarChart,
@@ -68,6 +70,8 @@ const SOURCE_FILLS: Record<string, string> = {
 
 export default function AcquisitionPage() {
   const searchParams = useSearchParams();
+  const { appId } = useParams<{ appId: string }>();
+  const { markers } = useAppMarkers(appId);
   const { data, lastDate } = useAnalytics();
   const range = useMemo(() => parseRange(searchParams.get("range") ?? getStoredRange(), lastDate), [searchParams, lastDate]);
 
@@ -201,6 +205,10 @@ export default function AcquisitionPage() {
                   strokeWidth={2}
                   dot={false}
                 />
+                {renderMarkers({
+                  markers,
+                  visibleDates: engagement.map((d) => d.date),
+                })}
               </LineChart>
             </ChartContainer>
           </CardContent>
@@ -262,6 +270,10 @@ export default function AcquisitionPage() {
                 fill="var(--color-unavailable)"
                 radius={[4, 4, 0, 0]}
               />
+              {renderMarkers({
+                markers,
+                visibleDates: downloadsBySource.map((d) => d.date),
+              })}
             </BarChart>
           </ChartContainer>
         </CardContent>
@@ -308,6 +320,10 @@ export default function AcquisitionPage() {
                   fill="var(--color-appStoreTaps)"
                   radius={[4, 4, 0, 0]}
                 />
+                {renderMarkers({
+                  markers,
+                  visibleDates: webPreview.map((d) => d.date),
+                })}
               </BarChart>
             </ChartContainer>
           </CardContent>

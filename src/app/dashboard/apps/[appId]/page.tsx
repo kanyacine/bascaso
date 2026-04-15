@@ -18,7 +18,12 @@ import {
   DownloadSimple,
   CurrencyDollar,
   ShieldCheck,
+  BookmarkSimple,
 } from "@phosphor-icons/react";
+import { Button } from "@/components/ui/button";
+import { MarkersDialog } from "@/components/markers-dialog";
+import { useAppMarkers } from "@/lib/hooks/use-app-markers";
+import { renderMarkers } from "@/components/chart-markers";
 import { Spinner } from "@/components/ui/spinner";
 import { EmptyState } from "@/components/empty-state";
 import {
@@ -122,6 +127,8 @@ export default function AppOverviewPage() {
   const [analyticsLoading, setAnalyticsLoading] = useState(true);
   const [downloadsRange, setDownloadsRange] = usePersistedRange("range:overview-downloads");
   const [proceedsRange, setProceedsRange] = usePersistedRange("range:overview-proceeds");
+  const [markersOpen, setMarkersOpen] = useState(false);
+  const { markers } = useAppMarkers(appId);
 
   useEffect(() => {
     let cancelled = false;
@@ -198,11 +205,22 @@ export default function AppOverviewPage() {
           className="size-14"
           iconSize={28}
         />
-        <div>
+        <div className="flex-1">
           <h1 className="text-2xl font-bold tracking-tight">{app.name}</h1>
           <p className="text-sm text-muted-foreground">{app.bundleId}</p>
         </div>
+        <Button variant="outline" size="sm" onClick={() => setMarkersOpen(true)}>
+          <BookmarkSimple size={14} />
+          Markers
+          {markers.length > 0 && (
+            <span className="ml-1 text-xs text-muted-foreground">
+              {markers.length}
+            </span>
+          )}
+        </Button>
       </div>
+
+      <MarkersDialog appId={appId} open={markersOpen} onOpenChange={setMarkersOpen} />
 
       {/* Version status cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -333,6 +351,10 @@ export default function AppOverviewPage() {
                         fill="var(--color-redownload)"
                         radius={[2, 2, 0, 0]}
                       />
+                      {renderMarkers({
+                        markers,
+                        visibleDates: filteredDownloads.map((d) => d.date),
+                      })}
                     </BarChart>
                   </ChartContainer>
                 ) : (
@@ -394,6 +416,10 @@ export default function AppOverviewPage() {
                         strokeWidth={2}
                         dot={false}
                       />
+                      {renderMarkers({
+                        markers,
+                        visibleDates: filteredRevenue.map((d) => d.date),
+                      })}
                     </LineChart>
                   </ChartContainer>
                 ) : (

@@ -1,7 +1,9 @@
 "use client";
 
 import { useMemo } from "react";
-import { useSearchParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
+import { useAppMarkers } from "@/lib/hooks/use-app-markers";
+import { renderMarkers } from "@/components/chart-markers";
 import {
   Area,
   AreaChart,
@@ -61,6 +63,8 @@ const VERSION_COLORS = [
 
 export default function UsagePage() {
   const searchParams = useSearchParams();
+  const { appId } = useParams<{ appId: string }>();
+  const { markers } = useAppMarkers(appId);
   const { data, lastDate } = useAnalytics();
   const range = useMemo(() => parseRange(searchParams.get("range") ?? getStoredRange(), lastDate), [searchParams, lastDate]);
 
@@ -163,6 +167,10 @@ export default function UsagePage() {
                   strokeWidth={2}
                   dot={false}
                 />
+                {renderMarkers({
+                  markers,
+                  visibleDates: sessions.map((d) => d.date),
+                })}
               </LineChart>
             </ChartContainer>
           </CardContent>
@@ -215,6 +223,10 @@ export default function UsagePage() {
                   stroke="var(--color-avgDuration)"
                   fillOpacity={0.3}
                 />
+                {renderMarkers({
+                  markers,
+                  visibleDates: sessions.map((d) => d.date),
+                })}
               </AreaChart>
             </ChartContainer>
           </CardContent>
@@ -264,6 +276,10 @@ export default function UsagePage() {
                     fillOpacity={0.4}
                   />
                 ))}
+                {renderMarkers({
+                  markers,
+                  visibleDates: versionSessions.map((d) => d.date),
+                })}
               </AreaChart>
             </ChartContainer>
           </CardContent>
@@ -313,6 +329,10 @@ export default function UsagePage() {
                   fill="var(--color-deletes)"
                   radius={[4, 4, 0, 0]}
                 />
+                {renderMarkers({
+                  markers,
+                  visibleDates: installsDeletes.map((d) => d.date),
+                })}
               </BarChart>
             </ChartContainer>
           </CardContent>
@@ -365,6 +385,10 @@ export default function UsagePage() {
                   fill="var(--color-optingIn)"
                   radius={[4, 4, 0, 0]}
                 />
+                {renderMarkers({
+                  markers,
+                  visibleDates: optIn.map((d) => d.date),
+                })}
               </BarChart>
             </ChartContainer>
           </CardContent>
