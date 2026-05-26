@@ -67,7 +67,17 @@ Everything runs locally. One SQLite database, no cloud, no accounts, no telemetr
 
 Itsyconnect is completely free, with no limits – manage as many apps and developer accounts as you like. Every feature is available to everyone, on both direct downloads and the Mac App Store. Licensed under [AGPL-3.0](LICENSE).
 
-## Quick start
+## Download
+
+Most people just want the app. Download the latest release, open the DMG, and drag Itsyconnect into your Applications folder:
+
+**[⬇ Download Itsyconnect](https://github.com/nickustinov/itsyconnect-macos/releases/latest/download/Itsyconnect.dmg)** – macOS 11 or later
+
+The build is signed and notarized by Apple, so it opens without Gatekeeper warnings, and updates itself automatically from then on. On first launch the setup wizard guides you through connecting your App Store Connect credentials. Older builds are on the [releases page](https://github.com/nickustinov/itsyconnect-macos/releases).
+
+## Build from source
+
+Prefer to compile and run it yourself? Clone the repo and start the dev build:
 
 ```bash
 git clone https://github.com/nickustinov/itsyconnect-macos.git
@@ -76,7 +86,7 @@ npm install
 npm run electron:dev
 ```
 
-The setup wizard will guide you through connecting your App Store Connect credentials.
+The setup wizard will guide you through connecting your App Store Connect credentials. See [Development](#development) below for building your own signed DMG.
 
 ## Self-hosting with Docker
 
