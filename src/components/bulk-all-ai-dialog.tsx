@@ -50,6 +50,30 @@ function localeStatus(
   return "pending";
 }
 
+/**
+ * Default field selection for the "translate/copy to all languages" dialog.
+ * Every field is on by default, except Keywords when a target language already
+ * has keywords – re-translating the source would overwrite hand-tuned
+ * per-language ASO, so it's opt-in in that case. Single-field mode (the magic
+ * wand "translate this field to all") is always on – the field was chosen
+ * explicitly. Extracted for testability.
+ */
+export function defaultFieldSelection(
+  fields: BulkField[],
+  targetLocales: string[],
+  localeData: Record<string, Record<string, unknown>>,
+  singleField: boolean,
+): Record<string, boolean> {
+  const anyTargetHasKeywords = targetLocales.some(
+    (loc) => String(localeData[loc]?.keywords ?? "").trim().length > 0,
+  );
+  const result: Record<string, boolean> = {};
+  for (const f of fields) {
+    result[f.key] = !(f.key === "keywords" && !singleField && anyTargetHasKeywords);
+  }
+  return result;
+}
+
 export function BulkAllAIDialog({
   open,
   onOpenChange,
@@ -65,22 +89,26 @@ export function BulkAllAIDialog({
   const singleField = fields.length === 1;
 
   const [checked, setChecked] = useState<Record<string, boolean>>({});
+  const [fieldChecked, setFieldChecked] = useState<Record<string, boolean>>({});
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   // Configure step: translation/copy only starts once the user confirms.
   const [started, setStarted] = useState(false);
   const [runLocales, setRunLocales] = useState<string[]>([]);
+  const [runFields, setRunFields] = useState<BulkField[]>([]);
 
   // Reset configure state every time the dialog opens.
   useEffect(() => {
     if (!open) return;
-    const initial: Record<string, boolean> = {};
+    const initialLocales: Record<string, boolean> = {};
     for (const loc of targetLocales) {
-      initial[loc] = true;
+      initialLocales[loc] = true;
     }
-    setChecked(initial);
+    setChecked(initialLocales);
+    setFieldChecked(defaultFieldSelection(fields, targetLocales, localeData, singleField));
     setExpanded({});
     setStarted(false);
     setRunLocales([]);
+    setRunFields([]);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- re-init only on open transition
   }, [open]);
 
@@ -92,15 +120,17 @@ export function BulkAllAIDialog({
     primaryLocale,
     targetLocales: runLocales,
     localeData,
-    fields,
+    fields: runFields,
     appName,
     guidance,
   });
 
   function handleStart() {
-    const selected = targetLocales.filter((l) => checked[l]);
-    if (selected.length === 0) return;
-    setRunLocales(selected);
+    const selectedLocales = targetLocales.filter((l) => checked[l]);
+    const selectedFields = fields.filter((f) => fieldChecked[f.key]);
+    if (selectedLocales.length === 0 || selectedFields.length === 0) return;
+    setRunLocales(selectedLocales);
+    setRunFields(selectedFields);
     setStarted(true);
   }
 
@@ -108,6 +138,10 @@ export function BulkAllAIDialog({
 
   function toggleLocale(locale: string) {
     setChecked((prev) => ({ ...prev, [locale]: !prev[locale] }));
+  }
+
+  function toggleField(fieldKey: string) {
+    setFieldChecked((prev) => ({ ...prev, [fieldKey]: !prev[fieldKey] }));
   }
 
   function toggleAll() {
@@ -130,7 +164,7 @@ export function BulkAllAIDialog({
     for (const loc of runLocales) {
       if (!checked[loc]) continue;
       const fieldUpdates: Record<string, string> = {};
-      for (const f of fields) {
+      for (const f of runFields) {
         const fr = getResult(loc, f.key);
         if (fr?.status === "done") {
           fieldUpdates[f.key] = fr.value;
@@ -151,17 +185,18 @@ export function BulkAllAIDialog({
   // Configure step
   const configCheckedCount = targetLocales.filter((l) => checked[l]).length;
   const configAllChecked = configCheckedCount === targetLocales.length;
+  const configFieldCount = fields.filter((f) => fieldChecked[f.key]).length;
 
   // Run step
   const runCheckedCount = runLocales.filter((l) => checked[l]).length;
   const allFinished = runLocales.every((loc) => {
-    const s = localeStatus(loc, fields, results);
+    const s = localeStatus(loc, runFields, results);
     return s === "done" || s === "error" || s === "partial";
   });
 
   const anyApplicable = runLocales.some((loc) => {
     if (!checked[loc]) return false;
-    return fields.some((f) => getResult(loc, f.key)?.status === "done");
+    return runFields.some((f) => getResult(loc, f.key)?.status === "done");
   });
 
   const baseLabel = localeName(primaryLocale);
@@ -189,27 +224,53 @@ export function BulkAllAIDialog({
         {!started ? (
           <>
             <ScrollArea className="min-h-0 overflow-hidden">
-              <div className="space-y-1 pr-3">
-                <p className="mb-2 px-2 text-sm text-muted-foreground">
-                  {mode === "translate"
-                    ? `Choose which languages to translate ${baseLabel} into, then start.`
-                    : `Choose which languages to copy ${baseLabel} into.`}
-                </p>
-                {targetLocales.map((loc) => (
-                  <label
-                    key={loc}
-                    className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 hover:bg-muted/50"
-                  >
-                    <Checkbox
-                      checked={checked[loc] ?? false}
-                      onCheckedChange={() => toggleLocale(loc)}
-                    />
-                    <span className="text-sm font-medium">{localeName(loc)}</span>
-                    <span className="text-xs text-muted-foreground">{loc}</span>
-                  </label>
-                ))}
+              <div className="space-y-3 pr-3">
+                {!singleField && (
+                  <div className="space-y-0.5">
+                    <p className="px-2 pb-1 text-xs font-medium text-muted-foreground">
+                      Fields
+                    </p>
+                    {fields.map((field) => (
+                      <label
+                        key={field.key}
+                        className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 hover:bg-muted/50"
+                      >
+                        <Checkbox
+                          checked={fieldChecked[field.key] ?? false}
+                          onCheckedChange={() => toggleField(field.key)}
+                        />
+                        <span className="text-sm">{field.label}</span>
+                        {field.key === "keywords" && (
+                          <span className="text-xs text-muted-foreground">
+                            – overwrites per-language keywords
+                          </span>
+                        )}
+                      </label>
+                    ))}
+                  </div>
+                )}
+                <div className="space-y-0.5">
+                  {!singleField && (
+                    <p className="px-2 pb-1 text-xs font-medium text-muted-foreground">
+                      Languages
+                    </p>
+                  )}
+                  {targetLocales.map((loc) => (
+                    <label
+                      key={loc}
+                      className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 hover:bg-muted/50"
+                    >
+                      <Checkbox
+                        checked={checked[loc] ?? false}
+                        onCheckedChange={() => toggleLocale(loc)}
+                      />
+                      <span className="text-sm font-medium">{localeName(loc)}</span>
+                      <span className="text-xs text-muted-foreground">{loc}</span>
+                    </label>
+                  ))}
+                </div>
                 {mode === "translate" && (
-                  <div className="px-2 pt-2">
+                  <div className="px-2 pt-1">
                     <GuidanceField
                       value={guidance}
                       onChange={setGuidance}
@@ -229,7 +290,7 @@ export function BulkAllAIDialog({
                 <Button variant="outline" onClick={() => onOpenChange(false)}>
                   Cancel
                 </Button>
-                <Button disabled={configCheckedCount === 0} onClick={handleStart}>
+                <Button disabled={configCheckedCount === 0 || configFieldCount === 0} onClick={handleStart}>
                   {mode === "translate" ? "Translate" : "Copy"}
                 </Button>
               </div>
@@ -240,12 +301,12 @@ export function BulkAllAIDialog({
         <ScrollArea className="min-h-0 overflow-hidden">
           <div className="space-y-1 pr-3">
             {runLocales.map((loc) => {
-              const status = localeStatus(loc, fields, results);
+              const status = localeStatus(loc, runFields, results);
               const isOpen = expanded[loc] ?? false;
 
               // For single-field mode, show result inline below locale name
               if (singleField) {
-                const fr = getResult(loc, fields[0].key);
+                const fr = getResult(loc, runFields[0].key);
                 const isLoading = fr?.status === "loading";
                 const isError = fr?.status === "error";
                 const after = fr?.status === "done" ? fr.value : "";
@@ -300,7 +361,7 @@ export function BulkAllAIDialog({
                             <span className="italic text-muted-foreground">Empty</span>
                           )}
                         </div>
-                        {after && <CharCount value={after} limit={fields[0].charLimit} />}
+                        {after && <CharCount value={after} limit={runFields[0].charLimit} />}
                       </div>
                     ) : null}
                   </div>
@@ -357,7 +418,7 @@ export function BulkAllAIDialog({
 
                   <CollapsibleContent>
                     <div className="space-y-3 py-2 pl-10 pr-2">
-                      {fields.map((field) => {
+                      {runFields.map((field) => {
                         const fr = getResult(loc, field.key);
                         const after = fr?.status === "done" ? fr.value : "";
                         const isLoading = fr?.status === "loading";
