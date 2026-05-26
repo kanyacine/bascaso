@@ -6,6 +6,7 @@
 - Pick target languages before translating – "Translate to all languages" now opens a configure step so you choose the languages and start explicitly, instead of translating everything immediately
 - Choose which fields to translate to all languages – Keywords are off by default when a language already has keywords, so carefully tuned per-language ASO isn't overwritten
 - Handle over-long translations – when a translation exceeds an App Store character limit the AI tries once to shorten it to fit; if it's still too long it's shown in full and flagged rather than silently cut off
+- Fix the export compliance ("Declare no encryption") action not appearing for builds in apps that also use an external testing group
 
 ## 1.10.0
 

@@ -54,6 +54,21 @@ describe("deriveBuildStatus", () => {
     expect(deriveBuildStatus("VALID", "IN_EXPORT_COMPLIANCE_REVIEW", null, false)).toBe("In compliance review");
   });
 
+  // Issue #68: apps that also use an external testing group get a non-null
+  // external state that must not hide a missing-compliance internal state.
+  it("returns 'Missing compliance' when only the internal state is MISSING_EXPORT_COMPLIANCE", () => {
+    expect(deriveBuildStatus("VALID", null, "MISSING_EXPORT_COMPLIANCE", false)).toBe("Missing compliance");
+  });
+
+  it("returns 'Missing compliance' even when a non-null external state would otherwise mask it", () => {
+    expect(deriveBuildStatus("VALID", "READY_FOR_BETA_SUBMISSION", "MISSING_EXPORT_COMPLIANCE", false)).toBe("Missing compliance");
+    expect(deriveBuildStatus("VALID", "WAITING_FOR_BETA_REVIEW", "MISSING_EXPORT_COMPLIANCE", false)).toBe("Missing compliance");
+  });
+
+  it("returns 'In compliance review' when only the internal state is IN_EXPORT_COMPLIANCE_REVIEW", () => {
+    expect(deriveBuildStatus("VALID", "IN_BETA_REVIEW", "IN_EXPORT_COMPLIANCE_REVIEW", false)).toBe("In compliance review");
+  });
+
   it("returns 'Processing exception' for PROCESSING_EXCEPTION", () => {
     expect(deriveBuildStatus("VALID", "PROCESSING_EXCEPTION", null, false)).toBe("Processing exception");
   });

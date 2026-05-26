@@ -203,6 +203,25 @@ export function deriveBuildStatus(
   if (processingState === "FAILED" || processingState === "INVALID") return "Invalid";
   if (expired) return "Expired";
 
+  // Export-compliance gating applies to both testing audiences and needs the
+  // same action, so check both beta states before the external→internal
+  // precedence below. Otherwise, for an app that also uses an external testing
+  // group, a non-null external state (e.g. READY_FOR_BETA_SUBMISSION) masks an
+  // internal MISSING_EXPORT_COMPLIANCE and the "declare compliance" action
+  // never appears. (ExternalBetaState and InternalBetaState both define these.)
+  if (
+    externalBuildState === "MISSING_EXPORT_COMPLIANCE" ||
+    internalBuildState === "MISSING_EXPORT_COMPLIANCE"
+  ) {
+    return "Missing compliance";
+  }
+  if (
+    externalBuildState === "IN_EXPORT_COMPLIANCE_REVIEW" ||
+    internalBuildState === "IN_EXPORT_COMPLIANCE_REVIEW"
+  ) {
+    return "In compliance review";
+  }
+
   const state = externalBuildState ?? internalBuildState;
   switch (state) {
     case "IN_BETA_TESTING": return "Testing";
@@ -212,8 +231,6 @@ export function deriveBuildStatus(
     case "IN_BETA_REVIEW": return "In beta review";
     case "BETA_REJECTED": return "Rejected";
     case "READY_FOR_BETA_SUBMISSION": return "Ready to submit";
-    case "MISSING_EXPORT_COMPLIANCE": return "Missing compliance";
-    case "IN_EXPORT_COMPLIANCE_REVIEW": return "In compliance review";
     case "PROCESSING_EXCEPTION": return "Processing exception";
     case "EXPIRED": return "Expired";
     case "NOT_APPLICABLE": return "N/A";
