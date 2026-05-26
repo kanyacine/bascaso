@@ -44,21 +44,6 @@ export const cacheEntries = sqliteTable("cache_entries", {
   ttlMs: integer("ttl_ms").notNull(),
 });
 
-// --- License activations ---
-
-export const licenseActivations = sqliteTable("license_activations", {
-  id: text("id").primaryKey().$defaultFn(ulid),
-  encryptedLicenseKey: text("encrypted_license_key").notNull(),
-  iv: text("iv").notNull(),
-  authTag: text("auth_tag").notNull(),
-  encryptedDek: text("encrypted_dek").notNull(),
-  instanceId: text("instance_id").notNull(),
-  email: text("email").notNull(),
-  activatedAt: text("activated_at")
-    .notNull()
-    .$defaultFn(() => new Date().toISOString()),
-});
-
 // --- Analytics backfill tracking ---
 
 export const analyticsBackfill = sqliteTable("analytics_backfill", {

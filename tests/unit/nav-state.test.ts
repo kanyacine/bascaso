@@ -56,7 +56,7 @@ describe("nav-state", () => {
     });
 
     it("ignores non-dashboard paths", () => {
-      saveNavigation("/settings/license", "");
+      saveNavigation("/settings/teams", "");
       expect(getLastUrl()).toBeUndefined();
     });
 

@@ -4,7 +4,6 @@ import { ascCredentials } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { ulid } from "@/lib/ulid";
 import { encrypt } from "@/lib/encryption";
-import { clearFreeSelectedAppId } from "@/lib/app-preferences";
 
 export async function POST() {
   const existing = db
@@ -22,8 +21,6 @@ export async function POST() {
 
   // Store a demo credential – no real API key needed.
   // The encrypted fields use a placeholder so the schema stays valid.
-  clearFreeSelectedAppId();
-
   const placeholder = encrypt("demo-placeholder");
 
   db.insert(ascCredentials)

@@ -26,8 +26,6 @@ import {
 } from "@phosphor-icons/react";
 import { toast } from "sonner";
 import { AddAccountDialog } from "@/components/layout/add-account-dialog";
-import { useLicense } from "@/lib/license-context";
-import { FREE_LIMITS } from "@/lib/license-shared";
 
 interface Team {
   id: string;
@@ -40,7 +38,6 @@ interface Team {
 
 export default function TeamsPage() {
   const router = useRouter();
-  const { isPro } = useLicense();
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
   const [testingId, setTestingId] = useState<string | null>(null);
@@ -253,14 +250,6 @@ export default function TeamsPage() {
           <p className="text-sm text-muted-foreground">
             Team management is not available in demo mode.
           </p>
-        ) : !isPro && teams.length >= FREE_LIMITS.teams ? (
-          <Button
-            variant="outline"
-            disabled
-          >
-            <Plus size={16} />
-            Add team (upgrade to Pro)
-          </Button>
         ) : (
           <Button
             variant="outline"

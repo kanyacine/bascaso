@@ -7,7 +7,6 @@ import {
   DownloadSimple,
   CurrencyDollar,
   AppWindow,
-  Package,
 } from "@phosphor-icons/react";
 import { getLastUrl } from "@/lib/nav-state";
 import {
@@ -31,7 +30,7 @@ import { EmptyState } from "@/components/empty-state";
 import { KpiCard } from "@/components/kpi-card";
 import { AppIcon } from "@/components/app-icon";
 import { DateRangePicker } from "@/components/analytics-range-picker";
-import { useApps, normalizeApp, type App } from "@/lib/apps-context";
+import { useApps } from "@/lib/apps-context";
 import { useRegisterRefresh } from "@/lib/refresh-context";
 import { formatDateShort } from "@/lib/format";
 import { parseRange, filterByDateRange } from "@/lib/analytics-range";
@@ -64,7 +63,7 @@ interface AppAnalytics {
 export default function DashboardPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { apps, loading, truncated, needsAppSelection, refresh: refreshApps } = useApps();
+  const { apps, loading } = useApps();
   const devSimulate = searchParams.get("analyticsState") === "initiated";
   const [analytics, setAnalytics] = useState<Record<string, AppAnalytics>>({});
   const [appVersions, setAppVersions] = useState<Record<string, AscVersion[]>>({});
@@ -72,16 +71,13 @@ export default function DashboardPage() {
 
   // entry=1 means proxy redirected here on app launch – restore last URL
   const isEntry = searchParams.get("entry") === "1";
-  const [pickerApps, setPickerApps] = useState<App[]>([]);
-  const [showPicker, setShowPicker] = useState(false);
-  const [selectingApp, setSelectingApp] = useState(false);
 
   useEffect(() => {
     if (!isEntry || loading || apps.length === 0) return;
 
     const saved = getLastUrl();
 
-    // Existing user – restore last URL (skip picker even if no preference stored)
+    // Existing user – restore last URL
     if (saved) {
       if (saved === "/dashboard") {
         router.replace("/dashboard");
@@ -95,36 +91,9 @@ export default function DashboardPage() {
       }
     }
 
-    // Fresh setup, free user with multiple apps – show picker
-    if (needsAppSelection) {
-      fetch("/api/apps?picker=1")
-        .then((res) => res.json())
-        .then((data) => {
-          setPickerApps((data.apps ?? []).map(normalizeApp));
-          setShowPicker(true);
-        });
-      return;
-    }
-
     // Default: go to first app
     router.replace(`/dashboard/apps/${apps[0].id}`);
-  }, [isEntry, apps, loading, needsAppSelection, router]);
-
-  async function handlePickApp(appId: string) {
-    setSelectingApp(true);
-    try {
-      await fetch("/api/apps/select", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ appId }),
-      });
-      await refreshApps();
-      setShowPicker(false);
-      router.replace(`/dashboard/apps/${appId}`);
-    } catch {
-      setSelectingApp(false);
-    }
-  }
+  }, [isEntry, apps, loading, router]);
 
   const fetchAnalytics = useCallback(async (appId: string) => {
     try {
@@ -165,7 +134,7 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    if (loading || apps.length === 0 || needsAppSelection) return;
+    if (loading || apps.length === 0) return;
 
     const initial: Record<string, AppAnalytics> = {};
     for (const app of apps) {
@@ -177,7 +146,7 @@ export default function DashboardPage() {
       fetchAnalytics(app.id);
       fetchVersions(app.id);
     }
-  }, [apps, loading, needsAppSelection, fetchAnalytics, fetchVersions]);
+  }, [apps, loading, fetchAnalytics, fetchVersions]);
 
   // Poll while any app is pending
   const hasPending = Object.values(analytics).some((a) => a.pending);
@@ -304,57 +273,6 @@ export default function DashboardPage() {
     () => Object.keys(chartConfig).filter((k) => k !== "Total"),
     [chartConfig],
   );
-
-  if (isEntry && showPicker) {
-    return (
-      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-background px-4">
-        <div className="drag fixed inset-x-0 top-0 h-16" />
-        <div className="w-full max-w-lg space-y-8">
-          <div className="flex flex-col items-center gap-3 text-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-              <AppWindow size={32} weight="fill" />
-            </div>
-            <h1 className="text-2xl font-bold tracking-tight">Choose your app</h1>
-            <p className="text-sm text-muted-foreground">
-              Pick the app you&apos;d like to manage.
-            </p>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {pickerApps.map((app) => (
-              <button
-                key={app.id}
-                type="button"
-                disabled={selectingApp}
-                onClick={() => handlePickApp(app.id)}
-                className="flex items-center gap-3 rounded-xl border p-4 text-left transition-colors hover:bg-muted/50 disabled:opacity-50"
-              >
-                <AppIcon
-                  iconUrl={app.iconUrl}
-                  name={app.name}
-                  className="size-12"
-                  iconSize={24}
-                  rounded="rounded-xl"
-                />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{app.name}</p>
-                  <p className="truncate text-xs font-mono text-muted-foreground">{app.bundleId}</p>
-                </div>
-              </button>
-            ))}
-          </div>
-          <div className="flex justify-center">
-            <Link
-              href="/settings/license"
-              className="flex items-center gap-1.5 text-sm text-muted-foreground underline-offset-4 hover:underline"
-            >
-              <Package size={14} weight="duotone" />
-              Upgrade to Pro for all apps
-            </Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   if (isEntry) {
     return (
@@ -564,16 +482,6 @@ export default function DashboardPage() {
             </Link>
           );
         })}
-        {truncated && (
-          <Link href="/settings/license">
-            <Card className="flex h-full flex-col items-center justify-center gap-2 border-dashed p-6 text-center transition-colors hover:bg-muted/50">
-              <Package className="size-5 text-muted-foreground" weight="duotone" />
-              <p className="text-sm text-muted-foreground">
-                Upgrade to Pro to see all your apps
-              </p>
-            </Card>
-          </Link>
-        )}
       </div>
     </div>
   );

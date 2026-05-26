@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.10.0
+
+- Itsyconnect is now completely free – unlimited apps and developer accounts for everyone, with no Pro upgrade or purchase
+
 ## 1.9.0
 
 - Fix reviews page showing all platforms on app switch via cmd-X

@@ -63,20 +63,9 @@ Everything runs locally. One SQLite database, no cloud, no accounts, no telemetr
 
 **Privacy and security** – local-first architecture. All data stays on your Mac in a single SQLite file. Credentials encrypted with AES-256-GCM envelope encryption, master key stored in the macOS Keychain. No cloud, no accounts, no telemetry.
 
-## Free vs Pro
+## Free and open source
 
-Itsyconnect is free to use with one app and one developer account. A one-time Pro upgrade removes all limits – unlimited apps and accounts.
-
-| | Free | Pro |
-|---|---|---|
-| Apps | 1 | Unlimited |
-| Developer accounts | 1 | Unlimited |
-| All features | Yes | Yes |
-| Price | Free | One-time purchase |
-
-**Direct distribution** – licences are handled via [LemonSqueezy](https://store.itsyapps.com) (key-based activation).
-
-**Mac App Store** – Pro is available as a StoreKit in-app purchase (non-consumable, one-time).
+Itsyconnect is completely free, with no limits – manage as many apps and developer accounts as you like. Every feature is available to everyone, on both direct downloads and the Mac App Store. Licensed under [AGPL-3.0](LICENSE).
 
 ## Quick start
 
@@ -163,7 +152,7 @@ npm run lint                  # ESLint
 
 ### MAS builds
 
-The `MAS=1` environment variable switches the app from LemonSqueezy to StoreKit for the Pro upgrade. It is set automatically by the `electron:make:mas` script.
+The `MAS=1` environment variable produces a sandboxed Mac App Store build. In MAS mode the in-app auto-updater is disabled (updates go through the App Store) and the local MCP server is hidden (sandbox restrictions). It is set automatically by the `electron:make:mas` script.
 
 To test MAS mode during development:
 
@@ -171,13 +160,11 @@ To test MAS mode during development:
 MAS=1 npm run electron:dev
 ```
 
-This shows the StoreKit UI (buy/restore buttons) on the licence page instead of the LemonSqueezy key input. The auto-updater is disabled in MAS mode.
-
 ### Build flags
 
 | Flag | Purpose |
 |---|---|
-| `MAS=1` | Switch to StoreKit IAP, disable auto-updater, use MAS entitlements. Set automatically by `electron:make:mas`. |
+| `MAS=1` | Sandboxed Mac App Store build: disable auto-updater, hide the MCP server, use MAS entitlements. Set automatically by `electron:make:mas`. |
 | `MAS_DEV=1` | Sign with Apple Development cert + dev provisioning profile (for local testing). Without this, the build uses the 3rd Party Mac Developer Application cert + distribution profile (for App Store submission). |
 
 ### Provisioning profiles
@@ -210,32 +197,6 @@ npm run electron:make:mas
 # Submit via Transporter or altool
 xcrun altool --upload-app -f out/make/*.pkg -u you@example.com
 ```
-
-### Testing the StoreKit API locally
-
-While running `MAS=1 npm run electron:dev`, you can simulate StoreKit activations via curl:
-
-```bash
-# Activate (simulates a successful purchase)
-curl -X POST http://127.0.0.1:3000/api/license/storekit \
-  -H "Content-Type: application/json" \
-  -d '{"transactionId": "test-txn-123"}'
-
-# Check licence status
-curl http://127.0.0.1:3000/api/license
-
-# Deactivate
-curl -X DELETE http://127.0.0.1:3000/api/license/storekit
-```
-
-### Testing real StoreKit purchases
-
-Real purchases require a signed MAS build and an Apple sandbox tester:
-
-1. Register the product `com.itsyconnect.app.pro` (non-consumable) in App Store Connect
-2. Create a sandbox tester under Users and Access → Sandbox
-3. Build with `MAS_DEV=1 npm run electron:make:mas`
-4. Run the signed build, sign into the sandbox account when prompted, then purchase
 
 ## Architecture
 

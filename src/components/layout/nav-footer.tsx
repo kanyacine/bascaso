@@ -10,8 +10,6 @@ import {
   Plus,
 } from "@phosphor-icons/react";
 import { useFormDirty } from "@/lib/form-dirty-context";
-import { useLicense } from "@/lib/license-context";
-import { FREE_LIMITS } from "@/lib/license-shared";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -40,7 +38,6 @@ export function NavFooter() {
   const router = useRouter();
   const { isMobile } = useSidebar();
   const { guardNavigation } = useFormDirty();
-  const { isPro } = useLicense();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [switching, setSwitching] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -137,17 +134,10 @@ export function NavFooter() {
               {!isDemo && (
                 <>
                   <DropdownMenuSeparator />
-                  {!isPro && accounts.length >= FREE_LIMITS.teams ? (
-                    <DropdownMenuItem disabled>
-                      <Plus size={16} />
-                      Add team (upgrade to Pro)
-                    </DropdownMenuItem>
-                  ) : (
-                    <DropdownMenuItem onClick={() => setDialogOpen(true)}>
-                      <Plus size={16} />
-                      Add team…
-                    </DropdownMenuItem>
-                  )}
+                  <DropdownMenuItem onClick={() => setDialogOpen(true)}>
+                    <Plus size={16} />
+                    Add team…
+                  </DropdownMenuItem>
                 </>
               )}
               <DropdownMenuSeparator />

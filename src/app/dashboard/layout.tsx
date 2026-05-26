@@ -53,7 +53,6 @@ import { BreadcrumbProvider } from "@/lib/breadcrumb-context";
 import { ErrorReportProvider } from "@/lib/error-report-context";
 import { InsightsPanelProvider, useInsightsPanel } from "@/lib/insights-panel-context";
 import { InsightsPanel } from "@/components/layout/insights-panel";
-import { LicenseProvider } from "@/lib/license-context";
 import { saveNavigation } from "@/lib/nav-state";
 import { useMcpEvents } from "@/lib/hooks/use-mcp-events";
 
@@ -68,13 +67,6 @@ declare global {
         onStatus: (cb: (status: { state: string; message?: string; notes?: string[] }) => void) => () => void;
         getAutoCheck: () => Promise<boolean>;
         setAutoCheck: (enabled: boolean) => void;
-      };
-      store: {
-        purchase: () => Promise<void>;
-        restore: () => Promise<void>;
-        getProduct: () => Promise<{ title: string; price: string } | null>;
-        onLicenseUpdated: (cb: () => void) => () => void;
-        onError: (cb: (message: string) => void) => () => void;
       };
     };
   }
@@ -148,7 +140,6 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   return (
-    <LicenseProvider>
     <AppsProvider>
       <VersionsProvider>
       <PreReleaseVersionsProvider>
@@ -234,6 +225,5 @@ export default function DashboardLayout({
       </PreReleaseVersionsProvider>
       </VersionsProvider>
     </AppsProvider>
-    </LicenseProvider>
   );
 }

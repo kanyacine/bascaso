@@ -6,14 +6,12 @@ import { usePathname, useRouter } from "next/navigation";
 import { ArrowLeft } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { LicenseProvider } from "@/lib/license-context";
 
 const TABS = [
   { label: "General", segment: "" },
   { label: "Appearance", segment: "/appearance" },
   { label: "Teams", segment: "/teams" },
   { label: "AI", segment: "/ai" },
-  { label: "License", segment: "/license" },
   { label: "About", segment: "/about" },
 ];
 
@@ -31,7 +29,6 @@ export default function SettingsLayout({
   }, []);
 
   return (
-    <LicenseProvider>
     <div className="flex h-screen flex-col bg-background">
       <div className="drag h-12 shrink-0" />
       <div className="flex shrink-0 flex-col px-8">
@@ -76,6 +73,5 @@ export default function SettingsLayout({
         {children}
       </div>
     </div>
-    </LicenseProvider>
   );
 }

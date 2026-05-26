@@ -8,7 +8,6 @@ const TEST_MASTER_KEY =
 let testDb: ReturnType<typeof createTestDb>;
 
 const mockValidateApiKey = vi.fn();
-const mockClearFreeSelectedAppId = vi.fn();
 const mockStartSyncWorker = vi.fn();
 const mockIsLocalOpenAIProvider = vi.fn();
 const mockNormalizeBaseUrl = vi.fn();
@@ -25,10 +24,6 @@ vi.mock("@/db", () => ({
 
 vi.mock("@/lib/ai/provider-factory", () => ({
   validateApiKey: (...args: unknown[]) => mockValidateApiKey(...args),
-}));
-
-vi.mock("@/lib/app-preferences", () => ({
-  clearFreeSelectedAppId: () => mockClearFreeSelectedAppId(),
 }));
 
 vi.mock("@/lib/sync/worker", () => ({
@@ -64,7 +59,6 @@ describe("setup routes", () => {
     process.env.ENCRYPTION_MASTER_KEY = TEST_MASTER_KEY;
     mockValidateApiKey.mockReset();
     mockValidateApiKey.mockResolvedValue(null);
-    mockClearFreeSelectedAppId.mockReset();
     mockStartSyncWorker.mockReset();
     mockIsLocalOpenAIProvider.mockReset();
     mockIsLocalOpenAIProvider.mockReturnValue(false);
@@ -146,7 +140,6 @@ describe("setup routes", () => {
 
     expect(data).toEqual({ ok: true });
     expect(testDb.select().from(schema.ascCredentials).all()).toHaveLength(1);
-    expect(mockClearFreeSelectedAppId).toHaveBeenCalled();
     expect(mockStartSyncWorker).toHaveBeenCalled();
   });
 

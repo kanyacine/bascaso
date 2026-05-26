@@ -10,7 +10,6 @@ let testDb: ReturnType<typeof createTestDb>;
 
 const mockCacheInvalidateAll = vi.fn();
 const mockResetToken = vi.fn();
-const mockIsPro = vi.fn();
 const mockStartSyncWorker = vi.fn();
 const mockTriggerSync = vi.fn();
 
@@ -28,11 +27,6 @@ vi.mock("@/lib/asc/client", () => ({
   resetToken: () => mockResetToken(),
 }));
 
-vi.mock("@/lib/license", () => ({
-  isPro: () => mockIsPro(),
-  FREE_LIMITS: { teams: 1 },
-}));
-
 vi.mock("@/lib/sync/worker", () => ({
   startSyncWorker: () => mockStartSyncWorker(),
   triggerSync: () => mockTriggerSync(),
@@ -47,7 +41,6 @@ describe("settings credentials route", () => {
     process.env.ENCRYPTION_MASTER_KEY = TEST_MASTER_KEY;
     mockCacheInvalidateAll.mockReset();
     mockResetToken.mockReset();
-    mockIsPro.mockReturnValue(false);
     mockStartSyncWorker.mockReset();
     mockTriggerSync.mockReset();
     vi.resetModules();
@@ -129,7 +122,7 @@ describe("settings credentials route", () => {
     expect(data.error).toContain("already exists");
   });
 
-  it("POST enforces the free plan team limit", async () => {
+  it("POST allows adding multiple teams (no plan limit)", async () => {
     const { encrypt } = await import("@/lib/encryption");
 
     const encrypted = encrypt("private-key");
@@ -161,8 +154,9 @@ describe("settings credentials route", () => {
     );
     const data = await response.json();
 
-    expect(response.status).toBe(403);
-    expect(data.upgrade).toBe(true);
+    expect(response.status).toBe(201);
+    expect(data.ok).toBe(true);
+    expect(testDb.select().from(schema.ascCredentials).all()).toHaveLength(2);
   });
 
   it("POST stores a credential, deactivates existing ones, and starts sync", async () => {
@@ -181,8 +175,6 @@ describe("settings credentials route", () => {
         encryptedDek: existing.encryptedDek,
       })
       .run();
-
-    mockIsPro.mockReturnValue(true);
 
     const { POST } = await import("@/app/api/settings/credentials/route");
     const response = await POST(

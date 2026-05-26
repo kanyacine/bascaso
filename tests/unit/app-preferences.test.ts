@@ -19,11 +19,6 @@ vi.mock("@/db", () => ({
         }),
       }),
     }),
-    delete: () => ({
-      where: () => ({
-        run: mockRun,
-      }),
-    }),
   },
 }));
 
@@ -39,9 +34,6 @@ vi.mock("drizzle-orm", () => ({
 }));
 
 import {
-  clearFreeSelectedAppId,
-  getFreeSelectedAppId,
-  setFreeSelectedAppId,
   getReviewBeforeSaving,
   setReviewBeforeSaving,
 } from "@/lib/app-preferences";
@@ -50,37 +42,6 @@ describe("app-preferences", () => {
   beforeEach(() => {
     mockGet.mockReset();
     mockRun.mockReset();
-  });
-
-  describe("getFreeSelectedAppId", () => {
-    it("returns null when no preference is set", () => {
-      mockGet.mockReturnValue(undefined);
-      expect(getFreeSelectedAppId()).toBeNull();
-    });
-
-    it("returns the stored app ID", () => {
-      mockGet.mockReturnValue({ value: "app-123" });
-      expect(getFreeSelectedAppId()).toBe("app-123");
-    });
-
-    it("returns null when db throws", () => {
-      mockGet.mockImplementation(() => { throw new Error("DB error"); });
-      expect(getFreeSelectedAppId()).toBeNull();
-    });
-  });
-
-  describe("setFreeSelectedAppId", () => {
-    it("inserts or updates the preference", () => {
-      setFreeSelectedAppId("app-456");
-      expect(mockRun).toHaveBeenCalled();
-    });
-  });
-
-  describe("clearFreeSelectedAppId", () => {
-    it("deletes the stored preference", () => {
-      clearFreeSelectedAppId();
-      expect(mockRun).toHaveBeenCalled();
-    });
   });
 
   describe("getReviewBeforeSaving", () => {

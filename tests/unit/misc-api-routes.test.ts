@@ -13,7 +13,6 @@ const mockSaveGeminiKey = vi.fn();
 const mockRemoveGeminiKey = vi.fn();
 const mockGetAISettings = vi.fn();
 const mockValidateApiKey = vi.fn();
-const mockClearFreeSelectedAppId = vi.fn();
 const mockNormalizeBaseUrl = vi.fn();
 const mockResolveLocalApiKey = vi.fn();
 const mockEnsureLocalModelLoaded = vi.fn();
@@ -43,10 +42,6 @@ vi.mock("@/lib/ai/provider-factory", () => ({
   validateApiKey: (...args: unknown[]) => mockValidateApiKey(...args),
 }));
 
-vi.mock("@/lib/app-preferences", () => ({
-  clearFreeSelectedAppId: () => mockClearFreeSelectedAppId(),
-}));
-
 vi.mock("@/lib/ai/local-provider", () => ({
   DEFAULT_LOCAL_OPENAI_BASE_URL: "http://127.0.0.1:1234/v1",
   normalizeOpenAICompatibleBaseUrl: (...args: unknown[]) => mockNormalizeBaseUrl(...args),
@@ -69,7 +64,6 @@ describe("misc API routes", () => {
     mockGetAISettings.mockReset();
     mockValidateApiKey.mockReset();
     mockValidateApiKey.mockResolvedValue(null);
-    mockClearFreeSelectedAppId.mockReset();
     mockNormalizeBaseUrl.mockReset();
     mockNormalizeBaseUrl.mockReturnValue("http://localhost:1234/v1");
     mockResolveLocalApiKey.mockReset();
@@ -253,7 +247,6 @@ describe("misc API routes", () => {
     const createResponse = await setupDemo.POST();
     const createData = await createResponse.json();
     expect(createData).toEqual({ ok: true });
-    expect(mockClearFreeSelectedAppId).toHaveBeenCalled();
     expect(testDb.select().from(schema.ascCredentials).all()).toHaveLength(1);
 
     const deleteResponse = await setupDemo.DELETE();

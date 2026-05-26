@@ -24,19 +24,4 @@ contextBridge.exposeInMainWorld("electron", {
     getAutoCheck: () => ipcRenderer.invoke("get-auto-check-updates") as Promise<boolean>,
     setAutoCheck: (enabled: boolean) => ipcRenderer.send("set-auto-check-updates", enabled),
   },
-  store: {
-    purchase: () => ipcRenderer.invoke("storekit-purchase"),
-    restore: () => ipcRenderer.invoke("storekit-restore"),
-    getProduct: () => ipcRenderer.invoke("storekit-product") as Promise<{ title: string; price: string } | null>,
-    onLicenseUpdated: (cb: () => void) => {
-      const handler = () => cb();
-      ipcRenderer.on("license-updated", handler);
-      return () => { ipcRenderer.removeListener("license-updated", handler); };
-    },
-    onError: (cb: (message: string) => void) => {
-      const handler = (_: unknown, message: string) => cb(message);
-      ipcRenderer.on("storekit-error", handler);
-      return () => { ipcRenderer.removeListener("storekit-error", handler); };
-    },
-  },
 });

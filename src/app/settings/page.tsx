@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { CheckCircle, XCircle, Copy, Check, CaretRight } from "@phosphor-icons/react";
 import { Spinner } from "@/components/ui/spinner";
-import { IS_MAS } from "@/lib/license-shared";
+import { IS_MAS } from "@/lib/platform";
 
 type UpdateState = "idle" | "checking" | "up-to-date" | "available" | "downloaded" | "error";
 
