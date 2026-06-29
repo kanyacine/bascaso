@@ -223,16 +223,17 @@ describe("wrapper API routes", () => {
     consoleSpy.mockRestore();
   });
 
-  it("POST /api/apps/[appId]/analytics/refresh invalidates analytics caches", async () => {
+  it("POST /api/apps/[appId]/analytics/refresh keeps accumulated analytics and forces a rebuild", async () => {
     const { POST } = await import("@/app/api/apps/[appId]/analytics/refresh/route");
 
     const response = await POST(new Request("http://localhost", { method: "POST" }), {
       params: Promise.resolve({ appId: "app-1" }),
     });
 
-    expect(mockCacheInvalidate).toHaveBeenCalledWith("analytics:app-1");
+    // Analytics cache is preserved (accumulated history); only perf metrics are invalidated.
+    expect(mockCacheInvalidate).not.toHaveBeenCalledWith("analytics:app-1");
     expect(mockCacheInvalidate).toHaveBeenCalledWith("perf-metrics:app-1");
-    expect(mockBuildAnalyticsData).toHaveBeenCalledWith("app-1");
+    expect(mockBuildAnalyticsData).toHaveBeenCalledWith("app-1", { force: true });
     expect(await response.json()).toEqual({ ok: true });
   });
 

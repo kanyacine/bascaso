@@ -1,0 +1,101 @@
+import { describe, it, expect } from "vitest";
+import {
+  mergeAnalyticsData,
+  emptyAnalyticsData,
+  type AnalyticsData,
+} from "@/lib/asc/analytics-types";
+
+function make(overrides: Partial<AnalyticsData>): AnalyticsData {
+  return { ...emptyAnalyticsData(), ...overrides };
+}
+
+const dl = (date: string, firstTime: number) => ({ date, firstTime, redownload: 0, update: 0 });
+
+describe("mergeAnalyticsData – daily series", () => {
+  it("unions dates from both sides and sorts ascending", () => {
+    const existing = make({ dailyDownloads: [dl("2026-01-02", 5)] });
+    const fresh = make({ dailyDownloads: [dl("2026-01-01", 3)] });
+    const merged = mergeAnalyticsData(existing, fresh);
+    expect(merged.dailyDownloads.map((r) => r.date)).toEqual(["2026-01-01", "2026-01-02"]);
+  });
+
+  it("lets fresh override the same day", () => {
+    const existing = make({ dailyDownloads: [dl("2026-01-01", 3)] });
+    const fresh = make({ dailyDownloads: [dl("2026-01-01", 9)] });
+    const merged = mergeAnalyticsData(existing, fresh);
+    expect(merged.dailyDownloads).toEqual([dl("2026-01-01", 9)]);
+  });
+
+  it("keeps historic days Apple stops returning", () => {
+    const existing = make({ dailyDownloads: [dl("2026-01-01", 3), dl("2026-01-02", 4)] });
+    const fresh = make({ dailyDownloads: [dl("2026-01-02", 4)] });
+    const merged = mergeAnalyticsData(existing, fresh);
+    expect(merged.dailyDownloads.map((r) => r.date)).toEqual(["2026-01-01", "2026-01-02"]);
+  });
+
+  it("merges territory downloads by date+code and sorts by date then code", () => {
+    const existing = make({
+      dailyTerritoryDownloads: [{ date: "2026-01-01", code: "USA", downloads: 5 }],
+    });
+    const fresh = make({
+      dailyTerritoryDownloads: [
+        { date: "2026-01-01", code: "DEU", downloads: 2 },
+        { date: "2026-01-01", code: "USA", downloads: 7 },
+      ],
+    });
+    const merged = mergeAnalyticsData(existing, fresh);
+    expect(merged.dailyTerritoryDownloads).toEqual([
+      { date: "2026-01-01", code: "DEU", downloads: 2 },
+      { date: "2026-01-01", code: "USA", downloads: 7 },
+    ]);
+  });
+});
+
+describe("mergeAnalyticsData – window-cumulative aggregates", () => {
+  it("keeps the existing aggregate when fresh has a smaller total (shorter window)", () => {
+    const existing = make({ territories: [{ territory: "United States", code: "USA", downloads: 100, revenue: 9 }] });
+    const fresh = make({ territories: [{ territory: "United States", code: "USA", downloads: 40, revenue: 4 }] });
+    expect(mergeAnalyticsData(existing, fresh).territories[0].downloads).toBe(100);
+  });
+
+  it("takes the fresh aggregate when its total is larger or equal", () => {
+    const existing = make({ discoverySources: [{ source: "Search", count: 10, fill: "#000" }] });
+    const fresh = make({ discoverySources: [{ source: "Search", count: 25, fill: "#000" }] });
+    expect(mergeAnalyticsData(existing, fresh).discoverySources[0].count).toBe(25);
+  });
+
+  it("merges crash aggregates by total too", () => {
+    const existing = make({
+      crashesByVersion: [{ version: "1.0", platform: "IOS", crashes: 50, uniqueDevices: 5 }],
+      crashesByDevice: [{ device: "iPhone", crashes: 8, uniqueDevices: 2 }],
+    });
+    const fresh = make({
+      crashesByVersion: [{ version: "1.0", platform: "IOS", crashes: 10, uniqueDevices: 1 }],
+      crashesByDevice: [{ device: "iPhone", crashes: 20, uniqueDevices: 4 }],
+    });
+    const merged = mergeAnalyticsData(existing, fresh);
+    expect(merged.crashesByVersion[0].crashes).toBe(50); // existing larger → kept
+    expect(merged.crashesByDevice[0].crashes).toBe(20); // fresh larger → taken
+  });
+});
+
+describe("mergeAnalyticsData – perf metrics (current-state)", () => {
+  const series = [{ category: "c", metric: "m", unit: "s", platform: "IOS", datasets: [] }];
+  const regression = [{ metric: "m", metricCategory: "c", latestVersion: "1.0", summary: "s" }];
+
+  it("prefers fresh perf data when present", () => {
+    const existing = make({ perfMetrics: [], perfRegressions: [] });
+    const fresh = make({ perfMetrics: series, perfRegressions: regression });
+    const merged = mergeAnalyticsData(existing, fresh);
+    expect(merged.perfMetrics).toBe(series);
+    expect(merged.perfRegressions).toBe(regression);
+  });
+
+  it("keeps existing perf data when fresh is empty", () => {
+    const existing = make({ perfMetrics: series, perfRegressions: regression });
+    const fresh = make({ perfMetrics: [], perfRegressions: [] });
+    const merged = mergeAnalyticsData(existing, fresh);
+    expect(merged.perfMetrics).toBe(series);
+    expect(merged.perfRegressions).toBe(regression);
+  });
+});

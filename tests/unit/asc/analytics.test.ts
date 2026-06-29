@@ -45,6 +45,8 @@ vi.mock("@/db/schema", () => ({
 vi.stubGlobal("fetch", mockFetch);
 
 import { buildAnalyticsData, parseTsv, fetchPerfPowerMetrics, getReportInitiatedAt } from "@/lib/asc/analytics";
+import { emptyAnalyticsData } from "@/lib/asc/analytics-types";
+import { AscApiError } from "@/lib/asc/client";
 
 // ---------- Helpers ----------
 
@@ -3813,5 +3815,209 @@ describe("findReportRequestIds – all invalid types", () => {
     expect(consoleWarnSpy).toHaveBeenCalledWith(
       expect.stringContaining("report requests exist but none are ONGOING/ONE_TIME_SNAPSHOT"),
     );
+  });
+});
+
+describe("buildAnalyticsData – accumulation across refreshes", () => {
+  it("force option bypasses the fresh cache and rebuilds", async () => {
+    // A fresh cache hit would normally short-circuit; force must skip it.
+    mockCacheGet.mockReturnValue({
+      ...emptyAnalyticsData(),
+      dailyDownloads: [{ date: "2025-01-01", firstTime: 1, redownload: 0, update: 0 }],
+    });
+    mockAscFetch.mockRejectedValue(new Error("stop after bypass"));
+
+    await expect(buildAnalyticsData("app-force", { force: true })).rejects.toThrow();
+    expect(mockAscFetch).toHaveBeenCalled();
+  });
+
+  it("keeps accumulated history when no report requests are found", async () => {
+    const existing = {
+      ...emptyAnalyticsData(),
+      dailyDownloads: [{ date: "2025-12-31", firstTime: 7, redownload: 0, update: 0 }],
+    };
+    // Fresh read misses; stale read returns the accumulated data.
+    mockCacheGet.mockImplementation((_key: string, ignoreStale?: boolean) =>
+      ignoreStale ? existing : null,
+    );
+    mockAscFetch
+      .mockResolvedValueOnce({ data: [] })
+      .mockRejectedValueOnce(new Error("ONGOING create failed"))
+      .mockRejectedValueOnce(new Error("SNAPSHOT create failed"));
+
+    const result = await buildAnalyticsData("app-preserve");
+    expect(result.dailyDownloads).toEqual(existing.dailyDownloads);
+    const setCall = mockCacheSet.mock.calls.find((c) => c[0] === "analytics:app-preserve");
+    expect(setCall?.[1].dailyDownloads).toEqual(existing.dailyDownloads);
+  });
+
+  it("merges fresh phase-1 data into accumulated history", async () => {
+    const existing = {
+      ...emptyAnalyticsData(),
+      dailyDownloads: [{ date: "2025-01-01", firstTime: 99, redownload: 0, update: 0 }],
+    };
+    mockCacheGet.mockImplementation((_key: string, ignoreStale?: boolean) =>
+      ignoreStale ? existing : null,
+    );
+
+    const downloadTsv = tsvString(
+      ["Date", "App Apple Identifier", "Download Type", "Source Type", "Territory", "Counts"],
+      [["2026-02-01", "app-merge", "First-time download", "App Store search", "US", "10"]],
+    );
+
+    mockAscFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/perfPowerMetrics")) return { productData: [] };
+      if (url.includes("/analyticsReportRequests") && !url.includes("/reports")) {
+        return reportRequestsResponse(["req-merge"]);
+      }
+      if (url.includes("/reports?filter[category]=")) {
+        const category = url.match(/filter\[category\]=([^&]+)/)?.[1] ?? "";
+        if (category === "COMMERCE") {
+          return reportsResponse([{ id: "rpt-merge-dl", name: "App Downloads Standard", category: "COMMERCE" }]);
+        }
+        return reportsResponse([]);
+      }
+      if (url.includes("/instances?")) {
+        return instancesResponse([{ id: "inst-merge", processingDate: "2026-02-01", granularity: "DAILY" }]);
+      }
+      if (url.includes("/segments")) {
+        return segmentsResponse([{ id: "seg-merge", url: "https://s3.example.com/merge.tsv.gz" }]);
+      }
+      return { data: [] };
+    });
+    mockFetch.mockImplementation(async () => makeFetchResponse(downloadTsv));
+
+    const result = await buildAnalyticsData("app-merge");
+    const dates = result.dailyDownloads.map((r) => r.date);
+    expect(dates).toContain("2025-01-01"); // accumulated history retained
+    expect(dates).toContain("2026-02-01"); // fresh data appended
+  });
+
+  it("re-resolves report request IDs and retries when a 404 invalidates them mid-build", async () => {
+    mockCacheGet.mockReturnValue(null);
+
+    mockAscFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/perfPowerMetrics")) return { productData: [] };
+      if (url.includes("/analyticsReportRequests") && !url.includes("/reports")) {
+        return reportRequestsResponse(["req-stale"]);
+      }
+      if (url.includes("/reports?filter[category]=")) {
+        const category = url.match(/filter\[category\]=([^&]+)/)?.[1] ?? "";
+        // The snapshot probe only checks COMMERCE – keep it valid so the request isn't deleted.
+        if (category === "COMMERCE") {
+          return reportsResponse([{ id: "rpt-dl", name: "App Downloads Standard", category: "COMMERCE" }]);
+        }
+        // A different report 404s mid-build, invalidating the request IDs.
+        if (category === "APP_USAGE") {
+          throw new AscApiError({ statusCode: 404, message: "gone", category: "api" });
+        }
+        return reportsResponse([]);
+      }
+      if (url.includes("/instances?")) {
+        return instancesResponse([{ id: "inst-x", processingDate: "2026-02-01", granularity: "DAILY" }]);
+      }
+      if (url.includes("/segments")) return segmentsResponse([]);
+      return { data: [] };
+    });
+
+    const result = await buildAnalyticsData("app-reresolve");
+    expect(result).toBeDefined();
+    expect(consoleLogSpy).toHaveBeenCalledWith(
+      expect.stringContaining("stale request IDs detected, re-resolving and retrying"),
+    );
+  });
+
+  it("stops gracefully when re-resolve finds no report requests", async () => {
+    mockCacheGet.mockReturnValue(null);
+    let listCalls = 0;
+    mockAscFetch.mockImplementation(async (url: string, opts?: { method?: string }) => {
+      if (url.includes("/perfPowerMetrics")) return { productData: [] };
+      if (url.includes("/analyticsReportRequests") && !url.includes("/reports")) {
+        if (opts?.method === "POST") throw new Error("create failed"); // no IDs can be created
+        listCalls++;
+        if (listCalls === 1) return reportRequestsResponse(["req-stale2"]);
+        return { data: [] }; // re-resolve: nothing left
+      }
+      if (url.includes("/reports?filter[category]=")) {
+        const category = url.match(/filter\[category\]=([^&]+)/)?.[1] ?? "";
+        if (category === "COMMERCE") {
+          return reportsResponse([{ id: "rpt-dl2", name: "App Downloads Standard", category: "COMMERCE" }]);
+        }
+        if (category === "APP_USAGE") {
+          throw new AscApiError({ statusCode: 404, message: "gone", category: "api" });
+        }
+        return reportsResponse([]);
+      }
+      if (url.includes("/instances?")) {
+        return instancesResponse([{ id: "inst-y", processingDate: "2026-02-01", granularity: "DAILY" }]);
+      }
+      if (url.includes("/segments")) return segmentsResponse([]);
+      return { data: [] };
+    });
+
+    const result = await buildAnalyticsData("app-reresolve-empty");
+    expect(result).toBeDefined();
+    expect(consoleLogSpy).toHaveBeenCalledWith(
+      expect.stringContaining("stale request IDs detected, re-resolving and retrying"),
+    );
+  });
+
+  it("merges backfill results into the accumulated cache", async () => {
+    const existing = {
+      ...emptyAnalyticsData(),
+      dailyDownloads: [{ date: "2024-06-01", firstTime: 5, redownload: 0, update: 0 }],
+    };
+    mockCacheGet.mockImplementation((_key: string, ignoreStale?: boolean) =>
+      ignoreStale ? existing : null,
+    );
+
+    const dbModule = await import("@/db");
+    const origSelect = (dbModule.db as unknown as Record<string, unknown>).select;
+    const origInsert = (dbModule.db as unknown as Record<string, unknown>).insert;
+    // isBackfilled returns false so the backfill runs
+    (dbModule.db as unknown as Record<string, unknown>).select = () => ({
+      from: () => ({ where: () => ({ get: () => undefined }) }),
+    });
+    (dbModule.db as unknown as Record<string, unknown>).insert = () => ({
+      values: () => ({ onConflictDoNothing: () => ({ run: () => {} }) }),
+    });
+
+    const downloadTsv = tsvString(
+      ["Date", "App Apple Identifier", "Download Type", "Source Type", "Territory", "Counts"],
+      [["2026-03-01", "app-bf-merge", "First-time download", "App Store search", "US", "4"]],
+    );
+    mockAscFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/perfPowerMetrics")) return { productData: [] };
+      if (url.includes("/analyticsReportRequests") && !url.includes("/reports")) {
+        return reportRequestsResponse(["req-bf-merge"]);
+      }
+      if (url.includes("/reports?filter[category]=")) {
+        const category = url.match(/filter\[category\]=([^&]+)/)?.[1] ?? "";
+        if (category === "COMMERCE") {
+          return reportsResponse([{ id: "rpt-bfm-dl", name: "App Downloads Standard", category: "COMMERCE" }]);
+        }
+        return reportsResponse([]);
+      }
+      if (url.includes("/instances?")) {
+        return instancesResponse([{ id: "inst-bfm", processingDate: "2026-03-01", granularity: "DAILY" }]);
+      }
+      if (url.includes("/segments")) {
+        return segmentsResponse([{ id: "seg-bfm", url: "https://s3.example.com/bfm.tsv.gz" }]);
+      }
+      return { data: [] };
+    });
+    mockFetch.mockImplementation(async () => makeFetchResponse(downloadTsv));
+
+    await buildAnalyticsData("app-bf-merge");
+    await new Promise((r) => setTimeout(r, 300)); // let the fire-and-forget backfill run
+
+    const setCalls = mockCacheSet.mock.calls.filter((c) => c[0] === "analytics:app-bf-merge");
+    const lastWritten = setCalls[setCalls.length - 1][1];
+    const dates = lastWritten.dailyDownloads.map((r: { date: string }) => r.date);
+    expect(dates).toContain("2024-06-01"); // accumulated history kept through backfill
+    expect(dates).toContain("2026-03-01"); // backfilled data merged in
+
+    (dbModule.db as unknown as Record<string, unknown>).select = origSelect;
+    (dbModule.db as unknown as Record<string, unknown>).insert = origInsert;
   });
 });

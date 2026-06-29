@@ -7,6 +7,7 @@ import {
   ANALYTICS_EMPTY_RETRY_TTL,
   emptyAnalyticsData,
   hasAnyAnalyticsRows,
+  mergeAnalyticsData,
   type AnalyticsData,
 } from "./analytics-types";
 import {
@@ -45,6 +46,18 @@ export type {
 
 export { parseTsv } from "./analytics-types";
 export { fetchPerfPowerMetrics } from "./analytics-reports";
+
+/**
+ * Merge freshly fetched analytics into the durably cached (accumulated) data so
+ * we never erase history Apple stops returning, then persist. The cache row is
+ * the long-lived store; reads ignore staleness so accumulation survives restarts.
+ */
+function accumulateAndCache(cacheKey: string, fresh: AnalyticsData, ttlMs: number): AnalyticsData {
+  const existing = cacheGet<AnalyticsData>(cacheKey, true);
+  const merged = existing ? mergeAnalyticsData(existing, fresh) : fresh;
+  cacheSet(cacheKey, merged, ttlMs);
+  return merged;
+}
 
 /**
  * Returns the timestamp (ms) when we created report requests for this app,
@@ -175,9 +188,9 @@ function startBackfill(requestIds: string[], appId: string, cacheKey: string) {
       const label = depth === Infinity ? "all" : String(depth);
       const start = Date.now();
       const data = await buildPhase(requestIds, appId, depth);
-      cacheSet(cacheKey, data, ANALYTICS_TTL);
+      const merged = accumulateAndCache(cacheKey, data, ANALYTICS_TTL);
       const elapsed = ((Date.now() - start) / 1000).toFixed(1);
-      const count = dataPointCount(data);
+      const count = dataPointCount(merged);
       console.log(`[analytics] Backfill ${appId}: depth=${label}, ${count} pts, ${elapsed}s`);
       if (count <= prevCount) break;
       prevCount = count;
@@ -201,10 +214,15 @@ function startBackfill(requestIds: string[], appId: string, cacheKey: string) {
 
 const inFlight = new Map<string, Promise<AnalyticsData>>();
 
-export function buildAnalyticsData(appId: string): Promise<AnalyticsData> {
+export function buildAnalyticsData(
+  appId: string,
+  opts?: { force?: boolean },
+): Promise<AnalyticsData> {
   const cacheKey = `analytics:${appId}`;
-  const cached = cacheGet<AnalyticsData>(cacheKey);
-  if (cached) return Promise.resolve(cached);
+  if (!opts?.force) {
+    const cached = cacheGet<AnalyticsData>(cacheKey);
+    if (cached) return Promise.resolve(cached);
+  }
 
   // Deduplicate concurrent builds for the same app
   const existing = inFlight.get(appId);
@@ -233,6 +251,12 @@ async function buildAnalyticsDataInner(
   }
   if (requestIds.length === 0) {
     console.warn(`[analytics] ${appId}: no ONGOING or ONE_TIME_SNAPSHOT report requests`);
+    // Don't erase accumulated history on a transient empty result – keep what we have.
+    const existing = cacheGet<AnalyticsData>(cacheKey, true);
+    if (existing && hasAnyAnalyticsRows(existing)) {
+      cacheSet(cacheKey, existing, ANALYTICS_EMPTY_RETRY_TTL);
+      return existing;
+    }
     const empty = emptyAnalyticsData();
     cacheSet(cacheKey, empty, ANALYTICS_EMPTY_RETRY_TTL);
     return empty;
@@ -264,6 +288,10 @@ async function buildAnalyticsDataInner(
     `crashes=${data.dailyCrashes.length}d`,
   ].join(", ");
   console.log(`[analytics] ${appId}: phase 1 in ${(phase1Ms / 1000).toFixed(1)}s – ${reports}`);
+
+  // Accumulate into the durable cache so a shallow refresh never erases history.
+  const existing = cacheGet<AnalyticsData>(cacheKey, true);
+  data = existing ? mergeAnalyticsData(existing, data) : data;
 
   const hasRows = hasAnyAnalyticsRows(data);
   cacheSet(cacheKey, data, hasRows ? ANALYTICS_TTL : ANALYTICS_EMPTY_RETRY_TTL);

@@ -148,6 +148,60 @@ export function emptyAnalyticsData(): AnalyticsData {
   };
 }
 
+// ---------- Accumulation / merge ----------
+
+/** Union two lists by a stable key; entries in `fresh` win over same-key entries in `existing`. */
+function mergeByKey<T>(existing: T[], fresh: T[], keyOf: (item: T) => string): T[] {
+  const map = new Map<string, T>();
+  for (const item of existing) map.set(keyOf(item), item);
+  for (const item of fresh) map.set(keyOf(item), item);
+  return [...map.values()];
+}
+
+/**
+ * Pick the list with the larger total – used for window-cumulative aggregates
+ * (territories, discovery sources, crash totals) that can't be merged per-day.
+ * A shorter window from Apple never shrinks what we already accumulated.
+ */
+function preferLargerSum<T>(existing: T[], fresh: T[], sumOf: (item: T) => number): T[] {
+  const total = (list: T[]) => list.reduce((acc, item) => acc + sumOf(item), 0);
+  return total(fresh) >= total(existing) ? fresh : existing;
+}
+
+/**
+ * Accumulate freshly fetched analytics into what we already have. Apple sometimes
+ * hides parts of historic data; merging by date means we keep previously fetched
+ * points and only let fresh data override the same day, so history is never erased.
+ */
+export function mergeAnalyticsData(existing: AnalyticsData, fresh: AnalyticsData): AnalyticsData {
+  const byDate = <T extends { date: string }>(e: T[], f: T[]): T[] =>
+    mergeByKey(e, f, (r) => r.date).sort((a, b) => a.date.localeCompare(b.date));
+
+  return {
+    dailyDownloads: byDate(existing.dailyDownloads, fresh.dailyDownloads),
+    dailyRevenue: byDate(existing.dailyRevenue, fresh.dailyRevenue),
+    dailyEngagement: byDate(existing.dailyEngagement, fresh.dailyEngagement),
+    dailySessions: byDate(existing.dailySessions, fresh.dailySessions),
+    dailyInstallsDeletes: byDate(existing.dailyInstallsDeletes, fresh.dailyInstallsDeletes),
+    dailyDownloadsBySource: byDate(existing.dailyDownloadsBySource, fresh.dailyDownloadsBySource),
+    dailyVersionSessions: byDate(existing.dailyVersionSessions, fresh.dailyVersionSessions),
+    dailyOptIn: byDate(existing.dailyOptIn, fresh.dailyOptIn),
+    dailyWebPreview: byDate(existing.dailyWebPreview, fresh.dailyWebPreview),
+    dailyTerritoryDownloads: mergeByKey(
+      existing.dailyTerritoryDownloads,
+      fresh.dailyTerritoryDownloads,
+      (r) => `${r.date}:${r.code}`,
+    ).sort((a, b) => a.date.localeCompare(b.date) || a.code.localeCompare(b.code)),
+    dailyCrashes: byDate(existing.dailyCrashes, fresh.dailyCrashes),
+    territories: preferLargerSum(existing.territories, fresh.territories, (r) => r.downloads),
+    discoverySources: preferLargerSum(existing.discoverySources, fresh.discoverySources, (r) => r.count),
+    crashesByVersion: preferLargerSum(existing.crashesByVersion, fresh.crashesByVersion, (r) => r.crashes),
+    crashesByDevice: preferLargerSum(existing.crashesByDevice, fresh.crashesByDevice, (r) => r.crashes),
+    perfMetrics: fresh.perfMetrics.length > 0 ? fresh.perfMetrics : existing.perfMetrics,
+    perfRegressions: fresh.perfRegressions.length > 0 ? fresh.perfRegressions : existing.perfRegressions,
+  };
+}
+
 export function hasAnyAnalyticsRows(data: AnalyticsData): boolean {
   return data.dailyDownloads.length > 0
     || data.dailyRevenue.length > 0

@@ -14,12 +14,12 @@ export async function POST(
     return NextResponse.json({ ok: true });
   }
 
-  // Invalidate cached analytics so the next GET returns pending
-  cacheInvalidate(`analytics:${appId}`);
+  // Keep accumulated analytics (history is never erased); just force a refresh
+  // that fetches recent data and merges it in. Perf metrics aren't accumulated.
   cacheInvalidate(`perf-metrics:${appId}`);
 
   // Fire-and-forget: rebuild in background
-  buildAnalyticsData(appId).catch((err) => {
+  buildAnalyticsData(appId, { force: true }).catch((err) => {
     console.error(`[analytics] Background refresh failed for ${appId}:`, err);
   });
 
