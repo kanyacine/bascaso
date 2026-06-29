@@ -5,9 +5,12 @@ import { analyticsBackfill } from "@/db/schema";
 import {
   ANALYTICS_TTL,
   ANALYTICS_EMPTY_RETRY_TTL,
+  GAP_PERMANENT_TTL,
+  GAP_RETRY_TTL,
   emptyAnalyticsData,
   hasAnyAnalyticsRows,
   mergeAnalyticsData,
+  downloadGapSignature,
   type AnalyticsData,
 } from "./analytics-types";
 import {
@@ -32,6 +35,8 @@ import {
   fetchReportData,
   fetchPerfPowerMetrics,
   reportRequestIdsInvalidated,
+  resetInstanceFailures,
+  instanceFailureCount,
 } from "./analytics-reports";
 
 // ---------- Re-exports ----------
@@ -171,6 +176,22 @@ function markBackfilled(appId: string): void {
   db.insert(analyticsBackfill).values({ appId }).onConflictDoNothing().run();
 }
 
+/**
+ * Decide whether to (re)run the deep backfill. Runs on first sight, or whenever
+ * the accumulated data has a significant gap we haven't already tried to fill –
+ * so gaps from app downtime self-heal once Apple still has the data, without any
+ * manual intervention. The signature dedupes gaps Apple genuinely doesn't have.
+ */
+function shouldBackfill(appId: string, data: AnalyticsData): boolean {
+  if (!isBackfilled(appId)) return true;
+  const gapSig = downloadGapSignature(data);
+  if (gapSig === "") return false;
+  // Respect the signature's TTL: a gap from a failed fetch is stored with a short
+  // TTL, so it expires and we retry; a permanent gap is stored long, so we don't.
+  const lastAttempted = cacheGet<string>(`analytics-gapsig:${appId}`);
+  return gapSig !== lastAttempted;
+}
+
 function dataPointCount(data: AnalyticsData): number {
   return data.dailyDownloads.length + data.dailySessions.length + data.dailyRevenue.length;
 }
@@ -181,6 +202,7 @@ function startBackfill(requestIds: string[], appId: string, cacheKey: string) {
   backfilling.add(appId);
 
   (async () => {
+    resetInstanceFailures(appId);
     const DEPTHS = [60, 120, 240, 480, Infinity];
     let prevCount = 0;
     for (const depth of DEPTHS) {
@@ -199,6 +221,19 @@ function startBackfill(requestIds: string[], appId: string, cacheKey: string) {
     }
     if (prevCount > 0) {
       markBackfilled(appId);
+      // Record the gaps that remain after our best effort. If instances failed to
+      // download (Apple 500s), use a short TTL so we retry soon (Apple may
+      // recover); otherwise the gap is genuinely absent from ASC – record it long
+      // so we don't keep re-fetching an unfillable window.
+      const finalData = cacheGet<AnalyticsData>(cacheKey, true);
+      if (finalData) {
+        const failures = instanceFailureCount(appId);
+        const ttl = failures > 0 ? GAP_RETRY_TTL : GAP_PERMANENT_TTL;
+        cacheSet(`analytics-gapsig:${appId}`, downloadGapSignature(finalData), ttl);
+        if (failures > 0) {
+          console.warn(`[analytics] Backfill ${appId}: ${failures} instance(s) failed to download – will retry to fill gaps`);
+        }
+      }
       console.log(`[analytics] Backfill complete for ${appId}: ${prevCount} total data points`);
     } else {
       console.warn(
@@ -305,9 +340,10 @@ async function buildAnalyticsDataInner(
     );
   }
 
-  // Phase 2: backfill all historical data (fire-and-forget).
-  // Only runs once per app -- the DB flag persists across restarts.
-  if (!isBackfilled(appId)) {
+  // Phase 2: backfill historical data (fire-and-forget). Runs on first sight and
+  // again whenever a new gap appears (e.g. after app downtime), so missing
+  // windows self-heal once Apple still has the data – no manual reset needed.
+  if (shouldBackfill(appId, data)) {
     startBackfill(requestIds, appId, cacheKey);
   }
 

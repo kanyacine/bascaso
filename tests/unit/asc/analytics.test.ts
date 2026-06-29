@@ -995,7 +995,7 @@ describe("segment download", () => {
     // buildAnalyticsData uses Promise.allSettled, so failed instances are logged and skipped
     const result = await buildAnalyticsData("app-403");
     expect(consoleWarnSpy).toHaveBeenCalledWith(
-      "[analytics] Instance download failed:",
+      expect.stringContaining("instance download failed"),
       expect.any(Error),
     );
     // Downloads should be empty since the instance download failed
@@ -1040,9 +1040,53 @@ describe("instance deduplication by processing date", () => {
     mockFetch.mockResolvedValue(makeFetchResponse(tsv));
 
     const result = await buildAnalyticsData("app-dedup-inst");
-    // Only one instance should be downloaded (the first one wins)
+    // Duplicate data dates collapse to one row.
     expect(result.dailyDownloads).toHaveLength(1);
     expect(result.dailyDownloads[0].firstTime).toBe(10);
+  });
+
+  it("keeps the snapshot's richer instance even when it shares a processingDate with the ongoing one", async () => {
+    mockCacheGet.mockReturnValue(null);
+
+    // Ongoing instance: only the latest day. Snapshot instance (same processingDate):
+    // older history too. The old processingDate-based dedup discarded the snapshot.
+    const narrowTsv = tsvString(["Date", "Download Type", "Counts"], [["2026-06-10", "First-time download", "5"]]);
+    const wideTsv = tsvString(
+      ["Date", "Download Type", "Counts"],
+      [["2026-05-15", "First-time download", "3"], ["2026-06-10", "First-time download", "5"]],
+    );
+
+    mockAscFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/perfPowerMetrics")) return { productData: [] };
+      if (url.includes("/analyticsReportRequests") && !url.includes("/reports")) {
+        return reportRequestsResponse(["req-ong", "req-snap"], ["ONGOING", "ONE_TIME_SNAPSHOT"]);
+      }
+      if (url.includes("/reports?filter")) {
+        const requestId = url.match(/analyticsReportRequests\/([^/]+)/)?.[1];
+        return reportsResponse([{ id: `rpt-${requestId}`, name: "App Downloads Standard", category: "COMMERCE" }]);
+      }
+      if (url.includes("/instances?")) {
+        return instancesResponse([
+          { id: url.includes("rpt-req-snap") ? "inst-snap" : "inst-ong", processingDate: "2026-06-10" },
+        ]);
+      }
+      if (url.includes("/segments")) {
+        return segmentsResponse([
+          url.includes("inst-snap")
+            ? { id: "seg-snap", url: "https://s3.example.com/snap.tsv" }
+            : { id: "seg-ong", url: "https://s3.example.com/ong.tsv" },
+        ]);
+      }
+      return { data: [] };
+    });
+    mockFetch.mockImplementation(async (url: string) =>
+      makeFetchResponse(String(url).includes("snap") ? wideTsv : narrowTsv),
+    );
+
+    const result = await buildAnalyticsData("app-snap-rich");
+    const dates = result.dailyDownloads.map((d) => d.date);
+    expect(dates).toContain("2026-05-15"); // snapshot's older day is no longer dropped
+    expect(dates).toContain("2026-06-10");
   });
 });
 
@@ -1148,7 +1192,7 @@ describe("failed instance downloads", () => {
     const result = await buildAnalyticsData("app-fail");
     // The warning should be logged for the failed instance
     expect(consoleWarnSpy).toHaveBeenCalledWith(
-      "[analytics] Instance download failed:",
+      expect.stringContaining("instance download failed"),
       expect.any(Error),
     );
     // Good instance should still produce data
@@ -2328,7 +2372,7 @@ describe("downloadSegment – non-Error thrown in retry", () => {
     const result = await buildAnalyticsData("app-non-err");
     // Should warn about the failed instance (not retried because not transient)
     expect(consoleWarnSpy).toHaveBeenCalledWith(
-      "[analytics] Instance download failed:",
+      expect.stringContaining("instance download failed"),
       "network failure string",
     );
     expect(result.dailyDownloads).toEqual([]);
@@ -2506,7 +2550,7 @@ describe("segment download – retry exhaustion", () => {
 
     // Should have warned about the failed instance
     expect(consoleWarnSpy).toHaveBeenCalledWith(
-      "[analytics] Instance download failed:",
+      expect.stringContaining("instance download failed"),
       expect.any(TypeError),
     );
     // fetch was called 3 times (all retries exhausted)
@@ -4019,5 +4063,59 @@ describe("buildAnalyticsData – accumulation across refreshes", () => {
 
     (dbModule.db as unknown as Record<string, unknown>).select = origSelect;
     (dbModule.db as unknown as Record<string, unknown>).insert = origInsert;
+  });
+
+  it("re-runs backfill when a new gap appears in already-backfilled data", async () => {
+    const withGap = {
+      ...emptyAnalyticsData(),
+      dailyDownloads: [
+        { date: "2026-01-01", firstTime: 5, redownload: 0, update: 0 },
+        { date: "2026-01-20", firstTime: 4, redownload: 0, update: 0 },
+      ],
+    };
+    // isBackfilled is true (default db mock), data has a gap, and no gap signature
+    // has been recorded yet → a backfill should be triggered to try to fill it.
+    mockCacheGet.mockImplementation((key: string, ignoreStale?: boolean) => {
+      if (key === "analytics:app-gap" && ignoreStale) return withGap;
+      return null;
+    });
+    mockAscFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/perfPowerMetrics")) return { productData: [] };
+      if (url.includes("/analyticsReportRequests") && !url.includes("/reports")) {
+        return reportRequestsResponse(["req-gap"]);
+      }
+      return { data: [] };
+    });
+
+    await buildAnalyticsData("app-gap");
+    await new Promise((r) => setTimeout(r, 50));
+    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining("Backfill app-gap"));
+  });
+
+  it("does not re-run backfill when the gap matches the recorded signature", async () => {
+    const withGap = {
+      ...emptyAnalyticsData(),
+      dailyDownloads: [
+        { date: "2026-01-01", firstTime: 5, redownload: 0, update: 0 },
+        { date: "2026-01-20", firstTime: 4, redownload: 0, update: 0 },
+      ],
+    };
+    // The same gap was already attempted (Apple doesn't expose it) → no re-fetch.
+    mockCacheGet.mockImplementation((key: string, ignoreStale?: boolean) => {
+      if (key === "analytics:app-nogap" && ignoreStale) return withGap;
+      if (key === "analytics-gapsig:app-nogap") return "2026-01-01_2026-01-20";
+      return null;
+    });
+    mockAscFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/perfPowerMetrics")) return { productData: [] };
+      if (url.includes("/analyticsReportRequests") && !url.includes("/reports")) {
+        return reportRequestsResponse(["req-nogap"]);
+      }
+      return { data: [] };
+    });
+
+    await buildAnalyticsData("app-nogap");
+    await new Promise((r) => setTimeout(r, 50));
+    expect(consoleLogSpy).not.toHaveBeenCalledWith(expect.stringContaining("Backfill app-nogap"));
   });
 });

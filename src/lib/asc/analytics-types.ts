@@ -6,6 +6,8 @@ export const REPORT_ID_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days (report request/
 export const INSTANCE_TTL = 30 * 24 * 60 * 60 * 1000; // 30 days (immutable past data)
 export const TODAY_TTL = 10 * 60 * 1000; // 10 min (today's data may update)
 export const PERF_METRICS_TTL = 6 * 60 * 60 * 1000; // 6 hours (changes only on new version releases)
+export const GAP_PERMANENT_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days (Apple genuinely has no data for the gap)
+export const GAP_RETRY_TTL = 2 * 60 * 60 * 1000; // 2 hours (gap from a failed fetch – retry sooner, Apple may recover)
 
 // ---------- Exported types ----------
 
@@ -200,6 +202,36 @@ export function mergeAnalyticsData(existing: AnalyticsData, fresh: AnalyticsData
     perfMetrics: fresh.perfMetrics.length > 0 ? fresh.perfMetrics : existing.perfMetrics,
     perfRegressions: fresh.perfRegressions.length > 0 ? fresh.perfRegressions : existing.perfRegressions,
   };
+}
+
+// ---------- Gap detection (for auto-backfill) ----------
+
+/** Gaps of more than one day between consecutive dates in a YYYY-MM-DD list. */
+export function findDateGaps(dates: string[]): Array<{ from: string; to: string; missingDays: number }> {
+  const present = [...new Set(dates)].sort();
+  const gaps: Array<{ from: string; to: string; missingDays: number }> = [];
+  for (let i = 1; i < present.length; i++) {
+    const days = Math.round(
+      (Date.parse(`${present[i]}T00:00:00Z`) - Date.parse(`${present[i - 1]}T00:00:00Z`)) / 86_400_000,
+    );
+    if (days > 1) gaps.push({ from: present[i - 1], to: present[i], missingDays: days - 1 });
+  }
+  return gaps;
+}
+
+/** Ignore single sporadic no-data days; only gaps this long are worth re-fetching. */
+export const MIN_BACKFILL_GAP_DAYS = 3;
+
+/**
+ * Stable signature of the significant gaps in the daily downloads series. An
+ * empty string means no significant gap. Used to trigger an auto-backfill when a
+ * new gap appears and to avoid re-fetching gaps Apple genuinely doesn't have.
+ */
+export function downloadGapSignature(data: AnalyticsData): string {
+  return findDateGaps(data.dailyDownloads.map((d) => d.date))
+    .filter((g) => g.missingDays >= MIN_BACKFILL_GAP_DAYS)
+    .map((g) => `${g.from}_${g.to}`)
+    .join(",");
 }
 
 export function hasAnyAnalyticsRows(data: AnalyticsData): boolean {

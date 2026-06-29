@@ -6,6 +6,7 @@ import {
   INSTANCE_TTL,
   TODAY_TTL,
   PERF_METRICS_TTL,
+  findDateGaps,
   parseTsv,
   type AscReportRequest,
   type AscReport,
@@ -44,6 +45,23 @@ export function invalidateReportRequestIds(appId: string): void {
 /** Check if report request IDs were invalidated (cache is empty). */
 export function reportRequestIdsInvalidated(appId: string): boolean {
   return !reportRequestIdsCache.has(appId);
+}
+
+// Count instance-segment downloads that failed (e.g. Apple returns 500 for a
+// specific instance). A gap caused by these is recoverable once Apple's server
+// resolves, so callers retry sooner instead of recording it as a permanent gap.
+const instanceFailures = new Map<string, number>();
+
+export function resetInstanceFailures(appId: string): void {
+  instanceFailures.set(appId, 0);
+}
+
+export function instanceFailureCount(appId: string): number {
+  return instanceFailures.get(appId) ?? 0;
+}
+
+function recordInstanceFailure(appId: string): void {
+  instanceFailures.set(appId, (instanceFailures.get(appId) ?? 0) + 1);
 }
 
 /** Probe whether a report request has any downloadable instances. */
@@ -346,8 +364,12 @@ export async function fetchReportData(
 ): Promise<Array<Record<string, string>>> {
   const today = new Date().toISOString().slice(0, 10);
 
-  // Collect instances, deduplicate by processingDate.
-  const seenProcessingDates = new Set<string>();
+  // Collect instances, deduplicating by instance id (NOT processingDate): a
+  // ONE_TIME_SNAPSHOT request can have an instance with the same processingDate
+  // as the ONGOING request but containing far more history. Deduping by date
+  // would discard the richer snapshot instance before we ever download it; the
+  // per-data-date dedup below merges them correctly.
+  const seenInstanceIds = new Set<string>();
   const uniqueInstances: AscReportInstance[] = [];
   let matchedRequests = 0;
 
@@ -395,9 +417,8 @@ export async function fetchReportData(
       }
 
       for (const inst of resp.data) {
-        const date = inst.attributes.processingDate;
-        if (!seenProcessingDates.has(date)) {
-          seenProcessingDates.add(date);
+        if (!seenInstanceIds.has(inst.id)) {
+          seenInstanceIds.add(inst.id);
           uniqueInstances.push(inst);
         }
       }
@@ -448,7 +469,8 @@ export async function fetchReportData(
 
   for (const result of instanceResults) {
     if (result.status !== "fulfilled") {
-      console.warn(`[analytics] Instance download failed:`, result.reason);
+      console.warn(`[analytics] ${appId}: instance download failed (data may be incomplete):`, result.reason);
+      recordInstanceFailure(appId);
       continue;
     }
 
@@ -481,8 +503,14 @@ export async function fetchReportData(
     }
   }
 
+  // Coverage summary: the date range ASC actually returned, and any holes in it.
+  const coveredDates = [...seenDataDates].sort();
+  const gaps = findDateGaps(coveredDates);
   console.log(
-    `[analytics] ${appId}: ${category}/${reportName} rows deduped to ${deduped.length} rows across ${uniqueInstances.length} instances`,
+    `[analytics] ${appId}: ${category}/${reportName} coverage: ${coveredDates.length} dates ` +
+      `${coveredDates[0] ?? "-"}..${coveredDates[coveredDates.length - 1] ?? "-"}` +
+      (gaps.length > 0 ? ` GAPS: ${gaps.map((g) => `${g.from}→${g.to}(${g.missingDays}d)`).join(", ")}` : " (no gaps)") +
+      ` (${deduped.length} rows across ${uniqueInstances.length} instances)`,
   );
   return deduped;
 }

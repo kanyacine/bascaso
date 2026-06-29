@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   mergeAnalyticsData,
   emptyAnalyticsData,
+  findDateGaps,
+  downloadGapSignature,
   type AnalyticsData,
 } from "@/lib/asc/analytics-types";
 
@@ -97,5 +99,46 @@ describe("mergeAnalyticsData – perf metrics (current-state)", () => {
     const merged = mergeAnalyticsData(existing, fresh);
     expect(merged.perfMetrics).toBe(series);
     expect(merged.perfRegressions).toBe(regression);
+  });
+});
+
+const dlOn = (date: string) => ({ date, firstTime: 1, redownload: 0, update: 0 });
+
+describe("findDateGaps", () => {
+  it("returns nothing for fewer than two dates", () => {
+    expect(findDateGaps([])).toEqual([]);
+    expect(findDateGaps(["2026-01-01"])).toEqual([]);
+  });
+
+  it("returns nothing for consecutive dates", () => {
+    expect(findDateGaps(["2026-01-01", "2026-01-02", "2026-01-03"])).toEqual([]);
+  });
+
+  it("reports a gap with its bounds and missing-day count", () => {
+    expect(findDateGaps(["2026-01-01", "2026-01-05"])).toEqual([
+      { from: "2026-01-01", to: "2026-01-05", missingDays: 3 },
+    ]);
+  });
+
+  it("finds multiple gaps and dedupes/sorts input", () => {
+    const gaps = findDateGaps(["2026-01-03", "2026-01-01", "2026-01-03", "2026-01-10"]);
+    expect(gaps).toEqual([
+      { from: "2026-01-01", to: "2026-01-03", missingDays: 1 },
+      { from: "2026-01-03", to: "2026-01-10", missingDays: 6 },
+    ]);
+  });
+});
+
+describe("downloadGapSignature", () => {
+  it("is empty when there are no significant gaps", () => {
+    const data = make({ dailyDownloads: [dlOn("2026-01-01"), dlOn("2026-01-02"), dlOn("2026-01-03")] });
+    expect(downloadGapSignature(data)).toBe("");
+  });
+
+  it("ignores short (sub-threshold) gaps but reports long ones", () => {
+    const data = make({
+      dailyDownloads: [dlOn("2026-01-01"), dlOn("2026-01-03"), dlOn("2026-01-20")], // 1-day then 16-day gap
+    });
+    expect(downloadGapSignature(data)).toBe("2026-01-03_2026-01-20");
   });
 });

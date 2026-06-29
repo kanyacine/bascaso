@@ -2,6 +2,7 @@
 
 ## 1.12.0
 
+- Fix gaps in analytics charts – read every report instance (including the historical snapshot's, which was previously discarded when it shared a date with the ongoing report) and automatically re-fetch to fill gaps that appear after downtime, retrying sooner when a fetch fails and Apple may recover
 - Accumulate analytics across refreshes – fetched analytics data is now merged into a durable cache by date instead of overwritten, so historic data Apple intermittently stops returning is never erased, restarts reuse what was already downloaded, and refreshes only pull recent data
 - Portfolio: replace the "Proceeds last 7 days" box with "Proceeds in selected range" so it follows the chart's date range, and make the chart legend clickable to hide apps – hidden apps drop out of the chart and all KPI totals update automatically
 - Add Review center – one aggregated feed of unseen reviews from every app and platform, with reply, translate, and appeal in place and filters for app, platform, rating, territory, and date; mark reviews seen to clear them (or "Mark all as seen"), mark them unseen again from an app's reviews list, and track the unseen count in the sidebar
