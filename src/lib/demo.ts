@@ -537,7 +537,6 @@ function makeDemoAppInfos(appIndex: number) {
         appStoreAgeRating: "FOUR_PLUS",
         brazilAgeRating: null,
         brazilAgeRatingV2: null,
-        kidsAgeBand: null,
         state: "READY_FOR_DISTRIBUTION",
       },
       primaryCategory: {

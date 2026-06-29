@@ -85,7 +85,6 @@ describe("listAppInfos", () => {
             appStoreAgeRating: "FOUR_PLUS",
             brazilAgeRating: null,
             brazilAgeRatingV2: null,
-            kidsAgeBand: null,
             state: "READY_FOR_DISTRIBUTION",
           },
           relationships: {
@@ -142,7 +141,6 @@ describe("listAppInfos", () => {
             appStoreAgeRating: null,
             brazilAgeRating: null,
             brazilAgeRatingV2: null,
-            kidsAgeBand: null,
             state: "READY_FOR_DISTRIBUTION",
           },
         },
@@ -168,7 +166,6 @@ describe("listAppInfos", () => {
             appStoreAgeRating: null,
             brazilAgeRating: null,
             brazilAgeRatingV2: null,
-            kidsAgeBand: null,
             state: "PREPARE_FOR_SUBMISSION",
           },
         },

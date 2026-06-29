@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.12.0
+
+- Fix app details showing no name or subtitle and new version submission failing with "name and privacy missing" after Apple removed the `kidsAgeBand` field from the App Store Connect app info API
+- Add Google Translate fallback for review translation when no AI provider is configured, so the Translate button works without setting up AI (thanks @ViscousPot)
+- Add a "None (off)" option to the AI provider setting so AI can be turned off without leaving stale provider settings (thanks @ViscousPot)
+- Allow selecting and copying review text – review title, body, and developer response are now selectable (thanks @ViscousPot)
+
 ## 1.11.0
 
 - Add AI guidance – give the AI standing instructions for tone, style, and voice, set separately for translations and for review replies, remembered and applied to every related AI action

@@ -10,7 +10,6 @@ function makeAppInfo(id: string, state: string): AscAppInfo {
       appStoreAgeRating: null,
       brazilAgeRating: null,
       brazilAgeRatingV2: null,
-      kidsAgeBand: null,
       state,
     },
     primaryCategory: null,

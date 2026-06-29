@@ -10,7 +10,6 @@ export interface AscAppInfo {
     appStoreAgeRating: string | null;
     brazilAgeRating: string | null;
     brazilAgeRatingV2: string | null;
-    kidsAgeBand: string | null;
     state: string;
   };
   primaryCategory: AscCategory | null;
@@ -76,7 +75,7 @@ export async function listAppInfos(
   const response = await ascFetch<AscAppInfosResponse>(
     `/v1/apps/${appId}/appInfos` +
       `?include=primaryCategory,secondaryCategory` +
-      `&fields[appInfos]=appStoreState,appStoreAgeRating,brazilAgeRating,brazilAgeRatingV2,kidsAgeBand,state,primaryCategory,secondaryCategory` +
+      `&fields[appInfos]=appStoreState,appStoreAgeRating,brazilAgeRating,brazilAgeRatingV2,state,primaryCategory,secondaryCategory` +
       `&fields[appCategories]=platforms,parent`,
   );
 
