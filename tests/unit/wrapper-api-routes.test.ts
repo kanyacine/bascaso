@@ -246,12 +246,10 @@ describe("wrapper API routes", () => {
       params: Promise.resolve({ appId: "app-1" }),
     });
 
-    await vi.waitFor(() => {
-      expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining("Background refresh failed for app-1"),
-        expect.any(Error),
-      );
-    });
+    expect(consoleSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Refresh failed for app-1"),
+      expect.any(Error),
+    );
     expect(await response.json()).toEqual({ ok: true });
     consoleSpy.mockRestore();
   });

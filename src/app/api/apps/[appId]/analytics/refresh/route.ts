@@ -18,10 +18,14 @@ export async function POST(
   // that fetches recent data and merges it in. Perf metrics aren't accumulated.
   cacheInvalidate(`perf-metrics:${appId}`);
 
-  // Fire-and-forget: rebuild in background
-  buildAnalyticsData(appId, { force: true }).catch((err) => {
-    console.error(`[analytics] Background refresh failed for ${appId}:`, err);
-  });
+  // Await the rebuild so the request stays open while work happens – this keeps
+  // the refresh spinner spinning and ensures the next GET returns fresh data.
+  // Only phase 1 is awaited here; the deep backfill stays fire-and-forget.
+  try {
+    await buildAnalyticsData(appId, { force: true });
+  } catch (err) {
+    console.error(`[analytics] Refresh failed for ${appId}:`, err);
+  }
 
   return NextResponse.json({ ok: true });
 }

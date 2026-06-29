@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.12.1
+
+- Fix the refresh button not spinning on the portfolio page while a refresh is in progress, and ensure it shows the freshly fetched data when done
+
 ## 1.12.0
 
 - Fix gaps in analytics charts – read every report instance (including the historical snapshot's, which was previously discarded when it shared a date with the ongoing report) and automatically re-fetch to fill gaps that appear after downtime, retrying sooner when a fetch fails and Apple may recover
