@@ -161,7 +161,7 @@ export function NavMain({ appId }: { appId: string }) {
                     }}
                   >
                     <item.icon size={16} />
-                    <span>{title}</span>
+                    <span className="truncate">{title}</span>
                     {item.href === `${base}/reviews` && <ReviewsBadge appId={appId} />}
                     {item.shortcut && (
                       <kbd className="ml-auto text-[13px] text-muted-foreground/50">{item.shortcut}</kbd>

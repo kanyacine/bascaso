@@ -122,7 +122,7 @@ export const fr: Messages = {
       keywords: "Mots-clés",
       builds: "Builds",
       groups: "Groupes",
-      betaAppInfo: "Infos de l’app bêta",
+      betaAppInfo: "Infos app bêta",
       feedback: "Retours",
       nominations: "Nominations",
     },
