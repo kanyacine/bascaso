@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.13.0
+
+- Add internationalization – the app is now available in English, Simplified Chinese, French, German, and Russian; it follows your macOS language automatically or can be set explicitly in Settings → Appearance (thanks @kaiser143 for the groundwork)
+- Localize dates everywhere – dates, month names, and chart range labels now follow the app language instead of always showing English formatting
+- Localize connection errors structurally – server errors are translated via error codes instead of matching message text, so they stay translated as messages evolve
+- Fix a brief English flash on every launch for non-English systems set to follow the system language
+- Fix the language picker not updating when switching between options that resolve to the same language
+- Fix "Copied what's new to 1 locales" – singular and plural forms are now correct
+- Restore the HTTP status code in TestFlight fetch error messages (e.g. "Failed to fetch group (404)")
+- Restore the prefilled team name in the setup wizard and the correct "Test connection" label on the first-ever connection test
+- Fix saved analytics ranges and review filters flashing their default values for a frame when navigating between pages
+
 ## 1.12.1
 
 - Fix the refresh button not spinning on the portfolio page while a refresh is in progress, and ensure it shows the freshly fetched data when done
