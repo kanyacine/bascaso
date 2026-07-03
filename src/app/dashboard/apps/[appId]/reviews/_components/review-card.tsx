@@ -18,6 +18,7 @@ import { territoryName } from "./territory-helpers";
 import type { Review } from "./territory-helpers";
 import { AppIcon } from "@/components/app-icon";
 import { useTranslations } from "@/lib/i18n/locale-context";
+import { formatDate } from "@/lib/format";
 
 interface ReviewCardProps {
   review: Review;
@@ -82,14 +83,7 @@ export function ReviewCard({
             </p>
           </div>
           <span className="shrink-0 text-xs text-muted-foreground">
-            {new Date(review.createdDate).toLocaleDateString(
-              "en-GB",
-              {
-                day: "numeric",
-                month: "short",
-                year: "numeric",
-              },
-            )}
+            {formatDate(review.createdDate)}
           </span>
         </div>
 
@@ -215,13 +209,7 @@ export function ReviewCard({
                   )}
                 </Button>
                 <span className="text-xs text-muted-foreground">
-                  {new Date(
-                    review.response.lastModifiedDate,
-                  ).toLocaleDateString("en-GB", {
-                    day: "numeric",
-                    month: "short",
-                    year: "numeric",
-                  })}
+                  {formatDate(review.response.lastModifiedDate)}
                 </span>
               </div>
             </div>

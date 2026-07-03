@@ -27,12 +27,22 @@ describe("resolveLocaleFromRequest", () => {
         acceptLanguage: "zh-CN,en;q=0.9",
       }),
     ).toBe("zh-CN");
+    expect(
+      resolveLocaleFromRequest({
+        acceptLanguage: "fr-FR,fr;q=0.9,en;q=0.8",
+      }),
+    ).toBe("fr");
+  });
+
+  it("accepts the new locales in cookies", () => {
+    expect(resolveLocaleFromRequest({ resolvedCookie: "ru" })).toBe("ru");
+    expect(resolveLocaleFromRequest({ prefCookie: "de" })).toBe("de");
   });
 
   it("defaults to English when nothing matches", () => {
     expect(resolveLocaleFromRequest({})).toBe("en");
     expect(
-      resolveLocaleFromRequest({ acceptLanguage: "fr-FR" }),
+      resolveLocaleFromRequest({ acceptLanguage: "ja" }),
     ).toBe("en");
   });
 });

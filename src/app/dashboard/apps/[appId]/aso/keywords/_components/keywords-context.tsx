@@ -213,7 +213,7 @@ export function KeywordsProvider({ children }: { children: React.ReactNode }) {
         }
       }
     });
-  }, [appId, versionId, keywordEdits, bufferEnabled, registerSave, setDirty, showAscError, showSyncErrors, saveToBuffer, discardBuffer]);
+  }, [appId, versionId, keywordEdits, bufferEnabled, registerSave, setDirty, showAscError, showSyncErrors, saveToBuffer, discardBuffer, t]);
 
   // Register discard handler
   useEffect(() => {

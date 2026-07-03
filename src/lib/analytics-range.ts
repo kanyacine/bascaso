@@ -1,3 +1,5 @@
+import { getDateLocale } from "./format";
+
 const RANGE_STORAGE_KEY = "range:analytics";
 
 /** Read the effective range string from URL param with localStorage fallback. */
@@ -55,7 +57,7 @@ function lastDayOfMonth(year: number, month: number): string {
 
 function monthLabel(year: number, month: number): string {
   const d = new Date(year, month - 1);
-  return d.toLocaleString("en", { month: "long", year: "numeric" });
+  return d.toLocaleString(getDateLocale(), { month: "long", year: "numeric" });
 }
 
 const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
@@ -112,8 +114,8 @@ function presetRange(key: string, anchor?: string): DateRange {
 function formatCustomLabel(from: string, to: string): string {
   const f = new Date(from + "T00:00:00");
   const t = new Date(to + "T00:00:00");
-  const fmtFrom = f.toLocaleDateString("en", { month: "short", day: "numeric" });
-  const fmtTo = t.toLocaleDateString("en", { month: "short", day: "numeric", year: "numeric" });
+  const fmtFrom = f.toLocaleDateString(getDateLocale(), { month: "short", day: "numeric" });
+  const fmtTo = t.toLocaleDateString(getDateLocale(), { month: "short", day: "numeric", year: "numeric" });
   return `${fmtFrom} \u2013 ${fmtTo}`;
 }
 

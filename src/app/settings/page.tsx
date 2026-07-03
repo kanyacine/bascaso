@@ -50,7 +50,7 @@ export default function GeneralPage() {
       setUpdateState(status.state as UpdateState);
       if (status.state === "error") setErrorMessage(status.message ?? t("common.unknownError"));
     });
-  }, []);
+  }, [t]);
 
   function handleAutoCheckChange(enabled: boolean) {
     setAutoCheck(enabled);

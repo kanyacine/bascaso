@@ -83,7 +83,10 @@ export default function FeedbackDetailPage() {
       const res = await fetch(`/api/apps/${appId}/testflight/feedback`);
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? t("testflight.fetchFeedbackFailed"));
+        throw new Error(
+          data.error ??
+            t("testflight.fetchFeedbackFailedStatus", { status: res.status }),
+        );
       }
       const data = await res.json();
       const found = (data.feedback as TFFeedbackItem[]).find(

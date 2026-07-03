@@ -14,14 +14,7 @@ import type { TFBuild } from "@/lib/asc/testflight/types";
 import type { AscBuild } from "@/lib/asc/version-types";
 import { BUILD_STATUS_DOTS } from "@/lib/asc/display-types";
 import { useTranslations } from "@/lib/i18n/locale-context";
-
-function formatBuildDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-}
+import { formatDate } from "@/lib/format";
 
 export function BuildSection({
   allBuilds,
@@ -72,7 +65,7 @@ export function BuildSection({
               <p className="font-semibold">{t("storeListing.build.title")} {buildNumber}</p>
               {uploadedDate && (
                 <p className="text-sm text-muted-foreground">
-                  {formatBuildDate(uploadedDate)}
+                  {formatDate(uploadedDate)}
                 </p>
               )}
             </div>
@@ -122,7 +115,7 @@ export function BuildSection({
                   <span className="text-xs text-muted-foreground">{b.status}</span>
                 </div>
                 <span className="ml-auto text-xs tabular-nums text-muted-foreground">
-                  {formatBuildDate(b.uploadedDate)}
+                  {formatDate(b.uploadedDate)}
                 </span>
               </div>
             </DropdownMenuItem>
@@ -147,7 +140,7 @@ export function BuildSection({
             <p className="font-semibold">{t("storeListing.build.title")} {buildNumber}</p>
             {uploadedDate && (
               <p className="text-sm text-muted-foreground">
-                {formatBuildDate(uploadedDate)}
+                {formatDate(uploadedDate)}
               </p>
             )}
           </div>
@@ -179,7 +172,7 @@ export function BuildSection({
         <div className="min-w-0 flex-1">
           <p className="font-semibold">{t("storeListing.build.title")} {selectedBuild.buildNumber}</p>
           <p className="text-sm text-muted-foreground">
-            {formatBuildDate(selectedBuild.uploadedDate)}
+            {formatDate(selectedBuild.uploadedDate)}
           </p>
         </div>
         <Button variant="ghost" size="sm" onClick={onBuildRemove}>

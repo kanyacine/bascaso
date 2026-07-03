@@ -1,6 +1,5 @@
 export const en = {
   settings: {
-    back: "Back",
     tabs: {
       general: "General",
       appearance: "Appearance",
@@ -18,6 +17,9 @@ export const en = {
       languageSystem: "System",
       languageEn: "English",
       languageZhCN: "简体中文",
+      languageFr: "Français",
+      languageDe: "Deutsch",
+      languageRu: "Русский",
       languageSystemHint:
         "Follow system uses your macOS language when a matching translation is available, otherwise English.",
     },
@@ -422,7 +424,8 @@ export const en = {
       fetchLocalesFailed: "Failed to fetch version localizations",
       localeUnavailable: "Locale not available in that version",
       copiedFromVersion: "Copied from version",
-      copiedWhatsNew: "Copied what's new to {count} locales",
+      copiedWhatsNew: "Copied what's new to {count} locale",
+      copiedWhatsNewPlural: "Copied what's new to {count} locales",
       translationsApplied: "Translations applied to all locales",
       copiedToAll: "Copied to all locales",
       savedLocally: "Changes saved locally",
@@ -702,6 +705,7 @@ export const en = {
     saveReviewFailed: "Failed to save review details",
     saveLicenseFailed: "Failed to save license agreement",
     fetchFeedbackFailed: "Failed to fetch feedback",
+    fetchFeedbackFailedStatus: "Failed to fetch feedback ({status})",
     totalFeedback: "total feedback",
     screenshotsLabel: "screenshots",
     crashesLabel: "crashes",
@@ -717,6 +721,7 @@ export const en = {
     screenshot: "Screenshot",
     crash: "Crash",
     fetchGroupFailed: "Failed to fetch group",
+    fetchGroupFailedStatus: "Failed to fetch group ({status})",
     groupNotFound: "Group not found",
     testers: "Testers",
     publicLink: "Public link",
@@ -1088,7 +1093,6 @@ export const en = {
     reportIssue: "Report issue",
   },
   analyticsRange: {
-    back: "Back",
     month: "Month",
     customRange: "Custom range…",
   },

@@ -47,7 +47,7 @@ import { DateRangePicker } from "@/components/analytics-range-picker";
 import { usePersistedRange } from "@/lib/hooks/use-persisted-range";
 import { parseRange, filterByDateRange } from "@/lib/analytics-range";
 import type { AnalyticsData } from "@/lib/asc/analytics";
-import { formatDateShort } from "@/lib/format";
+import { formatDateShort, getDateLocale } from "@/lib/format";
 import { ReportInitiatedBanner } from "@/components/report-initiated-banner";
 
 // ---------- Constants ----------
@@ -256,7 +256,7 @@ export default function AppOverviewPage() {
                   {version.build && (
                     <p className="mt-0.5 text-xs text-muted-foreground">
                       {t("overview.build")} {version.build.attributes.version} &middot;{" "}
-                      {new Date(version.build.attributes.uploadedDate).toLocaleDateString("en-GB", {
+                      {new Date(version.build.attributes.uploadedDate).toLocaleDateString(getDateLocale(), {
                         day: "numeric",
                         month: "short",
                       })}

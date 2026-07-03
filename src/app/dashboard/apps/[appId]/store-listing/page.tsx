@@ -185,7 +185,14 @@ export default function StoreListingPage() {
           return next;
         });
         setDirty(true);
-        toast.success(t("storeListing.toast.copiedWhatsNew", { count }));
+        toast.success(
+          t(
+            count === 1
+              ? "storeListing.toast.copiedWhatsNew"
+              : "storeListing.toast.copiedWhatsNewPlural",
+            { count },
+          ),
+        );
         return;
       }
 

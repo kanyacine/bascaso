@@ -129,12 +129,8 @@ export function AppSidebar() {
   const router = useRouter();
   const { apps } = useApps();
   const { guardNavigation } = useFormDirty();
-  const [lastAppId, setLastAppId] = useState<string>();
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- client-only localStorage read
-    if (!appId) setLastAppId(getLastAppId());
-  }, [appId]);
-  const navAppId = appId ?? lastAppId;
+  // Rendered with ssr:false, so the synchronous localStorage read is safe.
+  const navAppId = appId ?? getLastAppId() ?? undefined;
 
   // Poll review counts for all apps to track unread state
   const appIds = useMemo(() => apps.map((a) => a.id), [apps]);
@@ -174,14 +170,14 @@ export function AppSidebar() {
         guardNavigation(() => router.push(url));
         return;
       }
-      const activeId = appId ?? lastAppId;
+      const activeId = navAppId;
       const subpath = PAGE_SHORTCUTS[e.key];
       if (activeId && subpath !== undefined) {
         e.preventDefault();
         guardNavigation(() => router.push(`/dashboard/apps/${activeId}${subpath}`));
       }
     },
-    [apps, appId, lastAppId, router, guardNavigation],
+    [apps, appId, navAppId, router, guardNavigation],
   );
 
   useEffect(() => {

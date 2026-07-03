@@ -2,7 +2,6 @@ import type { Messages } from "../types";
 
 export const zhCN: Messages = {
   settings: {
-    back: "返回",
     tabs: {
       general: "通用",
       appearance: "外观",
@@ -20,6 +19,9 @@ export const zhCN: Messages = {
       languageSystem: "跟随系统",
       languageEn: "English",
       languageZhCN: "简体中文",
+      languageFr: "Français",
+      languageDe: "Deutsch",
+      languageRu: "Русский",
       languageSystemHint:
         "跟随系统会优先使用与 macOS 语言匹配的翻译，找不到匹配项时使用英文。",
     },
@@ -423,6 +425,7 @@ export const zhCN: Messages = {
       localeUnavailable: "该版本中不可用此语言",
       copiedFromVersion: "已从版本复制",
       copiedWhatsNew: "已将新功能复制到 {count} 个语言",
+      copiedWhatsNewPlural: "已将新功能复制到 {count} 个语言",
       translationsApplied: "翻译已应用到所有语言",
       copiedToAll: "已复制到所有语言",
       savedLocally: "更改已本地保存",
@@ -699,6 +702,7 @@ export const zhCN: Messages = {
     saveReviewFailed: "保存审核详情失败",
     saveLicenseFailed: "保存许可协议失败",
     fetchFeedbackFailed: "获取反馈失败",
+    fetchFeedbackFailedStatus: "获取反馈失败（{status}）",
     totalFeedback: "条反馈",
     screenshotsLabel: "截图",
     crashesLabel: "崩溃",
@@ -714,6 +718,7 @@ export const zhCN: Messages = {
     screenshot: "截图",
     crash: "崩溃",
     fetchGroupFailed: "获取群组失败",
+    fetchGroupFailedStatus: "获取群组失败（{status}）",
     groupNotFound: "未找到群组",
     testers: "测试员",
     publicLink: "公开链接",
@@ -1084,7 +1089,6 @@ export const zhCN: Messages = {
     reportIssue: "报告问题",
   },
   analyticsRange: {
-    back: "返回",
     month: "月份",
     customRange: "自定义范围…",
   },

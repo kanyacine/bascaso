@@ -1,6 +1,27 @@
+/** BCP 47 date-formatting locale per app locale. */
+const DATE_LOCALES: Record<string, string> = {
+  en: "en-GB",
+  "zh-CN": "zh-CN",
+  fr: "fr",
+  de: "de",
+  ru: "ru",
+};
+
+let dateLocale = "en-GB";
+
+/** Set by LocaleProvider so all date formatting follows the active app locale. */
+export function setDateLocale(appLocale: string): void {
+  dateLocale = DATE_LOCALES[appLocale] ?? "en-GB";
+}
+
+/** The BCP 47 locale for date formatting outside these helpers. */
+export function getDateLocale(): string {
+  return dateLocale;
+}
+
 /** Format a date string as "27 Jan" (day + short month, no year). */
 export function formatDateShort(dateStr: string): string {
-  return new Date(dateStr + "T00:00:00").toLocaleDateString("en-GB", {
+  return new Date(dateStr + "T00:00:00").toLocaleDateString(dateLocale, {
     day: "numeric",
     month: "short",
   });
@@ -8,7 +29,7 @@ export function formatDateShort(dateStr: string): string {
 
 /** Format an ISO date string as "1 Jan 2026". */
 export function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-GB", {
+  return new Date(iso).toLocaleDateString(dateLocale, {
     day: "numeric",
     month: "short",
     year: "numeric",
@@ -17,7 +38,7 @@ export function formatDate(iso: string): string {
 
 /** Format an ISO date string as "1 Jan 2026, 14:30". */
 export function formatDateTime(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-GB", {
+  return new Date(iso).toLocaleDateString(dateLocale, {
     day: "numeric",
     month: "short",
     year: "numeric",
@@ -28,7 +49,7 @@ export function formatDateTime(iso: string): string {
 
 /** Format an ISO date string as "1 January 2026, 14:30". */
 export function formatDateTimeLong(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-GB", {
+  return new Date(iso).toLocaleDateString(dateLocale, {
     day: "numeric",
     month: "long",
     year: "numeric",

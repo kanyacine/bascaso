@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { CaretUpDown, MagnifyingGlass } from "@phosphor-icons/react";
 import { Spinner } from "@/components/ui/spinner";
@@ -32,15 +32,10 @@ export function AppSwitcher() {
   const { apps, loading } = useApps();
   const { guardNavigation } = useFormDirty();
   const [search, setSearch] = useState("");
-  const [lastAppId, setLastAppId] = useState<string>();
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- client-only localStorage read
-    if (!appId) setLastAppId(getLastAppId());
-  }, [appId]);
-
+  // Rendered with ssr:false, so the synchronous localStorage read is safe.
   const activeApp = apps.find((a) => a.id === appId)
-    ?? apps.find((a) => a.id === lastAppId);
+    ?? apps.find((a) => a.id === getLastAppId());
 
   const filteredApps = useMemo(() => {
     if (!search) return apps;

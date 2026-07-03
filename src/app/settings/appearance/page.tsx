@@ -23,6 +23,9 @@ const LANGUAGE_OPTIONS = [
   { value: "system", labelKey: "settings.appearance.languageSystem" as const, icon: Monitor },
   { value: "en", labelKey: "settings.appearance.languageEn" as const, icon: Globe },
   { value: "zh-CN", labelKey: "settings.appearance.languageZhCN" as const, icon: Globe },
+  { value: "fr", labelKey: "settings.appearance.languageFr" as const, icon: Globe },
+  { value: "de", labelKey: "settings.appearance.languageDe" as const, icon: Globe },
+  { value: "ru", labelKey: "settings.appearance.languageRu" as const, icon: Globe },
 ] as const;
 
 export default function AppearancePage() {

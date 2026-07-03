@@ -31,10 +31,7 @@ export default async function RootLayout({
   const initialLocale = await resolveServerLocale();
 
   return (
-    <html
-      lang={initialLocale === "zh-CN" ? "zh-CN" : "en"}
-      suppressHydrationWarning
-    >
+    <html lang={initialLocale} suppressHydrationWarning>
       <head>
         <script
           dangerouslySetInnerHTML={{ __html: LOCALE_BOOTSTRAP_SCRIPT }}

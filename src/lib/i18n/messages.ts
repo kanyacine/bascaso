@@ -1,10 +1,16 @@
 import type { SupportedLocale, Messages } from "./types";
 import { en } from "./locales/en";
 import { zhCN } from "./locales/zh-CN";
+import { fr } from "./locales/fr";
+import { de } from "./locales/de";
+import { ru } from "./locales/ru";
 
 const catalogs: Record<SupportedLocale, Messages> = {
   en: en as Messages,
   "zh-CN": zhCN,
+  fr,
+  de,
+  ru,
 };
 
 export function getMessages(locale: SupportedLocale): Messages {
@@ -24,7 +30,7 @@ type NestedKeyOf<T, Prefix extends string = ""> = T extends string
 
 export type MessageKey = NestedKeyOf<typeof en>;
 
-function getByPath(obj: object, path: string): string | undefined {
+export function getByPath(obj: object, path: string): string | undefined {
   let current: unknown = obj;
   for (const segment of path.split(".")) {
     if (current == null || typeof current !== "object") return undefined;
@@ -33,6 +39,8 @@ function getByPath(obj: object, path: string): string | undefined {
   return typeof current === "string" ? current : undefined;
 }
 
+const INTERPOLATION_PATTERN = /\{(\w+)\}/g;
+
 /** Translate a dot-path message key, with optional `{param}` interpolation. */
 export function translate(
   messages: Messages,
@@ -40,11 +48,11 @@ export function translate(
   params?: Record<string, string | number>,
 ): string {
   const value = getByPath(messages, key);
-  if (!value) return key;
+  if (value === undefined) return key;
 
   if (!params) return value;
 
-  return value.replace(/\{(\w+)\}/g, (_, name: string) => {
+  return value.replace(INTERPOLATION_PATTERN, (_, name: string) => {
     const replacement = params[name];
     return replacement == null ? `{${name}}` : String(replacement);
   });

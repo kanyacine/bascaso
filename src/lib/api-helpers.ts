@@ -10,12 +10,13 @@ import type { AscErrorEntry } from "@/lib/asc/errors";
  */
 export function errorJson(err: unknown, status = 502, fallback = "Unknown error"): NextResponse {
   if (err instanceof AscApiError) {
-    const { message, category, statusCode, entries, method, path, associatedErrors } = err.ascError;
+    const { message, category, fallbackKey, statusCode, entries, method, path, associatedErrors } = err.ascError;
     return NextResponse.json(
       {
         error: message,
         category,
         statusCode,
+        ...(fallbackKey && { messageKey: fallbackKey }),
         ...(entries && { ascErrors: entries }),
         ...(method && { ascMethod: method }),
         ...(path && { ascPath: path }),

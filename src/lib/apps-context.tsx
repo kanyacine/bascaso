@@ -9,6 +9,10 @@ export interface ConnectionError {
   message: string;
   /** Client-side fallback when no server message is available. */
   key?: MessageKey;
+  /** Server fallback key (AscError.fallbackKey) – localizable default message. */
+  messageKey?: string;
+  /** HTTP status from App Store Connect, when known. */
+  status?: number;
 }
 
 export interface App {
@@ -73,6 +77,8 @@ export function AppsProvider({ children }: { children: React.ReactNode }) {
         setError({
           message: typeof data.error === "string" ? data.error : "",
           key: data.error ? undefined : "connectionErrors.loadAppsFailed",
+          messageKey: typeof data.messageKey === "string" ? data.messageKey : undefined,
+          status: typeof data.statusCode === "number" ? data.statusCode : undefined,
           category: data.category ?? "api",
         });
         return;

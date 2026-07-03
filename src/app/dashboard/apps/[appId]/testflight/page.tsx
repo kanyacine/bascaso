@@ -104,7 +104,7 @@ export default function TestFlightBuildsPage() {
     } finally {
       setLoading(false);
     }
-  }, [appId, platform, versionString]);
+  }, [appId, platform, versionString, t]);
 
   // Wait for versions to load before fetching builds (prevents double-fetch)
   useEffect(() => {

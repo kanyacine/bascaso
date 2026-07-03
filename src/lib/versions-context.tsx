@@ -55,6 +55,8 @@ export function VersionsProvider({ children }: { children: React.ReactNode }) {
         setError({
           message: typeof data.error === "string" ? data.error : "",
           key: data.error ? undefined : "connectionErrors.loadVersionsFailed",
+          messageKey: typeof data.messageKey === "string" ? data.messageKey : undefined,
+          status: typeof data.statusCode === "number" ? data.statusCode : undefined,
           category: data.category ?? "api",
         });
         return;

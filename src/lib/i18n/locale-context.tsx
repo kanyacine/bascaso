@@ -11,16 +11,22 @@ import {
 import {
   detectSystemLocale,
   readLocalePreference,
+  readNavigatorLocale,
   resolveLocale,
 } from "./resolve-locale";
 import { writeLocaleCookies } from "./locale-cookies";
+import { setDateLocale } from "@/lib/format";
 import { getMessages, translate, type MessageKey } from "./messages";
 import type { LocalePreference, Messages, SupportedLocale } from "./types";
 import { LOCALE_STORAGE_KEY } from "./types";
 
-/** In-memory override so setPreference updates before the next storage read. */
+/** In-memory override so setPreference works even when localStorage throws. */
 let preferenceOverride: LocalePreference | null = null;
-let systemLocaleTag = "en";
+/**
+ * Seeded synchronously from the navigator so the first client render already
+ * resolves the correct system locale; refined via Electron IPC after mount.
+ */
+let systemLocaleTag = readNavigatorLocale();
 let clientReady = false;
 /** Locale frozen for SSR hydration – set from the server on each request. */
 let frozenLocale: SupportedLocale = "en";
@@ -63,6 +69,10 @@ function getServerSnapshot(): SupportedLocale {
   return frozenLocale;
 }
 
+function getServerPreferenceSnapshot(): LocalePreference {
+  return "system";
+}
+
 function scheduleClientActivation(onActivate: () => void) {
   // Defer until after all Suspense boundaries finish hydrating.
   requestAnimationFrame(() => {
@@ -94,11 +104,19 @@ export function LocaleProvider({
   frozenLocale = initialLocale;
 
   const locale = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  const preference = useSyncExternalStore(
+    subscribe,
+    readPreference,
+    getServerPreferenceSnapshot,
+  );
   const hydrated = useSyncExternalStore(
     () => () => {},
     () => true,
     () => false,
   );
+
+  // Keep the shared date-formatting locale in sync before children render.
+  setDateLocale(locale);
 
   useEffect(() => {
     let cancelled = false;
@@ -109,12 +127,11 @@ export function LocaleProvider({
       emitChange();
       void detectSystemLocale().then((tag) => {
         if (cancelled) return;
-        if (tag !== systemLocaleTag) {
-          systemLocaleTag = tag;
-        }
+        const changed = tag !== systemLocaleTag;
+        systemLocaleTag = tag;
         const pref = readPreference();
         writeLocaleCookies(pref, resolveLocale(pref, systemLocaleTag));
-        emitChange();
+        if (changed) emitChange();
       });
     });
 
@@ -123,11 +140,10 @@ export function LocaleProvider({
     };
   }, []);
 
-  const preference = hydrated ? readPreference() : "system";
   const messages = useMemo(() => getMessages(locale), [locale]);
 
   useEffect(() => {
-    document.documentElement.lang = locale === "zh-CN" ? "zh-CN" : "en";
+    document.documentElement.lang = locale;
   }, [locale]);
 
   const setPreference = useCallback((next: LocalePreference) => {

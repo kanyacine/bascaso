@@ -40,6 +40,7 @@ import type {
   NominationState,
 } from "@/lib/asc/nominations";
 import { useTranslations } from "@/lib/i18n/locale-context";
+import { formatDate } from "@/lib/format";
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -49,13 +50,6 @@ const STATE_COLOURS: Record<NominationState, string> = {
   ARCHIVED: "bg-muted-foreground",
 };
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-}
 
 // ── Page ─────────────────────────────────────────────────────────────
 

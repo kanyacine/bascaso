@@ -553,7 +553,7 @@ export default function AppDetailsPage() {
 
       setDirty(false);
     });
-  }, [appId, appInfoId, localeData, contentRights, primaryCategoryId, secondaryCategoryId, notifUrl, notifSandboxUrl, primaryLocale, app?.name, updateApp, bufferEnabled, registerSave, setDirty, showAscError, showSyncErrors, saveToBuffer, discardBuffer]);
+  }, [appId, appInfoId, localeData, contentRights, primaryCategoryId, secondaryCategoryId, notifUrl, notifSandboxUrl, primaryLocale, app?.name, updateApp, bufferEnabled, registerSave, setDirty, showAscError, showSyncErrors, saveToBuffer, discardBuffer, t]);
 
   // Register discard handler for the header Discard button
   useEffect(() => {

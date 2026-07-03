@@ -64,7 +64,7 @@ export default function SetupPage() {
   }, [router]);
 
   // Step 1 – Team name
-  const [teamName, setTeamName] = useState("");
+  const [teamName, setTeamName] = useState(() => t("nav.myTeam"));
 
   // Step 2 – ASC credentials
   const [issuerId, setIssuerId] = useState("");
@@ -500,7 +500,9 @@ export default function SetupPage() {
                         )
                       }
                     >
-                      {t("common.testAgain")}
+                      {testStatus === "error"
+                        ? t("common.testAgain")
+                        : t("settings.teams.testConnection")}
                     </button>
                   )}
               </div>

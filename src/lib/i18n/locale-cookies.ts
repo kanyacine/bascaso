@@ -3,10 +3,15 @@ import {
   LOCALE_COOKIE_KEY,
   LOCALE_PREF_COOKIE_KEY,
   LOCALE_STORAGE_KEY,
+  SUPPORTED_LOCALES,
 } from "./types";
 import { resolveLocale } from "./resolve-locale";
 
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
+
+function isSupportedLocale(value: unknown): value is SupportedLocale {
+  return (SUPPORTED_LOCALES as readonly unknown[]).includes(value);
+}
 
 /** Resolve locale from request cookies and Accept-Language (pure – testable). */
 export function resolveLocaleFromRequest(opts: {
@@ -16,11 +21,11 @@ export function resolveLocaleFromRequest(opts: {
 }): SupportedLocale {
   const { resolvedCookie, prefCookie, acceptLanguage } = opts;
 
-  if (resolvedCookie === "zh-CN" || resolvedCookie === "en") {
+  if (isSupportedLocale(resolvedCookie)) {
     return resolvedCookie;
   }
 
-  if (prefCookie === "en" || prefCookie === "zh-CN") {
+  if (isSupportedLocale(prefCookie)) {
     return prefCookie;
   }
 
@@ -40,27 +45,15 @@ export function writeLocaleCookies(
 
 /**
  * Inline bootstrap script – runs before React hydrates.
- * Syncs localStorage → cookies so the next SSR request matches the client.
+ * Restores the preference cookie from localStorage in case cookies were
+ * cleared, so the next SSR request matches the stored preference. All locale
+ * matching happens in resolveLocaleFromRequest – nothing is duplicated here.
  */
 export const LOCALE_BOOTSTRAP_SCRIPT = `(function(){
   try {
-    var SK="${LOCALE_STORAGE_KEY}",PK="${LOCALE_PREF_COOKIE_KEY}",LK="${LOCALE_COOKIE_KEY}";
-    var pref=localStorage.getItem(SK)||"system";
-    if(pref!=="system"&&pref!=="en"&&pref!=="zh-CN")pref="system";
-    var locale="en";
-    if(pref==="en")locale="en";
-    else if(pref==="zh-CN")locale="zh-CN";
-    else{
-      var langs=navigator.languages&&navigator.languages.length?navigator.languages:[navigator.language||"en"];
-      for(var i=0;i<langs.length;i++){
-        var t=langs[i].toLowerCase().replace(/_/g,"-");
-        if(t==="zh-cn"||t==="zh-hans"||t==="zh"||(t.indexOf("zh")===0&&t.indexOf("tw")===-1&&t.indexOf("hk")===-1&&t.indexOf("hant")===-1)){locale="zh-CN";break;}
-        if(t.indexOf("en")===0){locale="en";break;}
-      }
+    var pref=localStorage.getItem("${LOCALE_STORAGE_KEY}");
+    if(pref&&document.cookie.indexOf("${LOCALE_PREF_COOKIE_KEY}=")===-1){
+      document.cookie="${LOCALE_PREF_COOKIE_KEY}="+pref+";path=/;max-age=${COOKIE_MAX_AGE};samesite=lax";
     }
-    var base="path=/;max-age=${COOKIE_MAX_AGE};samesite=lax";
-    document.cookie=PK+"="+pref+";"+base;
-    document.cookie=LK+"="+locale+";"+base;
-    document.documentElement.lang=locale==="zh-CN"?"zh-CN":"en";
   }catch(e){}
 })();`;

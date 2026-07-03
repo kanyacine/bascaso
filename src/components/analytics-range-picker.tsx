@@ -14,7 +14,8 @@ import { Separator } from "@/components/ui/separator";
 import { Calendar } from "@/components/ui/calendar";
 import { parseRange, getStoredRange, setStoredRange } from "@/lib/analytics-range";
 import { useAnalytics } from "@/lib/analytics-context";
-import { useLocale, useTranslations } from "@/lib/i18n/locale-context";
+import { getDateLocale } from "@/lib/format";
+import { useTranslations } from "@/lib/i18n/locale-context";
 import type { DateRange as RdpDateRange } from "react-day-picker";
 
 const PRESETS = [
@@ -24,10 +25,9 @@ const PRESETS = [
   { value: "90d", label: "90d" },
 ] as const;
 
-function generateMonths(count: number, locale: string): Array<{ value: string; label: string }> {
+function generateMonths(count: number, dateLocale: string): Array<{ value: string; label: string }> {
   const months: Array<{ value: string; label: string }> = [];
   const now = new Date();
-  const dateLocale = locale === "zh-CN" ? "zh-CN" : "en";
   for (let i = 0; i < count; i++) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -45,14 +45,14 @@ interface DateRangePickerProps {
 
 export function DateRangePicker({ value, lastDate, onChange }: DateRangePickerProps) {
   const t = useTranslations();
-  const { locale } = useLocale();
+  const dateLocale = getDateLocale();
   const [open, setOpen] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
   const [calendarRange, setCalendarRange] = useState<RdpDateRange | undefined>();
 
   const parsed = parseRange(value, lastDate);
 
-  const months = useMemo(() => generateMonths(12, locale), [locale]);
+  const months = useMemo(() => generateMonths(12, dateLocale), [dateLocale]);
 
   function select(rangeValue: string) {
     onChange(rangeValue === "30d" ? null : rangeValue);
@@ -96,7 +96,7 @@ export function DateRangePicker({ value, lastDate, onChange }: DateRangePickerPr
               className="mb-1"
               onClick={() => setShowCalendar(false)}
             >
-              {t("analyticsRange.back")}
+              {t("common.back")}
             </Button>
             <Calendar
               mode="range"

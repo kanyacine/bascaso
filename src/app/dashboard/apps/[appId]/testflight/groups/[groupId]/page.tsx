@@ -83,7 +83,10 @@ export default function GroupDetailPage() {
       ]);
       if (!groupRes.ok) {
         const data = await groupRes.json().catch(() => ({}));
-        throw new Error(data.error ?? t("testflight.fetchGroupFailed"));
+        throw new Error(
+          data.error ??
+            t("testflight.fetchGroupFailedStatus", { status: groupRes.status }),
+        );
       }
       const data = await groupRes.json();
       setGroup(data.group);

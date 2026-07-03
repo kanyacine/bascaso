@@ -42,7 +42,7 @@ export default function SettingsLayout({
             onClick={() => router.push("/dashboard")}
           >
             <ArrowLeft size={16} />
-            {t("settings.back")}
+            {t("common.back")}
           </Button>
         </div>
         <div className="mb-0 flex items-center border-b overflow-x-auto scrollbar-hide">

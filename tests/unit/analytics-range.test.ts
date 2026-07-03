@@ -84,8 +84,8 @@ describe("parseRange", () => {
     const r = parseRange("2025-12-01..2026-02-28");
     expect(r.from).toBe("2025-12-01");
     expect(r.to).toBe("2026-02-28");
-    expect(r.label).toMatch(/Dec 1/);
-    expect(r.label).toMatch(/Feb 28, 2026/);
+    expect(r.label).toMatch(/1 Dec/);
+    expect(r.label).toMatch(/28 Feb 2026/);
     expect(r.label).toContain("\u2013"); // en dash
   });
 

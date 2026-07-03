@@ -1,5 +1,8 @@
 export type AscErrorCategory = "auth" | "connection" | "api";
 
+/** Set when `message` is one of our default fallbacks (no ASC detail) – lets the client localize it. */
+export type AscFallbackKey = "authInvalid" | "ascUnavailable" | "ascError" | "ascUnreachable";
+
 export interface AscErrorEntry {
   code: string;
   title: string;
@@ -10,6 +13,7 @@ export interface AscErrorEntry {
 export interface AscError {
   category: AscErrorCategory;
   message: string;
+  fallbackKey?: AscFallbackKey;
   statusCode?: number;
   method?: string;
   path?: string;
@@ -67,6 +71,7 @@ export function parseAscError(status: number, responseText: string): AscError {
     return {
       category: "auth",
       message: detail ?? "API key may be invalid or expired",
+      fallbackKey: detail ? undefined : "authInvalid",
       statusCode: status,
       entries,
       associatedErrors,
@@ -77,6 +82,7 @@ export function parseAscError(status: number, responseText: string): AscError {
     return {
       category: "connection",
       message: detail ?? "App Store Connect is temporarily unavailable",
+      fallbackKey: detail ? undefined : "ascUnavailable",
       statusCode: status,
       entries,
       associatedErrors,
@@ -86,6 +92,7 @@ export function parseAscError(status: number, responseText: string): AscError {
   return {
     category: "api",
     message: detail ?? `App Store Connect returned an error (${status})`,
+    fallbackKey: detail ? undefined : "ascError",
     statusCode: status,
     entries,
     associatedErrors,
@@ -97,5 +104,6 @@ export function networkError(): AscError {
   return {
     category: "connection",
     message: "Could not connect to App Store Connect",
+    fallbackKey: "ascUnreachable",
   };
 }
