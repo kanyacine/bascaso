@@ -75,12 +75,20 @@ export function DateRangePicker({ value, lastDate, onChange }: DateRangePickerPr
     ?? (!value ? "30d" : null);
   const activeMonth = months.find((m) => m.value === value)?.value ?? null;
 
+  const presetDays = activePreset ? parseInt(activePreset, 10) : null;
+  const triggerLabel =
+    presetDays === null
+      ? parsed.label
+      : presetDays === 1
+        ? t("analyticsRange.lastDay")
+        : t("analyticsRange.lastDays", { days: presetDays });
+
   return (
     <Popover open={open} onOpenChange={(v) => { setOpen(v); if (!v) setShowCalendar(false); }}>
       <PopoverTrigger asChild>
         <Button variant="outline" size="sm" className="mb-1 gap-1.5 text-sm">
           <CalendarBlank className="size-4" />
-          {parsed.label}
+          {triggerLabel}
         </Button>
       </PopoverTrigger>
       <PopoverContent

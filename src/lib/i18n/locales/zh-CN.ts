@@ -1089,6 +1089,8 @@ export const zhCN: Messages = {
     reportIssue: "报告问题",
   },
   analyticsRange: {
+    lastDay: "最近一天",
+    lastDays: "最近 {days} 天",
     month: "月份",
     customRange: "自定义范围…",
   },

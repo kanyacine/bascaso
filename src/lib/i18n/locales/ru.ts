@@ -1095,6 +1095,8 @@ export const ru: Messages = {
     reportIssue: "Сообщить о проблеме",
   },
   analyticsRange: {
+    lastDay: "Последний день",
+    lastDays: "Последние {days} дней",
     month: "Месяц",
     customRange: "Свой период…",
   },

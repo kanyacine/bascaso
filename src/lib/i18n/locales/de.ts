@@ -1095,6 +1095,8 @@ export const de: Messages = {
     reportIssue: "Problem melden",
   },
   analyticsRange: {
+    lastDay: "Letzter Tag",
+    lastDays: "Letzte {days} Tage",
     month: "Monat",
     customRange: "Eigener Zeitraum…",
   },

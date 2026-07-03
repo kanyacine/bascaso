@@ -1093,6 +1093,8 @@ export const en = {
     reportIssue: "Report issue",
   },
   analyticsRange: {
+    lastDay: "Last day",
+    lastDays: "Last {days} days",
     month: "Month",
     customRange: "Custom range…",
   },

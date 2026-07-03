@@ -28,8 +28,6 @@ let preferenceOverride: LocalePreference | null = null;
  */
 let systemLocaleTag = readNavigatorLocale();
 let clientReady = false;
-/** Locale frozen for SSR hydration – set from the server on each request. */
-let frozenLocale: SupportedLocale = "en";
 const listeners = new Set<() => void>();
 
 function emitChange() {
@@ -58,15 +56,6 @@ function subscribe(onStoreChange: () => void) {
 function readPreference(): LocalePreference {
   if (preferenceOverride !== null) return preferenceOverride;
   return readLocalePreference();
-}
-
-function getSnapshot(): SupportedLocale {
-  if (!clientReady) return frozenLocale;
-  return resolveLocale(readPreference(), systemLocaleTag);
-}
-
-function getServerSnapshot(): SupportedLocale {
-  return frozenLocale;
 }
 
 function getServerPreferenceSnapshot(): LocalePreference {
@@ -101,9 +90,16 @@ export function LocaleProvider({
   initialLocale: SupportedLocale;
   children: React.ReactNode;
 }) {
-  frozenLocale = initialLocale;
-
-  const locale = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  // Until client activation, both snapshots stay frozen on the SSR locale so
+  // hydration matches the server-rendered HTML.
+  const locale = useSyncExternalStore(
+    subscribe,
+    () =>
+      clientReady
+        ? resolveLocale(readPreference(), systemLocaleTag)
+        : initialLocale,
+    () => initialLocale,
+  );
   const preference = useSyncExternalStore(
     subscribe,
     readPreference,

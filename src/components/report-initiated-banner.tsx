@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { ChartBar } from "@phosphor-icons/react";
 import { useTranslations } from "@/lib/i18n/locale-context";
 
@@ -9,10 +10,12 @@ interface ReportInitiatedBannerProps {
 
 export function ReportInitiatedBanner({ initiatedAt }: ReportInitiatedBannerProps) {
   const t = useTranslations();
+  // Captured once on mount – hour-granularity elapsed text needs no live clock.
+  const [now] = useState(() => Date.now());
 
   function formatElapsed(at: number | null): string {
     if (!at) return "";
-    const hours = Math.floor((Date.now() - at) / (60 * 60 * 1000));
+    const hours = Math.floor((now - at) / (60 * 60 * 1000));
     if (hours < 1) return t("dashboard.requestedJustNow");
     if (hours === 1) return t("dashboard.requestedOneHourAgo");
     if (hours < 24) return t("dashboard.requestedHoursAgo", { hours });
