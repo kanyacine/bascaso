@@ -65,7 +65,7 @@ Everything runs locally. One SQLite database, no cloud, no accounts, no telemetr
 
 ## Free and open source
 
-Itsyconnect is completely free, with no limits – manage as many apps and developer accounts as you like. Every feature is available to everyone, on both direct downloads and the Mac App Store. Licensed under [AGPL-3.0](LICENSE).
+Itsyconnect is completely free, with no limits – manage as many apps and developer accounts as you like. Every feature is available to everyone, distributed as a direct DMG download. Licensed under [AGPL-3.0](LICENSE).
 
 ## Download
 
