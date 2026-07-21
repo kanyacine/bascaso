@@ -49,6 +49,17 @@ export function createTestDb() {
       value TEXT NOT NULL
     );
 
+    CREATE TABLE keyword_scores (
+      keyword TEXT NOT NULL,
+      country TEXT NOT NULL,
+      popularity INTEGER,
+      difficulty INTEGER NOT NULL,
+      opportunity INTEGER NOT NULL,
+      classification TEXT NOT NULL,
+      fetched_at INTEGER NOT NULL,
+      PRIMARY KEY (keyword, country)
+    );
+
     CREATE TABLE pending_changes (
       id TEXT PRIMARY KEY NOT NULL,
       app_id TEXT NOT NULL,

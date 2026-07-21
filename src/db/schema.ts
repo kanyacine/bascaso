@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, primaryKey } from "drizzle-orm/sqlite-core";
 import { ulid } from "@/lib/ulid";
 
 // --- ASC credentials ---
@@ -82,6 +82,22 @@ export const appMarkers = sqliteTable("app_markers", {
     .notNull()
     .$defaultFn(() => new Date().toISOString()),
 });
+
+// --- ASO keyword scores (one row per keyword × country, refreshed daily) ---
+
+export const keywordScores = sqliteTable(
+  "keyword_scores",
+  {
+    keyword: text("keyword").notNull(),
+    country: text("country").notNull(), // ISO 3166-1 alpha-2, lowercase
+    popularity: integer("popularity"), // null when iTunes returned no data
+    difficulty: integer("difficulty").notNull(),
+    opportunity: integer("opportunity").notNull(),
+    classification: text("classification").notNull(),
+    fetchedAt: integer("fetched_at").notNull(), // epoch ms, like cache_entries
+  },
+  (t) => [primaryKey({ columns: [t.keyword, t.country] })],
+);
 
 // --- Pending changes (local change buffer) ---
 
