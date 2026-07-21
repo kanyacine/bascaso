@@ -1257,5 +1257,9 @@ export const zhCN: Messages = {
     charsIndexedInPlural: "+100 字符 · 索引于 {count} 个商店地区",
     addInStoreListing: "在商店信息中添加",
     storefrontDuplicatesHint: "这些关键词出现在此商店地区索引的多个语言中。Apple 不会因重复而提升排名 – 请用独特词条替换重复项以最大化覆盖。",
+    scoreOpportunity: "机会",
+    scorePopularity: "热度",
+    scoreDifficulty: "难度",
+    scoreUnavailable: "评分不可用",
   },
 };

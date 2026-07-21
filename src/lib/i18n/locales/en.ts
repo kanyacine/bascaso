@@ -1263,5 +1263,9 @@ export const en = {
     charsIndexedInPlural: "+100 chars · indexed in {count} storefronts",
     addInStoreListing: "Add in store listing",
     storefrontDuplicatesHint: "These keywords appear in multiple locales indexed by this storefront. Apple does not boost rankings from repetition – replace duplicates with unique terms to maximize coverage.",
+    scoreOpportunity: "Opportunity",
+    scorePopularity: "Popularity",
+    scoreDifficulty: "Difficulty",
+    scoreUnavailable: "Score unavailable",
   },
 } as const;

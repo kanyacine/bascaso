@@ -1265,5 +1265,9 @@ export const de: Messages = {
     charsIndexedInPlural: "+100 Zeichen · indexiert in {count} Storefronts",
     addInStoreListing: "Im Store-Eintrag hinzufügen",
     storefrontDuplicatesHint: "Diese Keywords erscheinen in mehreren Sprachen, die von diesem Storefront indexiert werden. Apple belohnt Wiederholungen nicht im Ranking – ersetzen Sie Duplikate durch einzigartige Begriffe, um die Abdeckung zu maximieren.",
+    scoreOpportunity: "Chance",
+    scorePopularity: "Popularität",
+    scoreDifficulty: "Schwierigkeit",
+    scoreUnavailable: "Score nicht verfügbar",
   },
 };

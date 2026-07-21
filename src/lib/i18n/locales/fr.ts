@@ -1265,5 +1265,9 @@ export const fr: Messages = {
     charsIndexedInPlural: "+100 caractères · indexée dans {count} vitrines",
     addInStoreListing: "Ajouter dans la fiche App Store",
     storefrontDuplicatesHint: "Ces mots-clés apparaissent dans plusieurs langues indexées par cette vitrine. Apple n’améliore pas le classement en cas de répétition – remplacez les doublons par des termes uniques pour maximiser la couverture.",
+    scoreOpportunity: "Opportunité",
+    scorePopularity: "Popularité",
+    scoreDifficulty: "Difficulté",
+    scoreUnavailable: "Score indisponible",
   },
 };

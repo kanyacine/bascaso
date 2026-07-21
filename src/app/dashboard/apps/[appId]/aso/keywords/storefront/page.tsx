@@ -19,6 +19,8 @@ import {
 } from "@/components/ui/tooltip";
 import { useKeywords } from "../_components/keywords-context";
 import { analyzeStorefront } from "../_components/keyword-analysis";
+import { useKeywordScores } from "../_components/use-keyword-scores";
+import { storefrontCountryCode } from "@/lib/aso/storefront-country";
 import { OverviewCard } from "../_components/overview-card";
 import { LocaleCard } from "../_components/locale-card";
 import { StorefrontPicker } from "../_components/storefront-picker";
@@ -47,6 +49,19 @@ export default function KeywordsStorefrontPage() {
   }, [storefront, editedLocalizations, infoLocalizations, loading]);
 
   const sfInfo = STOREFRONTS[storefront];
+
+  // Progressive ASO scoring of every keyword against the selected country
+  const allKeywords = useMemo(
+    () =>
+      sfAnalysis
+        ? [...new Set(sfAnalysis.localeData.flatMap((ld) => ld.keywords))]
+        : [],
+    [sfAnalysis],
+  );
+  const getTagScore = useKeywordScores(
+    allKeywords,
+    storefrontCountryCode(storefront),
+  );
 
   if (loading) {
     return (
@@ -120,6 +135,7 @@ export default function KeywordsStorefrontPage() {
               readOnly={readOnly}
               isPrimary={ld.resolvedLocale === app?.primaryLocale}
               onKeywordsChange={handleKeywordsChange}
+              getTagScore={getTagScore}
             />
           ))}
         </section>

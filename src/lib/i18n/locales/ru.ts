@@ -1265,5 +1265,9 @@ export const ru: Messages = {
     charsIndexedInPlural: "+100 симв. · индексируется в {count} витринах",
     addInStoreListing: "Добавить на странице приложения",
     storefrontDuplicatesHint: "Эти ключевые слова встречаются в нескольких локалях, индексируемых этой витриной. Apple не повышает ранжирование за повторы – замените дубликаты уникальными словами, чтобы расширить охват.",
+    scoreOpportunity: "Потенциал",
+    scorePopularity: "Популярность",
+    scoreDifficulty: "Сложность",
+    scoreUnavailable: "Оценка недоступна",
   },
 };

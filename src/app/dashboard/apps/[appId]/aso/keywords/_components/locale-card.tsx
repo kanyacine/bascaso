@@ -13,7 +13,7 @@ import {
 } from "@phosphor-icons/react";
 import { localeName, FIELD_LIMITS } from "@/lib/asc/locale-names";
 import { buildForbiddenKeywords } from "@/lib/asc/keyword-utils";
-import { KeywordTagInput } from "@/components/keyword-tag-input";
+import { KeywordTagInput, type TagScore } from "@/components/keyword-tag-input";
 import { CharCount } from "@/components/char-count";
 import { AICompareDialog } from "@/components/ai-compare-dialog";
 import { useAIStatus } from "@/lib/hooks/use-ai-status";
@@ -31,6 +31,7 @@ interface LocaleCardProps {
   readOnly: boolean;
   isPrimary?: boolean;
   onKeywordsChange: (locale: string, keywords: string) => void;
+  getTagScore?: (tag: string) => TagScore | undefined;
 }
 
 export function LocaleCard({
@@ -43,6 +44,7 @@ export function LocaleCard({
   readOnly,
   isPrimary,
   onKeywordsChange,
+  getTagScore,
 }: LocaleCardProps) {
   const t = useTranslations();
   const [expanded, setExpanded] = useState(false);
@@ -183,6 +185,7 @@ export function LocaleCard({
                       value={data.keywordsRaw}
                       onChange={(v) => onKeywordsChange(data.resolvedLocale, v)}
                       readOnly={readOnly}
+                      getTagScore={getTagScore}
                     />
                   </CardContent>
                 </Card>
