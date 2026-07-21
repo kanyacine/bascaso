@@ -29,7 +29,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { TONE_CLASSES, type TagScore } from "@/components/keyword-tag-input";
+import type { TagScore } from "@/components/keyword-tag-input";
 import { localeName } from "@/lib/asc/locale-names";
 import {
   appendKeywordToField,
@@ -66,15 +66,28 @@ const HEADERS = [
 
 // Theme-aware text classes for the respectaso score tones.
 const TONE_TEXT: Record<ScoreTone, string> = {
+  darkGreen: "text-green-700 dark:text-green-500",
   green: "text-green-600 dark:text-green-400",
   lightGreen: "text-green-500 dark:text-green-300",
   yellow: "text-yellow-600 dark:text-yellow-400",
+  amber: "text-amber-600 dark:text-amber-400",
   orange: "text-orange-600 dark:text-orange-400",
   red: "text-red-600 dark:text-red-400",
   darkRed: "text-red-700 dark:text-red-300",
   blue: "text-blue-600 dark:text-blue-400",
   muted: "text-muted-foreground",
 };
+
+// The classification labels themselves stay in English (API values).
+const VERDICT_TOOLTIPS = {
+  "Sweet Spot": "keywords.verdictSweetSpot",
+  "Good Target": "keywords.verdictGoodTarget",
+  "Hidden Gem": "keywords.verdictHiddenGem",
+  "High Competition": "keywords.verdictHighCompetition",
+  Moderate: "keywords.verdictModerate",
+  "Low Volume": "keywords.verdictLowVolume",
+  Avoid: "keywords.verdictAvoid",
+} as const;
 
 function readList(raw: string): string[] {
   try {
@@ -284,32 +297,37 @@ function ResearchRow({
       <TableCell className="text-center text-sm">
         {cell(done?.difficulty, difficultyTone(done?.difficulty ?? 0))}
       </TableCell>
-      <TableCell className="text-center">
-        {score?.status === "loading" ? (
-          <Spinner className="mx-auto size-3 text-muted-foreground" />
-        ) : done ? (
-          <span
-            className={`rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums ${TONE_CLASSES[opportunityTone(done.opportunity)]}`}
-          >
-            {done.opportunity}
-          </span>
-        ) : (
+      <TableCell className="text-center text-sm">
+        {score?.status === "error" ? (
           <Tooltip>
             <TooltipTrigger asChild>
-              <span className="text-sm text-muted-foreground">–</span>
+              <span className="text-muted-foreground">–</span>
             </TooltipTrigger>
             <TooltipContent>{t("keywords.scoreUnavailable")}</TooltipContent>
           </Tooltip>
+        ) : (
+          cell(done?.opportunity, opportunityTone(done?.opportunity ?? 0))
         )}
       </TableCell>
       <TableCell className="text-sm">
-        <span
-          className={
-            TONE_TEXT[done ? classificationTone(done.classification) : "muted"]
-          }
-        >
-          {done?.classification ?? "–"}
-        </span>
+        {done ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className={TONE_TEXT[classificationTone(done.classification)]}>
+                {done.classification}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs">
+              {t(
+                VERDICT_TOOLTIPS[
+                  done.classification as keyof typeof VERDICT_TOOLTIPS
+                ] ?? "keywords.researchVerdictTooltip",
+              )}
+            </TooltipContent>
+          </Tooltip>
+        ) : (
+          <span className="text-muted-foreground">–</span>
+        )}
       </TableCell>
       <TableCell className="text-center text-sm">
         {cell(done?.rank, rankTone(done?.rank ?? null))}

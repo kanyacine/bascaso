@@ -66,8 +66,8 @@ describe("difficultyTone", () => {
 // Verdict colors mirror respectaso's insight map (green targets,
 // blue hidden gem, yellow high competition, red avoid, neutral rest).
 describe("classificationTone", () => {
-  it("maps each classification label", () => {
-    expect(classificationTone("Sweet Spot")).toBe("green");
+  it("maps each classification label, Sweet Spot in a deeper green", () => {
+    expect(classificationTone("Sweet Spot")).toBe("darkGreen");
     expect(classificationTone("Good Target")).toBe("green");
     expect(classificationTone("Hidden Gem")).toBe("blue");
     expect(classificationTone("High Competition")).toBe("yellow");

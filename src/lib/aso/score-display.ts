@@ -11,9 +11,11 @@ export function opportunityTone(opportunity: number): OpportunityTone {
 }
 
 export type ScoreTone =
+  | "darkGreen"
   | "green"
   | "lightGreen"
   | "yellow"
+  | "amber"
   | "orange"
   | "red"
   | "darkRed"
@@ -41,9 +43,10 @@ export function difficultyTone(difficulty: number): ScoreTone {
   return "darkRed";
 }
 
-// Mirrors respectaso's insight color map.
+// Mirrors respectaso's insight color map, except Sweet Spot gets a
+// deeper green than Good Target to rank above it visually.
 const CLASSIFICATION_TONES: Record<string, ScoreTone> = {
-  "Sweet Spot": "green",
+  "Sweet Spot": "darkGreen",
   "Good Target": "green",
   "Hidden Gem": "blue",
   "High Competition": "yellow",
