@@ -398,6 +398,7 @@ export const de: Messages = {
       dupes: "{count} Duplikat",
       dupesPlural: "{count} Duplikate",
       charsFree: "{count} Zeichen frei",
+      scoresIn: "ASO-Scores: {country}",
     },
     build: {
       title: "Build",

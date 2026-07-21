@@ -2,6 +2,12 @@
 // iTunes Search API country code (ISO alpha-2, lowercase). Completeness
 // against STOREFRONTS is enforced by tests.
 
+import {
+  POPULAR_STOREFRONTS,
+  STOREFRONTS,
+  storefrontsByLocale,
+} from "@/lib/asc/storefronts";
+
 export const STOREFRONT_COUNTRY_CODES: Record<string, string> = {
   AFG: "af", ALB: "al", DZA: "dz", AGO: "ao", AIA: "ai", ATG: "ag",
   ARG: "ar", ARM: "am", AUS: "au", AUT: "at", AZE: "az", BHS: "bs",
@@ -38,4 +44,19 @@ export const STOREFRONT_COUNTRY_CODES: Record<string, string> = {
 /** iTunes country code for a storefront, or null when unknown. */
 export function storefrontCountryCode(storefront: string): string | null {
   return STOREFRONT_COUNTRY_CODES[storefront] ?? null;
+}
+
+/**
+ * The storefront to score a locale's keywords against (used by the store
+ * listing, which is locale-based rather than storefront-based): prefer a
+ * popular storefront whose default locale matches, then any default-locale
+ * match, then storefronts merely indexing the locale as additional.
+ */
+export function localeScoringStorefront(locale: string): string | null {
+  const defaults = Object.entries(STOREFRONTS)
+    .filter(([, sf]) => sf.defaultLocale === locale)
+    .map(([iso]) => iso);
+  const pool = defaults.length > 0 ? defaults : storefrontsByLocale(locale);
+  if (pool.length === 0) return null;
+  return POPULAR_STOREFRONTS.find((sf) => pool.includes(sf)) ?? pool[0];
 }

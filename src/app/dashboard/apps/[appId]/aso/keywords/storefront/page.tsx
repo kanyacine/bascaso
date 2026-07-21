@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useKeywords } from "../_components/keywords-context";
 import { analyzeStorefront } from "../_components/keyword-analysis";
-import { useKeywordScores } from "../_components/use-keyword-scores";
+import { useKeywordScores } from "@/lib/hooks/use-keyword-scores";
 import { storefrontCountryCode } from "@/lib/aso/storefront-country";
 import { OverviewCard } from "../_components/overview-card";
 import { LocaleCard } from "../_components/locale-card";

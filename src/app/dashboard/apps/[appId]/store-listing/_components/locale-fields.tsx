@@ -12,6 +12,12 @@ import { splitMetaWords } from "@/lib/asc/keyword-utils";
 import { MagicWandButton, wandProps } from "@/components/magic-wand-button";
 import type { MagicWandLocaleProps } from "@/components/magic-wand-button";
 import { useTranslations } from "@/lib/i18n/locale-context";
+import { STOREFRONTS } from "@/lib/asc/storefronts";
+import {
+  localeScoringStorefront,
+  storefrontCountryCode,
+} from "@/lib/aso/storefront-country";
+import { useKeywordScores } from "@/lib/hooks/use-keyword-scores";
 
 function KeywordTip({ keywords, appName, subtitle, otherLocaleKeywords }: {
   keywords: string;
@@ -122,6 +128,16 @@ export function LocaleFieldsSection({
 }) {
   const t = useTranslations();
 
+  // ASO scores for the keyword pastilles, against the locale's main storefront
+  const scoringStorefront = localeScoringStorefront(wand.locale);
+  const scoringCountry = scoringStorefront
+    ? storefrontCountryCode(scoringStorefront)
+    : null;
+  const getTagScore = useKeywordScores(
+    current.keywords.split(",").filter(Boolean),
+    scoringCountry,
+  );
+
   return (
     <>
       {!hideWhatsNew && <section className="space-y-2">
@@ -230,6 +246,16 @@ export function LocaleFieldsSection({
             disabled={readOnly}
             keywordsInsightsHref={keywordsInsightsHref}
           />
+          {scoringStorefront && (
+            <Badge
+              variant="outline"
+              className="text-[10px] px-1.5 py-0 text-muted-foreground"
+            >
+              {t("storeListing.keywords.scoresIn", {
+                country: STOREFRONTS[scoringStorefront]?.name ?? scoringStorefront,
+              })}
+            </Badge>
+          )}
           <KeywordTip
             keywords={current.keywords}
             appName={wand.appName}
@@ -249,6 +275,7 @@ export function LocaleFieldsSection({
               value={current.keywords}
               onChange={(v) => onFieldChange("keywords", v)}
               readOnly={readOnly}
+              getTagScore={getTagScore}
             />
           </CardContent>
           <div className="flex items-center rounded-b-xl border-t bg-sidebar px-3 py-1.5">

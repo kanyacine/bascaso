@@ -396,6 +396,7 @@ export const en = {
       dupes: "{count} dupe",
       dupesPlural: "{count} dupes",
       charsFree: "{count} chars free",
+      scoresIn: "ASO scores: {country}",
     },
     build: {
       title: "Build",

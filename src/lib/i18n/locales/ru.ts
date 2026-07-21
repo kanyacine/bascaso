@@ -398,6 +398,7 @@ export const ru: Messages = {
       dupes: "{count} дубликат",
       dupesPlural: "Дубликатов: {count}",
       charsFree: "Свободно {count} симв.",
+      scoresIn: "ASO-оценки: {country}",
     },
     build: {
       title: "Сборка",

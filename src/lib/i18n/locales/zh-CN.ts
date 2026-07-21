@@ -396,6 +396,7 @@ export const zhCN: Messages = {
       dupes: "{count} 个重复",
       dupesPlural: "{count} 个重复",
       charsFree: "剩余 {count} 字符",
+      scoresIn: "ASO 评分：{country}",
     },
     build: {
       title: "构建版本",
