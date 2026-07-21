@@ -9,6 +9,7 @@ const scoreSchema = z.object({
     .string()
     .trim()
     .regex(/^[a-zA-Z]{2}$/, "Country must be a 2-letter ISO code"),
+  appAppleId: z.number().int().positive().optional(),
 });
 
 export async function POST(request: Request) {
@@ -16,7 +17,7 @@ export async function POST(request: Request) {
   if (parsed instanceof Response) return parsed;
 
   try {
-    const score = await scoreKeyword(parsed.keyword, parsed.country);
+    const score = await scoreKeyword(parsed.keyword, parsed.country, parsed.appAppleId);
     return NextResponse.json({ score });
   } catch (err) {
     return errorJson(err);

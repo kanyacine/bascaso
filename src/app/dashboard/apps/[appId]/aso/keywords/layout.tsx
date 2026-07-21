@@ -11,6 +11,7 @@ import { useTranslations } from "@/lib/i18n/locale-context";
 const TAB_KEYS = [
   { key: "keywords.myLocales" as const, segment: "" },
   { key: "keywords.storefronts" as const, segment: "/storefront" },
+  { key: "keywords.research" as const, segment: "/research" },
 ];
 
 export default function KeywordsLayout({

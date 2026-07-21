@@ -43,7 +43,8 @@ function init() {
     "CREATE TABLE IF NOT EXISTS app_preferences (key text PRIMARY KEY NOT NULL, value text NOT NULL)",
     "CREATE TABLE IF NOT EXISTS pending_changes (id text PRIMARY KEY NOT NULL, app_id text NOT NULL, section text NOT NULL, scope text NOT NULL, field text NOT NULL, value text NOT NULL, original_value text, created_at text NOT NULL, updated_at text NOT NULL)",
     "CREATE TABLE IF NOT EXISTS app_markers (id text PRIMARY KEY NOT NULL, app_id text NOT NULL, date text NOT NULL, label text NOT NULL, color text, created_at text NOT NULL)",
-    "CREATE TABLE IF NOT EXISTS keyword_scores (keyword text NOT NULL, country text NOT NULL, popularity integer, difficulty integer NOT NULL, opportunity integer NOT NULL, classification text NOT NULL, fetched_at integer NOT NULL, PRIMARY KEY(keyword, country))",
+    "CREATE TABLE IF NOT EXISTS keyword_scores (keyword text NOT NULL, country text NOT NULL, popularity integer, difficulty integer NOT NULL, opportunity integer NOT NULL, classification text NOT NULL, fetched_at integer NOT NULL, result_ids text, PRIMARY KEY(keyword, country))",
+    "ALTER TABLE keyword_scores ADD COLUMN result_ids text",
   ];
   for (const stmt of safeguardStatements) {
     try { _sqlite.exec(stmt); } catch { /* already applied */ }

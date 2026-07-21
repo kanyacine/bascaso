@@ -38,7 +38,27 @@ describe("POST /api/aso/scores", () => {
 
     expect(res.status).toBe(200);
     expect(data.score).toEqual(score);
-    expect(mockScoreKeyword).toHaveBeenCalledWith("meditation", "fr");
+    expect(mockScoreKeyword).toHaveBeenCalledWith("meditation", "fr", undefined);
+  });
+
+  it("forwards an optional numeric app id for ranking", async () => {
+    mockScoreKeyword.mockResolvedValue({ rank: 3 });
+
+    const res = await POST(
+      request({ keyword: "meditation", country: "fr", appAppleId: 123456 }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(mockScoreKeyword).toHaveBeenCalledWith("meditation", "fr", 123456);
+  });
+
+  it("rejects a non-positive app id", async () => {
+    const res = await POST(
+      request({ keyword: "meditation", country: "fr", appAppleId: -5 }),
+    );
+
+    expect(res.status).toBe(400);
+    expect(mockScoreKeyword).not.toHaveBeenCalled();
   });
 
   it("rejects a missing keyword", async () => {

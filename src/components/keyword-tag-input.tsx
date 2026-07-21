@@ -25,6 +25,9 @@ export type TagScore =
       popularity: number | null;
       difficulty: number;
       classification: string;
+      /** 1-based App Store rank of the current app; only fetched by views
+       *  that pass an app id (research tab). */
+      rank?: number | null;
     };
 
 interface KeywordTagInputProps {
@@ -34,7 +37,7 @@ interface KeywordTagInputProps {
   getTagScore?: (tag: string) => TagScore | undefined;
 }
 
-const TONE_CLASSES: Record<OpportunityTone, string> = {
+export const TONE_CLASSES: Record<OpportunityTone, string> = {
   green: "bg-green-500/15 text-green-600 dark:text-green-400",
   amber: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
   red: "bg-red-500/15 text-red-600 dark:text-red-400",

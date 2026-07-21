@@ -24,6 +24,7 @@ import { ItunesRateLimited, SearchApiUnavailableError } from "@/lib/aso/itunes";
 
 const competitors = [
   {
+    trackId: 111,
     trackName: "Meditation App",
     userRatingCount: 50_000,
     averageUserRating: 4.7,
@@ -32,6 +33,7 @@ const competitors = [
     sellerName: "ZenCo",
   },
   {
+    trackId: 222,
     trackName: "Calm Meditation",
     userRatingCount: 30_000,
     averageUserRating: 4.6,
@@ -161,6 +163,52 @@ describe("scoreKeyword", () => {
     await vi.advanceTimersByTimeAsync(60_000);
     const rows = testDb.select().from(keywordScores).all();
     expect(rows[0].fetchedAt).toBe(staleFetchedAt); // refresh failed, row kept
+  });
+
+  it("returns the app's 1-based rank on fresh compute and stores result ids", async () => {
+    // SSR-fallback competitors can lack a trackId – they are skipped in ranks.
+    mockSearchApps.mockResolvedValue([
+      ...competitors,
+      { trackName: "No Id App", userRatingCount: 10 },
+    ]);
+    const score = await settle(scoreKeyword("meditation", "fr", 222));
+
+    expect(score.rank).toBe(2);
+    const rows = testDb.select().from(keywordScores).all();
+    expect(JSON.parse(rows[0].resultIds ?? "")).toEqual([111, 222]);
+  });
+
+  it("computes rank from the cached row without calling iTunes", async () => {
+    await settle(scoreKeyword("meditation", "fr"));
+    mockSearchApps.mockClear();
+
+    const score = await settle(scoreKeyword("meditation", "fr", 111));
+
+    expect(mockSearchApps).not.toHaveBeenCalled();
+    expect(score.rank).toBe(1);
+  });
+
+  it("returns a null rank without an app id, when the app is absent, and on legacy rows", async () => {
+    const noApp = await settle(scoreKeyword("meditation", "fr"));
+    expect(noApp.rank).toBeNull();
+
+    const absent = await settle(scoreKeyword("meditation", "fr", 999));
+    expect(absent.rank).toBeNull();
+
+    testDb
+      .insert(keywordScores)
+      .values({
+        keyword: "legacy",
+        country: "fr",
+        popularity: 40,
+        difficulty: 50,
+        opportunity: 30,
+        classification: "Moderate",
+        fetchedAt: Date.now(),
+      })
+      .run();
+    const legacy = await settle(scoreKeyword("legacy", "fr", 111));
+    expect(legacy.rank).toBeNull();
   });
 
   it("propagates search unavailability", async () => {
