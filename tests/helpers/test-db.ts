@@ -58,6 +58,7 @@ export function createTestDb() {
       classification TEXT NOT NULL,
       fetched_at INTEGER NOT NULL,
       result_ids TEXT,
+      details TEXT,
       PRIMARY KEY (keyword, country)
     );
 

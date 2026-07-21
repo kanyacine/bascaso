@@ -1,10 +1,13 @@
 // Ported from respectaso aso/services.py – PopularityEstimator,
 // DifficultyCalculator and their shared title-evidence helpers. Every
 // numeric path mirrors the Python reference; parity is enforced by
-// tests/unit/aso/parity.test.ts against vectors generated from the
-// original code (scripts/gen-aso-parity-vectors.py).
-// ponytail: insights, opportunity signals, ranking tiers and download
-// estimates are not ported – the keyword badge only needs the scores.
+// tests/unit/aso/parity.test.ts and tests/unit/aso/ranking-tiers.test.ts
+// against vectors generated from the original code
+// (scripts/gen-aso-parity-vectors.py).
+// ponytail: insights, opportunity signals and download estimates are not
+// ported – the keyword badge only needs the scores. Ranking tiers (top
+// 5/10/20 difficulty) ARE ported, but their `highlights` field (English
+// prose bullets) is intentionally not – the badge only needs the numbers.
 
 /** App dict shape produced by the iTunes Search API (subset we score on). */
 export interface CompetitorApp {
@@ -280,6 +283,25 @@ export type OverrideReason = "small_result_set" | "weak_leader" | "backfill";
 export type DifficultyInterpretation =
   | "No Data" | "Very Easy" | "Easy" | "Moderate" | "Hard" | "Very Hard" | "Extreme";
 
+/** Ranking-tier difficulty breakdown (top 5 / top 10 / top 20). */
+export interface RankingTier {
+  minReviews: number;
+  weakestApp: string;
+  medianReviews: number;
+  weakCount: number;
+  freshCount: number;
+  titleKeywordCount: number;
+  totalApps: number;
+  tierScore: number;
+  label: string;
+}
+
+export interface RankingTiers {
+  top5: RankingTier;
+  top10: RankingTier;
+  top20: RankingTier;
+}
+
 export interface DifficultyBreakdown {
   totalScore: number;
   rawTotal: number;
@@ -297,6 +319,7 @@ export interface DifficultyBreakdown {
   titleMatchCount: number;
   medianReviews: number;
   avgReviews: number;
+  rankingTiers: RankingTiers;
 }
 
 const RATING_VOLUME_BANDS: readonly Band[] = [
@@ -370,13 +393,24 @@ interface RawSubScores {
   titleMatchCount: number;
   medianReviews: number;
   avgReviews: number;
+  ratingCounts: number[];
 }
 
-/** The 7 weighted sub-scores and raw total, before backfill overrides. */
+/**
+ * The 7 weighted sub-scores and raw total, before backfill overrides.
+ *
+ * `fullResultCount` mirrors Python's `full_result_count`: when given, the
+ * small-sample dampening ramps on this count instead of `competitors.length`.
+ * Ranking tiers pass the FULL competitor count here so a top-5/10/20 slice
+ * dampens on the keyword's overall result volume, not the deliberate slice
+ * size. Omitted (as by every existing caller) it defaults to `n`, so
+ * behaviour is unchanged for the overall difficulty score.
+ */
 function computeRawDifficulty(
   competitors: CompetitorApp[],
   kwLower: string,
   now: Date,
+  fullResultCount?: number,
 ): { rawTotal: number; subs: RawSubScores } {
   const n = competitors.length;
 
@@ -440,7 +474,8 @@ function computeRawDifficulty(
   let titleRelevance = Math.min(100, (titleMatchCount / n) * 100);
 
   // Small sample dampening – ratio sub-scores ramp to full strength at n=10.
-  const sampleDampening = Math.min(1, n / 10);
+  const dampeningN = fullResultCount ?? n;
+  const sampleDampening = Math.min(1, dampeningN / 10);
   publisherDiversity *= sampleDampening;
   titleRelevance *= sampleDampening;
   dominantPlayers *= sampleDampening;
@@ -481,6 +516,7 @@ function computeRawDifficulty(
       titleMatchCount,
       medianReviews: Math.trunc(medianRatings),
       avgReviews: Math.trunc(avgRatings),
+      ratingCounts,
     },
   };
 }
@@ -493,6 +529,161 @@ const interpret = (total: number): DifficultyInterpretation => {
   if (total <= 90) return "Very Hard";
   return "Extreme";
 };
+
+/** Wide-open default used for every tier when there are no competitors. */
+const emptyRankingTier = (): RankingTier => ({
+  minReviews: 0,
+  weakestApp: "—",
+  medianReviews: 0,
+  weakCount: 0,
+  freshCount: 0,
+  titleKeywordCount: 0,
+  totalApps: 0,
+  tierScore: 0,
+  label: "Easy",
+});
+
+/** Apps within a tier released in the last 12 months (unparseable/blank release dates don't count). */
+function tierFreshCount(tierApps: CompetitorApp[], now: Date): number {
+  let fresh = 0;
+  for (const c of tierApps) {
+    if (!c.releaseDate) continue;
+    const released = parseDate(c.releaseDate);
+    if (released && daysBetween(now, released) < 365) fresh++;
+  }
+  return fresh;
+}
+
+/**
+ * Weak-leader cap and backfill discount for a single tier's raw score,
+ * using the OVERALL (not per-tier) match ratio, leader reviews and brand
+ * flag – the same keyword-level signals the overall score is corrected
+ * with, so tiers never look harder than the overall difficulty implies.
+ * Skipped entirely for an empty/blank keyword or when the keyword's full
+ * result set has fewer than 2 competitors (ratio signals are meaningless).
+ */
+function applyTierOverrides(
+  rawTierScore: number,
+  kwLower: string,
+  fullResultCount: number,
+  overallMatchRatio: number,
+  overallLeaderReviews: number,
+  isBrandKeyword: boolean,
+): number {
+  let tierScore = rawTierScore;
+
+  if (kwLower && fullResultCount >= 2) {
+    let tierCap: number | null = null;
+    if (overallLeaderReviews < 1_000 && !isBrandKeyword) {
+      tierCap = Math.trunc(
+        15 + (35 * Math.log10(overallLeaderReviews + 1)) / Math.log10(1001),
+      );
+    }
+    if (tierCap !== null && tierScore > tierCap) {
+      tierScore =
+        overallMatchRatio > 0.2
+          ? Math.trunc(tierCap + (tierScore - tierCap) * overallMatchRatio)
+          : tierCap;
+    }
+
+    if (overallMatchRatio < 0.2 && overallLeaderReviews < 1_000 && !isBrandKeyword) {
+      const ratioFactor = Math.min(1, 0.6 + 2 * overallMatchRatio);
+      const leaderFactor = Math.log10(overallLeaderReviews + 1) / Math.log10(1001);
+      const discount = Math.max(
+        0.6,
+        Math.min(1, ratioFactor + (1 - ratioFactor) * leaderFactor),
+      );
+      tierScore = Math.max(1, Math.trunc(tierScore * discount));
+    }
+  }
+
+  return Math.max(1, Math.min(100, tierScore));
+}
+
+const TIER_SIZES: readonly [key: keyof RankingTiers, size: number][] = [
+  ["top5", 5],
+  ["top10", 10],
+  ["top20", 20],
+];
+
+/**
+ * Ranking tier analysis for Top 5 / Top 10 / Top 20: runs the same
+ * difficulty algorithm on each tier's competitor subset (dampened on the
+ * FULL competitor count, not the slice size), corrects each tier with the
+ * OVERALL match ratio/leader reviews/brand signal, then floors every tier
+ * to at least the overall difficulty and enforces that a larger tier can
+ * never be harder than a smaller one (Top 5 ⊂ Top 10 ⊂ Top 20).
+ *
+ * Only called with a non-empty `competitors` list, so every tier slice has
+ * at least one app – the Python n==0 per-tier branch is instead reproduced
+ * directly by callers via `emptyRankingTier()` for the whole-list-empty case.
+ */
+function computeRankingTiers(
+  competitors: CompetitorApp[],
+  kwLower: string,
+  now: Date,
+  overallScore: number,
+  overallMatchRatio: number,
+  overallLeaderReviews: number,
+  isBrandKeyword: boolean,
+): RankingTiers {
+  const fullResultCount = competitors.length;
+  const scores = {} as Record<keyof RankingTiers, number>;
+  const rest = {} as Record<keyof RankingTiers, Omit<RankingTier, "tierScore" | "label">>;
+
+  for (const [key, size] of TIER_SIZES) {
+    const tierApps = competitors.slice(0, size);
+    const { rawTotal, subs } = computeRawDifficulty(tierApps, kwLower, now, fullResultCount);
+
+    scores[key] = applyTierOverrides(
+      rawTotal,
+      kwLower,
+      fullResultCount,
+      overallMatchRatio,
+      overallLeaderReviews,
+      isBrandKeyword,
+    );
+
+    const { ratingCounts } = subs;
+    const minReviews = Math.min(...ratingCounts);
+    const minIndex = ratingCounts.indexOf(minReviews);
+
+    rest[key] = {
+      minReviews,
+      weakestApp: tierApps[minIndex]?.trackName ?? "Unknown",
+      medianReviews: subs.medianReviews,
+      weakCount: ratingCounts.filter((r) => r < 1_000).length,
+      freshCount: tierFreshCount(tierApps, now),
+      titleKeywordCount: subs.titleMatchCount,
+      totalApps: tierApps.length,
+    };
+  }
+
+  // Floor: every tier must be ≥ overall difficulty (Top-N ⊂ All, so it's
+  // always at least as hard to break into a tier as to compete at all).
+  // `overallScore` is always ≥ 1 here (calculateDifficulty clamps it), so
+  // the floor always applies – no need to special-case a zero score.
+  for (const [key] of TIER_SIZES) {
+    if (scores[key] < overallScore) scores[key] = overallScore;
+  }
+
+  // Monotonicity: a larger tier can never be harder than a smaller one.
+  if (scores.top10 > scores.top5) scores.top10 = scores.top5;
+  if (scores.top20 > scores.top10) scores.top20 = scores.top10;
+
+  // Labelling from the final (floored, monotonic) score alone is exactly
+  // equivalent to Python's re-label-then-cap-label dance: `_score_to_label`
+  // is monotonic non-decreasing, so capping a tier's score down to a
+  // smaller tier's score always yields the same label capping its
+  // (already re-labelled) label would have produced.
+  const build = (key: keyof RankingTiers): RankingTier => ({
+    ...rest[key],
+    tierScore: scores[key],
+    label: interpret(scores[key]),
+  });
+
+  return { top5: build("top5"), top10: build("top10"), top20: build("top20") };
+}
 
 /**
  * Calculate keyword difficulty (1-100) from competitor data, with
@@ -526,6 +717,11 @@ export function calculateDifficulty(
         titleMatchCount: 0,
         medianReviews: 0,
         avgReviews: 0,
+        rankingTiers: {
+          top5: emptyRankingTier(),
+          top10: emptyRankingTier(),
+          top20: emptyRankingTier(),
+        },
       },
     };
   }
@@ -587,6 +783,19 @@ export function calculateDifficulty(
 
   total = Math.max(1, Math.min(100, total));
 
+  // Ranking tier analysis reuses the FINAL (post-override) total and the
+  // same overall match ratio / leader reviews / brand signal used above,
+  // exactly like the Python call site in calculate().
+  const rankingTiers = computeRankingTiers(
+    competitors,
+    kwLower,
+    now,
+    total,
+    matchRatio,
+    leaderReviews,
+    isBrand,
+  );
+
   return {
     total,
     breakdown: {
@@ -606,6 +815,7 @@ export function calculateDifficulty(
       titleMatchCount: subs.titleMatchCount,
       medianReviews: subs.medianReviews,
       avgReviews: subs.avgReviews,
+      rankingTiers,
     },
   };
 }

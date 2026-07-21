@@ -44,6 +44,7 @@ import {
   opportunityTone,
   popularityTone,
   rankTone,
+  TONE_TEXT,
   type ScoreTone,
 } from "@/lib/aso/score-display";
 import { storefrontCountryCode } from "@/lib/aso/storefront-country";
@@ -52,6 +53,7 @@ import { useKeywordScores } from "@/lib/hooks/use-keyword-scores";
 import { usePersistedState } from "@/lib/hooks/use-persisted-range";
 import { useTranslations } from "@/lib/i18n/locale-context";
 import { cn } from "@/lib/utils";
+import { DifficultyDetail } from "../_components/difficulty-detail";
 import { useKeywords } from "../_components/keywords-context";
 import { StorefrontPicker } from "../_components/storefront-picker";
 
@@ -63,20 +65,6 @@ const HEADERS = [
   { column: "classification", label: "keywords.researchVerdict", tooltip: "keywords.researchVerdictTooltip" },
   { column: "rank", label: "keywords.researchRank", tooltip: "keywords.researchRankTooltip" },
 ] as const;
-
-// Theme-aware text classes for the respectaso score tones.
-const TONE_TEXT: Record<ScoreTone, string> = {
-  darkGreen: "text-green-700 dark:text-green-500",
-  green: "text-green-600 dark:text-green-400",
-  lightGreen: "text-green-500 dark:text-green-300",
-  yellow: "text-yellow-600 dark:text-yellow-400",
-  amber: "text-amber-600 dark:text-amber-400",
-  orange: "text-orange-600 dark:text-orange-400",
-  red: "text-red-600 dark:text-red-400",
-  darkRed: "text-red-700 dark:text-red-300",
-  blue: "text-blue-600 dark:text-blue-400",
-  muted: "text-muted-foreground",
-};
 
 // The classification labels themselves stay in English (API values).
 const VERDICT_TOOLTIPS = {
@@ -121,9 +109,10 @@ export default function KeywordsResearchPage() {
 
   // Demo apps have non-numeric ids – rank stays unavailable there.
   const appleId = Number(app?.id);
+  const country = storefrontCountryCode(storefront);
   const getTagScore = useKeywordScores(
     keywords,
-    storefrontCountryCode(storefront),
+    country,
     Number.isInteger(appleId) && appleId > 0 ? appleId : undefined,
   );
 
@@ -241,6 +230,7 @@ export default function KeywordsResearchPage() {
                     key={keyword}
                     keyword={keyword}
                     score={score}
+                    country={country ?? "us"}
                     readOnly={readOnly}
                     locales={editedLocalizations}
                     onAddToLocale={addToLocale}
@@ -259,6 +249,7 @@ export default function KeywordsResearchPage() {
 function ResearchRow({
   keyword,
   score,
+  country,
   readOnly,
   locales,
   onAddToLocale,
@@ -266,6 +257,7 @@ function ResearchRow({
 }: {
   keyword: string;
   score: TagScore | undefined;
+  country: string;
   readOnly: boolean;
   locales: { attributes: { locale: string; keywords: string | null } }[];
   onAddToLocale: (locale: string, current: string | null, keyword: string) => void;
@@ -295,7 +287,26 @@ function ResearchRow({
         {cell(done?.popularity, popularityTone(done?.popularity ?? null))}
       </TableCell>
       <TableCell className="text-center text-sm">
-        {cell(done?.difficulty, difficultyTone(done?.difficulty ?? 0))}
+        {done ? (
+          <DifficultyDetail
+            breakdown={done.details ?? null}
+            popularity={done.popularity}
+            country={country}
+            rank={done.rank ?? null}
+          >
+            <button
+              type="button"
+              className={cn(
+                "cursor-pointer tabular-nums font-medium underline decoration-dotted underline-offset-4",
+                TONE_TEXT[difficultyTone(done.difficulty)],
+              )}
+            >
+              {done.difficulty}
+            </button>
+          </DifficultyDetail>
+        ) : (
+          cell(undefined, "muted")
+        )}
       </TableCell>
       <TableCell className="text-center text-sm">
         {score?.status === "error" ? (

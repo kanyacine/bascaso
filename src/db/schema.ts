@@ -96,6 +96,7 @@ export const keywordScores = sqliteTable(
     classification: text("classification").notNull(),
     fetchedAt: integer("fetched_at").notNull(), // epoch ms, like cache_entries
     resultIds: text("result_ids"), // JSON array of ranked iTunes track ids
+    details: text("details"), // JSON DifficultyBreakdown (sub-scores, tiers…)
   },
   (t) => [primaryKey({ columns: [t.keyword, t.country] })],
 );

@@ -64,6 +64,20 @@ export function rankTone(rank: number | null): ScoreTone {
   return rank <= 10 ? "green" : "yellow";
 }
 
+/** Theme-aware text classes for the respectaso score tones. */
+export const TONE_TEXT: Record<ScoreTone, string> = {
+  darkGreen: "text-green-700 dark:text-green-500",
+  green: "text-green-600 dark:text-green-400",
+  lightGreen: "text-green-500 dark:text-green-300",
+  yellow: "text-yellow-600 dark:text-yellow-400",
+  amber: "text-amber-600 dark:text-amber-400",
+  orange: "text-orange-600 dark:text-orange-400",
+  red: "text-red-600 dark:text-red-400",
+  darkRed: "text-red-700 dark:text-red-300",
+  blue: "text-blue-600 dark:text-blue-400",
+  muted: "text-muted-foreground",
+};
+
 /** Client-side mirror of the server keyword normalization. */
 export function normalizeKeyword(keyword: string): string {
   return keyword.trim().toLowerCase();

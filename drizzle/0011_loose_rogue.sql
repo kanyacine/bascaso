@@ -1,0 +1,1 @@
+ALTER TABLE `keyword_scores` ADD `details` text;

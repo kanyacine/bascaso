@@ -78,6 +78,13 @@
       "when": 1784666724245,
       "tag": "0010_elite_firebrand",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1784671953594,
+      "tag": "0011_loose_rogue",
+      "breakpoints": true
     }
   ]
 }

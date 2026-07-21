@@ -276,18 +276,29 @@ DIFF_FIELDS = [
     "title_match_count", "median_reviews", "avg_reviews",
 ]
 
+TIER_FIELDS = [
+    "min_reviews", "weakest_app", "median_reviews", "weak_count",
+    "fresh_count", "title_keyword_count", "total_apps", "tier_score", "label",
+]
+
 out = {"frozen_now": FROZEN_NOW.isoformat(), "cases": []}
 for name, fx in FIXTURES.items():
     kw, comps = fx["keyword"], fx["competitors"]
     popularity = pop.estimate(comps, kw)
     total, breakdown = diff.calculate(comps, kw)
     expected_diff = {k: breakdown.get(k) for k in DIFF_FIELDS}
+    # highlights are English prose bullets – not ported, stripped here.
+    expected_tiers = {
+        tier: {k: data[k] for k in TIER_FIELDS}
+        for tier, data in breakdown["ranking_tiers"].items()
+    }
     out["cases"].append({
         "name": name,
         "keyword": kw,
         "competitors": comps,
         "expected_popularity": popularity,
         "expected_difficulty": expected_diff,
+        "expected_ranking_tiers": expected_tiers,
         "expected_opportunity": scoring.calc_opportunity(popularity or 0, total),
         "expected_classification": scoring.classify_keyword(popularity or 0, total),
     })
@@ -302,6 +313,19 @@ out["cases"].append({
     "expected_opportunity": 0,
     "expected_classification": "Low Volume",
 })
+
+# Download estimates: pure function of (popularity, country) – exercise the
+# interpolation ends, the market table (incl. unknown-country default) and
+# the None/0 guard.
+dl = services.DownloadEstimator()
+out["download_cases"] = []
+for popularity in [None, 0, 3, 5, 17, 42, 68, 75, 88, 100]:
+    for country in ["us", "fr", "de", "jp", "zz"]:
+        out["download_cases"].append({
+            "popularity": popularity,
+            "country": country,
+            "expected": dl.estimate(popularity, country),
+        })
 
 path = sys.argv[1] if len(sys.argv) > 1 else "parity-vectors.json"
 with open(path, "w") as f:

@@ -5,7 +5,11 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { keywordScores } from "@/db/schema";
-import { calculateDifficulty, estimatePopularity } from "./estimators";
+import {
+  calculateDifficulty,
+  estimatePopularity,
+  type DifficultyBreakdown,
+} from "./estimators";
 import {
   calcOpportunity,
   classifyKeyword,
@@ -28,6 +32,8 @@ export interface KeywordScore {
    *  when no app id was given, the app is unranked, or the row predates
    *  result id storage. */
   rank: number | null;
+  /** Full difficulty breakdown (sub-scores, tiers…); null on legacy rows. */
+  details: DifficultyBreakdown | null;
 }
 
 function rankIn(resultIds: number[] | null, appAppleId?: number): number | null {
@@ -72,23 +78,28 @@ async function computeAndStore(
 ): Promise<{ base: Omit<KeywordScore, "rank">; ids: number[] }> {
   const apps = await pacedSearch(keyword, country);
   const popularity = estimatePopularity(apps, keyword);
-  const { total: difficulty } = calculateDifficulty(apps, keyword);
+  const { total: difficulty, breakdown } = calculateDifficulty(apps, keyword);
   const opportunity = calcOpportunity(popularity ?? 0, difficulty);
   const classification = classifyKeyword(popularity ?? 0, difficulty);
   const fetchedAt = Date.now();
   const ids = apps.map((a) => a.trackId).filter((id): id is number => id != null);
   const resultIds = JSON.stringify(ids);
+  const details = JSON.stringify(breakdown);
 
   db.insert(keywordScores)
-    .values({ keyword, country, popularity, difficulty, opportunity, classification, fetchedAt, resultIds })
+    .values({ keyword, country, popularity, difficulty, opportunity, classification, fetchedAt, resultIds, details })
     .onConflictDoUpdate({
       target: [keywordScores.keyword, keywordScores.country],
-      set: { popularity, difficulty, opportunity, classification, fetchedAt, resultIds },
+      set: { popularity, difficulty, opportunity, classification, fetchedAt, resultIds, details },
     })
     .run();
 
   return {
-    base: { keyword, country, popularity, difficulty, opportunity, classification, fetchedAt, stale: false },
+    base: {
+      keyword, country, popularity, difficulty, opportunity, classification, fetchedAt,
+      stale: false,
+      details: breakdown,
+    },
     ids,
   };
 }
@@ -146,6 +157,7 @@ export async function scoreKeyword(
       fetchedAt: row.fetchedAt,
       stale,
       rank: rankIn(row.resultIds ? (JSON.parse(row.resultIds) as number[]) : null, appAppleId),
+      details: row.details ? (JSON.parse(row.details) as DifficultyBreakdown) : null,
     };
   }
 

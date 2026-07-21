@@ -211,6 +211,38 @@ describe("scoreKeyword", () => {
     expect(legacy.rank).toBeNull();
   });
 
+  it("stores and returns the difficulty breakdown as details", async () => {
+    const fresh = await settle(scoreKeyword("meditation", "fr"));
+    expect(fresh.details?.totalScore).toBe(fresh.difficulty);
+
+    const rows = testDb.select().from(keywordScores).all();
+    expect(JSON.parse(rows[0].details ?? "").totalScore).toBe(fresh.difficulty);
+
+    // Served from cache with the same details
+    mockSearchApps.mockClear();
+    const cached = await settle(scoreKeyword("meditation", "fr"));
+    expect(mockSearchApps).not.toHaveBeenCalled();
+    expect(cached.details?.totalScore).toBe(fresh.difficulty);
+  });
+
+  it("returns null details on legacy rows", async () => {
+    testDb
+      .insert(keywordScores)
+      .values({
+        keyword: "legacy",
+        country: "fr",
+        popularity: 40,
+        difficulty: 50,
+        opportunity: 30,
+        classification: "Moderate",
+        fetchedAt: Date.now(),
+      })
+      .run();
+
+    const score = await settle(scoreKeyword("legacy", "fr"));
+    expect(score.details).toBeNull();
+  });
+
   it("propagates search unavailability", async () => {
     mockSearchApps.mockRejectedValue(new SearchApiUnavailableError("down"));
 

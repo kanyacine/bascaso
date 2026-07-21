@@ -28,6 +28,8 @@ export type TagScore =
       /** 1-based App Store rank of the current app; only fetched by views
        *  that pass an app id (research tab). */
       rank?: number | null;
+      /** Difficulty breakdown for detail views; null on legacy cache rows. */
+      details?: import("@/lib/aso/estimators").DifficultyBreakdown | null;
     };
 
 interface KeywordTagInputProps {
