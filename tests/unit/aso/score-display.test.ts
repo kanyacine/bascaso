@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { normalizeKeyword, opportunityTone } from "@/lib/aso/score-display";
+import {
+  classificationTone,
+  difficultyTone,
+  normalizeKeyword,
+  opportunityTone,
+  popularityTone,
+  rankTone,
+} from "@/lib/aso/score-display";
 
 describe("opportunityTone", () => {
   it("is green from 55 up", () => {
@@ -15,6 +22,73 @@ describe("opportunityTone", () => {
   it("is red at 25 and below", () => {
     expect(opportunityTone(25)).toBe("red");
     expect(opportunityTone(0)).toBe("red");
+  });
+});
+
+// Popularity bands mirror the respectaso methodology legend
+// (50+ excellent, 30-49 good, 15-29 moderate, 5-14 low, <5 minimal).
+describe("popularityTone", () => {
+  it("maps the respectaso popularity bands", () => {
+    expect(popularityTone(100)).toBe("green");
+    expect(popularityTone(50)).toBe("green");
+    expect(popularityTone(49)).toBe("lightGreen");
+    expect(popularityTone(30)).toBe("lightGreen");
+    expect(popularityTone(29)).toBe("yellow");
+    expect(popularityTone(15)).toBe("yellow");
+    expect(popularityTone(14)).toBe("orange");
+    expect(popularityTone(5)).toBe("orange");
+    expect(popularityTone(4)).toBe("red");
+  });
+
+  it("is muted when popularity is unknown", () => {
+    expect(popularityTone(null)).toBe("muted");
+  });
+});
+
+// Difficulty bands mirror respectaso's difficulty_color property
+// (≤15, ≤35, ≤55, ≤75, ≤90, else) – lower is better.
+describe("difficultyTone", () => {
+  it("maps the respectaso difficulty bands", () => {
+    expect(difficultyTone(0)).toBe("green");
+    expect(difficultyTone(15)).toBe("green");
+    expect(difficultyTone(16)).toBe("lightGreen");
+    expect(difficultyTone(35)).toBe("lightGreen");
+    expect(difficultyTone(36)).toBe("yellow");
+    expect(difficultyTone(55)).toBe("yellow");
+    expect(difficultyTone(56)).toBe("orange");
+    expect(difficultyTone(75)).toBe("orange");
+    expect(difficultyTone(76)).toBe("red");
+    expect(difficultyTone(90)).toBe("red");
+    expect(difficultyTone(91)).toBe("darkRed");
+  });
+});
+
+// Verdict colors mirror respectaso's insight map (green targets,
+// blue hidden gem, yellow high competition, red avoid, neutral rest).
+describe("classificationTone", () => {
+  it("maps each classification label", () => {
+    expect(classificationTone("Sweet Spot")).toBe("green");
+    expect(classificationTone("Good Target")).toBe("green");
+    expect(classificationTone("Hidden Gem")).toBe("blue");
+    expect(classificationTone("High Competition")).toBe("yellow");
+    expect(classificationTone("Moderate")).toBe("muted");
+    expect(classificationTone("Low Volume")).toBe("muted");
+    expect(classificationTone("Avoid")).toBe("red");
+  });
+
+  it("is muted for unknown labels", () => {
+    expect(classificationTone("Something Else")).toBe("muted");
+  });
+});
+
+describe("rankTone", () => {
+  it("is green in the top 10, yellow to 50, muted beyond or unranked", () => {
+    expect(rankTone(1)).toBe("green");
+    expect(rankTone(10)).toBe("green");
+    expect(rankTone(11)).toBe("yellow");
+    expect(rankTone(50)).toBe("yellow");
+    expect(rankTone(51)).toBe("muted");
+    expect(rankTone(null)).toBe("muted");
   });
 });
 

@@ -163,6 +163,34 @@ describe("compareResearchRows", () => {
     });
   });
 
+  describe("classification column", () => {
+    it("sorts by verdict quality, best first when descending", () => {
+      const rows = [
+        row("moderate", doneScore({ classification: "Moderate" })),
+        row("avoid", doneScore({ classification: "Avoid" })),
+        row("sweet", doneScore({ classification: "Sweet Spot" })),
+        row("gem", doneScore({ classification: "Hidden Gem" })),
+        row("target", doneScore({ classification: "Good Target" })),
+        row("competition", doneScore({ classification: "High Competition" })),
+        row("volume", doneScore({ classification: "Low Volume" })),
+      ];
+      rows.sort(compareResearchRows("classification", "desc"));
+      expect(rows.map((r) => r.keyword)).toEqual([
+        "sweet", "gem", "target", "moderate", "volume", "competition", "avoid",
+      ]);
+    });
+
+    it("sorts worst first when ascending and keeps unscored rows last", () => {
+      const rows = [
+        row("sweet", doneScore({ classification: "Sweet Spot" })),
+        row("pending", { status: "loading" }),
+        row("avoid", doneScore({ classification: "Avoid" })),
+      ];
+      rows.sort(compareResearchRows("classification", "asc"));
+      expect(rows.map((r) => r.keyword)).toEqual(["avoid", "sweet", "pending"]);
+    });
+  });
+
   describe("popularity column", () => {
     it("treats a null popularity (even on a done row) as missing", () => {
       const rows = [

@@ -51,7 +51,19 @@ export type ResearchSortColumn =
   | "popularity"
   | "difficulty"
   | "opportunity"
+  | "classification"
   | "rank";
+
+// Verdict quality order, worst to best – index is the sort value.
+const CLASSIFICATION_ORDER = [
+  "Avoid",
+  "High Competition",
+  "Low Volume",
+  "Moderate",
+  "Good Target",
+  "Hidden Gem",
+  "Sweet Spot",
+];
 
 export interface ResearchRow {
   keyword: string;
@@ -67,6 +79,8 @@ function numericValue(row: ResearchRow, column: NumericColumn): number | null {
   if (column === "popularity") return score.popularity;
   if (column === "difficulty") return score.difficulty;
   if (column === "opportunity") return score.opportunity;
+  if (column === "classification")
+    return CLASSIFICATION_ORDER.indexOf(score.classification);
   // column === "rank": rank 1 is best, so plain ascending numeric order is
   // already "best first" – no inversion needed here.
   return score.rank ?? null;

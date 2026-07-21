@@ -3,7 +3,7 @@
 import { useMemo, useState, type KeyboardEvent } from "react";
 import { useParams } from "next/navigation";
 import { toast } from "sonner";
-import { CaretDown, CaretUp, Info, Plus, X } from "@phosphor-icons/react";
+import { CaretDown, CaretUp, Plus, X } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -38,7 +38,14 @@ import {
   parseResearchInput,
   type ResearchSortColumn,
 } from "@/lib/aso/research";
-import { opportunityTone } from "@/lib/aso/score-display";
+import {
+  classificationTone,
+  difficultyTone,
+  opportunityTone,
+  popularityTone,
+  rankTone,
+  type ScoreTone,
+} from "@/lib/aso/score-display";
 import { storefrontCountryCode } from "@/lib/aso/storefront-country";
 import { storefrontsByLocale } from "@/lib/asc/storefronts";
 import { useKeywordScores } from "@/lib/hooks/use-keyword-scores";
@@ -48,12 +55,26 @@ import { cn } from "@/lib/utils";
 import { useKeywords } from "../_components/keywords-context";
 import { StorefrontPicker } from "../_components/storefront-picker";
 
-const SORTABLE = [
-  { column: "keyword", key: "keywords.researchKeyword" },
-  { column: "popularity", key: "keywords.scorePopularity" },
-  { column: "difficulty", key: "keywords.scoreDifficulty" },
-  { column: "opportunity", key: "keywords.scoreOpportunity" },
+const HEADERS = [
+  { column: "keyword", label: "keywords.researchKeyword", tooltip: null },
+  { column: "popularity", label: "keywords.scorePopularity", tooltip: "keywords.researchPopularityTooltip" },
+  { column: "difficulty", label: "keywords.scoreDifficulty", tooltip: "keywords.researchDifficultyTooltip" },
+  { column: "opportunity", label: "keywords.scoreOpportunity", tooltip: "keywords.researchOpportunityTooltip" },
+  { column: "classification", label: "keywords.researchVerdict", tooltip: "keywords.researchVerdictTooltip" },
+  { column: "rank", label: "keywords.researchRank", tooltip: "keywords.researchRankTooltip" },
 ] as const;
+
+// Theme-aware text classes for the respectaso score tones.
+const TONE_TEXT: Record<ScoreTone, string> = {
+  green: "text-green-600 dark:text-green-400",
+  lightGreen: "text-green-500 dark:text-green-300",
+  yellow: "text-yellow-600 dark:text-yellow-400",
+  orange: "text-orange-600 dark:text-orange-400",
+  red: "text-red-600 dark:text-red-400",
+  darkRed: "text-red-700 dark:text-red-300",
+  blue: "text-blue-600 dark:text-blue-400",
+  muted: "text-muted-foreground",
+};
 
 function readList(raw: string): string[] {
   try {
@@ -172,37 +193,32 @@ export default function KeywordsResearchPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  {SORTABLE.map(({ column, key }) => (
+                  {HEADERS.map(({ column, label, tooltip }) => (
                     <TableHead
                       key={column}
                       onClick={() => toggleSort(column)}
                       className={cn(
                         "cursor-pointer select-none",
-                        column !== "keyword" && "text-center",
+                        column !== "keyword" &&
+                          column !== "classification" &&
+                          "text-center",
                       )}
                     >
-                      {t(key)}
+                      {tooltip ? (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span>{t(label)}</span>
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-xs">
+                            {t(tooltip)}
+                          </TooltipContent>
+                        </Tooltip>
+                      ) : (
+                        t(label)
+                      )}
                       {sortIndicator(column)}
                     </TableHead>
                   ))}
-                  <TableHead>{t("keywords.researchVerdict")}</TableHead>
-                  <TableHead
-                    onClick={() => toggleSort("rank")}
-                    className="cursor-pointer select-none text-center"
-                  >
-                    <span className="inline-flex items-center gap-1">
-                      {t("keywords.researchRank")}
-                      {sortIndicator("rank")}
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Info className="size-3.5 text-muted-foreground" />
-                        </TooltipTrigger>
-                        <TooltipContent className="max-w-xs">
-                          {t("keywords.researchRankTooltip")}
-                        </TooltipContent>
-                      </Tooltip>
-                    </span>
-                  </TableHead>
                   <TableHead className="w-20" />
                 </TableRow>
               </TableHeader>
@@ -245,18 +261,29 @@ function ResearchRow({
   const t = useTranslations();
   const done = score?.status === "done" ? score : null;
 
-  const cell = (value: number | null | undefined) =>
+  const cell = (value: number | null | undefined, tone: ScoreTone) =>
     score?.status === "loading" ? (
       <Spinner className="mx-auto size-3 text-muted-foreground" />
     ) : (
-      <span className="tabular-nums">{value ?? "–"}</span>
+      <span
+        className={cn(
+          "tabular-nums font-medium",
+          TONE_TEXT[value == null ? "muted" : tone],
+        )}
+      >
+        {value ?? "–"}
+      </span>
     );
 
   return (
     <TableRow>
       <TableCell className="font-mono text-sm">{keyword}</TableCell>
-      <TableCell className="text-center text-sm">{cell(done?.popularity)}</TableCell>
-      <TableCell className="text-center text-sm">{cell(done?.difficulty)}</TableCell>
+      <TableCell className="text-center text-sm">
+        {cell(done?.popularity, popularityTone(done?.popularity ?? null))}
+      </TableCell>
+      <TableCell className="text-center text-sm">
+        {cell(done?.difficulty, difficultyTone(done?.difficulty ?? 0))}
+      </TableCell>
       <TableCell className="text-center">
         {score?.status === "loading" ? (
           <Spinner className="mx-auto size-3 text-muted-foreground" />
@@ -275,10 +302,18 @@ function ResearchRow({
           </Tooltip>
         )}
       </TableCell>
-      <TableCell className="text-sm text-muted-foreground">
-        {done?.classification ?? "–"}
+      <TableCell className="text-sm">
+        <span
+          className={
+            TONE_TEXT[done ? classificationTone(done.classification) : "muted"]
+          }
+        >
+          {done?.classification ?? "–"}
+        </span>
       </TableCell>
-      <TableCell className="text-center text-sm">{cell(done?.rank)}</TableCell>
+      <TableCell className="text-center text-sm">
+        {cell(done?.rank, rankTone(done?.rank ?? null))}
+      </TableCell>
       <TableCell>
         <div className="flex justify-end gap-1">
           <DropdownMenu>
