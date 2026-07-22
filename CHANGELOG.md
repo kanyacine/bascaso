@@ -7,6 +7,7 @@
 - Fix screenshot translation – the underlying image model was discontinued by Google; translation now uses its replacement, Gemini 3 Pro Image
 - Remove the broken Grok 4.1 option – the ID was never a valid xAI API model
 - The app is now MIT-licensed (previously AGPL-3.0) and has contribution guidelines (CONTRIBUTING.md)
+- Drop Mac App Store build support – Itsyconnect is distributed as a signed and notarized DMG only, which simplifies the build and removes MAS-only code paths
 
 ## 1.13.0
 
