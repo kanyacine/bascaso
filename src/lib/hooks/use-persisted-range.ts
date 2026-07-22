@@ -54,6 +54,11 @@ export function usePersistedRange(storageKey: string): [string | null, (v: strin
   return [range, update];
 }
 
+/** Whether `key` has ever been written, distinct from holding the default value. */
+export function hasPersistedValue(key: string): boolean {
+  return readStored(key) !== null;
+}
+
 export function usePersistedState(storageKey: string, defaultValue: string): [string, (v: string) => void] {
   const value = useSyncExternalStore(
     subscribe,

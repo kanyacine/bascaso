@@ -65,7 +65,7 @@ import type { MessageKey } from "@/lib/i18n/messages";
 import { storefrontCountryCode } from "@/lib/aso/storefront-country";
 import { storefrontsByLocale } from "@/lib/asc/storefronts";
 import { useKeywordScores } from "@/lib/hooks/use-keyword-scores";
-import { usePersistedState } from "@/lib/hooks/use-persisted-range";
+import { hasPersistedValue, usePersistedState } from "@/lib/hooks/use-persisted-range";
 import { useTranslations } from "@/lib/i18n/locale-context";
 import { cn } from "@/lib/utils";
 import { DifficultyDetail } from "../_components/difficulty-detail";
@@ -123,7 +123,16 @@ export default function KeywordsResearchPage() {
   }, [app?.primaryLocale]);
   const [storefront, setStorefront] = useState<string>(defaultStorefront);
 
-  const [stored, setStored] = usePersistedState(`aso-research-${appId}`, "[]");
+  // Keywords are language-bound, so the list is scoped per storefront. The
+  // legacy unscoped key is read as a one-time fallback for the default
+  // storefront only — no migration, it's just superseded on first edit.
+  const storageKey = `aso-research-${appId}-${storefront}`;
+  const [storedNew, setStored] = usePersistedState(storageKey, "[]");
+  const [storedLegacy] = usePersistedState(`aso-research-${appId}`, "[]");
+  const stored =
+    storefront === defaultStorefront && !hasPersistedValue(storageKey)
+      ? storedLegacy
+      : storedNew;
   const keywords = useMemo(() => readList(stored), [stored]);
   const [input, setInput] = useState("");
   const [sort, setSort] = useState<{ column: ResearchSortColumn; dir: "asc" | "desc" }>(
