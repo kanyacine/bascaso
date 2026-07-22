@@ -97,8 +97,25 @@ export const keywordScores = sqliteTable(
     fetchedAt: integer("fetched_at").notNull(), // epoch ms, like cache_entries
     resultIds: text("result_ids"), // JSON array of ranked iTunes track ids
     details: text("details"), // JSON DifficultyBreakdown (sub-scores, tiers…)
+    competitors: text("competitors"), // JSON CompetitorSnapshot[] (top results, trimmed)
   },
   (t) => [primaryKey({ columns: [t.keyword, t.country] })],
+);
+
+// Append-only score observations, one per fresh compute – powers the
+// trend deltas (current vs previous snapshot) on the research tab.
+export const keywordScoreHistory = sqliteTable(
+  "keyword_score_history",
+  {
+    keyword: text("keyword").notNull(),
+    country: text("country").notNull(),
+    popularity: integer("popularity"),
+    difficulty: integer("difficulty").notNull(),
+    opportunity: integer("opportunity").notNull(),
+    resultIds: text("result_ids"), // JSON ids so any app's rank history derives
+    fetchedAt: integer("fetched_at").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.keyword, t.country, t.fetchedAt] })],
 );
 
 // --- Pending changes (local change buffer) ---

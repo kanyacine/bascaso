@@ -5,6 +5,15 @@
 // enforced by tests/unit/aso/downloads.test.ts against vectors in
 // tests/unit/aso/parity-vectors.json (download_cases).
 
+/**
+ * The only storefront the model is calibrated on: POP_TO_SEARCHES comes from
+ * US App Store observations, and other countries only get the crude
+ * MARKET_SIZE installed-base ratio below. Estimates are therefore hidden
+ * outside the US unless the user opts in (Settings › ASO).
+ */
+export const DOWNLOADS_CALIBRATED_COUNTRY = "us";
+export const DOWNLOADS_ALL_STOREFRONTS_KEY = "aso-downloads-all-storefronts";
+
 export interface DownloadRange {
   low: number;
   high: number;

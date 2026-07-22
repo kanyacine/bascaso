@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createTestDb } from "../../helpers/test-db";
-import { keywordScores } from "@/db/schema";
+import { keywordScoreHistory, keywordScores } from "@/db/schema";
 
 let testDb: ReturnType<typeof createTestDb>;
 
@@ -241,6 +241,97 @@ describe("scoreKeyword", () => {
 
     const score = await settle(scoreKeyword("legacy", "fr"));
     expect(score.details).toBeNull();
+  });
+
+  it("stores a trimmed competitor snapshot and the result count", async () => {
+    const fresh = await settle(scoreKeyword("meditation", "fr"));
+
+    expect(fresh.resultCount).toBe(2);
+    expect(fresh.competitors).toHaveLength(2);
+    expect(fresh.competitors?.[0]).toMatchObject({
+      trackId: 111,
+      trackName: "Meditation App",
+      sellerName: "ZenCo",
+      userRatingCount: 50_000,
+    });
+    // The heavy description field is not part of the snapshot.
+    expect(fresh.competitors?.[0]).not.toHaveProperty("description");
+
+    const rows = testDb.select().from(keywordScores).all();
+    expect(JSON.parse(rows[0].competitors ?? "")).toHaveLength(2);
+
+    // Served from cache with the same snapshot and count
+    mockSearchApps.mockClear();
+    const cached = await settle(scoreKeyword("meditation", "fr"));
+    expect(mockSearchApps).not.toHaveBeenCalled();
+    expect(cached.resultCount).toBe(2);
+    expect(cached.competitors?.[1].trackName).toBe("Calm Meditation");
+  });
+
+  it("returns null competitors and resultCount on legacy rows", async () => {
+    testDb
+      .insert(keywordScores)
+      .values({
+        keyword: "legacy",
+        country: "fr",
+        popularity: 40,
+        difficulty: 50,
+        opportunity: 30,
+        classification: "Moderate",
+        fetchedAt: Date.now(),
+      })
+      .run();
+
+    const score = await settle(scoreKeyword("legacy", "fr"));
+    expect(score.competitors).toBeNull();
+    expect(score.resultCount).toBeNull();
+    expect(score.previous).toBeNull();
+  });
+
+  it("appends a history observation on each fresh compute", async () => {
+    await settle(scoreKeyword("meditation", "fr"));
+
+    const history = testDb.select().from(keywordScoreHistory).all();
+    expect(history).toHaveLength(1);
+    expect(history[0].keyword).toBe("meditation");
+    expect(JSON.parse(history[0].resultIds ?? "")).toEqual([111, 222]);
+  });
+
+  it("seeds history from the overwritten row and returns it as previous", async () => {
+    const staleFetchedAt = Date.now() - SCORE_TTL_MS - 60_000;
+    testDb
+      .insert(keywordScores)
+      .values({
+        keyword: "meditation",
+        country: "fr",
+        popularity: 40,
+        difficulty: 50,
+        opportunity: 30,
+        classification: "Moderate",
+        fetchedAt: staleFetchedAt,
+        resultIds: JSON.stringify([222, 111]),
+      })
+      .run();
+
+    // Stale read: no history yet, so no previous – triggers the refresh.
+    const stale = await scoreKeyword("meditation", "fr", 222);
+    expect(stale.previous).toBeNull();
+    await vi.advanceTimersByTimeAsync(25_000);
+
+    // Fresh row now carries the overwritten observation as previous.
+    const score = await settle(scoreKeyword("meditation", "fr", 222));
+    expect(score.stale).toBe(false);
+    expect(score.rank).toBe(2);
+    expect(score.previous).toMatchObject({
+      popularity: 40,
+      difficulty: 50,
+      opportunity: 30,
+      rank: 1,
+      fetchedAt: staleFetchedAt,
+    });
+
+    const history = testDb.select().from(keywordScoreHistory).all();
+    expect(history).toHaveLength(2); // seeded old row + new observation
   });
 
   it("propagates search unavailability", async () => {

@@ -13,6 +13,7 @@
 export interface CompetitorApp {
   trackId?: number;
   trackName?: string;
+  artworkUrl100?: string;
   userRatingCount?: number;
   averageUserRating?: number;
   releaseDate?: string;

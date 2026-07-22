@@ -30,6 +30,12 @@ export type TagScore =
       rank?: number | null;
       /** Difficulty breakdown for detail views; null on legacy cache rows. */
       details?: import("@/lib/aso/estimators").DifficultyBreakdown | null;
+      /** Number of App Store results behind the score; null on legacy rows. */
+      resultCount?: number | null;
+      /** Top results snapshot for detail views; null on legacy rows. */
+      competitors?: import("@/lib/aso/score-service").CompetitorSnapshot[] | null;
+      /** Previous observation for trend deltas; null on first observation. */
+      previous?: import("@/lib/aso/score-service").PreviousScore | null;
     };
 
 interface KeywordTagInputProps {

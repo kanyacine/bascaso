@@ -7,7 +7,14 @@ export const fr: Messages = {
       appearance: "Apparence",
       teams: "Équipes",
       ai: "IA",
+      aso: "ASO",
       about: "À propos",
+    },
+    aso: {
+      downloads: "Estimations de téléchargements",
+      downloadsAllStorefronts: "Afficher les estimations pour tous les storefronts",
+      downloadsAllStorefrontsHint:
+        "Le modèle est calibré sur l'App Store américain. Les autres storefronts sont seulement extrapolés à partir du parc installé : les chiffres y sont indicatifs et restent masqués tant que cette option est désactivée.",
     },
     appearance: {
       theme: "Thème",
@@ -1296,18 +1303,15 @@ export const fr: Messages = {
     subMarketAge: "Âge du marché",
     subPublisherDiversity: "Diversité des éditeurs",
     subTitleRelevance: "Pertinence des titres",
-    detailBrandKeyword: "Mot-clé de marque – {name}",
-    overrideSmallResultSet: "Ajusté : seule une poignée d’apps se disputent ce mot-clé.",
-    overrideWeakLeader: "Ajusté : le premier résultat a peu d’avis.",
-    overrideBackfill: "Ajusté : la plupart des résultats sont du remplissage, sans cibler ce mot-clé.",
     detailTiers: "Difficulté de classement",
     detailTierTop5: "Top 5",
     detailTierTop10: "Top 10",
     detailTierTop20: "Top 20",
     detailDownloads: "Téléchargements estimés",
     detailSearchesPerDay: "≈ {count} recherches/jour",
-    detailRanks6To10: "Rangs 6–10",
-    detailRanks11To20: "Rangs 11–20",
+    detailTopRank: "Top {rank}",
+    detailBarLabel: "Top {rank} : {range} téléchargements par jour",
+    detailBelowOne: "Moins d'un téléchargement par jour à toutes les positions.",
     detailPerDay: "{range}/jour",
     detailAtRank: "À votre rang #{rank} : {range}/jour",
     detailNoDetails: "Aucun détail enregistré pour l’instant – actualisé à la prochaine mise à jour du score.",
@@ -1316,5 +1320,96 @@ export const fr: Messages = {
     addedToLocale: "Ajouté à {locale} – vérifiez et enregistrez dans Mes langues",
     researchCopied: "Copié",
     removeKeyword: "Supprimer {keyword}",
+    insightAdjusted: "Ajusté {from} → {to}",
+    insightAdjustedSmallDetail:
+      "Score ajusté de {from} à {to}. Apps positionnées sur ce mot-clé : {count} – la concurrence est quasi inexistante.",
+    insightAdjustedCompetitiveDetail:
+      "Score ajusté de {from} à {to}. L'app n°1 ({name}) n'a que {reviews} notes, mais {count} sur {total} concurrents ciblent ce mot-clé – la concurrence est réelle.",
+    insightAdjustedBackfillDetail:
+      "Score ajusté de {from} à {to}. L'app n°1 ({name}) n'a que {reviews} notes. Le reste est du remplissage venu de termes plus larges, pas une vraie concurrence sur ce mot-clé.",
+    insightBrand: "Mot-clé de marque – {brand}",
+    insightBrandDetail:
+      "Ce mot-clé correspond à l'éditeur {brand}. L'app n°1 ({name}) a peu de notes parce que c'est une app compagnon de marque, pas parce que le mot-clé est facile – la difficulté reflète tout le champ concurrentiel.",
+    insightIncumbentsUltra:
+      "Plus d'1 M de notes : {count} en tête de liste – dominé par de grandes marques",
+    insightIncumbentsMega:
+      "Plus de 100 K notes : {count} en tête de liste – acteurs installés",
+    insightSkewedGiants: "Médiane {median} contre {avg} notes en moyenne – quelques géants gonflent la moyenne",
+    insightTitleGapNone: "Aucun titre concurrent n'utilise ce mot-clé",
+    insightTitleGapFew:
+      "Mot-clé dans le titre : {count} sur {total} concurrents seulement",
+    insightTitleCrowded:
+      "Mot-clé dans le titre : déjà {count} sur {total} concurrents",
+    insightQualityBar: "Exigence de qualité élevée – {rating}★ en moyenne",
+    insightWeakCompetitors: "Moins de 1 000 notes : {count} sur {total} – prenables",
+    rankExcellent: "Excellent",
+    rankStrong: "Solide",
+    rankModerate: "Moyen",
+    rankLow: "Faible",
+    oppTitle: "Signaux d'opportunité",
+    oppNone: "Aucune opportunité marquante sur ce mot-clé.",
+    oppStrengthStrong: "Fort",
+    oppStrengthModerate: "Modéré",
+    oppNameTitleGap: "Titre libre",
+    oppNameWeak: "Concurrents faibles",
+    oppNameActiveMarket: "Marché actif",
+    oppNameCrossGenre: "Multi-catégories",
+    oppTitleGapNone:
+      "Aucune app du top n'a ce mot-clé dans son titre. Un titre en correspondance exacte peut vous donner un avantage dans le classement.",
+    oppTitleGapFew:
+      "Mot-clé dans le titre : {count} sur {total} concurrents – il reste de la place pour optimiser le titre.",
+    oppWeakCompetitors:
+      "Moins de 1 000 notes : {count} sur {total} apps. La plus faible ({name}) n'en a que {reviews} – ces positions sont prenables.",
+    oppActiveMarket:
+      "Sorties dans les 12 derniers mois : {count} sur {total} – ce marché attire encore de nouveaux entrants.",
+    oppCrossGenre:
+      "Les résultats couvrent {count} catégories ({genres}). Le mot-clé n'est pas verrouillé sur une catégorie – une app bien positionnée dans n'importe laquelle peut se classer.",
+    subWeight: "Compte pour {weight} % du score de difficulté ; plus la valeur est haute, plus la concurrence est rude.",
+    subRatingVolumeTip:
+      "Nombre total de notes des principaux concurrents. Plus il y a de notes, plus il est difficile de les dépasser.",
+    subReviewVelocityTip:
+      "Vitesse à laquelle les concurrents gagnent de nouvelles notes. Une croissance rapide signale des apps activement maintenues, plus dures à concurrencer.",
+    subDominantPlayersTip:
+      "Mesure si de grandes marques dominent les résultats. Les grandes marques sont plus difficiles à déloger.",
+    subRatingQualityTip:
+      "Note moyenne des concurrents. Les apps très bien notées sont plus difficiles à déloger.",
+    subMarketAgeTip:
+      "Ancienneté des concurrents sur l'App Store. Les apps anciennes sont mieux installées.",
+    subPublisherDiversityTip:
+      "Mesure si de nombreux éditeurs se partagent le marché ou si quelques-uns le dominent. Plus de variété signale un marché plus sain.",
+    subTitleRelevanceTip:
+      "Nombre d'apps concurrentes utilisant exactement ce mot-clé dans leur titre. Plus il est utilisé, plus la concurrence est forte.",
+    tierNoCompetitors: "Aucun concurrent trouvé – terrain libre.",
+    tierOpenSpots:
+      "Places prises : {count} sur {size} – il en reste {open}.",
+    tierReviewsEasiest:
+      "Notes de l'app la plus faible : {count} – la plus facile à battre.",
+    tierReviewsNeeded: "Il faut environ {count} notes pour rivaliser (la plus faible : {name}).",
+    tierReviewsBreakIn: "Il faut environ {count} notes pour entrer.",
+    tierReviewsEstablished: "Demande environ {count} notes – marché installé.",
+    tierWeakBeatable:
+      "Moins de 1 000 notes : {count} sur {total} – positions prenables.",
+    tierNoEasyTargets: "Toutes les apps ici ont plus de 1 000 notes – aucune cible facile.",
+    tierFreshEntrants:
+      "Entrées dans l'année : {count} sur {total}.",
+    tierTitleNone: "Aucune app n'utilise ce mot-clé exact dans son titre – opportunité ASO.",
+    tierTitleFew:
+      "Mot-clé dans le titre : {count} sur {total} apps seulement.",
+    tierTitleMany:
+      "Mot-clé dans le titre : {count} sur {total} apps – déjà ciblé.",
+    detailTierWeakest: "Plus faible : {name}",
+    detailMedianAvg: "Médiane {median} · moyenne {avg} notes",
+    detailPositionStrip: "Téléchargements quotidiens estimés par position, 1–20",
+    researchResults: "Apps",
+    researchResultsTooltip: "Nombre de résultats App Store pour ce mot-clé (plafonné à 25). Peu de résultats = requête de niche.",
+    researchDeltaTooltip: "Était {value} le {date}",
+    detailCompetitors: "Top résultats",
+    detailCompApp: "App",
+    detailCompRating: "Note",
+    detailCompRatings: "Notes",
+    detailCompGenre: "Genre",
+    detailCompPrice: "Prix",
+    detailCompReleased: "Sortie",
+    detailCompUpdated: "MàJ",
   },
 };

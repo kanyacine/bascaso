@@ -67,6 +67,7 @@ function parseApp(result: RawResult): CompetitorApp {
   return {
     trackId: result.trackId,
     trackName: result.trackName ?? "",
+    artworkUrl100: result.artworkUrl100 ?? "",
     averageUserRating: result.averageUserRating ?? 0,
     userRatingCount: result.userRatingCount ?? 0,
     releaseDate: result.releaseDate ?? "",

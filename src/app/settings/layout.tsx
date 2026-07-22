@@ -13,6 +13,7 @@ const TAB_SEGMENTS = [
   { labelKey: "settings.tabs.appearance" as const, segment: "/appearance" },
   { labelKey: "settings.tabs.teams" as const, segment: "/teams" },
   { labelKey: "settings.tabs.ai" as const, segment: "/ai" },
+  { labelKey: "settings.tabs.aso" as const, segment: "/aso" },
   { labelKey: "settings.tabs.about" as const, segment: "/about" },
 ];
 

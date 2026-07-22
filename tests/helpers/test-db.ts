@@ -59,7 +59,19 @@ export function createTestDb() {
       fetched_at INTEGER NOT NULL,
       result_ids TEXT,
       details TEXT,
+      competitors TEXT,
       PRIMARY KEY (keyword, country)
+    );
+
+    CREATE TABLE keyword_score_history (
+      keyword TEXT NOT NULL,
+      country TEXT NOT NULL,
+      popularity INTEGER,
+      difficulty INTEGER NOT NULL,
+      opportunity INTEGER NOT NULL,
+      result_ids TEXT,
+      fetched_at INTEGER NOT NULL,
+      PRIMARY KEY (keyword, country, fetched_at)
     );
 
     CREATE TABLE pending_changes (

@@ -7,7 +7,14 @@ export const ru: Messages = {
       appearance: "Внешний вид",
       teams: "Команды",
       ai: "AI",
+      aso: "ASO",
       about: "О программе",
+    },
+    aso: {
+      downloads: "Оценка загрузок",
+      downloadsAllStorefronts: "Показывать оценки для всех витрин",
+      downloadsAllStorefrontsHint:
+        "Модель откалибрована по App Store США. Для других витрин значения лишь экстраполируются по размеру установленной базы, поэтому они ориентировочные и скрыты, пока эта опция выключена.",
     },
     appearance: {
       theme: "Тема",
@@ -1296,18 +1303,15 @@ export const ru: Messages = {
     subMarketAge: "Возраст рынка",
     subPublisherDiversity: "Разнообразие издателей",
     subTitleRelevance: "Релевантность заголовка",
-    detailBrandKeyword: "Брендовое ключевое слово – {name}",
-    overrideSmallResultSet: "Скорректировано: за это ключевое слово конкурирует лишь горстка приложений.",
-    overrideWeakLeader: "Скорректировано: у лидера мало оценок.",
-    overrideBackfill: "Скорректировано: большинство результатов – это заполнение выдачи, не нацеленное на это ключевое слово.",
     detailTiers: "Сложность ранжирования",
     detailTierTop5: "Top 5",
     detailTierTop10: "Top 10",
     detailTierTop20: "Top 20",
     detailDownloads: "Примерные загрузки",
     detailSearchesPerDay: "≈ {count} запросов/день",
-    detailRanks6To10: "Ранги 6–10",
-    detailRanks11To20: "Ранги 11–20",
+    detailTopRank: "Топ {rank}",
+    detailBarLabel: "Топ {rank}: {range} загрузок в день",
+    detailBelowOne: "Менее одной загрузки в день на всех позициях.",
     detailPerDay: "{range}/день",
     detailAtRank: "На вашем ранге #{rank}: {range}/день",
     detailNoDetails: "Подробностей пока нет – появятся при следующем обновлении оценки.",
@@ -1316,5 +1320,94 @@ export const ru: Messages = {
     addedToLocale: "Добавлено в {locale} – проверьте и сохраните во вкладке Мои локали",
     researchCopied: "Скопировано",
     removeKeyword: "Удалить {keyword}",
+    insightAdjusted: "Скорректировано {from} → {to}",
+    insightAdjustedSmallDetail:
+      "Оценка скорректирована с {from} до {to}. Приложений в выдаче по этому слову: {count} – конкуренции почти нет.",
+    insightAdjustedCompetitiveDetail:
+      "Оценка скорректирована с {from} до {to}. У приложения №1 ({name}) всего {reviews} оценок, но нацелены на это слово: {count} из {total} – конкуренция реальна.",
+    insightAdjustedBackfillDetail:
+      "Оценка скорректирована с {from} до {to}. У приложения №1 ({name}) всего {reviews} оценок. Остальное – добор по более широким запросам, а не настоящая конкуренция по этому слову.",
+    insightBrand: "Брендовое слово – {brand}",
+    insightBrandDetail:
+      "Слово совпадает с издателем {brand}. У приложения №1 ({name}) мало оценок потому, что это приложение-спутник бренда, а не потому, что слово простое – сложность отражает всё конкурентное поле.",
+    insightIncumbentsUltra:
+      "Более 1 млн оценок: {count} в верхней части списка – рынок за крупными брендами",
+    insightIncumbentsMega:
+      "Более 100 тыс. оценок: {count} в верхней части списка – закрепившиеся игроки",
+    insightSkewedGiants: "Медиана {median} против среднего {avg} – несколько гигантов завышают среднее",
+    insightTitleGapNone: "Ни один конкурент не использует это слово в названии",
+    insightTitleGapFew: "Слово в названии: всего {count} из {total} конкурентов",
+    insightTitleCrowded: "Слово в названии: уже {count} из {total} конкурентов",
+    insightQualityBar: "Высокая планка качества – в среднем {rating}★",
+    insightWeakCompetitors: "Меньше 1000 оценок: {count} из {total} – можно обойти",
+    rankExcellent: "Отлично",
+    rankStrong: "Хорошо",
+    rankModerate: "Средне",
+    rankLow: "Слабо",
+    oppTitle: "Сигналы возможностей",
+    oppNone: "Явных возможностей по этому ключевому слову нет.",
+    oppStrengthStrong: "Сильный",
+    oppStrengthModerate: "Умеренный",
+    oppNameTitleGap: "Свободное название",
+    oppNameWeak: "Слабые конкуренты",
+    oppNameActiveMarket: "Активный рынок",
+    oppNameCrossGenre: "Разные категории",
+    oppTitleGapNone:
+      "Ни одно приложение из топа не использует это слово в названии. Точное вхождение в название может дать преимущество в выдаче.",
+    oppTitleGapFew:
+      "Слово в названии: {count} из {total} конкурентов – есть место для оптимизации названия.",
+    oppWeakCompetitors:
+      "Меньше 1000 оценок: {count} из {total}. У слабейшего ({name}) всего {reviews} – эти позиции можно занять.",
+    oppActiveMarket:
+      "Выход за последние 12 месяцев: {count} из {total} – рынок продолжает привлекать новых игроков.",
+    oppCrossGenre:
+      "Результаты охватывают {count} категорий ({genres}). Слово не закреплено за одной категорией – удачно позиционированное приложение из любой может выйти в топ.",
+    subWeight: "Даёт {weight} % итогового балла сложности; выше значение – жёстче конкуренция.",
+    subRatingVolumeTip:
+      "Суммарное число оценок у ведущих конкурентов. Чем больше оценок, тем труднее их обойти.",
+    subReviewVelocityTip:
+      "Как быстро конкуренты набирают новые оценки. Быстрый рост означает активно развиваемые приложения, с которыми сложнее конкурировать.",
+    subDominantPlayersTip:
+      "Насколько выдачу занимают крупные бренды. Крупные бренды сложнее подвинуть.",
+    subRatingQualityTip:
+      "Средний рейтинг конкурентов. Высоко оценённые приложения сложнее подвинуть.",
+    subMarketAgeTip:
+      "Как давно конкуренты в App Store. Старые приложения закрепились прочнее.",
+    subPublisherDiversityTip:
+      "Много ли разных издателей конкурирует или доминируют единицы. Больше разнообразия – здоровее рынок.",
+    subTitleRelevanceTip:
+      "Сколько приложений-конкурентов используют это слово в названии. Чем чаще, тем выше конкуренция.",
+    tierNoCompetitors: "Конкурентов не найдено – место свободно.",
+    tierOpenSpots:
+      "Занято позиций: {count} из {size} – свободных: {open}.",
+    tierReviewsEasiest:
+      "Оценок у слабейшего приложения: {count} – его проще всего обойти.",
+    tierReviewsNeeded: "Нужно около {count} оценок, чтобы конкурировать (слабейшее: {name}).",
+    tierReviewsBreakIn: "Нужно около {count} оценок, чтобы прорваться.",
+    tierReviewsEstablished: "Требуется около {count} оценок – сложившийся рынок.",
+    tierWeakBeatable:
+      "Меньше 1000 оценок: {count} из {total} – можно обойти.",
+    tierNoEasyTargets: "У всех приложений здесь более 1000 оценок – лёгких целей нет.",
+    tierFreshEntrants:
+      "Выход за последний год: {count} из {total}.",
+    tierTitleNone: "Ни одно приложение не использует это слово в названии – возможность для ASO.",
+    tierTitleFew:
+      "Слово в названии: всего {count} из {total}.",
+    tierTitleMany:
+      "Слово в названии: {count} из {total} – уже занято.",
+    detailTierWeakest: "Слабейшее: {name}",
+    detailMedianAvg: "Медиана {median} · в среднем {avg} оценок",
+    detailPositionStrip: "Оценка ежедневных загрузок по позициям поиска, 1–20",
+    researchResults: "Apps",
+    researchResultsTooltip: "Число результатов App Store по этому запросу (не более 25). Мало результатов – нишевый запрос.",
+    researchDeltaTooltip: "Было {value} ({date})",
+    detailCompetitors: "Топ результатов",
+    detailCompApp: "Приложение",
+    detailCompRating: "Оценка",
+    detailCompRatings: "Оценок",
+    detailCompGenre: "Жанр",
+    detailCompPrice: "Цена",
+    detailCompReleased: "Выход",
+    detailCompUpdated: "Обновлено",
   },
 };

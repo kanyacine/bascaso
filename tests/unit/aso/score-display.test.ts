@@ -6,6 +6,7 @@ import {
   opportunityTone,
   popularityTone,
   rankTone,
+  rankQuality,
 } from "@/lib/aso/score-display";
 
 describe("opportunityTone", () => {
@@ -82,13 +83,26 @@ describe("classificationTone", () => {
 });
 
 describe("rankTone", () => {
-  it("is green in the top 10, yellow to 50, muted beyond or unranked", () => {
+  it("bands on 10 / 30 / 100, muted when unranked", () => {
     expect(rankTone(1)).toBe("green");
     expect(rankTone(10)).toBe("green");
-    expect(rankTone(11)).toBe("yellow");
-    expect(rankTone(50)).toBe("yellow");
-    expect(rankTone(51)).toBe("muted");
+    expect(rankTone(11)).toBe("lightGreen");
+    expect(rankTone(30)).toBe("lightGreen");
+    expect(rankTone(31)).toBe("yellow");
+    expect(rankTone(100)).toBe("yellow");
+    expect(rankTone(101)).toBe("orange");
     expect(rankTone(null)).toBe("muted");
+  });
+});
+
+describe("rankQuality", () => {
+  it("grades on the same bands as rankTone", () => {
+    expect(rankQuality(10)).toBe("excellent");
+    expect(rankQuality(11)).toBe("strong");
+    expect(rankQuality(30)).toBe("strong");
+    expect(rankQuality(31)).toBe("moderate");
+    expect(rankQuality(100)).toBe("moderate");
+    expect(rankQuality(101)).toBe("low");
   });
 });
 

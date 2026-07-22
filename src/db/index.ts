@@ -46,6 +46,8 @@ function init() {
     "CREATE TABLE IF NOT EXISTS keyword_scores (keyword text NOT NULL, country text NOT NULL, popularity integer, difficulty integer NOT NULL, opportunity integer NOT NULL, classification text NOT NULL, fetched_at integer NOT NULL, result_ids text, details text, PRIMARY KEY(keyword, country))",
     "ALTER TABLE keyword_scores ADD COLUMN result_ids text",
     "ALTER TABLE keyword_scores ADD COLUMN details text",
+    "ALTER TABLE keyword_scores ADD COLUMN competitors text",
+    "CREATE TABLE IF NOT EXISTS keyword_score_history (keyword text NOT NULL, country text NOT NULL, popularity integer, difficulty integer NOT NULL, opportunity integer NOT NULL, result_ids text, fetched_at integer NOT NULL, PRIMARY KEY(keyword, country, fetched_at))",
   ];
   for (const stmt of safeguardStatements) {
     try { _sqlite.exec(stmt); } catch { /* already applied */ }
