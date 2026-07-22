@@ -5,7 +5,7 @@
 </p>
 
 <p>
-  <a href="https://github.com/nickustinov/itsyconnect-macos/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-AGPL--v3-blue.svg" alt="License" /></a>
+  <a href="https://github.com/nickustinov/itsyconnect-macos/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License" /></a>
   <a href="https://github.com/nickustinov/itsyconnect-macos/actions"><img src="https://img.shields.io/github/actions/workflow/status/nickustinov/itsyconnect-macos/ci.yml?branch=main" alt="CI" /></a>
   <img src="https://img.shields.io/badge/electron-40-9feaf9" alt="Electron" />
   <img src="https://img.shields.io/badge/next.js-16-black" alt="Next.js 16" />
@@ -65,7 +65,7 @@ Everything runs locally. One SQLite database, no cloud, no accounts, no telemetr
 
 ## Free and open source
 
-Itsyconnect is completely free, with no limits – manage as many apps and developer accounts as you like. Every feature is available to everyone, distributed as a direct DMG download. Licensed under [AGPL-3.0](LICENSE).
+Itsyconnect is completely free, with no limits – manage as many apps and developer accounts as you like. Every feature is available to everyone, distributed as a direct DMG download. Licensed under [MIT](LICENSE).
 
 ## Download
 
@@ -260,4 +260,4 @@ Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for th
 
 ## License
 
-[AGPL-3.0](LICENSE)
+[MIT](LICENSE)
