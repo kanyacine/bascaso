@@ -254,6 +254,10 @@ npm run electron:make:mas
 
 Submit the resulting package via Transporter or `xcrun altool`.
 
+## Contributing
+
+Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for the development setup, project conventions, and how to submit a pull request. For features, open an issue to discuss the idea first; bug reports and small fixes can go straight in.
+
 ## License
 
 [AGPL-3.0](LICENSE)
