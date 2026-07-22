@@ -55,4 +55,4 @@ The short version:
 
 ## Licensing
 
-Itsyconnect is licensed under [AGPL-3.0](LICENSE). By submitting a contribution you agree that it will be distributed under the same license.
+Itsyconnect is licensed under [MIT](LICENSE). By submitting a contribution you agree that it will be distributed under the same license.
