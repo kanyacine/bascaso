@@ -56,14 +56,11 @@ interface RawResult {
   currentVersionReleaseDate?: string;
   primaryGenreName?: string;
   formattedPrice?: string;
-  description?: string;
   sellerName?: string;
-  bundleId?: string;
   trackViewUrl?: string;
 }
 
 function parseApp(result: RawResult): CompetitorApp {
-  const desc = result.description ?? "";
   return {
     trackId: result.trackId,
     trackName: result.trackName ?? "",
@@ -74,9 +71,7 @@ function parseApp(result: RawResult): CompetitorApp {
     currentVersionReleaseDate: result.currentVersionReleaseDate ?? "",
     primaryGenreName: result.primaryGenreName ?? "",
     formattedPrice: result.formattedPrice ?? "Free",
-    description: desc.length > 200 ? desc.slice(0, 200) + "..." : desc,
     sellerName: result.sellerName ?? "",
-    bundleId: result.bundleId ?? "",
     trackViewUrl: result.trackViewUrl ?? "",
   };
 }
@@ -95,8 +90,9 @@ async function itunesSearch(
     limit: String(limit),
   });
 
-  // Two attempts: the second fires only on rate-limit/5xx responses.
-  // Network errors propagate immediately so the SSR fallback takes over.
+  // Two attempts only, on purpose: this path fails fast so the SSR fallback
+  // (which has its own patient 3-retry backoff) takes over quickly.
+  // Network errors propagate immediately for the same reason.
   for (let attempt = 0; ; attempt++) {
     const response = await fetch(`${SEARCH_URL}?${params}`, {
       signal: AbortSignal.timeout(15_000),

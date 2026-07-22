@@ -112,4 +112,8 @@ describe("normalizeKeyword", () => {
     expect(normalizeKeyword("MÉTÉO")).toBe("météo");
     expect(normalizeKeyword("plain")).toBe("plain");
   });
+
+  it("collapses NFD accents onto the NFC cache key", () => {
+    expect(normalizeKeyword("cafe\u0301")).toBe("caf\u00e9");
+  });
 });

@@ -12,9 +12,9 @@ export const zhCN: Messages = {
     },
     aso: {
       downloads: "下载量预估",
-      downloadsAllStorefronts: "为所有商店显示预估",
+      downloadsAllStorefronts: "为所有商店地区显示预估",
       downloadsAllStorefrontsHint:
-        "模型基于美国 App Store 校准。其他商店仅按装机量比例外推，数值仅供参考，未开启此项时不显示。",
+        "模型基于美国 App Store 校准。其他商店地区仅按装机量比例外推，数值仅供参考，未开启此项时不显示。",
     },
     appearance: {
       theme: "主题",

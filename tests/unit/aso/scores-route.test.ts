@@ -61,6 +61,20 @@ describe("POST /api/aso/scores", () => {
     expect(mockScoreKeyword).not.toHaveBeenCalled();
   });
 
+  it("rejects a syntactically valid but unknown country code", async () => {
+    const res = await POST(request({ keyword: "meditation", country: "zz" }));
+
+    expect(res.status).toBe(400);
+    expect(mockScoreKeyword).not.toHaveBeenCalled();
+  });
+
+  it("lowercases the country before scoring", async () => {
+    const res = await POST(request({ keyword: "meditation", country: "FR" }));
+
+    expect(res.status).toBe(200);
+    expect(mockScoreKeyword).toHaveBeenCalledWith("meditation", "fr", undefined);
+  });
+
   it("rejects a missing keyword", async () => {
     const res = await POST(request({ country: "fr" }));
     const data = await res.json();

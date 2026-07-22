@@ -311,9 +311,9 @@ describe("formatDownloadNumber", () => {
 
 describe("formatInterval", () => {
   it("renders an em dash when both bounds are null or non-positive", () => {
-    expect(formatInterval(null, null)).toBe("—");
-    expect(formatInterval(0, 0)).toBe("—");
-    expect(formatInterval(-5, 0)).toBe("—");
+    expect(formatInterval(null, null)).toBe("–");
+    expect(formatInterval(0, 0)).toBe("–");
+    expect(formatInterval(-5, 0)).toBe("–");
   });
 
   it("collapses to the high end when low is non-positive", () => {

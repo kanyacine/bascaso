@@ -22,9 +22,7 @@ const itunesResult = (id: number, name = `App ${id}`) => ({
   currentVersionReleaseDate: "2024-01-01T08:00:00Z",
   primaryGenreName: "Health & Fitness",
   formattedPrice: "Free",
-  description: "A great app",
   sellerName: "Dev LLC",
-  bundleId: `com.dev.app${id}`,
   trackViewUrl: `https://apps.apple.com/app/id${id}`,
 });
 
@@ -83,18 +81,14 @@ describe("searchApps", () => {
     });
   });
 
-  it("fills defaults for missing fields and truncates long descriptions", async () => {
-    fetchMock.mockResolvedValueOnce(
-      json({ results: [{ trackId: 9, description: "x".repeat(250) }, {}] }),
-    );
+  it("fills defaults for missing fields", async () => {
+    fetchMock.mockResolvedValueOnce(json({ results: [{ trackId: 9 }, {}] }));
 
     const apps = await searchApps("fitness");
 
     expect(apps[0].trackName).toBe("");
     expect(apps[0].userRatingCount).toBe(0);
     expect(apps[0].formattedPrice).toBe("Free");
-    expect(apps[0].description).toBe("x".repeat(200) + "...");
-    expect(apps[1].description).toBe("");
     expect(apps[1].trackId).toBeUndefined();
   });
 

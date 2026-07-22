@@ -204,7 +204,7 @@ function isZeroOrLess(value: number | null): boolean {
 
 /** Render a (low, high) interval as e.g. '~120–180' (no '/day' suffix). */
 export function formatInterval(low: number | null, high: number | null): string {
-  if (isZeroOrLess(low) && isZeroOrLess(high)) return "—";
+  if (isZeroOrLess(low) && isZeroOrLess(high)) return "–";
   const lo = formatDownloadNumber(low);
   const hi = formatDownloadNumber(high);
   if (lo === hi || isZeroOrLess(low)) return `~${hi}`;

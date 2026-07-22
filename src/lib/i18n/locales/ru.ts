@@ -1313,7 +1313,7 @@ export const ru: Messages = {
     detailBarLabel: "Топ {rank}: {range} загрузок в день",
     detailBelowOne: "Менее одной загрузки в день на всех позициях.",
     detailPerDay: "{range}/день",
-    detailAtRank: "На вашем ранге #{rank}: {range}/день",
+    detailAtRank: "На вашем ранге №{rank}: {range}/день",
     detailNoDetails: "Подробностей пока нет – появятся при следующем обновлении оценки.",
     useKeyword: "Использовать ключевое слово",
     addToLocale: "Добавить в локаль",

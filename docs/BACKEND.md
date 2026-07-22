@@ -50,8 +50,17 @@ All tables use Drizzle ORM. Timestamps are ISO 8601 strings. IDs are ULIDs (sort
 | `cacheReviews` | Customer reviews per app | 15min |
 | `cacheAnalytics` | Analytics snapshots | 1h |
 | `cacheSales` | Sales/financial data | 1h |
+| `keyword_scores` | ASO keyword scores (iTunes Search, not ASC) | 24h |
+| `keyword_score_history` | Append-only score observations for trend deltas | – |
 
 Every cache table has `fetchedAt` (timestamp of last sync) and `data` (JSON blob). Queries check `fetchedAt` against TTL to determine staleness.
+
+The keyword score cache deviates from the blob pattern on purpose: rows are
+keyed on `(keyword, country)` with typed columns, shared across apps and
+users. A stale row is served immediately and refreshed in the background
+(stale-while-revalidate); only a true cold miss computes synchronously,
+because scoring is user-initiated per keyword (each pastille shows its own
+spinner) rather than a page-load dependency.
 
 ## Data fetching strategy
 

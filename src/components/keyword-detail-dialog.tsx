@@ -25,22 +25,15 @@ import {
   difficultyTone,
   opportunityTone,
   popularityTone,
+  RANK_QUALITY,
   rankQuality,
   rankTone,
   TONE_BADGE,
   TONE_TEXT,
   type ScoreTone,
 } from "@/lib/aso/score-display";
-import type { MessageKey } from "@/lib/i18n/messages";
 import { useTranslations } from "@/lib/i18n/locale-context";
 import { cn } from "@/lib/utils";
-
-const RANK_QUALITY: Record<ReturnType<typeof rankQuality>, MessageKey> = {
-  excellent: "keywords.rankExcellent",
-  strong: "keywords.rankStrong",
-  moderate: "keywords.rankModerate",
-  low: "keywords.rankLow",
-};
 
 /** Header stat: label above, tinted value + optional trend arrow below. */
 function HeaderStat({

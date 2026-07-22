@@ -66,7 +66,7 @@ describe("ranking tiers – empty competitors branch", () => {
     const { breakdown } = calculateDifficulty([], "anything");
     const empty: Omit<RankingTier, never> = {
       minReviews: 0,
-      weakestApp: "—",
+      weakestApp: "",
       medianReviews: 0,
       weakCount: 0,
       freshCount: 0,

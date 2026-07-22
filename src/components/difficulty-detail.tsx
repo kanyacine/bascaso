@@ -56,6 +56,7 @@ import {
 import type { CompetitorSnapshot } from "@/lib/aso/score-service";
 import {
   difficultyTone,
+  RANK_QUALITY,
   rankQuality,
   rankTone,
   TONE_BADGE,
@@ -123,13 +124,6 @@ const INSIGHTS: Record<InsightKey, { icon: Icon; text: MessageKey; detail?: Mess
   titleCrowded: { icon: Lock, text: "keywords.insightTitleCrowded" },
   qualityBar: { icon: Star, text: "keywords.insightQualityBar" },
   weakCompetitors: { icon: TrendDown, text: "keywords.insightWeakCompetitors" },
-};
-
-const RANK_QUALITY: Record<ReturnType<typeof rankQuality>, MessageKey> = {
-  excellent: "keywords.rankExcellent",
-  strong: "keywords.rankStrong",
-  moderate: "keywords.rankModerate",
-  low: "keywords.rankLow",
 };
 
 const TIER_HIGHLIGHTS: Record<TierHighlightKey, MessageKey> = {

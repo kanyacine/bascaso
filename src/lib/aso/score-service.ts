@@ -16,6 +16,7 @@ import {
   classifyKeyword,
   type ClassificationLabel,
 } from "./scoring";
+import { normalizeKeyword } from "./score-display";
 import { AdaptiveRateLimiter, ItunesRateLimited, searchApps } from "./itunes";
 
 export const SCORE_TTL_MS = 24 * 60 * 60 * 1000; // 1 score/day/keyword/country
@@ -247,7 +248,7 @@ export async function scoreKeyword(
   rawCountry: string,
   appAppleId?: number,
 ): Promise<KeywordScore> {
-  const keyword = rawKeyword.trim().toLowerCase();
+  const keyword = normalizeKeyword(rawKeyword);
   const country = rawCountry.trim().toLowerCase();
 
   const row = db

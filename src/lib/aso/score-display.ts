@@ -1,5 +1,7 @@
 // Display helpers for keyword opportunity badges.
 
+import type { MessageKey } from "@/lib/i18n/messages";
+
 export type OpportunityTone = "green" | "amber" | "red";
 
 // Bands follow the classification thresholds: ≥ 55 is "Good Target"
@@ -57,6 +59,17 @@ export function classificationTone(classification: string): ScoreTone {
   return CLASSIFICATION_TONES[classification] ?? "muted";
 }
 
+// The classification labels themselves stay in English (API values).
+export const CLASSIFICATION_TOOLTIPS: Record<string, MessageKey> = {
+  "Sweet Spot": "keywords.verdictSweetSpot",
+  "Good Target": "keywords.verdictGoodTarget",
+  "Hidden Gem": "keywords.verdictHiddenGem",
+  "High Competition": "keywords.verdictHighCompetition",
+  Moderate: "keywords.verdictModerate",
+  "Low Volume": "keywords.verdictLowVolume",
+  Avoid: "keywords.verdictAvoid",
+};
+
 // Bands mirror respectaso's "Your App Rank" card.
 export function rankTone(rank: number | null): ScoreTone {
   if (rank === null) return "muted";
@@ -75,6 +88,13 @@ export function rankQuality(rank: number): RankQuality {
   if (rank <= 100) return "moderate";
   return "low";
 }
+
+export const RANK_QUALITY: Record<RankQuality, MessageKey> = {
+  excellent: "keywords.rankExcellent",
+  strong: "keywords.rankStrong",
+  moderate: "keywords.rankModerate",
+  low: "keywords.rankLow",
+};
 
 /** Theme-aware text classes for the respectaso score tones. */
 export const TONE_TEXT: Record<ScoreTone, string> = {
@@ -118,7 +138,8 @@ export const TONE_BAR: Record<ScoreTone, string> = {
   muted: "bg-muted-foreground",
 };
 
-/** Client-side mirror of the server keyword normalization. */
+/** Keyword normalization shared by client and server – NFC so visually
+ *  identical accented forms collide on the same cache key. */
 export function normalizeKeyword(keyword: string): string {
-  return keyword.trim().toLowerCase();
+  return keyword.normalize("NFC").trim().toLowerCase();
 }

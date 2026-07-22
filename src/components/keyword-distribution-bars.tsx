@@ -13,6 +13,7 @@ import {
   type RankDistribution,
   type SummaryInput,
 } from "@/lib/aso/summary";
+import { CLASSIFICATION_TOOLTIPS } from "@/lib/aso/score-display";
 import type { MessageKey } from "@/lib/i18n/messages";
 import { useTranslations } from "@/lib/i18n/locale-context";
 import { cn } from "@/lib/utils";
@@ -39,15 +40,17 @@ export function summaryInputs(
 }
 
 // Classification labels stay in English (API values); order and hues mirror
-// respectaso's "Keyword mix" strip, on our tone scale.
-const MIX_SEGMENTS: Array<{ label: string; cls: string; tip: MessageKey }> = [
-  { label: "Sweet Spot", cls: "bg-green-700", tip: "keywords.verdictSweetSpot" },
-  { label: "Good Target", cls: "bg-green-500", tip: "keywords.verdictGoodTarget" },
-  { label: "Hidden Gem", cls: "bg-blue-500", tip: "keywords.verdictHiddenGem" },
-  { label: "High Competition", cls: "bg-yellow-500", tip: "keywords.verdictHighCompetition" },
-  { label: "Moderate", cls: "bg-muted-foreground/70", tip: "keywords.verdictModerate" },
-  { label: "Low Volume", cls: "bg-muted-foreground/40", tip: "keywords.verdictLowVolume" },
-  { label: "Avoid", cls: "bg-red-500", tip: "keywords.verdictAvoid" },
+// respectaso's "Keyword mix" strip, on our tone scale. Tooltips come from the
+// shared CLASSIFICATION_TOOLTIPS map; only the segment colours live here (the
+// two "muted" tones need distinct opacities to stay tellable apart).
+const MIX_SEGMENTS: Array<{ label: string; cls: string }> = [
+  { label: "Sweet Spot", cls: "bg-green-700" },
+  { label: "Good Target", cls: "bg-green-500" },
+  { label: "Hidden Gem", cls: "bg-blue-500" },
+  { label: "High Competition", cls: "bg-yellow-500" },
+  { label: "Moderate", cls: "bg-muted-foreground/70" },
+  { label: "Low Volume", cls: "bg-muted-foreground/40" },
+  { label: "Avoid", cls: "bg-red-500" },
 ];
 
 // Scoring fetches 25 results, hence the 21–25 bucket instead of respectaso's
@@ -161,7 +164,7 @@ export function KeywordDistributionBars({
         segments={MIX_SEGMENTS.map((s) => ({
           id: s.label,
           label: s.label,
-          tip: t(s.tip),
+          tip: t(CLASSIFICATION_TOOLTIPS[s.label]),
           cls: s.cls,
           count: mix[s.label] ?? 0,
         }))}

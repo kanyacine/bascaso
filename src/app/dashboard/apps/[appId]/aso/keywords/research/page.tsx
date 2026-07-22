@@ -49,17 +49,18 @@ import {
   type ResearchSortColumn,
 } from "@/lib/aso/research";
 import {
+  CLASSIFICATION_TOOLTIPS,
   classificationTone,
   difficultyTone,
   opportunityTone,
   popularityTone,
+  RANK_QUALITY,
   rankQuality,
   rankTone,
   TONE_BADGE,
   TONE_TEXT,
   type ScoreTone,
 } from "@/lib/aso/score-display";
-import type { MessageKey } from "@/lib/i18n/messages";
 import { storefrontCountryCode } from "@/lib/aso/storefront-country";
 import { storefrontsByLocale } from "@/lib/asc/storefronts";
 import { useKeywordScores } from "@/lib/hooks/use-keyword-scores";
@@ -79,24 +80,6 @@ const HEADERS = [
   { column: "results", label: "keywords.researchResults", tooltip: "keywords.researchResultsTooltip" },
   { column: "rank", label: "keywords.researchRank", tooltip: "keywords.researchRankTooltip" },
 ] as const;
-
-// The classification labels themselves stay in English (API values).
-const VERDICT_TOOLTIPS = {
-  "Sweet Spot": "keywords.verdictSweetSpot",
-  "Good Target": "keywords.verdictGoodTarget",
-  "Hidden Gem": "keywords.verdictHiddenGem",
-  "High Competition": "keywords.verdictHighCompetition",
-  Moderate: "keywords.verdictModerate",
-  "Low Volume": "keywords.verdictLowVolume",
-  Avoid: "keywords.verdictAvoid",
-} as const;
-
-const RANK_QUALITY: Record<ReturnType<typeof rankQuality>, MessageKey> = {
-  excellent: "keywords.rankExcellent",
-  strong: "keywords.rankStrong",
-  moderate: "keywords.rankModerate",
-  low: "keywords.rankLow",
-};
 
 function readList(raw: string): string[] {
   try {
@@ -123,7 +106,7 @@ export default function KeywordsResearchPage() {
 
   // Keywords are language-bound, so the list is scoped per storefront. The
   // legacy unscoped key is read as a one-time fallback for the default
-  // storefront only — no migration, it's just superseded on first edit.
+  // storefront only – no migration, it's just superseded on first edit.
   const storageKey = `aso-research-${appId}-${storefront}`;
   const [storedNew, setStored] = usePersistedState(storageKey, "[]");
   const [storedLegacy] = usePersistedState(`aso-research-${appId}`, "[]");
@@ -383,9 +366,8 @@ function ResearchRow({
               </TooltipTrigger>
               <TooltipContent className="max-w-xs">
                 {t(
-                  VERDICT_TOOLTIPS[
-                    done.classification as keyof typeof VERDICT_TOOLTIPS
-                  ] ?? "keywords.researchVerdictTooltip",
+                  CLASSIFICATION_TOOLTIPS[done.classification] ??
+                    "keywords.researchVerdictTooltip",
                 )}
               </TooltipContent>
             </Tooltip>

@@ -12,9 +12,9 @@ export const fr: Messages = {
     },
     aso: {
       downloads: "Estimations de téléchargements",
-      downloadsAllStorefronts: "Afficher les estimations pour tous les storefronts",
+      downloadsAllStorefronts: "Afficher les estimations pour toutes les vitrines",
       downloadsAllStorefrontsHint:
-        "Le modèle est calibré sur l'App Store américain. Les autres storefronts sont seulement extrapolés à partir du parc installé : les chiffres y sont indicatifs et restent masqués tant que cette option est désactivée.",
+        "Le modèle est calibré sur l’App Store américain. Les autres vitrines sont seulement extrapolées à partir du parc installé : les chiffres y sont indicatifs et restent masqués tant que cette option est désactivée.",
     },
     appearance: {
       theme: "Thème",
@@ -1311,9 +1311,9 @@ export const fr: Messages = {
     detailSearchesPerDay: "≈ {count} recherches/jour",
     detailTopRank: "Top {rank}",
     detailBarLabel: "Top {rank} : {range} téléchargements par jour",
-    detailBelowOne: "Moins d'un téléchargement par jour à toutes les positions.",
+    detailBelowOne: "Moins d’un téléchargement par jour à toutes les positions.",
     detailPerDay: "{range}/jour",
-    detailAtRank: "À votre rang #{rank} : {range}/jour",
+    detailAtRank: "À votre rang n°{rank} : {range}/jour",
     detailNoDetails: "Aucun détail enregistré pour l’instant – actualisé à la prochaine mise à jour du score.",
     useKeyword: "Utiliser le mot-clé",
     addToLocale: "Ajouter à une langue",
@@ -1324,18 +1324,18 @@ export const fr: Messages = {
     insightAdjustedSmallDetail:
       "Score ajusté de {from} à {to}. Apps positionnées sur ce mot-clé : {count} – la concurrence est quasi inexistante.",
     insightAdjustedCompetitiveDetail:
-      "Score ajusté de {from} à {to}. L'app n°1 ({name}) n'a que {reviews} notes, mais {count} sur {total} concurrents ciblent ce mot-clé – la concurrence est réelle.",
+      "Score ajusté de {from} à {to}. L’app n°1 ({name}) n’a que {reviews} notes, mais {count} sur {total} concurrents ciblent ce mot-clé – la concurrence est réelle.",
     insightAdjustedBackfillDetail:
-      "Score ajusté de {from} à {to}. L'app n°1 ({name}) n'a que {reviews} notes. Le reste est du remplissage venu de termes plus larges, pas une vraie concurrence sur ce mot-clé.",
+      "Score ajusté de {from} à {to}. L’app n°1 ({name}) n’a que {reviews} notes. Le reste est du remplissage venu de termes plus larges, pas une vraie concurrence sur ce mot-clé.",
     insightBrand: "Mot-clé de marque – {brand}",
     insightBrandDetail:
-      "Ce mot-clé correspond à l'éditeur {brand}. L'app n°1 ({name}) a peu de notes parce que c'est une app compagnon de marque, pas parce que le mot-clé est facile – la difficulté reflète tout le champ concurrentiel.",
+      "Ce mot-clé correspond à l’éditeur {brand}. L’app n°1 ({name}) a peu de notes parce que c’est une app compagnon de marque, pas parce que le mot-clé est facile – la difficulté reflète tout le champ concurrentiel.",
     insightIncumbentsUltra:
-      "Plus d'1 M de notes : {count} en tête de liste – dominé par de grandes marques",
+      "Plus d’1 M de notes : {count} en tête de liste – dominé par de grandes marques",
     insightIncumbentsMega:
       "Plus de 100 K notes : {count} en tête de liste – acteurs installés",
     insightSkewedGiants: "Médiane {median} contre {avg} notes en moyenne – quelques géants gonflent la moyenne",
-    insightTitleGapNone: "Aucun titre concurrent n'utilise ce mot-clé",
+    insightTitleGapNone: "Aucun titre concurrent n’utilise ce mot-clé",
     insightTitleGapFew:
       "Mot-clé dans le titre : {count} sur {total} concurrents seulement",
     insightTitleCrowded:
@@ -1346,7 +1346,7 @@ export const fr: Messages = {
     rankStrong: "Solide",
     rankModerate: "Moyen",
     rankLow: "Faible",
-    oppTitle: "Signaux d'opportunité",
+    oppTitle: "Signaux d’opportunité",
     oppNone: "Aucune opportunité marquante sur ce mot-clé.",
     oppStrengthStrong: "Fort",
     oppStrengthModerate: "Modéré",
@@ -1355,15 +1355,15 @@ export const fr: Messages = {
     oppNameActiveMarket: "Marché actif",
     oppNameCrossGenre: "Multi-catégories",
     oppTitleGapNone:
-      "Aucune app du top n'a ce mot-clé dans son titre. Un titre en correspondance exacte peut vous donner un avantage dans le classement.",
+      "Aucune app du top n’a ce mot-clé dans son titre. Un titre en correspondance exacte peut vous donner un avantage dans le classement.",
     oppTitleGapFew:
       "Mot-clé dans le titre : {count} sur {total} concurrents – il reste de la place pour optimiser le titre.",
     oppWeakCompetitors:
-      "Moins de 1 000 notes : {count} sur {total} apps. La plus faible ({name}) n'en a que {reviews} – ces positions sont prenables.",
+      "Moins de 1 000 notes : {count} sur {total} apps. La plus faible ({name}) n’en a que {reviews} – ces positions sont prenables.",
     oppActiveMarket:
       "Sorties dans les 12 derniers mois : {count} sur {total} – ce marché attire encore de nouveaux entrants.",
     oppCrossGenre:
-      "Les résultats couvrent {count} catégories ({genres}). Le mot-clé n'est pas verrouillé sur une catégorie – une app bien positionnée dans n'importe laquelle peut se classer.",
+      "Les résultats couvrent {count} catégories ({genres}). Le mot-clé n’est pas verrouillé sur une catégorie – une app bien positionnée dans n’importe laquelle peut se classer.",
     subWeight: "Compte pour {weight} % du score de difficulté ; plus la valeur est haute, plus la concurrence est rude.",
     subRatingVolumeTip:
       "Nombre total de notes des principaux concurrents. Plus il y a de notes, plus il est difficile de les dépasser.",
@@ -1374,16 +1374,16 @@ export const fr: Messages = {
     subRatingQualityTip:
       "Note moyenne des concurrents. Les apps très bien notées sont plus difficiles à déloger.",
     subMarketAgeTip:
-      "Ancienneté des concurrents sur l'App Store. Les apps anciennes sont mieux installées.",
+      "Ancienneté des concurrents sur l’App Store. Les apps anciennes sont mieux installées.",
     subPublisherDiversityTip:
       "Mesure si de nombreux éditeurs se partagent le marché ou si quelques-uns le dominent. Plus de variété signale un marché plus sain.",
     subTitleRelevanceTip:
-      "Nombre d'apps concurrentes utilisant exactement ce mot-clé dans leur titre. Plus il est utilisé, plus la concurrence est forte.",
+      "Nombre d’apps concurrentes utilisant exactement ce mot-clé dans leur titre. Plus il est utilisé, plus la concurrence est forte.",
     tierNoCompetitors: "Aucun concurrent trouvé – terrain libre.",
     tierOpenSpots:
       "Places prises : {count} sur {size} – il en reste {open}.",
     tierReviewsEasiest:
-      "Notes de l'app la plus faible : {count} – la plus facile à battre.",
+      "Notes de l’app la plus faible : {count} – la plus facile à battre.",
     tierReviewsNeeded: "Il faut environ {count} notes pour rivaliser (la plus faible : {name}).",
     tierReviewsBreakIn: "Il faut environ {count} notes pour entrer.",
     tierReviewsEstablished: "Demande environ {count} notes – marché installé.",
@@ -1391,8 +1391,8 @@ export const fr: Messages = {
       "Moins de 1 000 notes : {count} sur {total} – positions prenables.",
     tierNoEasyTargets: "Toutes les apps ici ont plus de 1 000 notes – aucune cible facile.",
     tierFreshEntrants:
-      "Entrées dans l'année : {count} sur {total}.",
-    tierTitleNone: "Aucune app n'utilise ce mot-clé exact dans son titre – opportunité ASO.",
+      "Entrées dans l’année : {count} sur {total}.",
+    tierTitleNone: "Aucune app n’utilise ce mot-clé exact dans son titre – opportunité ASO.",
     tierTitleFew:
       "Mot-clé dans le titre : {count} sur {total} apps seulement.",
     tierTitleMany:
@@ -1415,7 +1415,7 @@ export const fr: Messages = {
     detailNext: "Suivant",
     mixTitle: "Répartition des mots-clés",
     mixTooltip:
-      "Répartition des mots-clés de ce champ par profil popularité/difficulté. Aucune catégorie n'est meilleure qu'une autre en soi – une app classée n°1 sur un mot High Competition peut être plus forte qu'une app qui ne vise que des Sweet Spots. À lire comme la forme du mix, pas comme une note de qualité.",
+      "Répartition des mots-clés de ce champ par profil popularité/difficulté. Aucune catégorie n’est meilleure qu’une autre en soi – une app classée n°1 sur un mot High Competition peut être plus forte qu’une app qui ne vise que des Sweet Spots. À lire comme la forme du mix, pas comme une note de qualité.",
     ranksTitle: "Positions de vos mots-clés",
     ranksTooltip:
       "Position de votre app dans les résultats de recherche App Store pour chaque mot-clé de ce champ. Le scoring inspecte les 25 premiers résultats – au-delà, le mot compte comme non classé.",
@@ -1433,20 +1433,20 @@ export const fr: Messages = {
     summaryTitle: "Résumé de la vitrine",
     summaryDownloads: "Téléch. estimés/jour",
     summaryDownloadsTip:
-      "Téléchargements quotidiens estimés qu'apportent ces mots-clés à leurs positions actuelles, cumulés sur la vitrine. Toujours un intervalle – un mot classé au-delà du n°20 compte pour zéro.",
-    summaryHeadroom: "Potentiel jusqu'au n°1",
+      "Téléchargements quotidiens estimés qu’apportent ces mots-clés à leurs positions actuelles, cumulés sur la vitrine. Toujours un intervalle – un mot classé au-delà du n°20 compte pour zéro.",
+    summaryHeadroom: "Potentiel jusqu’au n°1",
     summaryHeadroomTip:
       "Téléchargements quotidiens estimés supplémentaires si chaque mot-clé était classé n°1 – le plafond théorique, pas une prévision.",
     summaryRanked: "Classés",
     summaryRankedTip:
-      "Mots-clés pour lesquels votre app apparaît dans le top 25 des résultats, sur l'ensemble des mots scorés de cette vitrine.",
+      "Mots-clés pour lesquels votre app apparaît dans le top 25 des résultats, sur l’ensemble des mots scorés de cette vitrine.",
     summaryBestRank: "meilleur n°{rank}",
     summaryTop20: "{count} dans le top 20",
     summaryMovers: "Évolutions",
     summaryMoversTip:
-      "Mots-clés dont la position a progressé ou reculé depuis l'observation précédente.",
+      "Mots-clés dont la position a progressé ou reculé depuis l’observation précédente.",
     summaryTopPerformer: "Meilleur contributeur",
     summaryBiggestGap: "Plus gros manque à gagner",
-    summaryGapUpTo: "jusqu'à {range}/jour de plus au n°1",
+    summaryGapUpTo: "jusqu’à {range}/jour de plus au n°1",
   },
 };

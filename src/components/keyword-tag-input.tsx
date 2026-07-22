@@ -10,10 +10,7 @@ import {
 } from "@/components/ui/tooltip";
 import { X } from "@phosphor-icons/react";
 import { useTranslations } from "@/lib/i18n/locale-context";
-import {
-  opportunityTone,
-  type OpportunityTone,
-} from "@/lib/aso/score-display";
+import { opportunityTone, TONE_BADGE } from "@/lib/aso/score-display";
 
 /** Per-tag ASO score state, provided by the storefront keywords view. */
 export type TagScore =
@@ -47,12 +44,6 @@ interface KeywordTagInputProps {
   onTagClick?: (index: number) => void;
 }
 
-const TONE_CLASSES: Record<OpportunityTone, string> = {
-  green: "bg-green-500/15 text-green-600 dark:text-green-400",
-  amber: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
-  red: "bg-red-500/15 text-red-600 dark:text-red-400",
-};
-
 function TagScoreBadge({ score }: { score: TagScore }) {
   const t = useTranslations();
 
@@ -75,7 +66,7 @@ function TagScoreBadge({ score }: { score: TagScore }) {
     <Tooltip>
       <TooltipTrigger asChild>
         <span
-          className={`rounded-full px-1.5 text-[10px] font-semibold tabular-nums ${TONE_CLASSES[opportunityTone(score.opportunity)]}`}
+          className={`rounded-full px-1.5 text-[10px] font-semibold tabular-nums ${TONE_BADGE[opportunityTone(score.opportunity)]}`}
         >
           {score.opportunity}
         </span>

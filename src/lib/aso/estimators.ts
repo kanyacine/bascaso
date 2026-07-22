@@ -20,9 +20,7 @@ export interface CompetitorApp {
   currentVersionReleaseDate?: string;
   primaryGenreName?: string;
   sellerName?: string;
-  bundleId?: string;
   formattedPrice?: string;
-  description?: string;
   trackViewUrl?: string;
 }
 
@@ -534,7 +532,8 @@ const interpret = (total: number): DifficultyInterpretation => {
 /** Wide-open default used for every tier when there are no competitors. */
 const emptyRankingTier = (): RankingTier => ({
   minReviews: 0,
-  weakestApp: "—",
+  // Empty: the display layer renders its own "–" placeholder.
+  weakestApp: "",
   medianReviews: 0,
   weakCount: 0,
   freshCount: 0,
