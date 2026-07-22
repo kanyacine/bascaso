@@ -150,62 +150,13 @@ All data (SQLite database, master key) is stored in the `/app/data` volume. Back
 
 ```bash
 npm run electron:dev          # Launch Electron with hot reload
-npm run electron:make:dmg     # Build signed DMG (direct distribution)
-npm run electron:make:mas     # Build for Mac App Store (MAS=1)
+npm run electron:make:dmg     # Build signed DMG
 npm run test                  # Run tests
 npm run test:watch            # Watch mode
 npm run test:coverage         # Coverage report
 npm run db:generate           # Generate Drizzle migration
 npm run db:studio             # Drizzle Studio
 npm run lint                  # ESLint
-```
-
-### MAS builds
-
-The `MAS=1` environment variable produces a sandboxed Mac App Store build. In MAS mode the in-app auto-updater is disabled (updates go through the App Store) and the local MCP server is hidden (sandbox restrictions). It is set automatically by the `electron:make:mas` script.
-
-To test MAS mode during development:
-
-```bash
-MAS=1 npm run electron:dev
-```
-
-### Build flags
-
-| Flag | Purpose |
-|---|---|
-| `MAS=1` | Sandboxed Mac App Store build: disable auto-updater, hide the MCP server, use MAS entitlements. Set automatically by `electron:make:mas`. |
-| `MAS_DEV=1` | Sign with Apple Development cert + dev provisioning profile (for local testing). Without this, the build uses the 3rd Party Mac Developer Application cert + distribution profile (for App Store submission). |
-
-### Provisioning profiles
-
-Two provisioning profiles are needed in the project root (both gitignored):
-
-| File | Type | When to use |
-|---|---|---|
-| `provisioning.dev.provisionprofile` | macOS App Development | Local testing (`MAS_DEV=1`) |
-| `provisioning.dist.provisionprofile` | Mac App Distribution | App Store submission |
-
-Create both in the [Apple Developer portal](https://developer.apple.com/account/resources/profiles/) under Provisioning Profiles, selecting the `com.itsyconnect.app` App ID and the matching certificate.
-
-### Building and testing MAS locally
-
-```bash
-# Build with dev signing (runs locally)
-MAS_DEV=1 npm run electron:make:mas
-
-# Open the built app
-open out/Itsyconnect-darwin-arm64/Itsyconnect.app
-```
-
-### Building for App Store submission
-
-```bash
-# Build with distribution signing
-npm run electron:make:mas
-
-# Submit via Transporter or altool
-xcrun altool --upload-app -f out/make/*.pkg -u you@example.com
 ```
 
 ## Architecture
@@ -228,8 +179,6 @@ Electron app
 
 ## Releasing a new version
 
-### Direct distribution
-
 The app auto-updates via [update.electronjs.org](https://update.electronjs.org), which reads from public GitHub Releases.
 
 1. Bump `APP_VERSION` and `BUILD_NUMBER` in `src/lib/version.ts`, and `"version"` in `package.json`
@@ -243,16 +192,6 @@ The app auto-updates via [update.electronjs.org](https://update.electronjs.org),
 5. `update.electronjs.org` picks up the new release – existing users are prompted to restart and update
 
 Users can also check manually via **Itsyconnect > Check for updates…** in the menu bar.
-
-### Mac App Store
-
-MAS builds use Apple's distribution signing and skip notarization (Apple reviews MAS apps separately). The auto-updater is disabled – updates go through the App Store.
-
-```bash
-npm run electron:make:mas
-```
-
-Submit the resulting package via Transporter or `xcrun altool`.
 
 ## Contributing
 
