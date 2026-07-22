@@ -13,7 +13,9 @@ import {
 } from "@phosphor-icons/react";
 import { localeName, FIELD_LIMITS } from "@/lib/asc/locale-names";
 import { buildForbiddenKeywords } from "@/lib/asc/keyword-utils";
-import { KeywordTagInput, type TagScore } from "@/components/keyword-tag-input";
+import { KeywordTagInput, splitKeywords, type TagScore } from "@/components/keyword-tag-input";
+import { KeywordDetailDialog } from "@/components/keyword-detail-dialog";
+import { KeywordDistributionBars } from "@/components/keyword-distribution-bars";
 import { CharCount } from "@/components/char-count";
 import { AICompareDialog } from "@/components/ai-compare-dialog";
 import { useAIStatus } from "@/lib/hooks/use-ai-status";
@@ -32,6 +34,8 @@ interface LocaleCardProps {
   isPrimary?: boolean;
   onKeywordsChange: (locale: string, keywords: string) => void;
   getTagScore?: (tag: string) => TagScore | undefined;
+  /** iTunes country the scores were computed against (detail dialog). */
+  scoreCountry?: string | null;
 }
 
 export function LocaleCard({
@@ -45,9 +49,11 @@ export function LocaleCard({
   isPrimary,
   onKeywordsChange,
   getTagScore,
+  scoreCountry,
 }: LocaleCardProps) {
   const t = useTranslations();
   const [expanded, setExpanded] = useState(false);
+  const [detailIndex, setDetailIndex] = useState<number | null>(null);
   const { configured } = useAIStatus();
   const [showAIRequired, setShowAIRequired] = useState(false);
   const [compareState, setCompareState] = useState<{
@@ -186,9 +192,16 @@ export function LocaleCard({
                       onChange={(v) => onKeywordsChange(data.resolvedLocale, v)}
                       readOnly={readOnly}
                       getTagScore={getTagScore}
+                      onTagClick={getTagScore ? setDetailIndex : undefined}
                     />
                   </CardContent>
                 </Card>
+                {getTagScore && (
+                  <KeywordDistributionBars
+                    words={splitKeywords(data.keywordsRaw)}
+                    getTagScore={getTagScore}
+                  />
+                )}
               </div>
 
               {/* Issues + fix button */}
@@ -254,6 +267,15 @@ export function LocaleCard({
         </CardContent>
       </Card>
 
+      {getTagScore && (
+        <KeywordDetailDialog
+          words={splitKeywords(data.keywordsRaw)}
+          openIndex={detailIndex}
+          onOpenIndexChange={setDetailIndex}
+          getTagScore={getTagScore}
+          country={scoreCountry ?? null}
+        />
+      )}
       <AIRequiredDialog open={showAIRequired} onOpenChange={setShowAIRequired} />
       <AICompareDialog
         open={!!compareState}

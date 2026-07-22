@@ -7,6 +7,13 @@ import type { TagScore } from "@/components/keyword-tag-input";
 
 const ASC_FIELD_MAX_LENGTH = 100;
 
+/** ASC app id as a numeric Apple id for rank lookups; demo apps have
+ *  non-numeric ids and return undefined (rank stays unavailable). */
+export function numericAppleId(id: string | undefined): number | undefined {
+  const appleId = Number(id);
+  return Number.isInteger(appleId) && appleId > 0 ? appleId : undefined;
+}
+
 /** Splits a free-form textarea/paste into normalized, deduped keywords. */
 export function parseResearchInput(input: string): string[] {
   const seen = new Set<string>();

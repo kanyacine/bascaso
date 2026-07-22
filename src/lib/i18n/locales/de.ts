@@ -1409,5 +1409,42 @@ export const de: Messages = {
     detailCompPrice: "Preis",
     detailCompReleased: "Erschienen",
     detailCompUpdated: "Aktualisiert",
+    detailPrev: "Zurück",
+    detailNext: "Weiter",
+    mixTitle: "Keyword-Mix",
+    mixTooltip:
+      "Wie sich die Keywords dieses Felds nach Popularitäts-/Schwierigkeitsprofil verteilen. Keine Kategorie ist grundsätzlich besser als eine andere – eine App, die bei einem High-Competition-Keyword auf Rang #1 steht, kann stärker sein als eine, die nur Sweet Spots verfolgt. Lesen Sie es als die Form Ihres Mix, nicht als Qualitätswert.",
+    ranksTitle: "Positionen Ihrer Keywords",
+    ranksTooltip:
+      "Wo Ihre App in den App-Store-Suchergebnissen für jedes Keyword dieses Felds rangiert. Das Scoring berücksichtigt die Top 25 Ergebnisse – tiefere Positionen zählen als nicht platziert.",
+    rankBarT5: "Top 5",
+    rankBarT5Tip: "Positionen 1–5 – die sichtbarsten Suchplätze.",
+    rankBarT10: "6–10",
+    rankBarT10Tip: "Positionen 6–10 – noch auf den ersten Ergebnisbildschirmen.",
+    rankBarT20: "11–20",
+    rankBarT20Tip: "Positionen 11–20 – sichtbar bei etwas Scrollen.",
+    rankBarT25: "21–25",
+    rankBarT25Tip: "Positionen 21–25 – kaum organische Sichtbarkeit.",
+    rankBarUnranked: "Nicht platziert",
+    rankBarUnrankedTip:
+      "Außerhalb der Top 25 Ergebnisse – Ihre App ist für diese Suchen praktisch unsichtbar.",
+    summaryTitle: "Storefront-Zusammenfassung",
+    summaryDownloads: "Gesch. Downloads/Tag",
+    summaryDownloadsTip:
+      "Geschätzte tägliche Downloads, die diese Keywords bei ihren aktuellen Rängen bringen, summiert über den Storefront. Immer ein Intervall – Keywords unterhalb von Rang #20 zählen als null.",
+    summaryHeadroom: "Potenzial bis Rang #1",
+    summaryHeadroomTip:
+      "Zusätzliche geschätzte tägliche Downloads, wenn jedes Keyword auf Rang #1 stünde – die theoretische Obergrenze, keine Prognose.",
+    summaryRanked: "Platziert",
+    summaryRankedTip:
+      "Keywords, bei denen Ihre App in den Top 25 Suchergebnissen erscheint, von allen bewerteten Keywords dieses Storefronts.",
+    summaryBestRank: "bester Rang #{rank}",
+    summaryTop20: "{count} in Top 20",
+    summaryMovers: "Bewegungen",
+    summaryMoversTip:
+      "Keywords, deren Rang sich seit der vorherigen Beobachtung verbessert oder verschlechtert hat.",
+    summaryTopPerformer: "Bester Performer",
+    summaryBiggestGap: "Größte Lücke",
+    summaryGapUpTo: "bis zu {range}/Tag zusätzlich bei Rang #1",
   },
 };

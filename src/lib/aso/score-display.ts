@@ -104,6 +104,20 @@ export const TONE_BADGE: Record<ScoreTone, string> = {
   muted: "bg-muted text-muted-foreground",
 };
 
+/** Solid meter/segment classes matching TONE_TEXT hues. */
+export const TONE_BAR: Record<ScoreTone, string> = {
+  darkGreen: "bg-green-700",
+  green: "bg-green-500",
+  lightGreen: "bg-green-400",
+  yellow: "bg-yellow-500",
+  amber: "bg-amber-500",
+  orange: "bg-orange-500",
+  red: "bg-red-500",
+  darkRed: "bg-red-700",
+  blue: "bg-blue-500",
+  muted: "bg-muted-foreground",
+};
+
 /** Client-side mirror of the server keyword normalization. */
 export function normalizeKeyword(keyword: string): string {
   return keyword.trim().toLowerCase();

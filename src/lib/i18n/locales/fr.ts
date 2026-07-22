@@ -1411,5 +1411,42 @@ export const fr: Messages = {
     detailCompPrice: "Prix",
     detailCompReleased: "Sortie",
     detailCompUpdated: "MàJ",
+    detailPrev: "Précédent",
+    detailNext: "Suivant",
+    mixTitle: "Répartition des mots-clés",
+    mixTooltip:
+      "Répartition des mots-clés de ce champ par profil popularité/difficulté. Aucune catégorie n'est meilleure qu'une autre en soi – une app classée n°1 sur un mot High Competition peut être plus forte qu'une app qui ne vise que des Sweet Spots. À lire comme la forme du mix, pas comme une note de qualité.",
+    ranksTitle: "Positions de vos mots-clés",
+    ranksTooltip:
+      "Position de votre app dans les résultats de recherche App Store pour chaque mot-clé de ce champ. Le scoring inspecte les 25 premiers résultats – au-delà, le mot compte comme non classé.",
+    rankBarT5: "Top 5",
+    rankBarT5Tip: "Positions 1–5 – les emplacements les plus visibles.",
+    rankBarT10: "6–10",
+    rankBarT10Tip: "Positions 6–10 – encore sur les premiers écrans de résultats.",
+    rankBarT20: "11–20",
+    rankBarT20Tip: "Positions 11–20 – visibles en faisant défiler.",
+    rankBarT25: "21–25",
+    rankBarT25Tip: "Positions 21–25 – quasiment aucune visibilité organique.",
+    rankBarUnranked: "Non classé",
+    rankBarUnrankedTip:
+      "Hors du top 25 des résultats – votre app est pratiquement invisible sur ces recherches.",
+    summaryTitle: "Résumé de la vitrine",
+    summaryDownloads: "Téléch. estimés/jour",
+    summaryDownloadsTip:
+      "Téléchargements quotidiens estimés qu'apportent ces mots-clés à leurs positions actuelles, cumulés sur la vitrine. Toujours un intervalle – un mot classé au-delà du n°20 compte pour zéro.",
+    summaryHeadroom: "Potentiel jusqu'au n°1",
+    summaryHeadroomTip:
+      "Téléchargements quotidiens estimés supplémentaires si chaque mot-clé était classé n°1 – le plafond théorique, pas une prévision.",
+    summaryRanked: "Classés",
+    summaryRankedTip:
+      "Mots-clés pour lesquels votre app apparaît dans le top 25 des résultats, sur l'ensemble des mots scorés de cette vitrine.",
+    summaryBestRank: "meilleur n°{rank}",
+    summaryTop20: "{count} dans le top 20",
+    summaryMovers: "Évolutions",
+    summaryMoversTip:
+      "Mots-clés dont la position a progressé ou reculé depuis l'observation précédente.",
+    summaryTopPerformer: "Meilleur contributeur",
+    summaryBiggestGap: "Plus gros manque à gagner",
+    summaryGapUpTo: "jusqu'à {range}/jour de plus au n°1",
   },
 };

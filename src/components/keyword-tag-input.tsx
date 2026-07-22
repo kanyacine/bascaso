@@ -43,6 +43,8 @@ interface KeywordTagInputProps {
   onChange: (value: string) => void;
   readOnly?: boolean;
   getTagScore?: (tag: string) => TagScore | undefined;
+  /** When set, tags become clickable (detail dialog) – index in field order. */
+  onTagClick?: (index: number) => void;
 }
 
 const TONE_CLASSES: Record<OpportunityTone, string> = {
@@ -91,7 +93,8 @@ function TagScoreBadge({ score }: { score: TagScore }) {
   );
 }
 
-function splitKeywords(raw: string): string[] {
+/** Comma-separated field → tags, in visual order (shared with detail dialogs). */
+export function splitKeywords(raw: string): string[] {
   return raw
     .split(",")
     .map((s) => s.trim())
@@ -107,6 +110,7 @@ export function KeywordTagInput({
   onChange,
   readOnly,
   getTagScore,
+  onTagClick,
 }: KeywordTagInputProps) {
   const [input, setInput] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -174,8 +178,24 @@ export function KeywordTagInput({
         const score = getTagScore?.(tag);
         return (
         <Badge key={`${i}-${tag}`} variant="secondary" className="gap-1 py-0.5">
-          {tag}
-          {score && <TagScoreBadge score={score} />}
+          {onTagClick ? (
+            <button
+              type="button"
+              className="flex cursor-pointer items-center gap-1 hover:underline"
+              onClick={(e) => {
+                e.stopPropagation();
+                onTagClick(i);
+              }}
+            >
+              {tag}
+              {score && <TagScoreBadge score={score} />}
+            </button>
+          ) : (
+            <>
+              {tag}
+              {score && <TagScoreBadge score={score} />}
+            </>
+          )}
           {!readOnly && (
             <button
               type="button"

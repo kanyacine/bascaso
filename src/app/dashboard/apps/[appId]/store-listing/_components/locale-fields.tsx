@@ -1,18 +1,22 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import { useParams } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { CharCount } from "@/components/char-count";
-import { KeywordTagInput } from "@/components/keyword-tag-input";
+import { KeywordTagInput, splitKeywords } from "@/components/keyword-tag-input";
+import { KeywordDetailDialog } from "@/components/keyword-detail-dialog";
+import { KeywordDistributionBars } from "@/components/keyword-distribution-bars";
 import { FIELD_LIMITS, FIELD_MIN_LIMITS } from "@/lib/asc/locale-names";
 import { splitMetaWords } from "@/lib/asc/keyword-utils";
 import { MagicWandButton, wandProps } from "@/components/magic-wand-button";
 import type { MagicWandLocaleProps } from "@/components/magic-wand-button";
 import { useTranslations } from "@/lib/i18n/locale-context";
 import { STOREFRONTS } from "@/lib/asc/storefronts";
+import { numericAppleId } from "@/lib/aso/research";
 import {
   localeScoringStorefront,
   storefrontCountryCode,
@@ -127,6 +131,7 @@ export function LocaleFieldsSection({
   keywordsInsightsHref?: string;
 }) {
   const t = useTranslations();
+  const { appId } = useParams<{ appId: string }>();
 
   // ASO scores for the keyword pastilles, against the locale's main storefront
   const scoringStorefront = localeScoringStorefront(wand.locale);
@@ -136,7 +141,9 @@ export function LocaleFieldsSection({
   const getTagScore = useKeywordScores(
     current.keywords.split(",").filter(Boolean),
     scoringCountry,
+    numericAppleId(appId),
   );
+  const [detailIndex, setDetailIndex] = useState<number | null>(null);
 
   return (
     <>
@@ -276,6 +283,7 @@ export function LocaleFieldsSection({
               onChange={(v) => onFieldChange("keywords", v)}
               readOnly={readOnly}
               getTagScore={getTagScore}
+              onTagClick={scoringCountry ? setDetailIndex : undefined}
             />
           </CardContent>
           <div className="flex items-center rounded-b-xl border-t bg-sidebar px-3 py-1.5">
@@ -285,6 +293,21 @@ export function LocaleFieldsSection({
             />
           </div>
         </Card>
+        {scoringCountry && (
+          <KeywordDistributionBars
+            words={splitKeywords(current.keywords)}
+            getTagScore={getTagScore}
+          />
+        )}
+        {scoringCountry && (
+          <KeywordDetailDialog
+            words={splitKeywords(current.keywords)}
+            openIndex={detailIndex}
+            onOpenIndexChange={setDetailIndex}
+            getTagScore={getTagScore}
+            country={scoringCountry}
+          />
+        )}
       </section>
 
       <section className="space-y-2">

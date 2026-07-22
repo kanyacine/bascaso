@@ -1386,5 +1386,42 @@ export const zhCN: Messages = {
     detailCompPrice: "价格",
     detailCompReleased: "上架",
     detailCompUpdated: "更新",
+    detailPrev: "上一页",
+    detailNext: "下一页",
+    mixTitle: "关键词组合",
+    mixTooltip:
+      "该字段的关键词按热度与难度画像的分布情况。类别之间没有绝对优劣之分 – 在 High Competition 关键词上排名 #1 的应用可能比只锁定 Sweet Spot 的应用更强。请将其视为关键词组合的形态，而非质量评分。",
+    ranksTitle: "关键词排名",
+    ranksTooltip:
+      "你的 App 在此字段每个关键词的 App Store 搜索结果中的排名情况。评分只检查前 25 个结果 – 更靠后的位置计为未上榜。",
+    rankBarT5: "Top 5",
+    rankBarT5Tip: "第 1–5 位 – 最显眼的搜索位置。",
+    rankBarT10: "6–10",
+    rankBarT10Tip: "第 6–10 位 – 仍在结果的前几屏。",
+    rankBarT20: "11–20",
+    rankBarT20Tip: "第 11–20 位 – 需要滚动才能看到。",
+    rankBarT25: "21–25",
+    rankBarT25Tip: "第 21–25 位 – 几乎没有自然曝光。",
+    rankBarUnranked: "未上榜",
+    rankBarUnrankedTip:
+      "排在前 25 名之外 – 你的 App 在这些搜索中几乎不可见。",
+    summaryTitle: "商店地区摘要",
+    summaryDownloads: "预估下载量/天",
+    summaryDownloadsTip:
+      "这些关键词在当前排名下预估带来的每日下载量，按商店地区汇总。始终为区间值 – 排名 #20 以下的关键词计为零。",
+    summaryHeadroom: "距 #1 的潜力",
+    summaryHeadroomTip:
+      "若每个关键词都排名 #1，可额外带来的预估每日下载量 – 这是理论上限，并非预测。",
+    summaryRanked: "已上榜",
+    summaryRankedTip:
+      "你的 App 排名进入前 25 名搜索结果的关键词，占此商店地区全部评分关键词的比例。",
+    summaryBestRank: "最佳排名 #{rank}",
+    summaryTop20: "{count} 个进入 Top 20",
+    summaryMovers: "排名变动",
+    summaryMoversTip:
+      "自上次观察以来排名上升或下降的关键词。",
+    summaryTopPerformer: "最佳表现",
+    summaryBiggestGap: "最大差距",
+    summaryGapUpTo: "升至 #1 最多可再增 {range}/天",
   },
 };

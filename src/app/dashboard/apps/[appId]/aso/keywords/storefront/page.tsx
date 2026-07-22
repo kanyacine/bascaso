@@ -17,6 +17,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { numericAppleId } from "@/lib/aso/research";
 import { useKeywords } from "../_components/keywords-context";
 import { analyzeStorefront } from "../_components/keyword-analysis";
 import { useKeywordScores } from "@/lib/hooks/use-keyword-scores";
@@ -24,6 +25,7 @@ import { storefrontCountryCode } from "@/lib/aso/storefront-country";
 import { OverviewCard } from "../_components/overview-card";
 import { LocaleCard } from "../_components/locale-card";
 import { StorefrontPicker } from "../_components/storefront-picker";
+import { StorefrontSummary } from "../_components/storefront-summary";
 import { useTranslations } from "@/lib/i18n/locale-context";
 
 export default function KeywordsStorefrontPage() {
@@ -61,6 +63,7 @@ export default function KeywordsStorefrontPage() {
   const getTagScore = useKeywordScores(
     allKeywords,
     storefrontCountryCode(storefront),
+    numericAppleId(app?.id),
   );
 
   if (loading) {
@@ -87,6 +90,12 @@ export default function KeywordsStorefrontPage() {
       <div className="flex items-center">
         <StorefrontPicker value={storefront} onChange={setStorefront} />
       </div>
+
+      <StorefrontSummary
+        words={allKeywords}
+        getTagScore={getTagScore}
+        country={storefrontCountryCode(storefront)}
+      />
 
       <OverviewCard
         analysis={sfAnalysis}
@@ -136,6 +145,7 @@ export default function KeywordsStorefrontPage() {
               isPrimary={ld.resolvedLocale === app?.primaryLocale}
               onKeywordsChange={handleKeywordsChange}
               getTagScore={getTagScore}
+              scoreCountry={storefrontCountryCode(storefront)}
             />
           ))}
         </section>

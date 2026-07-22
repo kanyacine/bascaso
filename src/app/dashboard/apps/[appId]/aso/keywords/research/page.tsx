@@ -4,8 +4,6 @@ import { Fragment, useMemo, useState, type KeyboardEvent } from "react";
 import { useParams } from "next/navigation";
 import { toast } from "sonner";
 import {
-  ArrowDown,
-  ArrowUp,
   CaretDown,
   CaretRight,
   CaretUp,
@@ -39,17 +37,17 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import type { TagScore } from "@/components/keyword-tag-input";
+import { DeltaArrow } from "@/components/score-delta-arrow";
 import { localeName } from "@/lib/asc/locale-names";
 import {
   appendKeywordToField,
   compareResearchRows,
   mergeKeywords,
+  numericAppleId,
   parseResearchInput,
   scoreDelta,
   type ResearchSortColumn,
-  type ScoreDelta,
 } from "@/lib/aso/research";
-import { formatDate } from "@/lib/format";
 import {
   classificationTone,
   difficultyTone,
@@ -68,7 +66,7 @@ import { useKeywordScores } from "@/lib/hooks/use-keyword-scores";
 import { hasPersistedValue, usePersistedState } from "@/lib/hooks/use-persisted-range";
 import { useTranslations } from "@/lib/i18n/locale-context";
 import { cn } from "@/lib/utils";
-import { DifficultyDetail } from "../_components/difficulty-detail";
+import { DifficultyDetail } from "@/components/difficulty-detail";
 import { useKeywords } from "../_components/keywords-context";
 import { StorefrontPicker } from "../_components/storefront-picker";
 
@@ -139,14 +137,8 @@ export default function KeywordsResearchPage() {
     { column: "opportunity", dir: "desc" },
   );
 
-  // Demo apps have non-numeric ids – rank stays unavailable there.
-  const appleId = Number(app?.id);
   const country = storefrontCountryCode(storefront);
-  const getTagScore = useKeywordScores(
-    keywords,
-    country,
-    Number.isInteger(appleId) && appleId > 0 ? appleId : undefined,
-  );
+  const getTagScore = useKeywordScores(keywords, country, numericAppleId(app?.id));
 
   const rows = useMemo(
     () =>
@@ -275,40 +267,6 @@ export default function KeywordsResearchPage() {
         </Card>
       )}
     </div>
-  );
-}
-
-/** Tiny trend arrow: direction = numeric change, colour = good/bad news. */
-function DeltaArrow({
-  delta,
-  previousValue,
-  fetchedAt,
-}: {
-  delta: ScoreDelta | null;
-  previousValue: number | null | undefined;
-  fetchedAt: number | undefined;
-}) {
-  const t = useTranslations();
-  if (!delta || previousValue == null || fetchedAt == null) return null;
-  const Arrow = delta.direction === "up" ? ArrowUp : ArrowDown;
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Arrow
-          weight="bold"
-          className={cn(
-            "ml-0.5 inline size-2.5",
-            delta.improved ? TONE_TEXT.green : TONE_TEXT.red,
-          )}
-        />
-      </TooltipTrigger>
-      <TooltipContent>
-        {t("keywords.researchDeltaTooltip", {
-          value: previousValue,
-          date: formatDate(new Date(fetchedAt).toISOString()),
-        })}
-      </TooltipContent>
-    </Tooltip>
   );
 }
 

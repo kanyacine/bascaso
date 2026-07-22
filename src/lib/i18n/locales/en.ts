@@ -1407,5 +1407,42 @@ export const en = {
     detailCompPrice: "Price",
     detailCompReleased: "Released",
     detailCompUpdated: "Updated",
+    detailPrev: "Previous",
+    detailNext: "Next",
+    mixTitle: "Keyword mix",
+    mixTooltip:
+      "How this field's keywords break down by popularity-vs-difficulty profile. No category is inherently better than another – an app ranking #1 on a High Competition keyword can be stronger than one tracking only Sweet Spots. Read it as the shape of your mix, not a quality score.",
+    ranksTitle: "Keyword ranks",
+    ranksTooltip:
+      "Where your app ranks in the App Store search results for each keyword of this field. Scoring inspects the top 25 results – deeper positions count as not ranking.",
+    rankBarT5: "Top 5",
+    rankBarT5Tip: "Positions 1–5 – the most visible search slots.",
+    rankBarT10: "6–10",
+    rankBarT10Tip: "Positions 6–10 – still on the first screens of results.",
+    rankBarT20: "11–20",
+    rankBarT20Tip: "Positions 11–20 – visible with some scrolling.",
+    rankBarT25: "21–25",
+    rankBarT25Tip: "Positions 21–25 – barely any organic visibility.",
+    rankBarUnranked: "Not ranking",
+    rankBarUnrankedTip:
+      "Outside the top 25 results – your app is effectively invisible for these searches.",
+    summaryTitle: "Storefront summary",
+    summaryDownloads: "Est. downloads/day",
+    summaryDownloadsTip:
+      "Estimated daily downloads these keywords currently bring at their present ranks, summed over the storefront. Always an interval – keywords ranking below #20 count as zero.",
+    summaryHeadroom: "Headroom to #1",
+    summaryHeadroomTip:
+      "Additional estimated daily downloads if every keyword ranked #1 – the theoretical ceiling, not a forecast.",
+    summaryRanked: "Ranking",
+    summaryRankedTip:
+      "Keywords where your app appears in the top 25 search results, out of all scored keywords for this storefront.",
+    summaryBestRank: "best #{rank}",
+    summaryTop20: "{count} in top 20",
+    summaryMovers: "Movers",
+    summaryMoversTip:
+      "Keywords whose rank improved or dropped since the previous observation.",
+    summaryTopPerformer: "Top performer",
+    summaryBiggestGap: "Biggest gap",
+    summaryGapUpTo: "up to {range}/day more at #1",
   },
 } as const;

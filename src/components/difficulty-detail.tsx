@@ -59,6 +59,7 @@ import {
   rankQuality,
   rankTone,
   TONE_BADGE,
+  TONE_BAR,
   TONE_TEXT,
   type ScoreTone,
 } from "@/lib/aso/score-display";
@@ -161,21 +162,12 @@ const fmt = (x: number) =>
 
 const range = (low: number, high: number) => `${fmt(low)}–${fmt(high)}`;
 
-const TONE_BAR: Partial<Record<ReturnType<typeof difficultyTone>, string>> = {
-  green: "bg-green-500",
-  lightGreen: "bg-green-400",
-  yellow: "bg-yellow-500",
-  orange: "bg-orange-500",
-  red: "bg-red-500",
-  darkRed: "bg-red-700",
-};
-
 function Meter({ value, className }: { value: number; className?: string }) {
   const tone = difficultyTone(value);
   return (
     <div className={cn("h-1 rounded-full bg-muted", className)}>
       <div
-        className={cn("h-1 rounded-full", TONE_BAR[tone] ?? "bg-muted-foreground")}
+        className={cn("h-1 rounded-full", TONE_BAR[tone])}
         style={{ width: `${Math.min(100, Math.max(0, value))}%` }}
       />
     </div>
