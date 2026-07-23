@@ -13,13 +13,13 @@ export default function AboutPage() {
     <div className="max-w-2xl space-y-6">
       <Image
         src="/icon.png"
-        alt="Itsyconnect"
+        alt="Bascaso"
         width={64}
         height={64}
         className="rounded-xl"
       />
       <div className="space-y-1">
-        <h2 className="text-lg font-semibold">Itsyconnect</h2>
+        <h2 className="text-lg font-semibold">Bascaso</h2>
         <a
           href="https://itsyconnect.com"
           target="_blank"

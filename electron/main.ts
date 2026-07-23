@@ -190,7 +190,7 @@ async function startProdServer(): Promise<number> {
   require(path.join(standaloneDir, "server.js"));
 
   // Next.js sets process.title = "next-server" which overrides macOS menu bar name
-  process.title = "Itsyconnect";
+  process.title = "Bascaso";
 
   await waitForServer(port);
   return port;
@@ -305,7 +305,7 @@ function sfIcon(name: string): Electron.NativeImage {
 }
 
 function setupMenu(): void {
-  const appName = "Itsyconnect";
+  const appName = "Bascaso";
   const template: Electron.MenuItemConstructorOptions[] = [
     {
       label: appName,
@@ -536,7 +536,7 @@ if (!gotLock) {
     process.env.ELECTRON = "1";
     ensureMasterKey();
     setDatabasePath();
-    app.name = "Itsyconnect";
+    app.name = "Bascaso";
 
     const port = isDev ? await startDevServer() : await startProdServer();
     if (!isDev) registerProtocolProxy(port);

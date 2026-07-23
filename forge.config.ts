@@ -6,7 +6,7 @@ import { APP_VERSION, BUILD_NUMBER } from "./src/lib/version";
 const makers = [
   new MakerDMG({
     format: "ULFO",
-    name: "Itsyconnect",
+    name: "Bascaso",
     icon: "public/icon.icns",
     overwrite: true,
   }),
@@ -16,7 +16,7 @@ const makers = [
 const config: ForgeConfig = {
   packagerConfig: {
     appBundleId: "com.itsyconnect.app",
-    name: "Itsyconnect",
+    name: "Bascaso",
     appVersion: APP_VERSION,
     buildVersion: BUILD_NUMBER,
     icon: "public/icon",

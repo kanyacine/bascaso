@@ -19,7 +19,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Itsyconnect",
+  title: "Bascaso",
   description: "Self-hosted App Store Connect dashboard",
 };
 
