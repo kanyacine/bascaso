@@ -542,7 +542,9 @@ if (!gotLock) {
     if (!isDev) registerProtocolProxy(port);
     createWindow(port);
     setupMenu();
-    setupAutoUpdater();
+    // Disabled: feed URL points at the upstream itsyconnect-macos repo, which
+    // this fork has diverged from. Re-enable once Bascaso has its own releases.
+    // setupAutoUpdater();
     console.log(`[main] App started on port ${port} (${isDev ? "dev" : "prod"})`);
 
     ipcMain.handle("get-system-locale", () => app.getLocale());
