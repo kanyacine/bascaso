@@ -5,27 +5,22 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createXai } from "@ai-sdk/xai";
 import { createMistral } from "@ai-sdk/mistral";
-import { getAISettings } from "./settings";
+import { getTierSettings } from "./settings";
 import {
+  ensureLocalModelLoaded,
   isLocalOpenAIProvider,
   resolveLocalOpenAIApiKey,
   resolveLocalOpenAIBaseUrl,
 } from "./local-provider";
-
-/** Create a Vercel AI SDK LanguageModel from stored AI settings. */
-export async function getLanguageModel(): Promise<LanguageModel> {
-  const settings = await getAISettings();
-  if (!settings) {
-    throw new Error("AI not configured");
-  }
-
-  return createLanguageModel(
-    settings.provider,
-    settings.modelId,
-    settings.apiKey,
-    settings.baseUrl ?? undefined,
-  );
-}
+import {
+  APPLE_FM_MAX_INPUT_CHARS,
+  APPLE_FM_MODEL_ID,
+  APPLE_FM_PROVIDER_ID,
+  getAppleFmBaseUrl,
+  getAppleFmStatus,
+} from "./apple-fm";
+import { groupForTask, type AITaskId, type AITier } from "@/lib/ai/tasks";
+import { getRoutingFallbackEnabled, getRoutingTier } from "@/lib/app-preferences";
 
 export function createLanguageModel(
   provider: string,
@@ -69,9 +64,104 @@ export function createLanguageModel(
       });
       return deepseek(modelId);
     }
+    case APPLE_FM_PROVIDER_ID: {
+      const appleFm = createOpenAI({ apiKey, baseURL: baseUrl });
+      return appleFm.chat(modelId);
+    }
     default:
       throw new Error(`Unknown AI provider: ${provider}`);
   }
+}
+
+export type AIRoutingErrorCode =
+  | "ai_tier_not_configured"
+  | "apple_fm_unavailable"
+  | "local_server_unavailable";
+
+export class AIRoutingError extends Error {
+  constructor(
+    public code: AIRoutingErrorCode,
+    message: string,
+    public status: number = code === "ai_tier_not_configured" ? 400 : 422,
+  ) {
+    super(message);
+    this.name = "AIRoutingError";
+  }
+}
+
+export interface ResolvedTaskModel {
+  model: LanguageModel;
+  providerId: string;
+  modelId: string;
+  tier: AITier;
+  /** Set for the embedded Apple model – callers reject bigger inputs (étape 2). */
+  maxInputChars?: number;
+}
+
+/** The single seam between call sites and providers: task → group → tier → model.
+ *  Resolution order is task pref > group pref > shipped default; only the group
+ *  level exists in v1, `context` reserves the slot for per-locale overrides. */
+export async function getLanguageModelForTask(
+  taskId: AITaskId,
+  _context?: { locale?: string },
+): Promise<ResolvedTaskModel> {
+  const tier = getRoutingTier(groupForTask(taskId));
+  return resolveTier(tier, true);
+}
+
+async function resolveTier(tier: AITier, allowFallback: boolean): Promise<ResolvedTaskModel> {
+  const settings = await getTierSettings(tier);
+  if (!settings) {
+    throw new AIRoutingError("ai_tier_not_configured", `The ${tier} tier is not configured`);
+  }
+
+  if (tier === "local" && settings.provider === APPLE_FM_PROVIDER_ID) {
+    const status = await getAppleFmStatus();
+    if (!status.available) {
+      const fallback = await tryByokFallback(allowFallback);
+      if (fallback) return fallback;
+      throw new AIRoutingError("apple_fm_unavailable", status.reason ?? "unknown");
+    }
+    const baseUrl = getAppleFmBaseUrl();
+    if (baseUrl == null) {
+      const fb = await tryByokFallback(allowFallback);
+      if (fb) return fb;
+      throw new AIRoutingError("apple_fm_unavailable", "sidecar_unreachable");
+    }
+    return {
+      model: createLanguageModel(APPLE_FM_PROVIDER_ID, APPLE_FM_MODEL_ID, "afm", baseUrl),
+      providerId: APPLE_FM_PROVIDER_ID,
+      modelId: APPLE_FM_MODEL_ID,
+      tier,
+      maxInputChars: APPLE_FM_MAX_INPUT_CHARS,
+    };
+  }
+
+  if (tier === "local" && isLocalOpenAIProvider(settings.provider)) {
+    const loadError = await ensureLocalModelLoaded(
+      settings.modelId,
+      settings.baseUrl ?? undefined,
+      settings.apiKey,
+    );
+    if (loadError) {
+      const fallback = await tryByokFallback(allowFallback);
+      if (fallback) return fallback;
+      throw new AIRoutingError("local_server_unavailable", loadError);
+    }
+  }
+
+  return {
+    model: createLanguageModel(settings.provider, settings.modelId, settings.apiKey, settings.baseUrl ?? undefined),
+    providerId: settings.provider,
+    modelId: settings.modelId,
+    tier,
+  };
+}
+
+async function tryByokFallback(allowFallback: boolean): Promise<ResolvedTaskModel | null> {
+  if (!allowFallback || !getRoutingFallbackEnabled()) return null;
+  const byok = await getTierSettings("byok");
+  return byok ? resolveTier("byok", false) : null;
 }
 
 export type AIErrorCategory = "auth" | "permission" | "model_not_found" | "rate_limit" | "unknown";

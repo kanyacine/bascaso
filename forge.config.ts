@@ -21,6 +21,7 @@ const config: ForgeConfig = {
     buildVersion: BUILD_NUMBER,
     icon: "public/icon",
     asar: false,
+    extraResource: ["native/afm-server/.build/release/afm-server"],
     osxSign: process.env.APPLE_TEAM_ID ? {} : undefined,
     osxNotarize: process.env.APPLE_ID
       ? {

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mockGet = vi.fn();
 const mockRun = vi.fn();
-const mockGetAISettings = vi.fn();
+const mockGetTierSettings = vi.fn();
 const mockEncrypt = vi.fn();
 const mockDecrypt = vi.fn();
 
@@ -44,7 +44,7 @@ vi.mock("@/lib/encryption", () => ({
 }));
 
 vi.mock("@/lib/ai/settings", () => ({
-  getAISettings: (...args: unknown[]) => mockGetAISettings(...args),
+  getTierSettings: (...args: unknown[]) => mockGetTierSettings(...args),
 }));
 
 import {
@@ -58,14 +58,14 @@ describe("gemini-key", () => {
   beforeEach(() => {
     mockGet.mockReset();
     mockRun.mockReset();
-    mockGetAISettings.mockReset();
+    mockGetTierSettings.mockReset();
     mockEncrypt.mockReset();
     mockDecrypt.mockReset();
   });
 
   describe("getGeminiKey", () => {
     it("returns key from google provider settings", async () => {
-      mockGetAISettings.mockResolvedValue({
+      mockGetTierSettings.mockResolvedValue({
         provider: "google",
         apiKey: "google-key-123",
       });
@@ -76,7 +76,7 @@ describe("gemini-key", () => {
     });
 
     it("returns key from dedicated DB preference", async () => {
-      mockGetAISettings.mockResolvedValue({
+      mockGetTierSettings.mockResolvedValue({
         provider: "anthropic",
         apiKey: "anthropic-key",
       });
@@ -96,7 +96,7 @@ describe("gemini-key", () => {
     });
 
     it("returns null when no key is available", async () => {
-      mockGetAISettings.mockResolvedValue(null);
+      mockGetTierSettings.mockResolvedValue(null);
       mockGet.mockReturnValue(undefined);
 
       const result = await getGeminiKey();
@@ -104,7 +104,7 @@ describe("gemini-key", () => {
     });
 
     it("returns null on JSON parse error", async () => {
-      mockGetAISettings.mockResolvedValue(null);
+      mockGetTierSettings.mockResolvedValue(null);
       mockGet.mockReturnValue({ value: "not-valid-json" });
 
       const result = await getGeminiKey();
@@ -137,7 +137,7 @@ describe("gemini-key", () => {
 
   describe("hasGeminiKey", () => {
     it("returns true when google provider is configured", async () => {
-      mockGetAISettings.mockResolvedValue({ provider: "google" });
+      mockGetTierSettings.mockResolvedValue({ provider: "google" });
 
       const result = await hasGeminiKey();
       expect(result).toBe(true);
@@ -145,7 +145,7 @@ describe("gemini-key", () => {
     });
 
     it("returns true when dedicated key exists in DB", async () => {
-      mockGetAISettings.mockResolvedValue({
+      mockGetTierSettings.mockResolvedValue({
         provider: "anthropic",
       });
       mockGet.mockReturnValue({ value: "some-encrypted-value" });
@@ -155,7 +155,7 @@ describe("gemini-key", () => {
     });
 
     it("returns false when no key is available", async () => {
-      mockGetAISettings.mockResolvedValue(null);
+      mockGetTierSettings.mockResolvedValue(null);
       mockGet.mockReturnValue(undefined);
 
       const result = await hasGeminiKey();

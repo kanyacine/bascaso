@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { aiSettings } from "@/db/schema";
 import { encrypt } from "@/lib/encryption";
 import { ulid } from "@/lib/ulid";
-import { eq, ne, sql } from "drizzle-orm";
+import { and, eq, ne, sql } from "drizzle-orm";
 import { validateApiKey } from "@/lib/ai/provider-factory";
 import { parseBody } from "@/lib/api-helpers";
 import {
@@ -14,23 +14,44 @@ import {
   normalizeOpenAICompatibleBaseUrl,
   resolveLocalOpenAIApiKey,
 } from "@/lib/ai/local-provider";
+import { APPLE_FM_MODEL_ID, APPLE_FM_PROVIDER_ID, getAppleFmStatus } from "@/lib/ai/apple-fm";
+import {
+  getRoutingFallbackEnabled,
+  getRoutingTier,
+  isRoutingTierExplicit,
+} from "@/lib/app-preferences";
+import { AI_ROUTED_GROUPS, type AIGroupId, type AITier } from "@/lib/ai/tasks";
 
-export async function GET() {
-  const settings = db
+function projectTier(tier: AITier) {
+  const row = db
     .select({
-      id: aiSettings.id,
       provider: aiSettings.provider,
       modelId: aiSettings.modelId,
       baseUrl: aiSettings.baseUrl,
     })
     .from(aiSettings)
-    .orderBy(sql`${aiSettings.updatedAt} DESC`)
+    .where(eq(aiSettings.tier, tier))
     .get();
 
+  return row ? { ...row, hasApiKey: true as const } : null;
+}
+
+export async function GET() {
+  const groups: Partial<Record<AIGroupId, { tier: AITier; explicit: boolean }>> = {};
+  for (const group of AI_ROUTED_GROUPS) {
+    groups[group] = {
+      tier: getRoutingTier(group),
+      explicit: isRoutingTierExplicit(group),
+    };
+  }
+
   return NextResponse.json({
-    settings: settings
-      ? { ...settings, hasApiKey: true }
-      : null,
+    local: projectTier("local"),
+    byok: projectTier("byok"),
+    routing: {
+      groups,
+      fallback: getRoutingFallbackEnabled(),
+    },
   });
 }
 
@@ -39,6 +60,7 @@ const updateSchema = z.object({
   modelId: z.string().trim().min(1),
   baseUrl: z.string().trim().optional(),
   apiKey: z.string().optional(),
+  tier: z.enum(["local", "byok"]),
 });
 
 export async function PUT(request: Request) {
@@ -49,7 +71,22 @@ export async function PUT(request: Request) {
   const modelId = parsed.modelId.trim();
   const apiKey = parsed.apiKey?.trim();
   const baseUrl = parsed.baseUrl?.trim();
+  const tier = parsed.tier;
   const isLocalProvider = isLocalOpenAIProvider(provider);
+  const isAppleFm = provider === APPLE_FM_PROVIDER_ID;
+
+  if (tier === "local" && !isLocalProvider && !isAppleFm) {
+    return NextResponse.json(
+      { error: "Local tier requires the local-openai provider" },
+      { status: 400 },
+    );
+  }
+  if (tier === "byok" && (isLocalProvider || isAppleFm)) {
+    return NextResponse.json(
+      { error: "BYOK tier requires a non-local provider" },
+      { status: 400 },
+    );
+  }
 
   let normalizedBaseUrl: string | null = null;
   if (isLocalProvider) {
@@ -69,6 +106,7 @@ export async function PUT(request: Request) {
   const existing = db
     .select({ id: aiSettings.id, provider: aiSettings.provider })
     .from(aiSettings)
+    .where(eq(aiSettings.tier, tier))
     .orderBy(sql`${aiSettings.updatedAt} DESC`)
     .get();
 
@@ -85,15 +123,16 @@ export async function PUT(request: Request) {
     return null;
   }
 
-  function replaceSettings(candidateApiKey: string): void {
-    db.delete(aiSettings).run();
+  function replaceSettings(candidateApiKey: string, overrideModelId?: string): void {
+    db.delete(aiSettings).where(eq(aiSettings.tier, tier)).run();
     const encrypted = encrypt(candidateApiKey);
     db.insert(aiSettings)
       .values({
         id: ulid(),
         provider,
-        modelId,
+        modelId: overrideModelId ?? modelId,
         baseUrl: normalizedBaseUrl,
+        tier,
         updatedAt: new Date().toISOString(),
         encryptedApiKey: encrypted.ciphertext,
         iv: encrypted.iv,
@@ -101,6 +140,21 @@ export async function PUT(request: Request) {
         encryptedDek: encrypted.encryptedDek,
       })
       .run();
+  }
+
+  // Apple Foundation Model (local tier): no key and no model-load handshake –
+  // just require the sidecar to report available, then store a placeholder row.
+  // The live `/v1` URL is resolved from the state file at request time, so
+  // baseUrl stays null here. This short-circuits the key-reuse branches below,
+  // so a within-local switch (local-openai ⇄ apple-fm) routes correctly:
+  // apple-fm lands here; local-openai flows through the local-key path.
+  if (isAppleFm) {
+    const status = await getAppleFmStatus();
+    if (!status.available) {
+      return NextResponse.json({ error: "apple_fm_unavailable" }, { status: 422 });
+    }
+    replaceSettings("afm", APPLE_FM_MODEL_ID);
+    return NextResponse.json({ ok: true });
   }
 
   if (apiKey) {
@@ -139,13 +193,20 @@ export async function PUT(request: Request) {
       .set({ provider, modelId, baseUrl: normalizedBaseUrl, updatedAt: new Date().toISOString() })
       .where(eq(aiSettings.id, existing.id))
       .run();
-    db.delete(aiSettings).where(ne(aiSettings.id, existing.id)).run();
+    db.delete(aiSettings)
+      .where(and(eq(aiSettings.tier, tier), ne(aiSettings.id, existing.id)))
+      .run();
   }
 
   return NextResponse.json({ ok: true });
 }
 
-export async function DELETE() {
-  db.delete(aiSettings).run();
+export async function DELETE(request: Request) {
+  const tier = new URL(request.url).searchParams.get("tier");
+  if (tier !== "local" && tier !== "byok") {
+    return NextResponse.json({ error: "tier must be 'local' or 'byok'" }, { status: 400 });
+  }
+
+  db.delete(aiSettings).where(eq(aiSettings.tier, tier)).run();
   return NextResponse.json({ ok: true });
 }

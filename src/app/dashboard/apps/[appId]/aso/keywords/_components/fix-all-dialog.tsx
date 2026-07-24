@@ -273,7 +273,7 @@ export function FixAllDialog({
         </DialogHeader>
 
         {authError && (
-          <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 mb-3 text-sm text-destructive">
+          <div className="error-banner mb-3">
             {t("keywords.authErrorPrefix")}{" "}
             <a href="/settings/ai" className="underline font-medium">
               {t("keywords.updateAiSettings")}

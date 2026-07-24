@@ -1,7 +1,8 @@
 import { db } from "@/db";
 import { aiSettings } from "@/db/schema";
 import { decrypt } from "@/lib/encryption";
-import { sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
+import type { AITier } from "@/lib/ai/tasks";
 
 export interface AISettingsResult {
   provider: string;
@@ -10,14 +11,9 @@ export interface AISettingsResult {
   apiKey: string;
 }
 
-/** Read and decrypt AI settings from the database. Returns null if not configured. */
-export async function getAISettings(): Promise<AISettingsResult | null> {
-  const row = db
-    .select()
-    .from(aiSettings)
-    .orderBy(sql`${aiSettings.updatedAt} DESC`)
-    .get();
-
+/** Read and decrypt the settings row for a tier. Returns null if not configured. */
+export async function getTierSettings(tier: AITier): Promise<AISettingsResult | null> {
+  const row = db.select().from(aiSettings).where(eq(aiSettings.tier, tier)).get();
   if (!row) return null;
 
   const apiKey = decrypt({
@@ -27,10 +23,5 @@ export async function getAISettings(): Promise<AISettingsResult | null> {
     encryptedDek: row.encryptedDek,
   });
 
-  return {
-    provider: row.provider,
-    modelId: row.modelId,
-    baseUrl: row.baseUrl,
-    apiKey,
-  };
+  return { provider: row.provider, modelId: row.modelId, baseUrl: row.baseUrl, apiKey };
 }

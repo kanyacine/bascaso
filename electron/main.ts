@@ -7,6 +7,7 @@ import { createServer as createNetServer } from "node:net";
 import { pathToFileURL } from "node:url";
 import http from "node:http";
 import { initLogger, getLogPath, getLogDir } from "./logger";
+import { startAfmSidecar, stopAfmSidecar } from "./afm-sidecar";
 
 const isDev = !app.isPackaged;
 let nextProcess: ChildProcess | null = null;
@@ -73,6 +74,13 @@ function ensureMasterKey(): void {
 function setDatabasePath(): void {
   process.env.DATABASE_PATH = path.join(app.getPath("userData"), "itsyconnect.db");
 }
+
+// --- AFM sidecar state file ---
+// Set once, before either Next.js boot path (dev spawn inherits process.env;
+// standalone runs in-process) so the app-side code can read AFM_STATE_FILE to
+// find the sidecar's live port on both paths.
+const afmStateFile = path.join(app.getPath("userData"), "afm.json");
+process.env.AFM_STATE_FILE = afmStateFile;
 
 // --- Window state persistence ---
 
@@ -542,6 +550,7 @@ if (!gotLock) {
     if (!isDev) registerProtocolProxy(port);
     createWindow(port);
     setupMenu();
+    startAfmSidecar(afmStateFile);
     // Disabled: feed URL points at the upstream itsyconnect-macos repo, which
     // this fork has diverged from. Re-enable once Bascaso has its own releases.
     // setupAutoUpdater();
@@ -584,6 +593,7 @@ if (!gotLock) {
 
   app.on("will-quit", () => {
     if (nextProcess) nextProcess.kill();
+    stopAfmSidecar();
   });
 
   app.on("window-all-closed", () => {

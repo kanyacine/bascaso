@@ -30,6 +30,9 @@ export const aiSettings = sqliteTable("ai_settings", {
   iv: text("iv").notNull(),
   authTag: text("auth_tag").notNull(),
   encryptedDek: text("encrypted_dek").notNull(),
+  // "local" | "byok" – one row max per tier; the local row's provider column
+  // doubles as the engine id ("local-openai" | "apple-fm").
+  tier: text("tier").notNull().default("byok"),
   updatedAt: text("updated_at")
     .notNull()
     .$defaultFn(() => new Date().toISOString()),
@@ -117,6 +120,27 @@ export const keywordScoreHistory = sqliteTable(
   },
   (t) => [primaryKey({ columns: [t.keyword, t.country, t.fetchedAt] })],
 );
+
+// --- Workflow runs (agentic pipelines – one row per run, result persisted) ---
+
+export const workflowRuns = sqliteTable("workflow_runs", {
+  id: text("id").primaryKey().$defaultFn(ulid),
+  kind: text("kind").notNull(), // "keyword-research" (only kind for now)
+  appId: text("app_id").notNull(),
+  country: text("country").notNull(), // ISO 3166-1 alpha-2, lowercase
+  locale: text("locale").notNull(), // ASC locale, e.g. "fr-FR"
+  status: text("status").notNull(), // "running" | "succeeded" | "failed" | "cancelled"
+  step: text("step"), // last reported WorkflowStepId
+  progress: text("progress"), // JSON WorkflowProgress
+  result: text("result"), // JSON KeywordResearchResult (may be partial on failure)
+  error: text("error"), // error code, e.g. "workflow_step_failed:score"
+  createdAt: text("created_at")
+    .notNull()
+    .$defaultFn(() => new Date().toISOString()),
+  updatedAt: text("updated_at")
+    .notNull()
+    .$defaultFn(() => new Date().toISOString()),
+});
 
 // --- Pending changes (local change buffer) ---
 

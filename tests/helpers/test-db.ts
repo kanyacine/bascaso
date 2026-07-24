@@ -28,6 +28,7 @@ export function createTestDb() {
       iv TEXT NOT NULL,
       auth_tag TEXT NOT NULL,
       encrypted_dek TEXT NOT NULL,
+      tier TEXT NOT NULL DEFAULT 'byok',
       updated_at TEXT NOT NULL
     );
 
@@ -82,6 +83,21 @@ export function createTestDb() {
       field TEXT NOT NULL,
       value TEXT NOT NULL,
       original_value TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE workflow_runs (
+      id TEXT PRIMARY KEY NOT NULL,
+      kind TEXT NOT NULL,
+      app_id TEXT NOT NULL,
+      country TEXT NOT NULL,
+      locale TEXT NOT NULL,
+      status TEXT NOT NULL,
+      step TEXT,
+      progress TEXT,
+      result TEXT,
+      error TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );

@@ -189,6 +189,18 @@ export function useReviewActions<T extends Review>({
           setShowAIRequired(true);
           return;
         }
+        if (data.error === "ai_tier_not_configured") {
+          toast.error(t("errors.aiTierNotConfigured"));
+          return;
+        }
+        if (data.error === "apple_fm_unavailable") {
+          toast.error(t("errors.appleFmUnavailable"));
+          return;
+        }
+        if (data.error === "apple_fm_input_too_large") {
+          toast.error(t("errors.appleFmInputTooLarge"));
+          return;
+        }
         throw new Error(data.error ?? t("reviews.toastGenerateReplyFailed"));
       }
 
@@ -227,6 +239,18 @@ export function useReviewActions<T extends Review>({
         const data = await res.json().catch(() => ({}));
         if (data.error === "ai_not_configured") {
           setShowAIRequired(true);
+          return;
+        }
+        if (data.error === "ai_tier_not_configured") {
+          toast.error(t("errors.aiTierNotConfigured"));
+          return;
+        }
+        if (data.error === "apple_fm_unavailable") {
+          toast.error(t("errors.appleFmUnavailable"));
+          return;
+        }
+        if (data.error === "apple_fm_input_too_large") {
+          toast.error(t("errors.appleFmInputTooLarge"));
           return;
         }
         throw new Error(data.error ?? t("reviews.toastTranslationFailed"));
@@ -271,6 +295,21 @@ export function useReviewActions<T extends Review>({
         if (data.error === "ai_not_configured") {
           setAppealTarget(null);
           setShowAIRequired(true);
+          return;
+        }
+        if (data.error === "ai_tier_not_configured") {
+          setAppealTarget(null);
+          toast.error(t("errors.aiTierNotConfigured"));
+          return;
+        }
+        if (data.error === "apple_fm_unavailable") {
+          setAppealTarget(null);
+          toast.error(t("errors.appleFmUnavailable"));
+          return;
+        }
+        if (data.error === "apple_fm_input_too_large") {
+          setAppealTarget(null);
+          toast.error(t("errors.appleFmInputTooLarge"));
           return;
         }
         throw new Error(data.error ?? t("reviews.toastGenerateAppealFailed"));

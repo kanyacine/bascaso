@@ -36,6 +36,7 @@ function createTestDb() {
       iv TEXT NOT NULL,
       auth_tag TEXT NOT NULL,
       encrypted_dek TEXT NOT NULL,
+      tier TEXT NOT NULL DEFAULT 'byok',
       updated_at TEXT NOT NULL
     );
     CREATE TABLE cache_entries (

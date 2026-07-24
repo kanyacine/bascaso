@@ -1,7 +1,7 @@
 import { db } from "@/db";
 import { appPreferences } from "@/db/schema";
 import { encrypt, decrypt } from "@/lib/encryption";
-import { getAISettings } from "./settings";
+import { getTierSettings } from "./settings";
 import { eq } from "drizzle-orm";
 
 const PREF_KEY = "gemini_screenshot_key";
@@ -15,7 +15,7 @@ const PREF_KEY = "gemini_screenshot_key";
  */
 export async function getGeminiKey(): Promise<string | null> {
   // Check if main AI provider is Google
-  const settings = await getAISettings();
+  const settings = await getTierSettings("byok");
   if (settings?.provider === "google" && settings.apiKey) {
     return settings.apiKey;
   }
@@ -65,7 +65,7 @@ export function removeGeminiKey(): void {
 
 /** Check if any Gemini key is available (without decrypting). */
 export async function hasGeminiKey(): Promise<boolean> {
-  const settings = await getAISettings();
+  const settings = await getTierSettings("byok");
   if (settings?.provider === "google") return true;
 
   const row = db

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { z } from "zod";
 import { AscApiError } from "@/lib/asc/client";
 import type { AscErrorEntry } from "@/lib/asc/errors";
+import { AIRoutingError } from "@/lib/ai/provider-factory";
 
 /**
  * Build an error JSON response from a caught value.
@@ -28,6 +29,18 @@ export function errorJson(err: unknown, status = 502, fallback = "Unknown error"
 
   const message = err instanceof Error ? err.message : fallback;
   return NextResponse.json({ error: message }, { status });
+}
+
+/** Map a routing failure to the API shape callers already handle. */
+export function routingErrorResponse(err: unknown): Response {
+  if (err instanceof AIRoutingError) {
+    const body =
+      err.code === "local_server_unavailable"
+        ? { error: err.message } // existing local-server copy stays user-facing
+        : { error: err.code, reason: err.message };
+    return NextResponse.json(body, { status: err.status });
+  }
+  return NextResponse.json({ error: "ai_not_configured" }, { status: 400 });
 }
 
 /**

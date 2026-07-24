@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { createLanguageModel, validateApiKey, getLanguageModel, classifyAIError } from "@/lib/ai/provider-factory";
+import { createLanguageModel, validateApiKey, classifyAIError } from "@/lib/ai/provider-factory";
 import { DEFAULT_LOCAL_OPENAI_BASE_URL } from "@/lib/ai/local-provider";
 
 // The LanguageModel type is a union; runtime objects have modelId/provider
@@ -58,32 +58,6 @@ describe("createLanguageModel", () => {
 vi.mock("ai", () => ({
   generateText: vi.fn(),
 }));
-
-vi.mock("@/lib/ai/settings", () => ({
-  getAISettings: vi.fn(),
-}));
-
-describe("getLanguageModel", () => {
-  it("creates a model from stored settings", async () => {
-    const { getAISettings } = await import("@/lib/ai/settings");
-    vi.mocked(getAISettings).mockResolvedValueOnce({
-      provider: "anthropic",
-      modelId: "claude-sonnet-4-6",
-      baseUrl: null,
-      apiKey: "sk-test",
-    });
-
-    const model = await getLanguageModel() as Record<string, unknown>;
-    expect(model.modelId).toBe("claude-sonnet-4-6");
-  });
-
-  it("throws when AI is not configured", async () => {
-    const { getAISettings } = await import("@/lib/ai/settings");
-    vi.mocked(getAISettings).mockResolvedValueOnce(null);
-
-    await expect(getLanguageModel()).rejects.toThrow("AI not configured");
-  });
-});
 
 describe("classifyAIError", () => {
   it("returns 'auth' for 401/unauthorized errors", () => {

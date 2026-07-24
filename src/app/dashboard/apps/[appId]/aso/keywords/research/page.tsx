@@ -8,6 +8,7 @@ import {
   CaretRight,
   CaretUp,
   Plus,
+  Sparkle,
   X,
 } from "@phosphor-icons/react";
 import { Badge } from "@/components/ui/badge";
@@ -70,6 +71,7 @@ import { cn } from "@/lib/utils";
 import { DifficultyDetail } from "@/components/difficulty-detail";
 import { useKeywords } from "../_components/keywords-context";
 import { StorefrontPicker } from "../_components/storefront-picker";
+import { KeywordResearchDialog } from "./_components/keyword-research-dialog";
 
 const HEADERS = [
   { column: "keyword", label: "keywords.researchKeyword", tooltip: null },
@@ -93,8 +95,17 @@ function readList(raw: string): string[] {
 export default function KeywordsResearchPage() {
   const t = useTranslations();
   const { appId } = useParams<{ appId: string }>();
-  const { app, editedLocalizations, readOnly, loading, handleKeywordsChange } =
-    useKeywords();
+  const {
+    app,
+    editedLocalizations,
+    readOnly,
+    loading,
+    handleKeywordsChange,
+    getTitle,
+    getSubtitle,
+    getDescription,
+  } = useKeywords();
+  const [researchOpen, setResearchOpen] = useState(false);
 
   const defaultStorefront = useMemo(() => {
     const primaryLocale = app?.primaryLocale ?? "en-US";
@@ -130,6 +141,26 @@ export default function KeywordsResearchPage() {
         .sort(compareResearchRows(sort.column, sort.dir)),
     [keywords, getTagScore, sort],
   );
+
+  const targetLocales = useMemo(
+    () => editedLocalizations.map((l) => l.attributes.locale),
+    [editedLocalizations],
+  );
+  const defaultTargetLocale = useMemo(() => {
+    const primary = app?.primaryLocale ?? "en-US";
+    if (targetLocales.includes(primary)) return primary;
+    return targetLocales[0] ?? primary;
+  }, [targetLocales, app?.primaryLocale]);
+
+  const getResearchKeywords = (locale: string) =>
+    editedLocalizations.find((l) => l.attributes.locale === locale)?.attributes
+      .keywords ?? "";
+
+  const addResearchKeywords = (added: string[]) => {
+    const parsed = parseResearchInput(added.join("\n"));
+    if (parsed.length === 0) return;
+    setStored(JSON.stringify(mergeKeywords(keywords, parsed)));
+  };
 
   const addFromInput = () => {
     const added = parseResearchInput(input);
@@ -190,7 +221,32 @@ export default function KeywordsResearchPage() {
           placeholder={t("keywords.researchPlaceholder")}
           className="min-w-0 flex-1 font-mono"
         />
+        <Button
+          variant="outline"
+          className="shrink-0"
+          onClick={() => setResearchOpen(true)}
+        >
+          <Sparkle className="size-4" />
+          {t("aso.research.autoButton")}
+        </Button>
       </div>
+
+      <KeywordResearchDialog
+        open={researchOpen}
+        onOpenChange={setResearchOpen}
+        appId={appId}
+        appName={app?.name ?? ""}
+        appAppleId={numericAppleId(app?.id)}
+        storefront={storefront}
+        onStorefrontChange={setStorefront}
+        locales={targetLocales}
+        defaultLocale={defaultTargetLocale}
+        getTitle={getTitle}
+        getSubtitle={getSubtitle}
+        getDescription={getDescription}
+        getKeywords={getResearchKeywords}
+        onAddKeywords={addResearchKeywords}
+      />
 
       {rows.length === 0 ? (
         <div className="rounded-xl border border-dashed p-10 text-center text-sm text-muted-foreground">

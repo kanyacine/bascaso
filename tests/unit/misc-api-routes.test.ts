@@ -11,12 +11,8 @@ const mockGetSyncStatus = vi.fn();
 const mockHasGeminiKey = vi.fn();
 const mockSaveGeminiKey = vi.fn();
 const mockRemoveGeminiKey = vi.fn();
-const mockGetAISettings = vi.fn();
-const mockValidateApiKey = vi.fn();
+const mockGetTierSettings = vi.fn();
 const mockNormalizeBaseUrl = vi.fn();
-const mockResolveLocalApiKey = vi.fn();
-const mockEnsureLocalModelLoaded = vi.fn();
-const mockIsLocalProvider = vi.fn();
 
 vi.mock("@/db", () => ({
   get db() {
@@ -35,19 +31,12 @@ vi.mock("@/lib/ai/gemini-key", () => ({
 }));
 
 vi.mock("@/lib/ai/settings", () => ({
-  getAISettings: () => mockGetAISettings(),
-}));
-
-vi.mock("@/lib/ai/provider-factory", () => ({
-  validateApiKey: (...args: unknown[]) => mockValidateApiKey(...args),
+  getTierSettings: () => mockGetTierSettings(),
 }));
 
 vi.mock("@/lib/ai/local-provider", () => ({
   DEFAULT_LOCAL_OPENAI_BASE_URL: "http://127.0.0.1:1234/v1",
   normalizeOpenAICompatibleBaseUrl: (...args: unknown[]) => mockNormalizeBaseUrl(...args),
-  resolveLocalOpenAIApiKey: (...args: unknown[]) => mockResolveLocalApiKey(...args),
-  ensureLocalModelLoaded: (...args: unknown[]) => mockEnsureLocalModelLoaded(...args),
-  isLocalOpenAIProvider: (...args: unknown[]) => mockIsLocalProvider(...args),
 }));
 
 describe("misc API routes", () => {
@@ -61,17 +50,9 @@ describe("misc API routes", () => {
     mockHasGeminiKey.mockReset();
     mockSaveGeminiKey.mockReset();
     mockRemoveGeminiKey.mockReset();
-    mockGetAISettings.mockReset();
-    mockValidateApiKey.mockReset();
-    mockValidateApiKey.mockResolvedValue(null);
+    mockGetTierSettings.mockReset();
     mockNormalizeBaseUrl.mockReset();
     mockNormalizeBaseUrl.mockReturnValue("http://localhost:1234/v1");
-    mockResolveLocalApiKey.mockReset();
-    mockResolveLocalApiKey.mockImplementation((key) => key ?? "local-key");
-    mockEnsureLocalModelLoaded.mockReset();
-    mockEnsureLocalModelLoaded.mockResolvedValue(null);
-    mockIsLocalProvider.mockReset();
-    mockIsLocalProvider.mockReturnValue(false);
     vi.stubGlobal("fetch", vi.fn());
     vi.resetModules();
   });
@@ -138,7 +119,7 @@ describe("misc API routes", () => {
     const { GET } = await import("@/app/api/settings/gemini-key/route");
 
     mockHasGeminiKey.mockResolvedValue(true);
-    mockGetAISettings.mockResolvedValue({ provider: "google" });
+    mockGetTierSettings.mockResolvedValue({ provider: "google" });
 
     const response = await GET();
     const data = await response.json();
@@ -263,429 +244,6 @@ describe("misc API routes", () => {
 
     expect(response.status).toBe(403);
     expect(await response.json()).toEqual({ error: "Setup already completed" });
-  });
-
-  it("PUT /api/settings/ai stores initial provider settings", async () => {
-    const { PUT } = await import("@/app/api/settings/ai/route");
-
-    const response = await PUT(
-      new Request("http://localhost", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          provider: "openai",
-          modelId: "gpt-4.1",
-          apiKey: "sk-test",
-        }),
-      }),
-    );
-    const data = await response.json();
-
-    expect(data).toEqual({ ok: true });
-    expect(mockValidateApiKey).toHaveBeenCalledWith(
-      "openai",
-      "gpt-4.1",
-      "sk-test",
-      undefined,
-    );
-    expect(testDb.select().from(schema.aiSettings).all()).toHaveLength(1);
-  });
-
-  it("GET /api/settings/ai returns null when no settings exist", async () => {
-    const { GET } = await import("@/app/api/settings/ai/route");
-
-    const response = await GET();
-
-    expect(await response.json()).toEqual({ settings: null });
-  });
-
-  it("GET /api/settings/ai returns the latest saved settings with hasApiKey", async () => {
-    const { PUT, GET } = await import("@/app/api/settings/ai/route");
-
-    await PUT(
-      new Request("http://localhost", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          provider: "openai",
-          modelId: "gpt-4.1-mini",
-          apiKey: "sk-test",
-        }),
-      }),
-    );
-
-    const response = await GET();
-
-    expect(await response.json()).toEqual({
-      settings: expect.objectContaining({
-        provider: "openai",
-        modelId: "gpt-4.1-mini",
-        baseUrl: null,
-        hasApiKey: true,
-      }),
-    });
-  });
-
-  it("PUT /api/settings/ai rejects missing API key for first non-local setup", async () => {
-    const { PUT } = await import("@/app/api/settings/ai/route");
-
-    const response = await PUT(
-      new Request("http://localhost", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          provider: "openai",
-          modelId: "gpt-4.1",
-        }),
-      }),
-    );
-
-    expect(response.status).toBe(400);
-    expect(await response.json()).toEqual({
-      error: "API key is required for initial setup",
-    });
-  });
-
-  it("PUT /api/settings/ai rejects invalid local URLs", async () => {
-    const { PUT } = await import("@/app/api/settings/ai/route");
-
-    mockIsLocalProvider.mockReturnValue(true);
-    mockNormalizeBaseUrl.mockReturnValue(null);
-
-    const response = await PUT(
-      new Request("http://localhost", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          provider: "local-openai",
-          modelId: "qwen",
-          baseUrl: "bad-url",
-        }),
-      }),
-    );
-
-    expect(response.status).toBe(400);
-    expect(await response.json()).toEqual({ error: "Invalid local server URL" });
-  });
-
-  it("PUT /api/settings/ai updates an existing provider without replacing the API key", async () => {
-    const { PUT } = await import("@/app/api/settings/ai/route");
-
-    await PUT(
-      new Request("http://localhost", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          provider: "openai",
-          modelId: "gpt-4.1",
-          apiKey: "sk-test",
-        }),
-      }),
-    );
-
-    mockValidateApiKey.mockClear();
-
-    const response = await PUT(
-      new Request("http://localhost", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          provider: "openai",
-          modelId: "gpt-4.1-mini",
-        }),
-      }),
-    );
-
-    const settings = testDb.select().from(schema.aiSettings).all();
-
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ ok: true });
-    expect(mockValidateApiKey).not.toHaveBeenCalled();
-    expect(settings).toHaveLength(1);
-    expect(settings[0]?.modelId).toBe("gpt-4.1-mini");
-  });
-
-  it("PUT /api/settings/ai requires a new API key when switching non-local providers", async () => {
-    const { PUT } = await import("@/app/api/settings/ai/route");
-
-    await PUT(
-      new Request("http://localhost", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          provider: "openai",
-          modelId: "gpt-4.1",
-          apiKey: "sk-test",
-        }),
-      }),
-    );
-
-    const response = await PUT(
-      new Request("http://localhost", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          provider: "anthropic",
-          modelId: "claude-sonnet-4",
-        }),
-      }),
-    );
-
-    expect(response.status).toBe(400);
-    expect(await response.json()).toEqual({
-      error: "Switching provider requires a new API key",
-    });
-  });
-
-  it("PUT /api/settings/ai configures a local provider without an explicit API key", async () => {
-    const { PUT } = await import("@/app/api/settings/ai/route");
-
-    mockIsLocalProvider.mockReturnValue(true);
-    mockEnsureLocalModelLoaded.mockResolvedValue(null);
-
-    const response = await PUT(
-      new Request("http://localhost", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          provider: "local-openai",
-          modelId: "qwen",
-        }),
-      }),
-    );
-
-    const settings = testDb.select().from(schema.aiSettings).all();
-
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ ok: true });
-    expect(mockResolveLocalApiKey).toHaveBeenCalledWith(undefined);
-    expect(mockEnsureLocalModelLoaded).toHaveBeenCalledWith(
-      "qwen",
-      "http://127.0.0.1:1234/v1",
-      "local-key",
-    );
-    expect(mockValidateApiKey).toHaveBeenCalledWith(
-      "local-openai",
-      "qwen",
-      "local-key",
-      "http://127.0.0.1:1234/v1",
-    );
-    expect(settings).toHaveLength(1);
-  });
-
-  it("PUT /api/settings/ai switches from a remote provider to a local provider", async () => {
-    const { PUT } = await import("@/app/api/settings/ai/route");
-
-    await PUT(
-      new Request("http://localhost", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          provider: "openai",
-          modelId: "gpt-4.1",
-          apiKey: "sk-test",
-        }),
-      }),
-    );
-
-    mockIsLocalProvider.mockReturnValue(true);
-    mockValidateApiKey.mockClear();
-
-    const response = await PUT(
-      new Request("http://localhost", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          provider: "local-openai",
-          modelId: "qwen",
-          baseUrl: "http://localhost:1234",
-        }),
-      }),
-    );
-
-    const settings = testDb.select().from(schema.aiSettings).all();
-
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ ok: true });
-    expect(mockResolveLocalApiKey).toHaveBeenCalledWith(undefined);
-    expect(mockValidateApiKey).toHaveBeenCalledWith(
-      "local-openai",
-      "qwen",
-      "local-key",
-      "http://localhost:1234/v1",
-    );
-    expect(settings).toHaveLength(1);
-    expect(settings[0]?.provider).toBe("local-openai");
-  });
-
-  it("PUT /api/settings/ai validates local model availability when updating an existing local provider", async () => {
-    const { PUT } = await import("@/app/api/settings/ai/route");
-
-    mockIsLocalProvider.mockReturnValue(true);
-    await PUT(
-      new Request("http://localhost", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          provider: "local-openai",
-          modelId: "qwen",
-        }),
-      }),
-    );
-
-    mockEnsureLocalModelLoaded.mockResolvedValueOnce("still loading");
-
-    const response = await PUT(
-      new Request("http://localhost", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          provider: "local-openai",
-          modelId: "qwen-2",
-          baseUrl: "http://localhost:1234",
-        }),
-      }),
-    );
-
-    expect(response.status).toBe(422);
-    expect(await response.json()).toEqual({ error: "still loading" });
-  });
-
-  it("PUT /api/settings/ai returns key validation error for initial local provider setup", async () => {
-    const { PUT } = await import("@/app/api/settings/ai/route");
-
-    mockIsLocalProvider.mockReturnValue(true);
-    mockValidateApiKey.mockResolvedValue("invalid key for local");
-
-    const response = await PUT(
-      new Request("http://localhost", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          provider: "local-openai",
-          modelId: "qwen",
-        }),
-      }),
-    );
-
-    expect(response.status).toBe(422);
-    expect(await response.json()).toEqual({ error: "invalid key for local" });
-  });
-
-  it("PUT /api/settings/ai returns load error for initial local provider setup", async () => {
-    const { PUT } = await import("@/app/api/settings/ai/route");
-
-    mockIsLocalProvider.mockReturnValue(true);
-    mockEnsureLocalModelLoaded.mockResolvedValue("model not available");
-
-    const response = await PUT(
-      new Request("http://localhost", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          provider: "local-openai",
-          modelId: "qwen",
-        }),
-      }),
-    );
-
-    expect(response.status).toBe(422);
-    expect(await response.json()).toEqual({ error: "model not available" });
-  });
-
-  it("PUT /api/settings/ai returns load and key errors when apiKey is provided for local provider", async () => {
-    const { PUT } = await import("@/app/api/settings/ai/route");
-
-    mockIsLocalProvider.mockReturnValue(true);
-    mockEnsureLocalModelLoaded.mockResolvedValueOnce("local model load failed");
-
-    let response = await PUT(
-      new Request("http://localhost", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          provider: "local-openai",
-          modelId: "qwen",
-          apiKey: "explicit-key",
-        }),
-      }),
-    );
-
-    expect(response.status).toBe(422);
-    expect(await response.json()).toEqual({ error: "local model load failed" });
-
-    mockEnsureLocalModelLoaded.mockResolvedValueOnce(null);
-    mockValidateApiKey.mockResolvedValueOnce("key validation failed");
-
-    response = await PUT(
-      new Request("http://localhost", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          provider: "local-openai",
-          modelId: "qwen",
-          apiKey: "explicit-key",
-        }),
-      }),
-    );
-
-    expect(response.status).toBe(422);
-    expect(await response.json()).toEqual({ error: "key validation failed" });
-  });
-
-  it("PUT /api/settings/ai returns load and key errors when switching to local provider", async () => {
-    const { PUT } = await import("@/app/api/settings/ai/route");
-
-    // First, set up an existing remote provider
-    await PUT(
-      new Request("http://localhost", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          provider: "openai",
-          modelId: "gpt-4.1",
-          apiKey: "sk-test",
-        }),
-      }),
-    );
-
-    // Now switch to local – test loadErr path
-    mockIsLocalProvider.mockReturnValue(true);
-    mockEnsureLocalModelLoaded.mockResolvedValueOnce("model unavailable");
-
-    let response = await PUT(
-      new Request("http://localhost", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          provider: "local-openai",
-          modelId: "qwen",
-          baseUrl: "http://localhost:1234",
-        }),
-      }),
-    );
-
-    expect(response.status).toBe(422);
-    expect(await response.json()).toEqual({ error: "model unavailable" });
-
-    // Test keyErr path when switching to local
-    mockEnsureLocalModelLoaded.mockResolvedValueOnce(null);
-    mockValidateApiKey.mockResolvedValueOnce("bad local key");
-
-    response = await PUT(
-      new Request("http://localhost", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          provider: "local-openai",
-          modelId: "qwen",
-          baseUrl: "http://localhost:1234",
-        }),
-      }),
-    );
-
-    expect(response.status).toBe(422);
-    expect(await response.json()).toEqual({ error: "bad local key" });
   });
 
   it("POST /api/settings/ai/local-models returns fallback message for non-ok responses without error.message", async () => {
@@ -814,26 +372,5 @@ describe("misc API routes", () => {
     );
 
     expect(await response.json()).toEqual({ models: ["model-1"] });
-  });
-
-  it("DELETE /api/settings/ai removes saved settings", async () => {
-    const settingsRoute = await import("@/app/api/settings/ai/route");
-
-    await settingsRoute.PUT(
-      new Request("http://localhost", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          provider: "openai",
-          modelId: "gpt-4.1",
-          apiKey: "sk-test",
-        }),
-      }),
-    );
-
-    const response = await settingsRoute.DELETE();
-
-    expect(await response.json()).toEqual({ ok: true });
-    expect(testDb.select().from(schema.aiSettings).all()).toHaveLength(0);
   });
 });

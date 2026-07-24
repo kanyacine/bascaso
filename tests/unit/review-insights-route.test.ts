@@ -1,9 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { AIRoutingError } from "@/lib/ai/provider-factory";
 
-const mockCreateLanguageModel = vi.fn();
 const mockClassifyAIError = vi.fn();
-const mockGetAISettings = vi.fn();
-const mockEnsureLocalModelLoaded = vi.fn();
+const mockGetLanguageModelForTask = vi.fn();
 const mockIsLocalOpenAIProvider = vi.fn();
 const mockBuildInsightsPrompt = vi.fn();
 const mockBuildIncrementalInsightsPrompt = vi.fn();
@@ -16,17 +15,16 @@ const mockCacheGet = vi.fn();
 const mockCacheSet = vi.fn();
 const mockErrorJson = vi.fn();
 
-vi.mock("@/lib/ai/provider-factory", () => ({
-  createLanguageModel: (...args: unknown[]) => mockCreateLanguageModel(...args),
-  classifyAIError: (...args: unknown[]) => mockClassifyAIError(...args),
-}));
-
-vi.mock("@/lib/ai/settings", () => ({
-  getAISettings: () => mockGetAISettings(),
-}));
+vi.mock("@/lib/ai/provider-factory", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/ai/provider-factory")>();
+  return {
+    ...actual,
+    classifyAIError: (...args: unknown[]) => mockClassifyAIError(...args),
+    getLanguageModelForTask: (...args: unknown[]) => mockGetLanguageModelForTask(...args),
+  };
+});
 
 vi.mock("@/lib/ai/local-provider", () => ({
-  ensureLocalModelLoaded: (...args: unknown[]) => mockEnsureLocalModelLoaded(...args),
   isLocalOpenAIProvider: (...args: unknown[]) => mockIsLocalOpenAIProvider(...args),
 }));
 
@@ -72,18 +70,15 @@ const rawReviews = [
 
 describe("review insights route", () => {
   beforeEach(() => {
-    mockCreateLanguageModel.mockReset();
-    mockCreateLanguageModel.mockReturnValue({ id: "model" });
     mockClassifyAIError.mockReset();
     mockClassifyAIError.mockReturnValue("unknown");
-    mockGetAISettings.mockReset();
-    mockGetAISettings.mockResolvedValue({
-      provider: "openai",
+    mockGetLanguageModelForTask.mockReset();
+    mockGetLanguageModelForTask.mockResolvedValue({
+      model: { id: "model" },
+      providerId: "openai",
       modelId: "gpt-4.1-mini",
-      apiKey: "sk-test",
+      tier: "byok",
     });
-    mockEnsureLocalModelLoaded.mockReset();
-    mockEnsureLocalModelLoaded.mockResolvedValue(null);
     mockIsLocalOpenAIProvider.mockReset();
     mockIsLocalOpenAIProvider.mockReturnValue(false);
     mockBuildInsightsPrompt.mockReset();
@@ -284,12 +279,34 @@ describe("review insights route", () => {
     expect(mockErrorJson).toHaveBeenCalledWith(expect.any(Error));
   });
 
+  it("POST rejects oversized input with 422 when maxInputChars is set", async () => {
+    const { POST } = await import("@/app/api/apps/[appId]/reviews/insights/route");
+    mockGetLanguageModelForTask.mockResolvedValue({
+      model: { id: "model" },
+      providerId: "apple-fm",
+      modelId: "apple-fm",
+      tier: "local",
+      maxInputChars: 100,
+    });
+    mockBuildInsightsPrompt.mockReturnValue("x".repeat(500));
+
+    const response = await POST(
+      new Request("http://localhost?force=1", { method: "POST" }),
+      { params: Promise.resolve({ appId: "app-1" }) },
+    );
+
+    expect(response.status).toBe(422);
+    expect(await response.json()).toEqual({ error: "apple_fm_input_too_large" });
+    expect(mockGenerateObjectWithRepair).not.toHaveBeenCalled();
+  });
+
   it("POST uses Google thinkingLevel low for gemini-3 models", async () => {
     const { POST } = await import("@/app/api/apps/[appId]/reviews/insights/route");
-    mockGetAISettings.mockResolvedValue({
-      provider: "google",
+    mockGetLanguageModelForTask.mockResolvedValue({
+      model: { id: "model" },
+      providerId: "google",
       modelId: "gemini-3-flash",
-      apiKey: "gk-test",
+      tier: "byok",
     });
 
     const response = await POST(
@@ -308,10 +325,11 @@ describe("review insights route", () => {
 
   it("POST uses Google thinkingBudget 0 for non-gemini-3 models", async () => {
     const { POST } = await import("@/app/api/apps/[appId]/reviews/insights/route");
-    mockGetAISettings.mockResolvedValue({
-      provider: "google",
+    mockGetLanguageModelForTask.mockResolvedValue({
+      model: { id: "model" },
+      providerId: "google",
       modelId: "gemini-2.5-flash",
-      apiKey: "gk-test",
+      tier: "byok",
     });
 
     const response = await POST(
@@ -330,10 +348,11 @@ describe("review insights route", () => {
 
   it("POST uses empty providerOptions for non-openai non-google providers", async () => {
     const { POST } = await import("@/app/api/apps/[appId]/reviews/insights/route");
-    mockGetAISettings.mockResolvedValue({
-      provider: "anthropic",
+    mockGetLanguageModelForTask.mockResolvedValue({
+      model: { id: "model" },
+      providerId: "anthropic",
       modelId: "claude-sonnet-4-20250514",
-      apiKey: "sk-ant-test",
+      tier: "byok",
     });
 
     const response = await POST(
@@ -350,9 +369,9 @@ describe("review insights route", () => {
     expect(response.status).toBe(200);
   });
 
-  it("POST reports ai_not_configured when settings are missing", async () => {
+  it("POST reports ai_not_configured when the model resolution rejects with a non-routing error", async () => {
     const { POST } = await import("@/app/api/apps/[appId]/reviews/insights/route");
-    mockGetAISettings.mockResolvedValue(null);
+    mockGetLanguageModelForTask.mockRejectedValue(new Error("boom"));
 
     const response = await POST(new Request("http://localhost", { method: "POST" }), {
       params: Promise.resolve({ appId: "app-1" }),
@@ -362,16 +381,28 @@ describe("review insights route", () => {
     expect(await response.json()).toEqual({ error: "ai_not_configured" });
   });
 
+  it("POST returns 400 with the routing code when the tier is not configured", async () => {
+    const { POST } = await import("@/app/api/apps/[appId]/reviews/insights/route");
+    mockGetLanguageModelForTask.mockRejectedValue(
+      new AIRoutingError("ai_tier_not_configured", "The insights tier is not configured"),
+    );
+
+    const response = await POST(new Request("http://localhost", { method: "POST" }), {
+      params: Promise.resolve({ appId: "app-1" }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: "ai_tier_not_configured",
+      reason: "The insights tier is not configured",
+    });
+  });
+
   it("POST maps local model load errors to 422", async () => {
     const { POST } = await import("@/app/api/apps/[appId]/reviews/insights/route");
-    mockGetAISettings.mockResolvedValue({
-      provider: "local-openai",
-      modelId: "qwen",
-      apiKey: "local-key",
-      baseUrl: "http://localhost:1234/v1",
-    });
-    mockIsLocalOpenAIProvider.mockImplementation((provider) => provider === "local-openai");
-    mockEnsureLocalModelLoaded.mockResolvedValue("model not loaded");
+    mockGetLanguageModelForTask.mockRejectedValue(
+      new AIRoutingError("local_server_unavailable", "model not loaded"),
+    );
 
     const response = await POST(new Request("http://localhost", { method: "POST" }), {
       params: Promise.resolve({ appId: "app-1" }),

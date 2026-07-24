@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createLanguageModel, classifyAIError } from "@/lib/ai/provider-factory";
-import { getAISettings } from "@/lib/ai/settings";
-import { ensureLocalModelLoaded, isLocalOpenAIProvider } from "@/lib/ai/local-provider";
+import { classifyAIError, getLanguageModelForTask } from "@/lib/ai/provider-factory";
+import { isLocalOpenAIProvider } from "@/lib/ai/local-provider";
 import { buildInsightsPrompt, buildIncrementalInsightsPrompt } from "@/lib/ai/prompts";
 import { generateObjectWithRepair } from "@/lib/ai/structured-output";
 import { noThinkingOptions, samplingTemperature } from "@/lib/ai/provider-options";
@@ -10,7 +9,7 @@ import { listCustomerReviews, listCustomerReviewsByPlatform } from "@/lib/asc/re
 import { hasCredentials } from "@/lib/asc/client";
 import { isDemoMode, getDemoReviews } from "@/lib/demo";
 import { cacheGet, cacheSet } from "@/lib/cache";
-import { errorJson } from "@/lib/api-helpers";
+import { errorJson, routingErrorResponse } from "@/lib/api-helpers";
 
 const INSIGHTS_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -119,31 +118,12 @@ export async function POST(
   let model;
   let providerId = "";
   let modelId = "";
+  let maxInputChars: number | undefined;
   try {
-    const settings = await getAISettings();
-    if (!settings) throw new Error("AI not configured");
-
-    if (isLocalOpenAIProvider(settings.provider)) {
-      const loadError = await ensureLocalModelLoaded(
-        settings.modelId,
-        settings.baseUrl ?? undefined,
-        settings.apiKey,
-      );
-      if (loadError) {
-        return NextResponse.json({ error: loadError }, { status: 422 });
-      }
-    }
-
-    model = createLanguageModel(
-      settings.provider,
-      settings.modelId,
-      settings.apiKey,
-      settings.baseUrl ?? undefined,
-    );
-    providerId = settings.provider;
-    modelId = settings.modelId;
-  } catch {
-    return NextResponse.json({ error: "ai_not_configured" }, { status: 400 });
+    const resolved = await getLanguageModelForTask("reviews-insights");
+    ({ model, providerId, modelId, maxInputChars } = resolved);
+  } catch (err) {
+    return routingErrorResponse(err);
   }
 
   // 3. Build prompt – incremental if we have existing insights, full otherwise
@@ -158,11 +138,19 @@ export async function POST(
     prompt = buildInsightsPrompt(capped);
   }
 
+  const system = "You are an app review analyst. Be concise and data-driven.";
+
+  // Reject inputs the resolved model can't fit (the embedded Apple model caps
+  // its context; other providers leave maxInputChars unset and skip this).
+  if (maxInputChars && system.length + prompt.length > maxInputChars) {
+    return NextResponse.json({ error: "apple_fm_input_too_large" }, { status: 422 });
+  }
+
   try {
     const { object: insights } = await generateObjectWithRepair({
       model,
       schema: insightSchema,
-      system: "You are an app review analyst. Be concise and data-driven.",
+      system,
       prompt,
       temperature: samplingTemperature(providerId, modelId, 0),
       providerId,

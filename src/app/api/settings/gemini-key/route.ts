@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { hasGeminiKey, saveGeminiKey, removeGeminiKey } from "@/lib/ai/gemini-key";
-import { getAISettings } from "@/lib/ai/settings";
+import { getTierSettings } from "@/lib/ai/settings";
 import { parseBody } from "@/lib/api-helpers";
 
 export async function GET() {
   const available = await hasGeminiKey();
-  const settings = await getAISettings();
+  const settings = await getTierSettings("byok");
   const fromMainProvider = settings?.provider === "google";
 
   return NextResponse.json({ available, fromMainProvider });

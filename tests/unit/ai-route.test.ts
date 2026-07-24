@@ -1,11 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { AIRoutingError } from "@/lib/ai/provider-factory";
 
 const mockGenerateText = vi.fn();
-const mockCreateLanguageModel = vi.fn();
 const mockClassifyAIError = vi.fn();
-const mockGetAISettings = vi.fn();
-const mockEnsureLocalModelLoaded = vi.fn();
-const mockIsLocalOpenAIProvider = vi.fn();
+const mockGetLanguageModelForTask = vi.fn();
 const mockBuildTranslatePrompt = vi.fn();
 const mockBuildImprovePrompt = vi.fn();
 const mockBuildReplyPrompt = vi.fn();
@@ -24,19 +22,14 @@ vi.mock("@/lib/app-preferences", () => ({
   getAIGuidance: () => mockGetAIGuidance(),
 }));
 
-vi.mock("@/lib/ai/provider-factory", () => ({
-  createLanguageModel: (...args: unknown[]) => mockCreateLanguageModel(...args),
-  classifyAIError: (...args: unknown[]) => mockClassifyAIError(...args),
-}));
-
-vi.mock("@/lib/ai/settings", () => ({
-  getAISettings: () => mockGetAISettings(),
-}));
-
-vi.mock("@/lib/ai/local-provider", () => ({
-  ensureLocalModelLoaded: (...args: unknown[]) => mockEnsureLocalModelLoaded(...args),
-  isLocalOpenAIProvider: (...args: unknown[]) => mockIsLocalOpenAIProvider(...args),
-}));
+vi.mock("@/lib/ai/provider-factory", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/ai/provider-factory")>();
+  return {
+    ...actual,
+    classifyAIError: (...args: unknown[]) => mockClassifyAIError(...args),
+    getLanguageModelForTask: (...args: unknown[]) => mockGetLanguageModelForTask(...args),
+  };
+});
 
 vi.mock("@/lib/ai/prompts", () => ({
   buildTranslatePrompt: (...args: unknown[]) => mockBuildTranslatePrompt(...args),
@@ -60,20 +53,15 @@ describe("AI route", () => {
   beforeEach(() => {
     mockGenerateText.mockReset();
     mockGenerateText.mockResolvedValue({ text: "Generated output" });
-    mockCreateLanguageModel.mockReset();
-    mockCreateLanguageModel.mockReturnValue({ id: "model" });
     mockClassifyAIError.mockReset();
     mockClassifyAIError.mockReturnValue("unknown");
-    mockGetAISettings.mockReset();
-    mockGetAISettings.mockResolvedValue({
-      provider: "openai",
+    mockGetLanguageModelForTask.mockReset();
+    mockGetLanguageModelForTask.mockResolvedValue({
+      model: { id: "model" },
+      providerId: "openai",
       modelId: "gpt-4.1-mini",
-      apiKey: "sk-test",
+      tier: "byok",
     });
-    mockEnsureLocalModelLoaded.mockReset();
-    mockEnsureLocalModelLoaded.mockResolvedValue(null);
-    mockIsLocalOpenAIProvider.mockReset();
-    mockIsLocalOpenAIProvider.mockReturnValue(false);
     mockBuildTranslatePrompt.mockReset();
     mockBuildTranslatePrompt.mockReturnValue("translate-prompt");
     mockBuildImprovePrompt.mockReset();
@@ -110,12 +98,12 @@ describe("AI route", () => {
     );
 
     expect(await response.json()).toEqual({ result: "keep me" });
-    expect(mockGetAISettings).not.toHaveBeenCalled();
+    expect(mockGetLanguageModelForTask).not.toHaveBeenCalled();
   });
 
-  it("returns ai_not_configured when AI settings are missing", async () => {
+  it("returns ai_not_configured when the model resolution rejects with a non-routing error", async () => {
     const { POST } = await import("@/app/api/ai/route");
-    mockGetAISettings.mockResolvedValue(null);
+    mockGetLanguageModelForTask.mockRejectedValue(new Error("boom"));
 
     const response = await POST(
       new Request("http://localhost", {
@@ -129,16 +117,32 @@ describe("AI route", () => {
     expect(await response.json()).toEqual({ error: "ai_not_configured" });
   });
 
+  it("returns 400 with the routing code when the tier is not configured", async () => {
+    const { POST } = await import("@/app/api/ai/route");
+    mockGetLanguageModelForTask.mockRejectedValue(
+      new AIRoutingError("ai_tier_not_configured", "The metadata tier is not configured"),
+    );
+
+    const response = await POST(
+      new Request("http://localhost", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "improve", text: "hello", locale: "en-US" }),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: "ai_tier_not_configured",
+      reason: "The metadata tier is not configured",
+    });
+  });
+
   it("returns local model load errors before generation", async () => {
     const { POST } = await import("@/app/api/ai/route");
-    mockGetAISettings.mockResolvedValue({
-      provider: "local-openai",
-      modelId: "qwen",
-      apiKey: "local-key",
-      baseUrl: "http://localhost:1234/v1",
-    });
-    mockIsLocalOpenAIProvider.mockImplementation((provider) => provider === "local-openai");
-    mockEnsureLocalModelLoaded.mockResolvedValue("model not loaded");
+    mockGetLanguageModelForTask.mockRejectedValue(
+      new AIRoutingError("local_server_unavailable", "model not loaded"),
+    );
 
     const response = await POST(
       new Request("http://localhost", {
@@ -150,6 +154,27 @@ describe("AI route", () => {
 
     expect(response.status).toBe(422);
     expect(await response.json()).toEqual({ error: "model not loaded" });
+  });
+
+  it("returns apple_fm_unavailable with the raw reason so the client can localize it", async () => {
+    const { POST } = await import("@/app/api/ai/route");
+    mockGetLanguageModelForTask.mockRejectedValue(
+      new AIRoutingError("apple_fm_unavailable", "sidecar_missing"),
+    );
+
+    const response = await POST(
+      new Request("http://localhost", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "improve", text: "hello", locale: "en-US" }),
+      }),
+    );
+
+    expect(response.status).toBe(422);
+    expect(await response.json()).toEqual({
+      error: "apple_fm_unavailable",
+      reason: "sidecar_missing",
+    });
   });
 
   it("validates required locales for translate", async () => {
@@ -400,10 +425,11 @@ describe("AI route", () => {
 
   it("passes google thinkingLevel low for gemini-3 models", async () => {
     const { POST } = await import("@/app/api/ai/route");
-    mockGetAISettings.mockResolvedValue({
-      provider: "google",
+    mockGetLanguageModelForTask.mockResolvedValue({
+      model: { id: "model" },
+      providerId: "google",
       modelId: "gemini-3-pro",
-      apiKey: "gk-test",
+      tier: "byok",
     });
 
     await POST(
@@ -423,10 +449,11 @@ describe("AI route", () => {
 
   it("passes google thinkingBudget 0 for non-gemini-3 google models", async () => {
     const { POST } = await import("@/app/api/ai/route");
-    mockGetAISettings.mockResolvedValue({
-      provider: "google",
+    mockGetLanguageModelForTask.mockResolvedValue({
+      model: { id: "model" },
+      providerId: "google",
       modelId: "gemini-2.5-flash",
-      apiKey: "gk-test",
+      tier: "byok",
     });
 
     await POST(
@@ -446,10 +473,11 @@ describe("AI route", () => {
 
   it("passes empty providerOptions for unknown providers", async () => {
     const { POST } = await import("@/app/api/ai/route");
-    mockGetAISettings.mockResolvedValue({
-      provider: "anthropic",
+    mockGetLanguageModelForTask.mockResolvedValue({
+      model: { id: "model" },
+      providerId: "anthropic",
       modelId: "claude-sonnet-4-20250514",
-      apiKey: "sk-test",
+      tier: "byok",
     });
 
     await POST(
@@ -584,6 +612,30 @@ describe("AI route", () => {
     expect(data.result).toBe("this subtitle is still way too long");
     expect(data.length).toBe(35);
     expect(data.overLimit).toBe(true);
+  });
+
+  it("rejects oversized input with 422 when the resolved model sets maxInputChars", async () => {
+    const { POST } = await import("@/app/api/ai/route");
+    mockGetLanguageModelForTask.mockResolvedValue({
+      model: { id: "model" },
+      providerId: "apple-fm",
+      modelId: "apple-fm",
+      tier: "local",
+      maxInputChars: 100,
+    });
+    mockBuildImprovePrompt.mockReturnValue("x".repeat(500));
+
+    const response = await POST(
+      new Request("http://localhost", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "improve", text: "hello", locale: "en-US" }),
+      }),
+    );
+
+    expect(response.status).toBe(422);
+    expect(await response.json()).toEqual({ error: "apple_fm_input_too_large" });
+    expect(mockGenerateText).not.toHaveBeenCalled();
   });
 
   it("includes length and overLimit:false for within-limit results", async () => {

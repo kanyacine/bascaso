@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createLanguageModel, classifyAIError } from "@/lib/ai/provider-factory";
-import { getAISettings } from "@/lib/ai/settings";
-import { ensureLocalModelLoaded, isLocalOpenAIProvider } from "@/lib/ai/local-provider";
+import { classifyAIError, getLanguageModelForTask } from "@/lib/ai/provider-factory";
+import { isLocalOpenAIProvider } from "@/lib/ai/local-provider";
 import { buildAnalyticsInsightsPrompt } from "@/lib/ai/prompts";
 import { generateObjectWithRepair } from "@/lib/ai/structured-output";
 import { noThinkingOptions, samplingTemperature } from "@/lib/ai/provider-options";
@@ -10,7 +9,7 @@ import { hasCredentials } from "@/lib/asc/client";
 import { isDemoMode, getDemoAnalytics } from "@/lib/demo";
 import type { AnalyticsData } from "@/lib/asc/analytics";
 import { cacheGet, cacheSet } from "@/lib/cache";
-import { errorJson } from "@/lib/api-helpers";
+import { errorJson, routingErrorResponse } from "@/lib/api-helpers";
 
 const INSIGHTS_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -98,41 +97,30 @@ export async function POST(
   let model;
   let providerId = "";
   let modelId = "";
+  let maxInputChars: number | undefined;
   try {
-    const settings = await getAISettings();
-    if (!settings) throw new Error("AI not configured");
-
-    if (isLocalOpenAIProvider(settings.provider)) {
-      const loadError = await ensureLocalModelLoaded(
-        settings.modelId,
-        settings.baseUrl ?? undefined,
-        settings.apiKey,
-      );
-      if (loadError) {
-        return NextResponse.json({ error: loadError }, { status: 422 });
-      }
-    }
-
-    model = createLanguageModel(
-      settings.provider,
-      settings.modelId,
-      settings.apiKey,
-      settings.baseUrl ?? undefined,
-    );
-    providerId = settings.provider;
-    modelId = settings.modelId;
-  } catch {
-    return NextResponse.json({ error: "ai_not_configured" }, { status: 400 });
+    const resolved = await getLanguageModelForTask("analytics-insights");
+    ({ model, providerId, modelId, maxInputChars } = resolved);
+  } catch (err) {
+    return routingErrorResponse(err);
   }
 
   // 3. Build prompt
   const prompt = buildAnalyticsInsightsPrompt(data);
+  const system =
+    "You are an app analytics expert. Analyse App Store Connect metrics and extract structured insights. Be concise, data-driven, and actionable.";
+
+  // Reject inputs the resolved model can't fit (the embedded Apple model caps
+  // its context; other providers leave maxInputChars unset and skip this).
+  if (maxInputChars && system.length + prompt.length > maxInputChars) {
+    return NextResponse.json({ error: "apple_fm_input_too_large" }, { status: 422 });
+  }
 
   try {
     const { object: insights } = await generateObjectWithRepair({
       model,
       schema: analyticsInsightSchema,
-      system: "You are an app analytics expert. Analyse App Store Connect metrics and extract structured insights. Be concise, data-driven, and actionable.",
+      system,
       prompt,
       temperature: samplingTemperature(providerId, modelId, 0),
       providerId,

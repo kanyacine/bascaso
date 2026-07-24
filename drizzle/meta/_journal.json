@@ -92,6 +92,20 @@
       "when": 1784732352887,
       "tag": "0012_striped_millenium_guard",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1784834474836,
+      "tag": "0013_pretty_trish_tilby",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1784841456144,
+      "tag": "0014_groovy_puck",
+      "breakpoints": true
     }
   ]
 }

@@ -28,7 +28,7 @@ async function aiRequest(body: Record<string, unknown>): Promise<string> {
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     const errorMsg = (data as { error?: string }).error;
-    if (errorMsg === "ai_not_configured") {
+    if (errorMsg === "ai_not_configured" || errorMsg === "ai_tier_not_configured") {
       throw new Error("No AI provider configured. Set up an API key in Itsyconnect Settings > AI first.");
     }
     throw new Error(errorMsg ?? `AI request failed (${res.status})`);

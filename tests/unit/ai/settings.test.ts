@@ -13,65 +13,72 @@ vi.mock("@/lib/encryption", () => ({
   decrypt: vi.fn(() => "decrypted-api-key"),
 }));
 
-import { getAISettings } from "@/lib/ai/settings";
+import { getTierSettings } from "@/lib/ai/settings";
 import { aiSettings } from "@/db/schema";
 
-describe("getAISettings", () => {
+describe("getTierSettings", () => {
   beforeEach(() => {
     testDb = createTestDb();
   });
 
-  it("returns null when no settings exist", async () => {
-    const result = await getAISettings();
+  it("returns null when no row of that tier exists", async () => {
+    const result = await getTierSettings("local");
     expect(result).toBeNull();
   });
 
-  it("returns decrypted settings when configured", async () => {
+  it("does not return a byok row when reading the local tier", async () => {
     testDb.insert(aiSettings).values({
-      id: "ai-1",
+      id: "ai-byok",
       provider: "anthropic",
       modelId: "claude-sonnet-4-6",
       encryptedApiKey: "encrypted",
       iv: "iv",
       authTag: "tag",
       encryptedDek: "dek",
+      tier: "byok",
       updatedAt: new Date().toISOString(),
     }).run();
 
-    const result = await getAISettings();
-    expect(result).toEqual({
-      provider: "anthropic",
-      modelId: "claude-sonnet-4-6",
-      baseUrl: null,
-      apiKey: "decrypted-api-key",
-    });
+    const result = await getTierSettings("local");
+    expect(result).toBeNull();
   });
 
-  it("returns the most recently updated setting", async () => {
+  it("does not return a local row when reading the byok tier", async () => {
     testDb.insert(aiSettings).values({
-      id: "ai-1",
-      provider: "openai",
-      modelId: "gpt-4o",
-      encryptedApiKey: "old",
+      id: "ai-local",
+      provider: "local-openai",
+      modelId: "llama-3",
+      encryptedApiKey: "encrypted",
       iv: "iv",
       authTag: "tag",
       encryptedDek: "dek",
-      updatedAt: "2025-01-01T00:00:00Z",
+      tier: "local",
+      updatedAt: new Date().toISOString(),
     }).run();
 
+    const result = await getTierSettings("byok");
+    expect(result).toBeNull();
+  });
+
+  it("returns decrypted settings for the matching tier", async () => {
     testDb.insert(aiSettings).values({
-      id: "ai-2",
-      provider: "anthropic",
-      modelId: "claude-sonnet-4-6",
-      encryptedApiKey: "new",
-      iv: "iv2",
-      authTag: "tag2",
-      encryptedDek: "dek2",
-      updatedAt: "2026-01-01T00:00:00Z",
+      id: "ai-local",
+      provider: "local-openai",
+      modelId: "llama-3",
+      encryptedApiKey: "encrypted",
+      iv: "iv",
+      authTag: "tag",
+      encryptedDek: "dek",
+      tier: "local",
+      updatedAt: new Date().toISOString(),
     }).run();
 
-    const result = await getAISettings();
-    expect(result!.provider).toBe("anthropic");
-    expect(result!.modelId).toBe("claude-sonnet-4-6");
+    const result = await getTierSettings("local");
+    expect(result).toEqual({
+      provider: "local-openai",
+      modelId: "llama-3",
+      baseUrl: null,
+      apiKey: "decrypted-api-key",
+    });
   });
 });

@@ -143,6 +143,9 @@
   .section-title {
     @apply text-base font-medium tracking-tight;
   }
+  .error-banner {
+    @apply rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive;
+  }
 }
 
 /* Sidebar scroll fade overlays */

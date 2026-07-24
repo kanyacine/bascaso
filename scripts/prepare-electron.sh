@@ -13,6 +13,9 @@ cleanup() {
 }
 trap cleanup EXIT
 
+echo "[prepare] Building afm-server sidecar..."
+swift build -c release --package-path native/afm-server
+
 echo "[prepare] Copying standalone assets..."
 cp -r public "$STANDALONE_DIR/public"
 cp -r .next/static "$STANDALONE_DIR/.next/static"

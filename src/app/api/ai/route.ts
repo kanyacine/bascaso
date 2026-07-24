@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { generateText } from "ai";
-import { createLanguageModel, classifyAIError } from "@/lib/ai/provider-factory";
-import { getAISettings } from "@/lib/ai/settings";
-import { ensureLocalModelLoaded, isLocalOpenAIProvider } from "@/lib/ai/local-provider";
+import { classifyAIError, getLanguageModelForTask } from "@/lib/ai/provider-factory";
 import {
   buildTranslatePrompt,
   buildImprovePrompt,
@@ -13,7 +11,7 @@ import {
   buildNominationPrompt,
   buildShortenPrompt,
 } from "@/lib/ai/prompts";
-import { errorJson, parseBody } from "@/lib/api-helpers";
+import { errorJson, parseBody, routingErrorResponse } from "@/lib/api-helpers";
 import { noThinkingOptions, samplingTemperature } from "@/lib/ai/provider-options";
 import { getAIGuidance, type GuidanceScope } from "@/lib/app-preferences";
 
@@ -115,34 +113,12 @@ export async function POST(request: Request) {
   let model;
   let providerId = "";
   let modelId = "";
+  let maxInputChars: number | undefined;
   try {
-    const settings = await getAISettings();
-    if (!settings) throw new Error("AI not configured");
-
-    if (isLocalOpenAIProvider(settings.provider)) {
-      const loadError = await ensureLocalModelLoaded(
-        settings.modelId,
-        settings.baseUrl ?? undefined,
-        settings.apiKey,
-      );
-      if (loadError) {
-        return NextResponse.json({ error: loadError }, { status: 422 });
-      }
-    }
-
-    model = createLanguageModel(
-      settings.provider,
-      settings.modelId,
-      settings.apiKey,
-      settings.baseUrl ?? undefined,
-    );
-    providerId = settings.provider;
-    modelId = settings.modelId;
-  } catch {
-    return NextResponse.json(
-      { error: "ai_not_configured" },
-      { status: 400 },
-    );
+    const resolved = await getLanguageModelForTask(action);
+    ({ model, providerId, modelId, maxInputChars } = resolved);
+  } catch (err) {
+    return routingErrorResponse(err);
   }
 
   const context = { field: field ?? "", appName, charLimit };
@@ -210,6 +186,12 @@ export async function POST(request: Request) {
   // actually obeyed, not just nudged via the system message.
   if (effectiveGuidance) {
     prompt += `\n\nADDITIONAL INSTRUCTIONS FROM THE USER – follow these exactly, they override the defaults above:\n${effectiveGuidance}`;
+  }
+
+  // Reject inputs the resolved model can't fit (the embedded Apple model caps
+  // its context; other providers leave maxInputChars unset and skip this).
+  if (maxInputChars && system.length + prompt.length > maxInputChars) {
+    return NextResponse.json({ error: "apple_fm_input_too_large" }, { status: 422 });
   }
 
   try {
