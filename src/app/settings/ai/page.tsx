@@ -13,14 +13,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CheckCircle, Eye, EyeSlash } from "@phosphor-icons/react";
+import { CaretRight, CheckCircle, Eye, EyeSlash } from "@phosphor-icons/react";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { AI_PROVIDERS } from "@/lib/ai-providers";
 import { invalidateAIStatus } from "@/lib/hooks/use-ai-status";
 import { LocalServerFields } from "@/components/local-server-fields";
 import { AiRoutingSection, type RoutingState } from "@/components/settings/ai-routing-section";
-import { useTranslations } from "@/lib/i18n/locale-context";
+import { useLocale, useTranslations } from "@/lib/i18n/locale-context";
 import type { MessageKey } from "@/lib/i18n/messages";
 import {
   DEFAULT_LOCAL_OPENAI_BASE_URL,
@@ -38,6 +38,7 @@ type LocalEngine = "apple-fm" | "local-server";
 interface AppleFmStatus {
   available: boolean;
   reason: string | null;
+  languages?: string[];
 }
 
 /** Cloud providers only – the local server is configured in its own section. */
@@ -55,6 +56,7 @@ const EMPTY_ROUTING: RoutingState = { groups: {}, fallback: false };
 
 export default function AISettingsPage() {
   const t = useTranslations();
+  const { locale } = useLocale();
 
   // Local tier
   const [localEngine, setLocalEngine] = useState<LocalEngine>("apple-fm");
@@ -69,6 +71,23 @@ export default function AISettingsPage() {
   const [removingLocal, setRemovingLocal] = useState(false);
   const [savingAppleFm, setSavingAppleFm] = useState(false);
   const [appleFmStatus, setAppleFmStatus] = useState<AppleFmStatus | null>(null);
+  const [showLanguages, setShowLanguages] = useState(false);
+  // Human-readable, locale-sorted names for the languages the built-in model
+  // reports (via the sidecar). Null when unavailable or none reported.
+  const appleFmLanguages = useMemo<string[] | null>(() => {
+    if (!appleFmStatus?.available) return null;
+    const codes = appleFmStatus.languages;
+    if (!codes || codes.length === 0) return null;
+    let display: Intl.DisplayNames | null = null;
+    try {
+      display = new Intl.DisplayNames([locale], { type: "language" });
+    } catch {
+      display = null;
+    }
+    return codes
+      .map((c: string) => display?.of(c) ?? c)
+      .sort((a: string, b: string) => a.localeCompare(b, locale));
+  }, [appleFmStatus, locale]);
 
   // BYOK tier
   const [byokProviderId, setByokProviderId] = useState(DEFAULT_BYOK_PROVIDER.id);
@@ -177,7 +196,11 @@ export default function AISettingsPage() {
         if (res.ok) {
           const data = await res.json();
           if (cancelled) return;
-          setAppleFmStatus({ available: Boolean(data.available), reason: data.reason ?? null });
+          setAppleFmStatus({
+            available: Boolean(data.available),
+            reason: data.reason ?? null,
+            languages: Array.isArray(data.languages) ? data.languages : undefined,
+          });
         }
       } catch { /* ignore */ }
     }
@@ -193,7 +216,11 @@ export default function AISettingsPage() {
       const res = await fetch("/api/settings/ai/apple-fm-status");
       if (res.ok) {
         const data = await res.json();
-        setAppleFmStatus({ available: Boolean(data.available), reason: data.reason ?? null });
+        setAppleFmStatus({
+          available: Boolean(data.available),
+          reason: data.reason ?? null,
+          languages: Array.isArray(data.languages) ? data.languages : undefined,
+        });
       }
     } catch { /* ignore */ }
   }
@@ -470,6 +497,29 @@ export default function AISettingsPage() {
               <p className="text-xs text-muted-foreground">
                 {t("settings.ai.local.appleFmHint")}
               </p>
+              {appleFmLanguages && (
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">
+                    {t("settings.ai.local.languagesNote")}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setShowLanguages((v) => !v)}
+                    className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                    aria-expanded={showLanguages}
+                  >
+                    <CaretRight
+                      className={showLanguages ? "rotate-90 transition-transform" : "transition-transform"}
+                    />
+                    {t("settings.ai.local.languagesShow")}
+                  </button>
+                  {showLanguages && (
+                    <p className="text-xs text-muted-foreground">
+                      {appleFmLanguages.join(", ")}
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 

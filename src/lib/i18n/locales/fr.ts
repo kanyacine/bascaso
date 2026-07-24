@@ -106,6 +106,8 @@ export const fr: Messages = {
       local: {
         appleFm: "Modèle Apple intégré",
         appleFmHint: "Tourne sur ce Mac, rien à installer ni télécharger.",
+        languagesNote: "Le modèle intégré ne prend en charge qu’une sélection de langues.",
+        languagesShow: "Voir les langues prises en charge",
         server: "Serveur local",
         status: {
           available: "Disponible",

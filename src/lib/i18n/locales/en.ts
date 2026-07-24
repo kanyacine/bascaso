@@ -104,6 +104,8 @@ export const en = {
       local: {
         appleFm: "Apple built-in model",
         appleFmHint: "Runs on this Mac, nothing to install or download.",
+        languagesNote: "The built-in model supports only a selection of languages.",
+        languagesShow: "See supported languages",
         server: "Local server",
         status: {
           available: "Available",

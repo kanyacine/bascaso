@@ -106,6 +106,8 @@ export const ru: Messages = {
       local: {
         appleFm: "Встроенная модель Apple",
         appleFmHint: "Работает на этом Mac, ничего устанавливать или скачивать не нужно.",
+        languagesNote: "Встроенная модель поддерживает только часть языков.",
+        languagesShow: "Показать поддерживаемые языки",
         server: "Локальный сервер",
         status: {
           available: "Доступно",

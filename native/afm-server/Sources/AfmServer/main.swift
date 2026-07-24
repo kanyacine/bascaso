@@ -13,9 +13,18 @@ import FoundationModels
 struct Availability: Codable {
     let available: Bool
     let reason: String?
+    /// BCP-47 primary language codes the model supports (e.g. ["en","fr"]),
+    /// present only when available. Read from `SystemLanguageModel.supportedLanguages`.
+    let languages: [String]?
+
+    init(available: Bool, reason: String?, languages: [String]? = nil) {
+        self.available = available
+        self.reason = reason
+        self.languages = languages
+    }
 
     enum CodingKeys: String, CodingKey {
-        case available, reason
+        case available, reason, languages
     }
 
     func encode(to encoder: Encoder) throws {
@@ -25,6 +34,9 @@ struct Availability: Codable {
             try container.encode(reason, forKey: .reason)
         } else {
             try container.encodeNil(forKey: .reason)
+        }
+        if let languages {
+            try container.encode(languages, forKey: .languages)
         }
     }
 }
@@ -93,7 +105,9 @@ func checkAvailability() -> Availability {
     #if canImport(FoundationModels)
     switch SystemLanguageModel.default.availability {
     case .available:
-        return Availability(available: true, reason: nil)
+        let codes = SystemLanguageModel.default.supportedLanguages
+            .compactMap { $0.languageCode?.identifier }
+        return Availability(available: true, reason: nil, languages: Array(Set(codes)).sorted())
     case .unavailable(let reason):
         switch reason {
         case .deviceNotEligible:

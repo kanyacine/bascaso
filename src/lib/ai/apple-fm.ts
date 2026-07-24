@@ -6,7 +6,12 @@ export const APPLE_FM_MODEL_ID = "apple-fm";
  *  ponytail: char-based estimate; swap for a tokenizer if it ever misfires. */
 export const APPLE_FM_MAX_INPUT_CHARS = 12_000;
 
-export type AppleFmStatus = { available: boolean; reason: string | null };
+export type AppleFmStatus = {
+  available: boolean;
+  reason: string | null;
+  /** BCP-47 language codes the model supports, when available (e.g. ["en","fr"]). */
+  languages?: string[];
+};
 
 /**
  * Read the sidecar's live TCP port from the state file Electron writes.
@@ -55,7 +60,11 @@ export async function getAppleFmStatus(): Promise<AppleFmStatus> {
       return { available: false, reason: "sidecar_unreachable" };
     }
     const body = (await res.json()) as AppleFmStatus;
-    return { available: Boolean(body.available), reason: body.reason ?? null };
+    return {
+      available: Boolean(body.available),
+      reason: body.reason ?? null,
+      languages: Array.isArray(body.languages) ? body.languages : undefined,
+    };
   } catch {
     return { available: false, reason: "sidecar_unreachable" };
   }

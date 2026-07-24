@@ -105,6 +105,8 @@ export const zhCN: Messages = {
       local: {
         appleFm: "Apple 内置模型",
         appleFmHint: "在此 Mac 上运行，无需安装或下载。",
+        languagesNote: "内置模型仅支持部分语言。",
+        languagesShow: "查看支持的语言",
         server: "本地服务器",
         status: {
           available: "可用",
