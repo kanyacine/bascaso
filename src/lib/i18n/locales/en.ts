@@ -104,7 +104,6 @@ export const en = {
       local: {
         appleFm: "Apple built-in model",
         appleFmHint: "Runs on this Mac, nothing to install or download.",
-        languagesNote: "The built-in model supports only a selection of languages.",
         languagesShow: "See supported languages",
         allowUnsupported: "Allow unsupported languages",
         allowUnsupportedHint: "Let the built-in model generate in languages it doesn't officially support (quality may be lower).",
@@ -136,7 +135,7 @@ export const en = {
         },
         local: "Local",
         byok: "BYOK",
-        resetDefault: "Restore default",
+        resetDefault: "Restore defaults",
         fallback: "Fall back to BYOK when local is unavailable",
         fallbackHint: "Off by default – failures stay visible instead of silently switching.",
       },

@@ -20,6 +20,7 @@ import {
   getRoutingFallbackEnabled,
   getRoutingTier,
   isRoutingTierExplicit,
+  setAppleFmAllowUnsupportedLanguages,
 } from "@/lib/app-preferences";
 import { AI_ROUTED_GROUPS, type AIGroupId, type AITier } from "@/lib/ai/tasks";
 
@@ -210,5 +211,10 @@ export async function DELETE(request: Request) {
   }
 
   db.delete(aiSettings).where(eq(aiSettings.tier, tier)).run();
+  // Removing the local engine also restores the language opt-in to its default –
+  // the override only makes sense relative to a configured engine.
+  if (tier === "local") {
+    setAppleFmAllowUnsupportedLanguages(false);
+  }
   return NextResponse.json({ ok: true });
 }

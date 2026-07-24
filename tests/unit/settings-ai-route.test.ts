@@ -486,4 +486,23 @@ describe("PUT/GET/DELETE /api/settings/ai (per-tier)", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].tier).toBe("local");
   });
+
+  it("DELETE on the local tier restores the language opt-in to its default", async () => {
+    const { PUT, DELETE, GET } = await import("@/app/api/settings/ai/route");
+    const { PUT: putRouting } = await import("@/app/api/settings/ai/routing/route");
+
+    await PUT(putRequest({ provider: "local-openai", modelId: "qwen", tier: "local" }));
+    await putRouting(
+      new Request("http://localhost", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ allowUnsupportedLanguages: true }),
+      }),
+    );
+
+    await DELETE(deleteRequest("local"));
+
+    const settings = await (await GET()).json();
+    expect(settings.routing.allowUnsupportedLanguages).toBe(false);
+  });
 });

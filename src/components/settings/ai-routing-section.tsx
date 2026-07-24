@@ -39,9 +39,20 @@ export function AiRoutingSection({ routing, onChanged }: Props) {
     else toast.error(t("common.saveFailed"));
   }
 
+  async function resetAll() {
+    if (await putRouting({ reset: true })) onChanged();
+    else toast.error(t("common.saveFailed"));
+  }
+
   return (
     <section className="space-y-2">
-      <h3 className="section-title">{t("settings.ai.routing.title")}</h3>
+      <div className="flex items-center justify-between gap-4">
+        <h3 className="section-title">{t("settings.ai.routing.title")}</h3>
+        <Button variant="ghost" size="sm" onClick={resetAll}>
+          <ArrowCounterClockwise size={16} />
+          {t("settings.ai.routing.resetDefault")}
+        </Button>
+      </div>
       <p className="text-sm text-muted-foreground">{t("settings.ai.routing.hint")}</p>
       <div className="divide-y">
         {AI_ROUTED_GROUPS.map((group) => {
@@ -57,28 +68,16 @@ export function AiRoutingSection({ routing, onChanged }: Props) {
                   {t(`settings.ai.routing.groupHints.${group}` as MessageKey)}
                 </div>
               </div>
-              <div className="flex items-center gap-1">
-                <ToggleGroup
-                  type="single"
-                  variant="outline"
-                  size="sm"
-                  value={state.tier}
-                  onValueChange={(v) => v && setTier(group, v as AITier)}
-                >
-                  <ToggleGroupItem value="local">{t("settings.ai.routing.local")}</ToggleGroupItem>
-                  <ToggleGroupItem value="byok">{t("settings.ai.routing.byok")}</ToggleGroupItem>
-                </ToggleGroup>
-                {state.explicit && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    title={t("settings.ai.routing.resetDefault")}
-                    onClick={() => setTier(group, null)}
-                  >
-                    <ArrowCounterClockwise size={16} />
-                  </Button>
-                )}
-              </div>
+              <ToggleGroup
+                type="single"
+                variant="outline"
+                size="sm"
+                value={state.tier}
+                onValueChange={(v) => v && setTier(group, v as AITier)}
+              >
+                <ToggleGroupItem value="local">{t("settings.ai.routing.local")}</ToggleGroupItem>
+                <ToggleGroupItem value="byok">{t("settings.ai.routing.byok")}</ToggleGroupItem>
+              </ToggleGroup>
             </div>
           );
         })}

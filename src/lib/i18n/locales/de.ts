@@ -106,7 +106,6 @@ export const de: Messages = {
       local: {
         appleFm: "Integriertes Apple-Modell",
         appleFmHint: "Läuft auf diesem Mac, nichts zu installieren oder herunterzuladen.",
-        languagesNote: "Das integrierte Modell unterstützt nur eine Auswahl an Sprachen.",
         languagesShow: "Unterstützte Sprachen anzeigen",
         allowUnsupported: "Nicht unterstützte Sprachen erlauben",
         allowUnsupportedHint: "Lassen Sie das integrierte Modell in Sprachen generieren, die es nicht offiziell unterstützt (Qualität kann geringer sein).",
@@ -138,7 +137,7 @@ export const de: Messages = {
         },
         local: "Lokal",
         byok: "BYOK",
-        resetDefault: "Standard wiederherstellen",
+        resetDefault: "Standards wiederherstellen",
         fallback: "Auf BYOK zurückgreifen, wenn das lokale Modell nicht verfügbar ist",
         fallbackHint: "Standardmäßig aus – Fehler bleiben sichtbar, statt stillschweigend umzuschalten.",
       },

@@ -105,7 +105,6 @@ export const zhCN: Messages = {
       local: {
         appleFm: "Apple 内置模型",
         appleFmHint: "在此 Mac 上运行，无需安装或下载。",
-        languagesNote: "内置模型仅支持部分语言。",
         languagesShow: "查看支持的语言",
         allowUnsupported: "允许不受支持的语言",
         allowUnsupportedHint: "让内置模型生成其未正式支持的语言的内容（质量可能较低）。",
@@ -137,7 +136,7 @@ export const zhCN: Messages = {
         },
         local: "本地",
         byok: "BYOK",
-        resetDefault: "恢复默认",
+        resetDefault: "恢复全部默认",
         fallback: "本地不可用时回退到 BYOK",
         fallbackHint: "默认关闭 – 失败保持可见，而非静默切换。",
       },

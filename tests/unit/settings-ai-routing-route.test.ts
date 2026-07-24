@@ -46,6 +46,22 @@ describe("PUT /api/settings/ai/routing", () => {
     expect(settings.routing.groups.metadata).toEqual({ tier: "byok", explicit: false });
   });
 
+  it("resets every routed group to its shipped default with { reset: true }", async () => {
+    const { PUT } = await import("@/app/api/settings/ai/routing/route");
+    const { GET } = await import("@/app/api/settings/ai/route");
+
+    await PUT(putRoutingRequest({ group: "metadata", tier: "local" }));
+    await PUT(putRoutingRequest({ group: "redaction", tier: "byok" }));
+    const response = await PUT(putRoutingRequest({ reset: true }));
+    expect(await response.json()).toEqual({ ok: true });
+
+    const settings = await (await GET()).json();
+    expect(settings.routing.groups.metadata).toEqual({ tier: "byok", explicit: false });
+    expect(settings.routing.groups.redaction).toEqual({ tier: "local", explicit: false });
+    expect(settings.routing.groups.insights).toEqual({ tier: "byok", explicit: false });
+    expect(settings.routing.groups.workflows).toEqual({ tier: "byok", explicit: false });
+  });
+
   it("persists the fallback toggle", async () => {
     const { PUT } = await import("@/app/api/settings/ai/routing/route");
     const { GET } = await import("@/app/api/settings/ai/route");

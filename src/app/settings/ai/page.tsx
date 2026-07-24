@@ -63,8 +63,9 @@ export default function AISettingsPage() {
   const t = useTranslations();
   const { locale } = useLocale();
 
-  // Local tier
-  const [localEngine, setLocalEngine] = useState<LocalEngine>("apple-fm");
+  // Local tier – "" means no engine selected: the tier is unusable until the
+  // user explicitly picks one of the two options again.
+  const [localEngine, setLocalEngine] = useState<LocalEngine | "">("");
   const [localBaseUrl, setLocalBaseUrl] = useState("");
   const [localModelId, setLocalModelId] = useState("");
   const [localApiKey, setLocalApiKey] = useState("");
@@ -140,8 +141,9 @@ export default function AISettingsPage() {
       setLocalBaseUrl("");
       setLocalStoredModel("");
       setLocalStoredBaseUrl("");
-      // No local row yet – Apple's built-in model is the marquee default.
-      setLocalEngine("apple-fm");
+      // No local row – neither engine is selected; the tier stays unusable
+      // until the user explicitly picks one.
+      setLocalEngine("");
     }
 
     if (data.byok) {
@@ -298,7 +300,10 @@ export default function AISettingsPage() {
         setLocalStoredBaseUrl("");
         setLocalApiKey("");
         setShowLocalKey(false);
-        setLocalEngine("apple-fm");
+        // Deselect both engines – the tier stays unusable until an explicit
+        // re-selection. The server side also restored the language default.
+        setLocalEngine("");
+        void refetchRouting();
         invalidateAIStatus();
       } else {
         toast.error(t("settings.ai.removeFailed"));
@@ -502,11 +507,31 @@ export default function AISettingsPage() {
               <p className="text-xs text-muted-foreground">
                 {t("settings.ai.local.appleFmHint")}
               </p>
-              {appleFmLanguages && (
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">
-                    {t("settings.ai.local.languagesNote")}
-                  </p>
+              {localEngine === "apple-fm" && appleFmLanguages && (
+                <div className="space-y-1 pt-2 max-w-md">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="apple-fm-allow-unsupported" className="text-xs font-medium">
+                        {t("settings.ai.local.allowUnsupported")}
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        {t("settings.ai.local.allowUnsupportedHint")}
+                      </p>
+                    </div>
+                    <Switch
+                      id="apple-fm-allow-unsupported"
+                      checked={routing.allowUnsupportedLanguages}
+                      onCheckedChange={async (checked) => {
+                        const res = await fetch("/api/settings/ai/routing", {
+                          method: "PUT",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ allowUnsupportedLanguages: checked }),
+                        });
+                        if (res.ok) refetchRouting();
+                        else toast.error(t("common.saveFailed"));
+                      }}
+                    />
+                  </div>
                   <button
                     type="button"
                     onClick={() => setShowLanguages((v) => !v)}
@@ -525,31 +550,6 @@ export default function AISettingsPage() {
                   )}
                 </div>
               )}
-              {appleFmLanguages && (
-                <div className="flex items-start justify-between gap-4 pt-2 max-w-md">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="apple-fm-allow-unsupported" className="text-xs font-medium">
-                      {t("settings.ai.local.allowUnsupported")}
-                    </Label>
-                    <p className="text-xs text-muted-foreground">
-                      {t("settings.ai.local.allowUnsupportedHint")}
-                    </p>
-                  </div>
-                  <Switch
-                    id="apple-fm-allow-unsupported"
-                    checked={routing.allowUnsupportedLanguages}
-                    onCheckedChange={async (checked) => {
-                      const res = await fetch("/api/settings/ai/routing", {
-                        method: "PUT",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ allowUnsupportedLanguages: checked }),
-                      });
-                      if (res.ok) refetchRouting();
-                      else toast.error(t("common.saveFailed"));
-                    }}
-                  />
-                </div>
-              )}
             </div>
           </div>
 
@@ -561,7 +561,7 @@ export default function AISettingsPage() {
           </div>
         </RadioGroup>
 
-        {localEngine === "apple-fm" ? (
+        {localEngine === "apple-fm" && (
           <div className="flex items-center gap-3">
             <Button onClick={handleSaveAppleFm} disabled={savingAppleFm}>
               {savingAppleFm ? (
@@ -582,7 +582,8 @@ export default function AISettingsPage() {
               </Button>
             )}
           </div>
-        ) : (
+        )}
+        {localEngine === "local-server" && (
           <>
             <LocalServerFields
               baseUrl={localBaseUrl}

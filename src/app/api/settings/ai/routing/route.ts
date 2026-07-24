@@ -21,13 +21,19 @@ const allowUnsupportedSchema = z.object({
   allowUnsupportedLanguages: z.boolean(),
 });
 
-const bodySchema = z.union([groupSchema, fallbackSchema, allowUnsupportedSchema]);
+const resetSchema = z.object({
+  reset: z.literal(true),
+});
+
+const bodySchema = z.union([groupSchema, fallbackSchema, allowUnsupportedSchema, resetSchema]);
 
 export async function PUT(request: Request) {
   const parsed = await parseBody(request, bodySchema);
   if (parsed instanceof Response) return parsed;
 
-  if ("group" in parsed) {
+  if ("reset" in parsed) {
+    for (const group of AI_ROUTED_GROUPS) setRoutingTier(group, null);
+  } else if ("group" in parsed) {
     setRoutingTier(parsed.group, parsed.tier);
   } else if ("allowUnsupportedLanguages" in parsed) {
     setAppleFmAllowUnsupportedLanguages(parsed.allowUnsupportedLanguages);

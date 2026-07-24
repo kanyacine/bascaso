@@ -106,7 +106,6 @@ export const fr: Messages = {
       local: {
         appleFm: "Modèle Apple intégré",
         appleFmHint: "Tourne sur ce Mac, rien à installer ni télécharger.",
-        languagesNote: "Le modèle intégré ne prend en charge qu’une sélection de langues.",
         languagesShow: "Voir les langues prises en charge",
         allowUnsupported: "Autoriser les langues non prises en charge",
         allowUnsupportedHint: "Laisser le modèle intégré générer dans des langues non officiellement prises en charge (qualité potentiellement moindre).",
@@ -138,7 +137,7 @@ export const fr: Messages = {
         },
         local: "Local",
         byok: "BYOK",
-        resetDefault: "Restaurer le défaut",
+        resetDefault: "Restaurer les défauts",
         fallback: "Basculer sur BYOK si le local est indisponible",
         fallbackHint: "Désactivé par défaut – les échecs restent visibles au lieu de basculer en silence.",
       },
