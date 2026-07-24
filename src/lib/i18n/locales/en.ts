@@ -1517,6 +1517,8 @@ export const en = {
         compose: "Composing metadata proposal",
         report: "Building report",
       },
+      strategy: "Strategy",
+      strategies: { balanced: "Balanced", broad: "Broad reach", niche: "Niche" },
       proposal: "Metadata proposal",
       cancel: "Cancel run",
       alreadyRunning: "A research run is already in progress for this app",

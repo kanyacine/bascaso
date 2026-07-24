@@ -1494,6 +1494,8 @@ export const zhCN: Messages = {
         compose: "生成元数据方案",
         report: "生成报告",
       },
+      strategy: "策略",
+      strategies: { balanced: "均衡", broad: "广泛覆盖", niche: "细分市场" },
       proposal: "元数据方案",
       cancel: "取消运行",
       alreadyRunning: "该应用已有一项研究正在进行中",

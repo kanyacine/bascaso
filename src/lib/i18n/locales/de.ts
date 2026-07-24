@@ -1519,6 +1519,8 @@ export const de: Messages = {
         compose: "Metadaten-Vorschlag wird erstellt",
         report: "Bericht wird erstellt",
       },
+      strategy: "Strategie",
+      strategies: { balanced: "Ausgewogen", broad: "Breite Reichweite", niche: "Nische" },
       proposal: "Metadaten-Vorschlag",
       cancel: "Ausführung abbrechen",
       alreadyRunning: "Für diese App läuft bereits eine Recherche",

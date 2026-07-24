@@ -18,6 +18,7 @@ const bodySchema = z.object({
   subtitle: z.string().optional(),
   description: z.string().optional(),
   currentKeywords: z.string().optional(),
+  strategy: z.enum(["balanced", "broad", "niche"]).optional(),
 });
 
 export async function POST(

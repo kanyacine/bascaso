@@ -51,7 +51,7 @@ import { StorefrontPicker } from "../../_components/storefront-picker";
 
 // Type-only imports – erased at compile time so no server module (db, itunes,
 // provider-factory) is dragged into this client bundle.
-import type { WorkflowStepId } from "@/lib/ai/workflows/keyword-research";
+import type { ResearchStrategy, WorkflowStepId } from "@/lib/ai/workflows/keyword-research";
 import type { WorkflowRunView } from "@/lib/ai/workflows/run-manager";
 
 /** SSE payload shape (mirrors WorkflowEvent from the events module). */
@@ -82,6 +82,12 @@ const STEP_LABEL: Record<WorkflowStepId, MessageKey> = {
   rank: "aso.research.steps.rank",
   compose: "aso.research.steps.compose",
   report: "aso.research.steps.report",
+};
+
+const STRATEGY_LABEL: Record<ResearchStrategy, MessageKey> = {
+  balanced: "aso.research.strategies.balanced",
+  broad: "aso.research.strategies.broad",
+  niche: "aso.research.strategies.niche",
 };
 
 interface KeywordResearchDialogProps {
@@ -120,6 +126,7 @@ export function KeywordResearchDialog({
   const t = useTranslations();
   const researchLocales = useMemo(() => storefrontLocales(storefront), [storefront]);
   const [targetLocale, setTargetLocale] = useState(researchLocales[0] ?? "en-US");
+  const [strategy, setStrategy] = useState<ResearchStrategy>("balanced");
   const [runId, setRunId] = useState<string | null>(null);
   const [run, setRun] = useState<WorkflowRunView | null>(null);
   const [launching, setLaunching] = useState(false);
@@ -293,6 +300,7 @@ export function KeywordResearchDialog({
           subtitle: getSubtitle(targetLocale) ?? undefined,
           description: getDescription(targetLocale) || undefined,
           currentKeywords: getKeywords(targetLocale) || undefined,
+          strategy,
         }),
       });
       if (res.status === 409) {
@@ -379,6 +387,8 @@ export function KeywordResearchDialog({
                 locales={researchLocales}
                 targetLocale={targetLocale}
                 onTargetLocaleChange={setTargetLocale}
+                strategy={strategy}
+                onStrategyChange={setStrategy}
                 history={history}
                 onOpenHistory={openHistory}
                 onDeleteHistory={deleteHistory}
@@ -412,6 +422,8 @@ function FormView({
   locales,
   targetLocale,
   onTargetLocaleChange,
+  strategy,
+  onStrategyChange,
   history,
   onOpenHistory,
   onDeleteHistory,
@@ -424,6 +436,8 @@ function FormView({
   locales: string[];
   targetLocale: string;
   onTargetLocaleChange: (locale: string) => void;
+  strategy: ResearchStrategy;
+  onStrategyChange: (s: ResearchStrategy) => void;
   history: WorkflowRunView[];
   onOpenHistory: (run: WorkflowRunView) => void;
   onDeleteHistory: (run: WorkflowRunView) => void;
@@ -449,6 +463,25 @@ function FormView({
             {locales.map((locale) => (
               <SelectItem key={locale} value={locale}>
                 {localeName(locale)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </section>
+
+      <section className="space-y-2">
+        <h3 className="section-title">{t("aso.research.strategy")}</h3>
+        <Select
+          value={strategy}
+          onValueChange={(v) => onStrategyChange(v as ResearchStrategy)}
+        >
+          <SelectTrigger className="w-[260px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {(["balanced", "broad", "niche"] as const).map((s) => (
+              <SelectItem key={s} value={s}>
+                {t(STRATEGY_LABEL[s])}
               </SelectItem>
             ))}
           </SelectContent>

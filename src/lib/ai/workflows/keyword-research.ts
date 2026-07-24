@@ -10,8 +10,9 @@ import type { ZodType } from "zod";
 import { appleFmInputTooLarge } from "@/lib/ai/apple-fm";
 import { searchApps } from "@/lib/aso/itunes";
 import { scoreKeyword, type KeywordScore } from "@/lib/aso/score-service";
+import type { ClassificationLabel } from "@/lib/aso/scoring";
 import {
-  appendKeywordToField,
+  ASC_FIELD_MAX_LENGTH,
   deriveInsights,
   deriveOpportunities,
 } from "@/lib/aso/research";
@@ -22,7 +23,10 @@ import {
   buildComposePrompt,
   buildRelevancePrompt,
   buildSeedsPrompt,
+  type ResearchStrategy,
 } from "@/lib/ai/workflows/prompts";
+
+export type { ResearchStrategy } from "@/lib/ai/workflows/prompts";
 
 export interface KeywordResearchInput {
   appId: string;
@@ -34,6 +38,7 @@ export interface KeywordResearchInput {
   subtitle?: string;
   description?: string; // truncated to 1500 chars before prompting
   currentKeywords?: string;
+  strategy?: ResearchStrategy; // défaut "balanced"
 }
 
 export type WorkflowStepId =
@@ -89,6 +94,25 @@ export class WorkflowStepError extends Error {
 export const MAX_CANDIDATES = 120; // ponytail: hard cap, log dropped count – raise if users hit it
 const MAX_SEEDS = 25;
 
+// Multiplicateurs par classification respectASO – validés en revue le
+// 2026-07-24. Avoid reste pénalisé partout, jamais exclu.
+export const STRATEGY_WEIGHTS: Record<ResearchStrategy, Record<ClassificationLabel, number>> = {
+  balanced: { "Sweet Spot": 1.3, "Hidden Gem": 1.2, "Good Target": 1.1, "Moderate": 1.0, "Low Volume": 0.6, "High Competition": 0.4, "Avoid": 0.2 },
+  broad: { "Sweet Spot": 1.5, "Hidden Gem": 0.8, "Good Target": 1.2, "Moderate": 1.0, "Low Volume": 0.3, "High Competition": 0.6, "Avoid": 0.2 },
+  niche: { "Sweet Spot": 0.9, "Hidden Gem": 1.6, "Good Target": 1.0, "Moderate": 0.8, "Low Volume": 0.7, "High Competition": 0.2, "Avoid": 0.2 },
+};
+
+/** Strategy-weighted worth of a candidate – classification multiplier on top
+ *  of the opportunity score. Unknown classifications (legacy rows) weigh 1. */
+export function strategyValue(
+  candidate: RankedCandidate,
+  strategy: ResearchStrategy,
+): number {
+  const weight =
+    STRATEGY_WEIGHTS[strategy][candidate.classification as ClassificationLabel] ?? 1;
+  return candidate.opportunity * weight;
+}
+
 const RELEVANCE_BATCH = 30;
 const COMPOSE_TOP = 30;
 const REPORT_TOP = 10;
@@ -141,29 +165,86 @@ export function capMetadataField(text: string, limit: number): string {
   return cut.trimEnd();
 }
 
+export const APPLE_IGNORED_WORDS = new Set([
+  // Words Apple provably drops from its index (ASC guidance + RadASO
+  // ranking experiments) – they cost characters and complete no query.
+  // Short function words proven to matter ("to", "do", "my", "me",
+  // "your") are deliberately NOT listed.
+  "a", "an", "the", "and", "or", "for", "of", "with",
+  "app", "apps", "free", "iphone", "ipad",
+]);
+
+interface FieldPhrase {
+  value: number;
+  words: string[]; // unique, Apple-ignored and title words stripped
+}
+
 /**
- * Greedily packs unique words from the ranked candidates into an App Store
- * Connect keyword field (comma-separated, ≤100 chars). Packs words rather
- * than phrases – Apple recombines words across the field and the title, so
- * "habit tracker,habit list" wastes the repeated word and the space. Words
- * already present in the title/subtitle are skipped (Apple indexes those).
- * appendKeywordToField keeps the entry-level dedup and length rules in one
- * place; a word that no longer fits is skipped, later shorter words still
- * fill toward the limit.
+ * Packs the ≤100-char keyword field by budgeted phrase coverage. A word only
+ * earns its characters by completing a valuable candidate phrase: words
+ * already in the title/subtitle (or already selected) cost nothing, words
+ * Apple ignores are never packed. Selection greedily takes the phrase with
+ * the best value per missing character until nothing affordable remains,
+ * then tops the field up word-by-word from the best remaining phrases. The
+ * output keeps phrase-value order – earlier keywords weigh more in Apple's
+ * index.
  */
 export function buildKeywordField(
   ranked: RankedCandidate[],
   titleWords: Set<string>,
+  valueOf: (c: RankedCandidate) => number = (c) => c.opportunity,
 ): string {
-  let field = "";
-  for (const candidate of ranked) {
-    for (const word of tokenizeWords(candidate.keyword)) {
-      if (titleWords.has(word)) continue;
-      const next = appendKeywordToField(field, word);
-      if (next !== null) field = next;
+  const phrases: FieldPhrase[] = ranked
+    .map((c) => ({
+      value: valueOf(c),
+      words: [...new Set(tokenizeWords(c.keyword))].filter(
+        (w) => !APPLE_IGNORED_WORDS.has(w) && !titleWords.has(w),
+      ),
+    }))
+    .filter((p) => p.value > 0 && p.words.length > 0)
+    .sort((a, b) => b.value - a.value);
+
+  const selected = new Set<string>();
+  let used = 0; // field chars, separating commas included
+  const costOf = (words: string[]): number =>
+    words.reduce((sum, w) => sum + w.length + 1, 0) - (selected.size === 0 ? 1 : 0);
+
+  // Phase 1 – whole phrases by value per missing character.
+  for (;;) {
+    let best: { missing: string[]; ratio: number } | null = null;
+    for (const p of phrases) {
+      const missing = p.words.filter((w) => !selected.has(w));
+      if (missing.length === 0) continue;
+      const cost = costOf(missing);
+      if (used + cost > ASC_FIELD_MAX_LENGTH) continue;
+      const ratio = p.value / cost;
+      if (!best || ratio > best.ratio) best = { missing, ratio };
+    }
+    if (!best) break;
+    used += costOf(best.missing);
+    for (const w of best.missing) selected.add(w);
+  }
+
+  // Phase 2 – top up word-by-word, so a phrase too big to fit whole still
+  // contributes its head words toward combinations with the rest.
+  for (const p of phrases) {
+    for (const w of p.words) {
+      if (selected.has(w)) continue;
+      const cost = w.length + (selected.size === 0 ? 0 : 1);
+      if (used + cost > ASC_FIELD_MAX_LENGTH) continue;
+      selected.add(w);
+      used += cost;
     }
   }
-  return field;
+
+  // Emit in phrase-value order.
+  const out: string[] = [];
+  for (const p of phrases) {
+    for (const w of p.words) {
+      if (selected.has(w) && !out.includes(w)) out.push(w);
+    }
+  }
+  return out.join(",");
 }
 
 // ── Orchestrator ─────────────────────────────────────────────────────────
@@ -210,6 +291,7 @@ export async function runKeywordResearch(
     opportunities: [],
   };
   const scoresByKeyword = new Map<string, KeywordScore>();
+  const strategy = input.strategy ?? "balanced";
 
   const step = async <T>(
     id: WorkflowStepId,
@@ -246,6 +328,7 @@ export async function runKeywordResearch(
       description: input.description,
       currentKeywords: input.currentKeywords,
       competitorTitles,
+      strategy,
     });
     const object = await callLlm(resolved, built);
     const unique = [...new Set(object.seeds.map((s) => s.trim().toLowerCase()))]
@@ -357,11 +440,13 @@ export async function runKeywordResearch(
     }
   });
 
-  // 6. rank – relevant first, opportunity desc, popularity desc tiebreak.
+  // 6. rank – relevant first, strategy value desc, popularity tiebreak.
   await step("rank", 1, async () => {
     partial.candidates.sort((a, b) => {
       if (a.relevant !== b.relevant) return a.relevant ? -1 : 1;
-      if (b.opportunity !== a.opportunity) return b.opportunity - a.opportunity;
+      const av = strategyValue(a, strategy);
+      const bv = strategyValue(b, strategy);
+      if (bv !== av) return bv - av;
       return (b.popularity ?? -1) - (a.popularity ?? -1);
     });
   });
@@ -404,7 +489,11 @@ export async function runKeywordResearch(
     partial.proposal = {
       title,
       subtitle,
-      keywords: buildKeywordField(partial.candidates.filter((c) => c.relevant), avoid),
+      keywords: buildKeywordField(
+        partial.candidates.filter((c) => c.relevant),
+        avoid,
+        (c) => strategyValue(c, strategy),
+      ),
       summary: object.summary,
     };
   });

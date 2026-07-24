@@ -5,7 +5,7 @@ import type { DifficultyBreakdown, RankingTier } from "@/lib/aso/estimators";
 import { normalizeKeyword, type ScoreTone } from "@/lib/aso/score-display";
 import type { TagScore } from "@/components/keyword-tag-input";
 
-const ASC_FIELD_MAX_LENGTH = 100;
+export const ASC_FIELD_MAX_LENGTH = 100;
 
 /** ASC app id as a numeric Apple id for rank lookups; demo apps have
  *  non-numeric ids and return undefined (rank stays unavailable). */

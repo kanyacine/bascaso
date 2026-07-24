@@ -106,6 +106,18 @@ describe("POST /api/apps/[appId]/aso/keyword-research", () => {
     expect(res.status).toBe(400);
     expect(mockStart).not.toHaveBeenCalled();
   });
+
+  it("passes the strategy through and rejects an unknown one", async () => {
+    mockStart.mockResolvedValue({ runId: "run-3" });
+
+    await POST(postRequest({ ...validBody, strategy: "niche" }), ctx("app-1"));
+    expect(mockStart).toHaveBeenCalledWith(
+      expect.objectContaining({ strategy: "niche" }),
+    );
+
+    const res = await POST(postRequest({ ...validBody, strategy: "viral" }), ctx("app-1"));
+    expect(res.status).toBe(400);
+  });
 });
 
 describe("GET /api/apps/[appId]/aso/keyword-research", () => {

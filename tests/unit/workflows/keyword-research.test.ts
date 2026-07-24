@@ -204,6 +204,31 @@ describe("runKeywordResearch – nominal run", () => {
   });
 });
 
+describe("runKeywordResearch – strategy", () => {
+  it("niche reranks hidden gems first and packs them first in the field", async () => {
+    const CLASSES: Record<string, string> = {
+      planner: "Sweet Spot",
+      habit: "Hidden Gem",
+    };
+    mockScoreKeyword.mockImplementation(async (keyword: string) => ({
+      ...makeScore(keyword),
+      classification: CLASSES[keyword] ?? "Good Target",
+    }));
+
+    const result = await runKeywordResearch(
+      { ...input, strategy: "niche" },
+      () => {},
+      new AbortController().signal,
+    );
+
+    // niche: habit 80×1.6=128 > daily planner 90×1.0=90 > planner 95×0.9=85.5
+    expect(result.candidates.slice(0, 3).map((c) => c.keyword)).toEqual([
+      "habit", "daily planner", "planner",
+    ]);
+    expect(result.proposal!.keywords).toBe("habit,daily,planner");
+  });
+});
+
 describe("runKeywordResearch – scoring failure", () => {
   it("wraps a scoring error in WorkflowStepError with step 'expand' and partial candidates", async () => {
     let calls = 0;

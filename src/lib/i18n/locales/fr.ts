@@ -1521,6 +1521,8 @@ export const fr: Messages = {
         compose: "Composition de la proposition",
         report: "Construction du rapport",
       },
+      strategy: "Stratégie",
+      strategies: { balanced: "Équilibrée", broad: "Diffusion large", niche: "Niche" },
       proposal: "Proposition de métadonnées",
       cancel: "Annuler l’exécution",
       alreadyRunning: "Une recherche est déjà en cours pour cette app",

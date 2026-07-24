@@ -56,6 +56,13 @@ describe("buildSeedsPrompt", () => {
     const body = line.replace("Description (excerpt): ", "");
     expect(body.length).toBe(1500);
   });
+
+  it("orients the seed generation per strategy", () => {
+    const base = { appName: "Habitly", country: "us", locale: "en-US", competitorTitles: [] };
+    expect(buildSeedsPrompt({ ...base, strategy: "niche" }).prompt).toContain("long-tail");
+    expect(buildSeedsPrompt({ ...base, strategy: "broad" }).prompt).toContain("wide appeal");
+    expect(buildSeedsPrompt(base).prompt).not.toContain("long-tail");
+  });
 });
 
 describe("buildRelevancePrompt", () => {

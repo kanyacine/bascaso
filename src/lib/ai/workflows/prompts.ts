@@ -6,6 +6,16 @@
 
 import { z } from "zod";
 
+export type ResearchStrategy = "balanced" | "broad" | "niche";
+
+/** One orientation line injected into the seeds prompt – reweighting alone
+ *  cannot surface phrases the generation never produced. */
+export const STRATEGY_SEED_HINT: Record<ResearchStrategy, string> = {
+  balanced: "",
+  broad: "Favour broad, high-traffic category terms with wide appeal.",
+  niche: "Favour specific long-tail phrases a smaller, focused audience would search.",
+};
+
 export const seedsSchema = z.object({ seeds: z.array(z.string()).min(3).max(60) });
 export const relevanceSchema = z.object({ relevant: z.array(z.number().int().nonnegative()) });
 export const composeSchema = z.object({
@@ -18,6 +28,7 @@ export function buildSeedsPrompt(input: {
   appName: string; country: string; locale: string;
   title?: string; subtitle?: string; description?: string;
   currentKeywords?: string; competitorTitles: string[];
+  strategy?: ResearchStrategy;
 }) {
   return {
     system: "You are an App Store Optimization expert. Output only what is asked, no commentary.",
@@ -34,6 +45,7 @@ export function buildSeedsPrompt(input: {
       "Generate 20 distinct App Store search phrases (1-3 words each) that real users",
       "in this storefront would type to find this kind of app, in the target language.",
       "Mix category terms, problem/benefit terms and feature terms.",
+      STRATEGY_SEED_HINT[input.strategy ?? "balanced"],
       "No competitor brand names. No plural duplicating an included singular.",
     ].filter(Boolean).join("\n"),
     schema: seedsSchema,
