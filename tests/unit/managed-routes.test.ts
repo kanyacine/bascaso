@@ -53,6 +53,7 @@ describe("/api/managed/*", () => {
     auth.getValidAccessToken.mockResolvedValueOnce("token");
     fetchMock.mockResolvedValueOnce({ ok: true, status: 200, json: () => Promise.resolve({ email: "a@b.c", balance: 4, subscription: null }) });
     const res = await GET();
+    expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ email: "a@b.c", balance: 4, subscription: null });
   });
 
@@ -62,7 +63,20 @@ describe("/api/managed/*", () => {
     const { POST } = await import("@/app/api/managed/checkout/route");
     expect((await POST(post({ sku: "nope" }))).status).toBe(400);
     const res = await POST(post({ sku: "pack_10" }));
+    expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ url: "https://stripe/x" });
+  });
+
+  // L'auth doit primer sur la validation du sku : un appelant non connecté
+  // ne doit jamais recevoir d'information sur le schéma d'entrée, même avec
+  // un sku invalide. Doit rester rouge tant que checkout valide le sku
+  // avant de vérifier le token.
+  it("checkout returns 401 when signed out, even with an invalid sku", async () => {
+    auth.getValidAccessToken.mockResolvedValueOnce(null);
+    const { POST } = await import("@/app/api/managed/checkout/route");
+    const res = await POST(post({ sku: "nope" }));
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: "not_logged_in" });
   });
 
   // Non couvert par le brief, mais BACKEND.md exige au moins un cas nominal
@@ -76,6 +90,7 @@ describe("/api/managed/*", () => {
     auth.getValidAccessToken.mockResolvedValueOnce("token");
     fetchMock.mockResolvedValueOnce({ ok: true, status: 200, json: () => Promise.resolve({ url: "https://stripe/portal" }) });
     const res = await POST();
+    expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ url: "https://stripe/portal" });
   });
 });

@@ -7,10 +7,10 @@ import { getValidAccessToken } from "@/lib/managed/auth";
 const schema = z.object({ sku: z.enum(["pack_10", "pack_50", "pack_100", "sub_monthly"]) });
 
 export async function POST(request: Request) {
-  const parsed = await parseBody(request, schema);
-  if (parsed instanceof Response) return parsed;
   const token = await getValidAccessToken();
   if (!token) return NextResponse.json({ error: "not_logged_in" }, { status: 401 });
+  const parsed = await parseBody(request, schema);
+  if (parsed instanceof Response) return parsed;
   const res = await fetch(`${BASCASO_CLOUD_URL}/functions/v1/checkout`, {
     method: "POST",
     headers: {
