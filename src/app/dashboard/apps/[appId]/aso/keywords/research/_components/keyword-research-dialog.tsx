@@ -48,8 +48,8 @@ const STEP_ORDER: readonly WorkflowStepId[] = [
   "context",
   "seeds",
   "expand",
-  "score",
   "relevance",
+  "score",
   "rank",
   "compose",
   "report",
@@ -386,7 +386,7 @@ function ProgressView({
             i < activeIndex ? "done" : i === activeIndex ? "current" : "pending";
           const showCount =
             state === "current" &&
-            (step === "score" || step === "relevance") &&
+            (step === "expand" || step === "score" || step === "relevance") &&
             run?.progress != null &&
             run.progress.step === step &&
             run.progress.total > 0;

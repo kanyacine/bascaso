@@ -6,12 +6,11 @@
 
 import { z } from "zod";
 
-export const seedsSchema = z.object({ seeds: z.array(z.string()).min(5).max(30) });
-export const relevanceSchema = z.object({ relevant: z.array(z.string()) });
+export const seedsSchema = z.object({ seeds: z.array(z.string()).min(3).max(60) });
+export const relevanceSchema = z.object({ relevant: z.array(z.number().int().nonnegative()) });
 export const composeSchema = z.object({
   title: z.string(),
   subtitle: z.string(),
-  keywords: z.string(),
   summary: z.string(),
 });
 
@@ -50,10 +49,10 @@ export function buildRelevancePrompt(input: {
       `App: ${input.appName}`,
       input.subtitle ? `Subtitle: ${input.subtitle}` : "",
       input.description ? `Description (excerpt): ${input.description.slice(0, 600)}` : "",
-      "",
-      "For each keyword below, decide whether someone searching it plausibly wants this app.",
-      "Return the exact subset of relevant keywords, verbatim, and nothing else.",
-      `Keywords: ${JSON.stringify(input.keywords)}`,
+      "For each numbered keyword below, decide whether someone searching it plausibly wants this app.",
+      "Competitor brand names are not relevant.",
+      "Return the numbers of the relevant keywords, nothing else.",
+      ...input.keywords.map((k, i) => `${i}. ${k}`),
     ].filter(Boolean).join("\n"),
     schema: relevanceSchema,
   };
@@ -76,8 +75,6 @@ export function buildComposePrompt(input: {
       "Propose App Store metadata in the target language:",
       "- title: max 30 characters, keep the app name recognisable",
       "- subtitle: max 30 characters, no word repeated from the title",
-      "- keywords: comma-separated, no spaces after commas, max 100 characters,",
-      "  no word already present in title or subtitle, singular forms only",
       "- summary: 2-3 sentences explaining the strategy, in the target language",
     ].filter(Boolean).join("\n"),
     schema: composeSchema,

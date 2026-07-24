@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestDb } from "../../helpers/test-db";
+import { workflowRuns } from "@/db/schema";
 import {
   WorkflowStepError,
   type KeywordResearchInput,
@@ -181,6 +182,51 @@ describe("startKeywordResearch", () => {
     deferred.resolve(emptyResult);
     await __whenSettled(started.runId);
     expect(getRun(started.runId)?.status).toBe("succeeded");
+  });
+
+  it("bypasses the throttle when the step changes", async () => {
+    const deferred = makeDeferred<KeywordResearchResult>();
+    let captured: ((p: WorkflowProgress) => void) | null = null;
+    mockRun.mockImplementation(
+      (_input: unknown, onProgress: (p: WorkflowProgress) => void) => {
+        captured = onProgress;
+        return deferred.promise;
+      },
+    );
+    const { startKeywordResearch, getRun, __whenSettled } = await loadManager();
+    const started = (await startKeywordResearch(input)) as { runId: string };
+
+    captured!({ step: "score", done: 5, total: 5 });
+    // New step inside the throttle window – must be persisted anyway.
+    captured!({ step: "rank", done: 0, total: 1 });
+
+    expect(getRun(started.runId)?.step).toBe("rank");
+
+    deferred.resolve(emptyResult);
+    await __whenSettled(started.runId);
+  });
+});
+
+describe("failStuckRuns", () => {
+  it("fails running rows with no in-flight driver and leaves live runs alone", async () => {
+    const deferred = makeDeferred<KeywordResearchResult>();
+    mockRun.mockReturnValue(deferred.promise);
+    const { startKeywordResearch, getRun, failStuckRuns, __whenSettled } = await loadManager();
+
+    const live = (await startKeywordResearch(input)) as { runId: string };
+    testDb.insert(workflowRuns).values({
+      id: "stuck-run", kind: "keyword-research", appId: "app-2",
+      country: "us", locale: "en-US", status: "running",
+      createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+    }).run();
+
+    expect(failStuckRuns()).toBe(1);
+    expect(getRun("stuck-run")?.status).toBe("failed");
+    expect(getRun("stuck-run")?.error).toBe("server_restarted");
+    expect(getRun(live.runId)?.status).toBe("running");
+
+    deferred.resolve(emptyResult);
+    await __whenSettled(live.runId);
   });
 });
 

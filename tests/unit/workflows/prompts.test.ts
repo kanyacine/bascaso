@@ -59,7 +59,7 @@ describe("buildSeedsPrompt", () => {
 });
 
 describe("buildRelevancePrompt", () => {
-  it("embeds the keyword array as JSON and truncates the description to 600", () => {
+  it("numbers the keywords, asks for indices and excludes brand names", () => {
     const { prompt, schema } = buildRelevancePrompt({
       appName: "Habitly",
       subtitle: "Track your day",
@@ -67,8 +67,10 @@ describe("buildRelevancePrompt", () => {
       keywords: ["habit tracker", "daily planner"],
     });
     expect(prompt).toContain("App: Habitly");
-    expect(prompt).toContain("Subtitle: Track your day");
-    expect(prompt).toContain('Keywords: ["habit tracker","daily planner"]');
+    expect(prompt).toContain("0. habit tracker");
+    expect(prompt).toContain("1. daily planner");
+    expect(prompt).toContain("Competitor brand names are not relevant.");
+    expect(prompt).toContain("Return the numbers");
     const line = prompt.split("\n").find((l) => l.startsWith("Description (excerpt):"))!;
     expect(line.replace("Description (excerpt): ", "").length).toBe(600);
     expect(schema).toBe(relevanceSchema);
@@ -90,20 +92,25 @@ describe("buildComposePrompt", () => {
     expect(prompt).toContain("- planner (pop 42, diff 10, opp 88)");
     expect(prompt).toContain("- routine (pop ?, diff 20, opp 70)");
     expect(prompt).toContain("max 30 characters");
+    expect(prompt).not.toContain("- keywords:");
     expect(schema).toBe(composeSchema);
   });
 });
 
 describe("schemas reject an empty object", () => {
-  it("seedsSchema requires at least 5 seeds", () => {
+  it("seedsSchema is a loose sanity bound – the workflow caps the count", () => {
     expect(seedsSchema.safeParse({}).success).toBe(false);
     expect(seedsSchema.safeParse({ seeds: [] }).success).toBe(false);
+    expect(seedsSchema.safeParse({ seeds: ["a", "b", "c"] }).success).toBe(true);
   });
-  it("relevanceSchema requires the relevant array", () => {
+  it("relevanceSchema accepts indices and rejects strings", () => {
     expect(relevanceSchema.safeParse({}).success).toBe(false);
+    expect(relevanceSchema.safeParse({ relevant: ["habit"] }).success).toBe(false);
+    expect(relevanceSchema.safeParse({ relevant: [0, 2] }).success).toBe(true);
   });
-  it("composeSchema requires all four fields", () => {
+  it("composeSchema requires title, subtitle and summary", () => {
     expect(composeSchema.safeParse({}).success).toBe(false);
-    expect(composeSchema.safeParse({ title: "a", subtitle: "b", keywords: "c" }).success).toBe(false);
+    expect(composeSchema.safeParse({ title: "a", subtitle: "b" }).success).toBe(false);
+    expect(composeSchema.safeParse({ title: "a", subtitle: "b", summary: "s" }).success).toBe(true);
   });
 });

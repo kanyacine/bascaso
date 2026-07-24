@@ -1,11 +1,13 @@
 // Autonomous keyword-research pipeline. Eight sequential steps – three of
 // them LLM seams routed through getLanguageModelForTask ("workflow-seeds",
-// "workflow-relevance", "workflow-compose"), the rest pure ASO helpers and
-// the cache-first scoring service. Every step reports progress and can be
-// aborted between units of work; a non-abort throw is wrapped in a
-// WorkflowStepError carrying the partial result gathered so far.
+// "workflow-relevance", "workflow-compose"). Relevance runs before the
+// harvested candidates are scored, so irrelevant ones never cost a paced
+// iTunes search. Every step reports progress and can be aborted between
+// units of work; a non-abort throw is wrapped in a WorkflowStepError
+// carrying the partial result gathered so far.
 
 import type { ZodType } from "zod";
+import { appleFmInputTooLarge } from "@/lib/ai/apple-fm";
 import { searchApps } from "@/lib/aso/itunes";
 import { scoreKeyword, type KeywordScore } from "@/lib/aso/score-service";
 import {
@@ -85,12 +87,12 @@ export class WorkflowStepError extends Error {
 }
 
 export const MAX_CANDIDATES = 120; // ponytail: hard cap, log dropped count – raise if users hit it
+const MAX_SEEDS = 25;
 
 const RELEVANCE_BATCH = 30;
 const COMPOSE_TOP = 30;
 const REPORT_TOP = 10;
 const MAX_METADATA_LENGTH = 30;
-const MAX_KEYWORD_FIELD_LENGTH = 100;
 
 // ── Pure helpers (exported for tests) ────────────────────────────────────
 
@@ -140,10 +142,14 @@ export function capMetadataField(text: string, limit: number): string {
 }
 
 /**
- * Greedily packs the highest-ranked keywords into an App Store Connect
- * keyword field (comma-separated, ≤100 chars), skipping any keyword whose
- * words already appear in the title/subtitle. Uses appendKeywordToField so
- * the field-level dedup and length rules stay in one place.
+ * Greedily packs unique words from the ranked candidates into an App Store
+ * Connect keyword field (comma-separated, ≤100 chars). Packs words rather
+ * than phrases – Apple recombines words across the field and the title, so
+ * "habit tracker,habit list" wastes the repeated word and the space. Words
+ * already present in the title/subtitle are skipped (Apple indexes those).
+ * appendKeywordToField keeps the entry-level dedup and length rules in one
+ * place; a word that no longer fits is skipped, later shorter words still
+ * fill toward the limit.
  */
 export function buildKeywordField(
   ranked: RankedCandidate[],
@@ -151,10 +157,11 @@ export function buildKeywordField(
 ): string {
   let field = "";
   for (const candidate of ranked) {
-    const words = tokenizeWords(candidate.keyword);
-    if (words.some((w) => titleWords.has(w))) continue;
-    const next = appendKeywordToField(field, candidate.keyword);
-    if (next !== null) field = next;
+    for (const word of tokenizeWords(candidate.keyword)) {
+      if (titleWords.has(word)) continue;
+      const next = appendKeywordToField(field, word);
+      if (next !== null) field = next;
+    }
   }
   return field;
 }
@@ -171,7 +178,9 @@ async function callLlm<T extends Record<string, unknown>>(
   built: { system: string; prompt: string; schema: ZodType<T> },
 ): Promise<T> {
   const { model, providerId, modelId, maxInputChars } = resolved;
-  if (maxInputChars && built.system.length + built.prompt.length > maxInputChars) {
+  // maxInputChars doubles as the is-apple-fm marker; the real budget is the
+  // script-aware token estimate – 12k chars of CJK is ~4× the 3k-token window.
+  if (maxInputChars !== undefined && appleFmInputTooLarge(built.system + built.prompt)) {
     throw new Error("workflow_input_too_large");
   }
   const { object } = await generateObjectWithRepair({
@@ -189,21 +198,6 @@ async function callLlm<T extends Record<string, unknown>>(
 const abortIfCancelled = (signal: AbortSignal): void => {
   if (signal.aborted) throw new DOMException("aborted", "AbortError");
 };
-
-/** Order-preserving dedup of candidates by lowercased keyword. */
-function dedupeCandidates(
-  candidates: Array<{ keyword: string; source: "seed" | "harvested" }>,
-): Array<{ keyword: string; source: "seed" | "harvested" }> {
-  const seen = new Set<string>();
-  const out: typeof candidates = [];
-  for (const c of candidates) {
-    const key = c.keyword.trim().toLowerCase();
-    if (key === "" || seen.has(key)) continue;
-    seen.add(key);
-    out.push(c);
-  }
-  return out;
-}
 
 export async function runKeywordResearch(
   input: KeywordResearchInput,
@@ -254,36 +248,101 @@ export async function runKeywordResearch(
       competitorTitles,
     });
     const object = await callLlm(resolved, built);
-    return object.seeds;
+    const unique = [...new Set(object.seeds.map((s) => s.trim().toLowerCase()))]
+      .filter((s) => s !== "");
+    return unique.slice(0, MAX_SEEDS);
   });
 
-  // 3. expand – harvest single-word candidates from competitor titles.
-  const candidates = await step("expand", 1, async () => {
-    const harvested = harvestCandidates(seeds, competitorTitles);
-    const combined = dedupeCandidates([
-      ...seeds.map((keyword) => ({ keyword, source: "seed" as const })),
-      ...harvested.map((keyword) => ({ keyword, source: "harvested" as const })),
-    ]);
-    if (combined.length > MAX_CANDIDATES) {
-      const dropped = combined.length - MAX_CANDIDATES;
-      console.log(
-        `[workflow] keyword-research dropping ${dropped} candidate(s) over cap ${MAX_CANDIDATES}`,
-      );
-      return combined.slice(0, MAX_CANDIDATES);
-    }
-    return combined;
-  });
-
-  // 4. score – cache-first scoring per candidate; abort-checked each iteration.
-  await step("score", candidates.length, async () => {
-    for (let i = 0; i < candidates.length; i++) {
+  // 3. expand – score the seeds (cache-first) and harvest single-word
+  // candidates from the competitor titles those searches returned: real
+  // category competitors, zero extra API calls vs scoring alone. The
+  // own-name titles from the context step stay in as a secondary source.
+  const candidates = await step("expand", seeds.length, async () => {
+    const snapshotTitles: string[] = [];
+    for (let i = 0; i < seeds.length; i++) {
       abortIfCancelled(signal);
-      const candidate = candidates[i];
-      const score = await scoreKeyword(
-        candidate.keyword,
-        input.country,
-        input.appAppleId ?? undefined,
+      const keyword = seeds[i];
+      const score = await scoreKeyword(keyword, input.country, input.appAppleId ?? undefined);
+      scoresByKeyword.set(keyword, score);
+      partial.candidates.push({
+        keyword,
+        source: "seed",
+        popularity: score.popularity,
+        difficulty: score.difficulty,
+        opportunity: score.opportunity,
+        classification: score.classification,
+        relevant: false,
+      });
+      for (const app of score.competitors ?? []) {
+        if (typeof app.trackName === "string" && app.trackName.trim() !== "") {
+          snapshotTitles.push(app.trackName);
+        }
+      }
+      onProgress({ step: "expand", done: i + 1, total: seeds.length });
+    }
+    const harvested = harvestCandidates(seeds, [...snapshotTitles, ...competitorTitles]);
+    const cap = Math.max(0, MAX_CANDIDATES - seeds.length);
+    if (harvested.length > cap) {
+      console.log(
+        `[workflow] keyword-research dropping ${harvested.length - cap} candidate(s) over cap ${MAX_CANDIDATES}`,
       );
+    }
+    return harvested.slice(0, cap).map((keyword) => ({ keyword, source: "harvested" as const }));
+  });
+
+  // 4. relevance – LLM filter (indices, batches of 30) over seeds and
+  // harvested alike, before any harvested keyword costs a paced iTunes
+  // search. Unreturned keywords stay irrelevant.
+  const toJudge = [
+    ...partial.candidates.map((c) => c.keyword),
+    ...candidates.map((c) => c.keyword),
+  ];
+  const relevantSet = await step("relevance", toJudge.length, async () => {
+    const relevant = new Set<string>();
+    if (toJudge.length === 0) return relevant;
+    const resolved = await getLanguageModelForTask("workflow-relevance");
+    for (let i = 0; i < toJudge.length; i += RELEVANCE_BATCH) {
+      abortIfCancelled(signal);
+      const batch = toJudge.slice(i, i + RELEVANCE_BATCH);
+      const built = buildRelevancePrompt({
+        appName: input.appName,
+        subtitle: input.subtitle,
+        description: input.description,
+        keywords: batch,
+      });
+      const object = await callLlm(resolved, built);
+      if (object.relevant.length === 0) {
+        console.warn("[workflow] relevance batch returned no indices – model output may be malformed");
+      }
+      for (const idx of object.relevant) {
+        const keyword = batch[idx];
+        if (keyword !== undefined) relevant.add(keyword.trim().toLowerCase());
+      }
+      onProgress({
+        step: "relevance",
+        done: Math.min(i + RELEVANCE_BATCH, toJudge.length),
+        total: toJudge.length,
+      });
+    }
+    return relevant;
+  });
+  for (const candidate of partial.candidates) {
+    if (relevantSet.has(candidate.keyword.trim().toLowerCase())) candidate.relevant = true;
+  }
+
+  // 5. score – iTunes search for the relevant harvested candidates only;
+  // the irrelevant ones are dropped before they cost a paced search.
+  const toScore = candidates.filter((c) => relevantSet.has(c.keyword.trim().toLowerCase()));
+  if (toScore.length < candidates.length) {
+    console.log(
+      `[workflow] keyword-research skipping ${candidates.length - toScore.length} irrelevant harvested candidate(s)`,
+    );
+  }
+  await step("score", toScore.length, async () => {
+    for (let i = 0; i < toScore.length; i++) {
+      abortIfCancelled(signal);
+      const candidate = toScore[i];
+      const score = await scoreKeyword(candidate.keyword, input.country, input.appAppleId ?? undefined);
       scoresByKeyword.set(candidate.keyword, score);
       partial.candidates.push({
         keyword: candidate.keyword,
@@ -292,40 +351,9 @@ export async function runKeywordResearch(
         difficulty: score.difficulty,
         opportunity: score.opportunity,
         classification: score.classification,
-        relevant: false,
+        relevant: true,
       });
-      onProgress({ step: "score", done: i + 1, total: candidates.length });
-    }
-  });
-
-  // 5. relevance – LLM in batches of 30; unreturned keywords stay relevant:false.
-  await step("relevance", partial.candidates.length, async () => {
-    if (partial.candidates.length === 0) return;
-    const resolved = await getLanguageModelForTask("workflow-relevance");
-    const relevantSet = new Set<string>();
-    for (let i = 0; i < partial.candidates.length; i += RELEVANCE_BATCH) {
-      abortIfCancelled(signal);
-      const batch = partial.candidates.slice(i, i + RELEVANCE_BATCH);
-      const built = buildRelevancePrompt({
-        appName: input.appName,
-        subtitle: input.subtitle,
-        description: input.description,
-        keywords: batch.map((c) => c.keyword),
-      });
-      const object = await callLlm(resolved, built);
-      for (const keyword of object.relevant) {
-        relevantSet.add(keyword.trim().toLowerCase());
-      }
-      onProgress({
-        step: "relevance",
-        done: Math.min(i + RELEVANCE_BATCH, partial.candidates.length),
-        total: partial.candidates.length,
-      });
-    }
-    for (const candidate of partial.candidates) {
-      if (relevantSet.has(candidate.keyword.trim().toLowerCase())) {
-        candidate.relevant = true;
-      }
+      onProgress({ step: "score", done: i + 1, total: toScore.length });
     }
   });
 
@@ -367,18 +395,16 @@ export async function runKeywordResearch(
         prompt: `${built.prompt}\nThe previous title/subtitle was too long – shorten it.`,
       });
     }
-    let keywords = object.keywords;
-    if (keywords.length > MAX_KEYWORD_FIELD_LENGTH) {
-      const avoid = new Set([
-        ...tokenizeWords(object.title),
-        ...tokenizeWords(object.subtitle),
-      ]);
-      keywords = buildKeywordField(partial.candidates, avoid);
-    }
+    // The keyword field is never the LLM's job – it cannot count characters.
+    // Pack it from the relevant candidates, excluding words the capped
+    // title/subtitle already cover.
+    const title = capMetadataField(object.title, MAX_METADATA_LENGTH);
+    const subtitle = capMetadataField(object.subtitle, MAX_METADATA_LENGTH);
+    const avoid = new Set([...tokenizeWords(title), ...tokenizeWords(subtitle)]);
     partial.proposal = {
-      title: capMetadataField(object.title, MAX_METADATA_LENGTH),
-      subtitle: capMetadataField(object.subtitle, MAX_METADATA_LENGTH),
-      keywords,
+      title,
+      subtitle,
+      keywords: buildKeywordField(partial.candidates.filter((c) => c.relevant), avoid),
       summary: object.summary,
     };
   });

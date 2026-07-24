@@ -88,8 +88,8 @@ function makeScore(keyword: string) {
 
 // Configurable LLM responses (reset per test)
 let seedsResponse: string[];
-let relevantResponse: string[];
-let composeResponses: Array<{ title: string; subtitle: string; keywords: string; summary: string }>;
+let relevantResponse: number[];
+let composeResponses: Array<{ title: string; subtitle: string; summary: string }>;
 
 beforeEach(() => {
   mockSearchApps.mockReset();
@@ -98,9 +98,11 @@ beforeEach(() => {
   mockGenerateObject.mockReset();
 
   seedsResponse = ["habit tracker", "daily planner", "goals"];
-  relevantResponse = ["planner", "daily planner", "habit"];
+  // Judged order: habit tracker(0), daily planner(1), goals(2),
+  // some(3), competitor(4), daily(5), planner(6), pro(7), routine(8), habit(9)
+  relevantResponse = [6, 1, 9]; // planner, daily planner, habit
   composeResponses = [
-    { title: "Habitly", subtitle: "Daily habit planner", keywords: "planner,routine,daily", summary: "Focus on planner." },
+    { title: "Habitly", subtitle: "Stay focused", summary: "Focus on planner." },
   ];
 
   mockSearchApps.mockResolvedValue([
@@ -116,7 +118,7 @@ beforeEach(() => {
   });
   mockGenerateObject.mockImplementation(async ({ prompt }: { prompt: string }) => {
     if (prompt.includes("Generate 20 distinct")) return { object: { seeds: seedsResponse } };
-    if (prompt.includes("Return the exact subset")) return { object: { relevant: relevantResponse } };
+    if (prompt.includes("Return the numbers")) return { object: { relevant: relevantResponse } };
     if (prompt.includes("Propose App Store metadata")) {
       const next = composeResponses.shift();
       if (!next) throw new Error("no more compose responses");
@@ -135,20 +137,17 @@ describe("runKeywordResearch – nominal run", () => {
       new AbortController().signal,
     );
 
-    // Candidate order: seeds then harvested tokens (deduped)
+    // Seeds all kept (scored in expand); only relevant harvested got scored.
     const keywords = result.candidates.map((c) => c.keyword);
-    expect(keywords).toEqual(
-      expect.arrayContaining(["habit tracker", "daily planner", "goals", "daily", "planner", "pro", "routine", "habit"]),
-    );
-
-    // Relevant first, opportunity desc within the relevant group
-    expect(result.candidates[0].keyword).toBe("planner");
+    expect(keywords).toEqual(["planner", "daily planner", "habit", "habit tracker", "goals"]);
+    expect(keywords).not.toContain("some");
+    expect(keywords).not.toContain("routine");
     expect(result.candidates.slice(0, 3).every((c) => c.relevant)).toBe(true);
     expect(result.candidates.slice(3).every((c) => !c.relevant)).toBe(true);
-    expect(result.candidates[0].opportunity).toBeGreaterThanOrEqual(result.candidates[1].opportunity);
-    expect(result.candidates[1].opportunity).toBeGreaterThanOrEqual(result.candidates[2].opportunity);
-    // non-relevant group opportunity desc
-    expect(result.candidates[3].opportunity).toBeGreaterThanOrEqual(result.candidates[4].opportunity);
+    // 3 seeds + 2 relevant harvested – the 5 irrelevant harvested cost no search.
+    expect(mockScoreKeyword).toHaveBeenCalledTimes(5);
+    // Relevance runs before scoring.
+    expect(progress.indexOf("relevance")).toBeLessThan(progress.indexOf("score"));
 
     // Proposal within ASC limits
     expect(result.proposal).not.toBeNull();
@@ -156,9 +155,12 @@ describe("runKeywordResearch – nominal run", () => {
     expect(result.proposal!.subtitle.length).toBeLessThanOrEqual(30);
     expect(result.proposal!.keywords.length).toBeLessThanOrEqual(100);
     expect(result.proposal!.summary).toBe("Focus on planner.");
+    // Packed from the relevant candidates (planner, daily planner, habit),
+    // words from the capped title/subtitle excluded.
+    expect(result.proposal!.keywords).toBe("planner,daily,habit");
 
-    // Opportunity signals for the top 10 (only 8 here)
-    expect(result.opportunities.length).toBe(8);
+    // Opportunity signals for the top 10 (only 5 here)
+    expect(result.opportunities.length).toBe(5);
     expect(result.opportunities[0].signals.length).toBeGreaterThan(0);
 
     // Progress covered every step; three LLM calls (seeds + 1 relevance batch + 1 compose)
@@ -168,10 +170,10 @@ describe("runKeywordResearch – nominal run", () => {
     expect(mockGenerateObject).toHaveBeenCalledTimes(3);
   });
 
-  it("retries compose when the title is too long and rebuilds an over-long keyword field", async () => {
+  it("retries compose when the title is too long and still packs the keyword field", async () => {
     composeResponses = [
-      { title: "x".repeat(40), subtitle: "Sub", keywords: "irrelevant", summary: "s1" },
-      { title: "Short", subtitle: "Sub", keywords: "x".repeat(150), summary: "s2" },
+      { title: "x".repeat(40), subtitle: "Sub", summary: "s1" },
+      { title: "Short", subtitle: "Sub", summary: "s2" },
     ];
 
     const result = await runKeywordResearch(input, () => {}, new AbortController().signal);
@@ -189,8 +191,8 @@ describe("runKeywordResearch – nominal run", () => {
     // Both the initial compose and the retry return over-limit metadata, so the
     // LLM never self-corrects – the deterministic cap must still guarantee ≤30.
     composeResponses = [
-      { title: "x".repeat(40), subtitle: "y".repeat(45), keywords: "planner", summary: "s1" },
-      { title: "super long habit tracking planner title", subtitle: "z".repeat(38), keywords: "planner", summary: "s2" },
+      { title: "x".repeat(40), subtitle: "y".repeat(45), summary: "s1" },
+      { title: "super long habit tracking planner title", subtitle: "z".repeat(38), summary: "s2" },
     ];
 
     const result = await runKeywordResearch(input, () => {}, new AbortController().signal);
@@ -203,7 +205,7 @@ describe("runKeywordResearch – nominal run", () => {
 });
 
 describe("runKeywordResearch – scoring failure", () => {
-  it("wraps a scoring error in WorkflowStepError with step 'score' and partial candidates", async () => {
+  it("wraps a scoring error in WorkflowStepError with step 'expand' and partial candidates", async () => {
     let calls = 0;
     mockScoreKeyword.mockImplementation(async (keyword: string) => {
       calls++;
@@ -214,10 +216,23 @@ describe("runKeywordResearch – scoring failure", () => {
     const err = await runKeywordResearch(input, () => {}, new AbortController().signal).catch((e) => e);
 
     expect(err).toBeInstanceOf(WorkflowStepError);
-    expect(err.step).toBe("score");
+    expect(err.step).toBe("expand");
     expect(err.partial.candidates.length).toBe(1);
     expect(err.partial.candidates[0].keyword).toBe("habit tracker");
     expect(err.cause).toBeInstanceOf(Error);
+  });
+
+  it("wraps a harvested-scoring error with step 'score' and the seeds as partial", async () => {
+    let calls = 0;
+    mockScoreKeyword.mockImplementation(async (keyword: string) => {
+      calls++;
+      if (calls === 4) throw new Error("itunes unavailable"); // first relevant harvested
+      return makeScore(keyword);
+    });
+    const err = await runKeywordResearch(input, () => {}, new AbortController().signal).catch((e) => e);
+    expect(err).toBeInstanceOf(WorkflowStepError);
+    expect(err.step).toBe("score");
+    expect(err.partial.candidates.length).toBe(3); // the three scored seeds
   });
 });
 
@@ -242,5 +257,23 @@ describe("runKeywordResearch – abort during scoring", () => {
 describe("MAX_CANDIDATES", () => {
   it("is exported as the documented hard cap", () => {
     expect(MAX_CANDIDATES).toBe(120);
+  });
+});
+
+describe("runKeywordResearch – Apple FM input guard", () => {
+  it("rejects a CJK prompt that fits the char budget but not the token budget", async () => {
+    mockGetLanguageModelForTask.mockResolvedValue({
+      model: {}, providerId: "apple-fm", modelId: "apple-fm", tier: "local",
+      maxInputChars: 12_000,
+    });
+    const err = await runKeywordResearch(
+      // ~3 200 CJK chars ≈ 3 200 tokens > 3 000, yet far under 12 000 chars.
+      { ...input, currentKeywords: "習".repeat(3200) },
+      () => {},
+      new AbortController().signal,
+    ).catch((e) => e);
+    expect(err).toBeInstanceOf(WorkflowStepError);
+    expect(err.step).toBe("seeds");
+    expect((err.cause as Error).message).toBe("workflow_input_too_large");
   });
 });

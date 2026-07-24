@@ -13,14 +13,24 @@ describe("harvestCandidates", () => {
 });
 
 describe("buildKeywordField", () => {
-  it("greedily packs top keywords under 100 chars, skipping words already in the title", () => {
+  it("packs unique words, not phrases, and skips words already in the title", () => {
     const ranked = [
-      { keyword: "planner", opportunity: 90 }, { keyword: "habit", opportunity: 80 },
+      { keyword: "habit tracker", opportunity: 90 },
+      { keyword: "habit list", opportunity: 80 },
       { keyword: "routine", opportunity: 70 },
     ].map((k) => ({ ...k, source: "seed" as const, popularity: null, difficulty: 1, classification: "x", relevant: true }));
     const field = buildKeywordField(ranked, new Set(["habit"]));
-    expect(field.includes("habit")).toBe(false);
+    expect(field).toBe("tracker,list,routine");
+  });
+
+  it("fills toward 100 chars and never exceeds the limit", () => {
+    const ranked = Array.from({ length: 40 }, (_, i) => ({
+      keyword: `motcle${String(i).padStart(2, "0")}`,
+      source: "harvested" as const, popularity: null, difficulty: 1,
+      opportunity: 100 - i, classification: "x", relevant: true,
+    }));
+    const field = buildKeywordField(ranked, new Set<string>());
     expect(field.length).toBeLessThanOrEqual(100);
-    expect(field.startsWith("planner")).toBe(true);
+    expect(field.length).toBeGreaterThanOrEqual(90);
   });
 });

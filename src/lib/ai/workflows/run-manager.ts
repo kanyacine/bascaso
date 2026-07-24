@@ -78,10 +78,13 @@ async function driveRun(
   signal: AbortSignal,
 ): Promise<void> {
   let lastProgressAt = 0;
+  let lastStep: WorkflowStepId | null = null;
 
   const onProgress = (p: WorkflowProgress): void => {
     const now = Date.now();
-    if (now - lastProgressAt < PROGRESS_THROTTLE_MS) return;
+    // A step transition always lands – only same-step spam is coalesced.
+    if (p.step === lastStep && now - lastProgressAt < PROGRESS_THROTTLE_MS) return;
+    lastStep = p.step;
     lastProgressAt = now;
     db.update(workflowRuns)
       .set({ step: p.step, progress: JSON.stringify(p), updatedAt: nowIso() })
@@ -181,6 +184,24 @@ export function cancelRun(runId: string): boolean {
     }
   }
   return false;
+}
+
+/** Mark runs left "running" by a dead process as failed. Call once at boot –
+ *  a row can only legitimately be running if it is in the in-memory inFlight
+ *  map, which a restart empties. Returns the number of rows repaired. */
+export function failStuckRuns(): number {
+  const live = new Set([...inFlight.values()].map((r) => r.runId));
+  const rows = db.select().from(workflowRuns).where(eq(workflowRuns.status, "running")).all();
+  let repaired = 0;
+  for (const row of rows) {
+    if (live.has(row.id)) continue;
+    db.update(workflowRuns)
+      .set({ status: "failed", error: "server_restarted", updatedAt: nowIso() })
+      .where(eq(workflowRuns.id, row.id))
+      .run();
+    repaired++;
+  }
+  return repaired;
 }
 
 export function getRun(runId: string): WorkflowRunView | null {

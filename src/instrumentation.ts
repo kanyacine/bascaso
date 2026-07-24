@@ -10,5 +10,10 @@ export async function register() {
     // Start MCP server if enabled in preferences
     const { initMcpServer } = await import("./mcp");
     initMcpServer();
+
+    // Fail workflow runs left "running" by a previous process – their
+    // driver died with the server and can never finish.
+    const { failStuckRuns } = await import("./lib/ai/workflows/run-manager");
+    failStuckRuns();
   }
 }
