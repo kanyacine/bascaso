@@ -165,9 +165,15 @@ func generateReply(for req: ChatRequest) async throws -> String {
         .map(\.content)
         .joined(separator: "\n")
 
+    // permissiveContentTransformations relaxes the default safety guardrails,
+    // which otherwise false-positive ("may contain unsafe content") on benign
+    // material such as religious app metadata. Every task the app routes here is
+    // a content transformation (translate / improve / rewrite) over the user's
+    // own text, so the permissive profile is the right fit.
+    let model = SystemLanguageModel(guardrails: .permissiveContentTransformations)
     let session = system.isEmpty
-        ? LanguageModelSession()
-        : LanguageModelSession(instructions: system)
+        ? LanguageModelSession(model: model)
+        : LanguageModelSession(model: model, instructions: system)
 
     let options = req.temperature.map { GenerationOptions(temperature: $0) }
         ?? GenerationOptions()

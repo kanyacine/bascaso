@@ -14,6 +14,7 @@ import {
 import { errorJson, parseBody, routingErrorResponse } from "@/lib/api-helpers";
 import { noThinkingOptions, samplingTemperature } from "@/lib/ai/provider-options";
 import { getAIGuidance, type GuidanceScope } from "@/lib/app-preferences";
+import { APPLE_FM_PROVIDER_ID } from "@/lib/ai/apple-fm";
 
 /** Review replies/appeals use their own guidance bucket; everything else uses translation guidance. */
 function guidanceScopeForAction(action: string): GuidanceScope {
@@ -184,7 +185,10 @@ export async function POST(request: Request) {
   // Append the user's guidance as a hard directive at the very end of the prompt
   // (recency + explicit framing) so specific rules like "use 'me', not 'us'" are
   // actually obeyed, not just nudged via the system message.
-  if (effectiveGuidance) {
+  // The small on-device Apple model echoes this appended block verbatim into its
+  // output (especially for non-Latin scripts), so for apple-fm we rely on the
+  // system message alone, which it follows without leaking.
+  if (effectiveGuidance && providerId !== APPLE_FM_PROVIDER_ID) {
     prompt += `\n\nADDITIONAL INSTRUCTIONS FROM THE USER – follow these exactly, they override the defaults above:\n${effectiveGuidance}`;
   }
 
