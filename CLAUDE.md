@@ -54,3 +54,4 @@ Before writing any code, read these docs:
 1. **No autonomous commits** – never commit or push without explicit user instruction.
 2. **No co-authorship** – never add Co-Authored-By lines to commits.
 3. **No git reverts without permission** – never revert files using git checkout, git restore, or any git command without explicit user approval. Debug and fix issues instead.
+4. **No specs, plans, or personal docs in the repo** – this repo is public. Never commit or push implementation plans, design specs, feasibility studies, or other internal/personal working documents (e.g. `docs/superpowers/`, `.claude/`). Keep them local and gitignored.
