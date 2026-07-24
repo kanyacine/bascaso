@@ -1523,6 +1523,7 @@ export const fr: Messages = {
       },
       strategy: "Stratégie",
       strategies: { balanced: "Équilibrée", broad: "Diffusion large", niche: "Niche" },
+      date: "Date",
       proposal: "Proposition de métadonnées",
       cancel: "Annuler l’exécution",
       alreadyRunning: "Une recherche est déjà en cours pour cette app",

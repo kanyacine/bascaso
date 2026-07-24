@@ -1521,6 +1521,7 @@ export const ru: Messages = {
       },
       strategy: "Стратегия",
       strategies: { balanced: "Сбалансированная", broad: "Широкий охват", niche: "Ниша" },
+      date: "Дата",
       proposal: "Предложение метаданных",
       cancel: "Отменить выполнение",
       alreadyRunning: "Для этого приложения уже выполняется поиск",

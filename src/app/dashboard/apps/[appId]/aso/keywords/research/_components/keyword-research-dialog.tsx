@@ -11,8 +11,17 @@ import {
   Plus,
   Trash,
 } from "@phosphor-icons/react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   Dialog,
   DialogContent,
@@ -88,6 +97,14 @@ const STRATEGY_LABEL: Record<ResearchStrategy, MessageKey> = {
   balanced: "aso.research.strategies.balanced",
   broad: "aso.research.strategies.broad",
   niche: "aso.research.strategies.niche",
+};
+
+// Chip tint per strategy – balanced neutral, broad green, niche blue. Tinted
+// backgrounds mirror the classification chips in score-display.ts.
+const STRATEGY_CHIP: Record<ResearchStrategy, string> = {
+  balanced: "bg-muted text-muted-foreground",
+  broad: "bg-green-500/15 text-green-600 dark:text-green-400",
+  niche: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
 };
 
 interface KeywordResearchDialogProps {
@@ -491,33 +508,53 @@ function FormView({
       {history.length > 0 && (
         <section className="space-y-2">
           <h3 className="section-title">{t("aso.research.history")}</h3>
-          <ul className="space-y-1.5">
-            {history.map((h) => (
-              <li key={h.id} className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => onOpenHistory(h)}
-                  className="flex min-w-0 flex-1 items-center justify-between rounded-md border px-3 py-2 text-left text-sm hover:bg-muted/50"
-                >
-                  <span className="truncate font-medium">
-                    {h.result?.proposal?.title ?? t("aso.research.autoTitle")}
-                  </span>
-                  <span className="ml-3 shrink-0 text-xs text-muted-foreground tabular-nums">
-                    {new Date(h.createdAt).toLocaleDateString()}
-                  </span>
-                </button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="size-8 shrink-0 text-muted-foreground"
-                  aria-label={t("common.remove")}
-                  onClick={() => onDeleteHistory(h)}
-                >
-                  <Trash className="size-4" />
-                </Button>
-              </li>
-            ))}
-          </ul>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t("appDetails.name")}</TableHead>
+                <TableHead>{t("aso.research.strategy")}</TableHead>
+                <TableHead>{t("aso.research.date")}</TableHead>
+                <TableHead className="w-8" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {history.map((h) => {
+                const runStrategy = h.result?.strategy ?? "balanced";
+                return (
+                  <TableRow key={h.id}>
+                    <TableCell className="p-0">
+                      <button
+                        type="button"
+                        onClick={() => onOpenHistory(h)}
+                        className="block w-full truncate px-3 py-2 text-left font-medium hover:underline"
+                      >
+                        {h.result?.proposal?.title ?? t("aso.research.autoTitle")}
+                      </button>
+                    </TableCell>
+                    <TableCell>
+                      <Badge className={STRATEGY_CHIP[runStrategy]}>
+                        {t(STRATEGY_LABEL[runStrategy])}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground tabular-nums">
+                      {new Date(h.createdAt).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-8 text-muted-foreground"
+                        aria-label={t("common.remove")}
+                        onClick={() => onDeleteHistory(h)}
+                      >
+                        <Trash className="size-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
         </section>
       )}
 

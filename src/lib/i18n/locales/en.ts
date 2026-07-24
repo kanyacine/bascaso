@@ -1519,6 +1519,7 @@ export const en = {
       },
       strategy: "Strategy",
       strategies: { balanced: "Balanced", broad: "Broad reach", niche: "Niche" },
+      date: "Date",
       proposal: "Metadata proposal",
       cancel: "Cancel run",
       alreadyRunning: "A research run is already in progress for this app",

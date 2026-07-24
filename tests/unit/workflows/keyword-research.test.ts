@@ -226,6 +226,7 @@ describe("runKeywordResearch – strategy", () => {
       "habit", "daily planner", "planner",
     ]);
     expect(result.proposal!.keywords).toBe("habit,daily,planner");
+    expect(result.strategy).toBe("niche"); // recorded for the history chip
   });
 });
 

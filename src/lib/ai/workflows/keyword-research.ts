@@ -75,9 +75,10 @@ export interface MetadataProposal {
 }
 
 export interface KeywordResearchResult {
-  candidates: RankedCandidate[]; // ranked, relevant first, opportunity desc
+  candidates: RankedCandidate[]; // ranked, relevant first, strategy value desc
   proposal: MetadataProposal | null; // null when compose step didn't run
   opportunities: Array<{ keyword: string; signals: unknown[] }>; // deriveOpportunities output for top 10
+  strategy: ResearchStrategy; // the strategy this run was configured with
 }
 
 export class WorkflowStepError extends Error {
@@ -285,13 +286,14 @@ export async function runKeywordResearch(
   onProgress: (p: WorkflowProgress) => void,
   signal: AbortSignal,
 ): Promise<KeywordResearchResult> {
+  const strategy = input.strategy ?? "balanced";
   const partial: KeywordResearchResult = {
     candidates: [],
     proposal: null,
     opportunities: [],
+    strategy,
   };
   const scoresByKeyword = new Map<string, KeywordScore>();
-  const strategy = input.strategy ?? "balanced";
 
   const step = async <T>(
     id: WorkflowStepId,

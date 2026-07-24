@@ -1521,6 +1521,7 @@ export const de: Messages = {
       },
       strategy: "Strategie",
       strategies: { balanced: "Ausgewogen", broad: "Breite Reichweite", niche: "Nische" },
+      date: "Datum",
       proposal: "Metadaten-Vorschlag",
       cancel: "Ausführung abbrechen",
       alreadyRunning: "Für diese App läuft bereits eine Recherche",
