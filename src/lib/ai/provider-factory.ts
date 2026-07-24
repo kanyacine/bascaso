@@ -21,6 +21,8 @@ import {
 } from "./apple-fm";
 import { groupForTask, type AITaskId, type AITier } from "@/lib/ai/tasks";
 import { getRoutingFallbackEnabled, getRoutingTier } from "@/lib/app-preferences";
+import { getValidAccessToken } from "@/lib/managed/auth";
+import { BASCASO_CLOUD_URL } from "@/lib/managed/config";
 
 export function createLanguageModel(
   provider: string,
@@ -103,16 +105,42 @@ export interface ResolvedTaskModel {
 
 /** The single seam between call sites and providers: task → group → tier → model.
  *  Resolution order is task pref > group pref > shipped default; only the group
- *  level exists in v1, `context` reserves the slot for per-locale overrides. */
+ *  level exists in v1. `context.locale` reserves the slot for per-locale overrides ;
+ *  `context.actionId` porte l'unité de facturation du tier managed (voir resolveTier). */
 export async function getLanguageModelForTask(
   taskId: AITaskId,
-  _context?: { locale?: string },
+  context?: { locale?: string; actionId?: string },
 ): Promise<ResolvedTaskModel> {
   const tier = getRoutingTier(groupForTask(taskId));
-  return resolveTier(tier, true);
+  return resolveTier(tier, true, taskId, context);
 }
 
-async function resolveTier(tier: AITier, allowFallback: boolean): Promise<ResolvedTaskModel> {
+async function resolveTier(
+  tier: AITier,
+  allowFallback: boolean,
+  taskId: AITaskId,
+  context?: { locale?: string; actionId?: string },
+): Promise<ResolvedTaskModel> {
+  if (tier === "managed") {
+    const token = await getValidAccessToken();
+    if (!token) {
+      throw new AIRoutingError("ai_tier_not_configured", "Not signed in to bascaso cloud");
+    }
+    const managed = createOpenAI({
+      apiKey: token,
+      baseURL: `${BASCASO_CLOUD_URL}/functions/v1/ai-proxy/v1`,
+      // 1 action = 1 jeton : l'id vient de l'appelant (workflow, bulk),
+      // sinon cette résolution EST l'action.
+      headers: { "x-action-id": context?.actionId ?? crypto.randomUUID() },
+    });
+    return {
+      model: managed.chat(`bascaso/${taskId}`),
+      providerId: "managed",
+      modelId: `bascaso/${taskId}`,
+      tier,
+    };
+  }
+
   const settings = await getTierSettings(tier);
   if (!settings) {
     throw new AIRoutingError("ai_tier_not_configured", `The ${tier} tier is not configured`);
@@ -121,13 +149,13 @@ async function resolveTier(tier: AITier, allowFallback: boolean): Promise<Resolv
   if (tier === "local" && settings.provider === APPLE_FM_PROVIDER_ID) {
     const status = await getAppleFmStatus();
     if (!status.available) {
-      const fallback = await tryByokFallback(allowFallback);
+      const fallback = await tryByokFallback(allowFallback, taskId, context);
       if (fallback) return fallback;
       throw new AIRoutingError("apple_fm_unavailable", status.reason ?? "unknown");
     }
     const baseUrl = getAppleFmBaseUrl();
     if (baseUrl == null) {
-      const fb = await tryByokFallback(allowFallback);
+      const fb = await tryByokFallback(allowFallback, taskId, context);
       if (fb) return fb;
       throw new AIRoutingError("apple_fm_unavailable", "sidecar_unreachable");
     }
@@ -148,7 +176,7 @@ async function resolveTier(tier: AITier, allowFallback: boolean): Promise<Resolv
       settings.apiKey,
     );
     if (loadError) {
-      const fallback = await tryByokFallback(allowFallback);
+      const fallback = await tryByokFallback(allowFallback, taskId, context);
       if (fallback) return fallback;
       throw new AIRoutingError("local_server_unavailable", loadError);
     }
@@ -162,10 +190,14 @@ async function resolveTier(tier: AITier, allowFallback: boolean): Promise<Resolv
   };
 }
 
-async function tryByokFallback(allowFallback: boolean): Promise<ResolvedTaskModel | null> {
+async function tryByokFallback(
+  allowFallback: boolean,
+  taskId: AITaskId,
+  context?: { locale?: string; actionId?: string },
+): Promise<ResolvedTaskModel | null> {
   if (!allowFallback || !getRoutingFallbackEnabled()) return null;
   const byok = await getTierSettings("byok");
-  return byok ? resolveTier("byok", false) : null;
+  return byok ? resolveTier("byok", false, taskId, context) : null;
 }
 
 export type AIErrorCategory = "auth" | "permission" | "model_not_found" | "rate_limit" | "unknown";
