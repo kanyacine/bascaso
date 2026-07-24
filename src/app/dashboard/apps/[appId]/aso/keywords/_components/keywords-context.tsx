@@ -96,8 +96,14 @@ export function KeywordsProvider({ children }: { children: React.ReactNode }) {
       }
     }
     setKeywordEdits(kw);
-    if (!bufferEnabled) setDirty(false);
   }
+
+  // Syncing fresh server data clears the dirty flag. Deferred to an effect
+  // because setDirty updates the parent FormDirtyProvider and must not be
+  // called during KeywordsProvider's render.
+  useEffect(() => {
+    if (!bufferEnabled) setDirty(false);
+  }, [localizations, bufferEnabled, setDirty]);
 
   // Snapshot originals for save diffing (must be in effect, not render)
   useEffect(() => {
