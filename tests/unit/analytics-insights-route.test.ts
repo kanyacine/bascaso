@@ -296,7 +296,8 @@ describe("analytics insights route", () => {
       tier: "local",
       maxInputChars: 100,
     });
-    mockBuildAnalyticsInsightsPrompt.mockReturnValue("x".repeat(500));
+    // ~20000 Latin chars ≈ 5000 tokens, over the 3000-token budget.
+    mockBuildAnalyticsInsightsPrompt.mockReturnValue("x".repeat(20_000));
 
     const response = await POST(
       new Request("http://localhost?force=1", { method: "POST" }),

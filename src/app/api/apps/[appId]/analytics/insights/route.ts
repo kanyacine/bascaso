@@ -10,6 +10,7 @@ import { isDemoMode, getDemoAnalytics } from "@/lib/demo";
 import type { AnalyticsData } from "@/lib/asc/analytics";
 import { cacheGet, cacheSet } from "@/lib/cache";
 import { errorJson, routingErrorResponse } from "@/lib/api-helpers";
+import { appleFmInputTooLarge } from "@/lib/ai/apple-fm";
 
 const INSIGHTS_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -112,7 +113,9 @@ export async function POST(
 
   // Reject inputs the resolved model can't fit (the embedded Apple model caps
   // its context; other providers leave maxInputChars unset and skip this).
-  if (maxInputChars && system.length + prompt.length > maxInputChars) {
+  // maxInputChars is only the "apply the apple-fm guard" marker – the real
+  // check is a script-aware token estimate (CJK ≈ 1 token/char).
+  if (maxInputChars !== undefined && appleFmInputTooLarge(system + prompt)) {
     return NextResponse.json({ error: "apple_fm_input_too_large" }, { status: 422 });
   }
 

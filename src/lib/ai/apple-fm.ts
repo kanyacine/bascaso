@@ -3,8 +3,30 @@ import { readFileSync } from "node:fs";
 export const APPLE_FM_PROVIDER_ID = "apple-fm";
 export const APPLE_FM_MODEL_ID = "apple-fm";
 /** ~3k tokens of the 4k window at 4 chars/token – leaves room for the answer.
- *  ponytail: char-based estimate; swap for a tokenizer if it ever misfires. */
+ *  Kept as the "is-apple-fm" marker on the resolved model (resolveTier sets it);
+ *  the real input guard is the script-aware token estimate below. */
 export const APPLE_FM_MAX_INPUT_CHARS = 12_000;
+
+/** The on-device model's context is ~4k tokens; keep ~1k for the answer. */
+export const APPLE_FM_MAX_INPUT_TOKENS = 3000;
+
+// CJK ranges (Hiragana/Katakana, CJK ideographs + Ext A, Hangul syllables,
+// CJK compat, halfwidth kana) — each such codepoint is ~1 token.
+const CJK_CHARS = /[぀-ヿ㐀-鿿가-힣豈-﫿ｦ-ﾟ]/gu;
+
+/** Rough, script-aware token estimate — no tokenizer dependency. CJK characters
+ *  count ~1 token each; other scripts ~4 chars/token. Keeps the input guard
+ *  honest for Japanese/Chinese/Korean, where 12k chars far exceed 4k tokens. */
+export function estimateAppleFmTokens(text: string): number {
+  const cjk = (text.match(CJK_CHARS) ?? []).length;
+  const other = [...text].length - cjk;
+  return cjk + Math.ceil(other / 4);
+}
+
+/** True when the text won't fit the built-in model's input budget. */
+export function appleFmInputTooLarge(text: string): boolean {
+  return estimateAppleFmTokens(text) > APPLE_FM_MAX_INPUT_TOKENS;
+}
 
 export type AppleFmStatus = {
   available: boolean;

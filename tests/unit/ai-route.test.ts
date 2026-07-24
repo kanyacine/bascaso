@@ -623,7 +623,8 @@ describe("AI route", () => {
       tier: "local",
       maxInputChars: 100,
     });
-    mockBuildImprovePrompt.mockReturnValue("x".repeat(500));
+    // ~20000 Latin chars ≈ 5000 tokens, over the 3000-token budget.
+    mockBuildImprovePrompt.mockReturnValue("x".repeat(20_000));
 
     const response = await POST(
       new Request("http://localhost", {

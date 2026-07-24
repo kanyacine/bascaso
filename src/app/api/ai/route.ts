@@ -14,7 +14,7 @@ import {
 import { errorJson, parseBody, routingErrorResponse } from "@/lib/api-helpers";
 import { noThinkingOptions, samplingTemperature } from "@/lib/ai/provider-options";
 import { getAIGuidance, type GuidanceScope } from "@/lib/app-preferences";
-import { APPLE_FM_PROVIDER_ID } from "@/lib/ai/apple-fm";
+import { APPLE_FM_PROVIDER_ID, appleFmInputTooLarge } from "@/lib/ai/apple-fm";
 
 /** Review replies/appeals use their own guidance bucket; everything else uses translation guidance. */
 function guidanceScopeForAction(action: string): GuidanceScope {
@@ -194,7 +194,9 @@ export async function POST(request: Request) {
 
   // Reject inputs the resolved model can't fit (the embedded Apple model caps
   // its context; other providers leave maxInputChars unset and skip this).
-  if (maxInputChars && system.length + prompt.length > maxInputChars) {
+  // maxInputChars is only the "apply the apple-fm guard" marker – the real
+  // check is a script-aware token estimate (CJK ≈ 1 token/char).
+  if (maxInputChars !== undefined && appleFmInputTooLarge(system + prompt)) {
     return NextResponse.json({ error: "apple_fm_input_too_large" }, { status: 422 });
   }
 
