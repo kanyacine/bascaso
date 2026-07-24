@@ -15,6 +15,19 @@ export const fr: Messages = {
       downloadsAllStorefronts: "Afficher les estimations pour toutes les vitrines",
       downloadsAllStorefrontsHint:
         "Le modèle est calibré sur l’App Store américain. Les autres vitrines sont seulement extrapolées à partir du parc installé : les chiffres y sont indicatifs et restent masqués tant que cette option est désactivée.",
+      dataTitle: "Données de recherche",
+      deleted: "Supprimé",
+      deleteSearch: "Supprimer l’historique de recherche",
+      deleteSearchDesc:
+        "Le cache de scoring des mots-clés et les listes de mots-clés enregistrées dans l’onglet Recherche.",
+      deleteSearchTitle: "Supprimer tout l’historique de recherche ?",
+      deleteSearchConfirm:
+        "Cette action vide le cache de scoring des mots-clés (et son historique de tendance) ainsi que les listes de mots-clés enregistrées dans l’onglet Recherche. Les scores sont recalculés à la prochaine recherche.",
+      deleteReports: "Supprimer les rapports",
+      deleteReportsDesc: "Tous les rapports de recherche autonome enregistrés.",
+      deleteReportsTitle: "Supprimer tous les rapports ?",
+      deleteReportsConfirm:
+        "Cette action supprime définitivement tous les rapports de recherche de mots-clés autonome, pour toutes les apps.",
     },
     appearance: {
       theme: "Thème",
@@ -1508,11 +1521,14 @@ export const fr: Messages = {
         compose: "Composition de la proposition",
         report: "Construction du rapport",
       },
-      addAll: "Ajouter {count} mots-clés à la recherche",
       proposal: "Proposition de métadonnées",
       cancel: "Annuler l’exécution",
       alreadyRunning: "Une recherche est déjà en cours pour cette app",
       failedAt: "Échec à l’étape « {step} » – résultats partiels ci-dessous",
+      history: "Historique",
+      apply: "Ajouter",
+      applied: "Champ keywords mis à jour",
+      editedElsewhere: "Éditable dans App details / Store listing",
     },
   },
 };

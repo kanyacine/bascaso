@@ -278,6 +278,52 @@ describe("getRun / getLatestRun", () => {
   });
 });
 
+describe("deleteRun / deleteAllRuns", () => {
+  const row = (id: string, appId: string) => ({
+    id, kind: "keyword-research", appId, country: "us", locale: "en-US",
+    status: "succeeded", createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  });
+
+  it("deleteRun removes one row and reports whether it existed", async () => {
+    const { deleteRun, getRun } = await loadManager();
+    testDb.insert(workflowRuns).values([row("r1", "app-1"), row("r2", "app-1")]).run();
+    expect(deleteRun("r1")).toBe(true);
+    expect(deleteRun("nope")).toBe(false);
+    expect(getRun("r1")).toBeNull();
+    expect(getRun("r2")).not.toBeNull();
+  });
+
+  it("deleteAllRuns clears every row and returns the count", async () => {
+    const { deleteAllRuns, getRun } = await loadManager();
+    testDb.insert(workflowRuns).values([row("a", "app-1"), row("b", "app-2")]).run();
+    expect(deleteAllRuns()).toBe(2);
+    expect(getRun("a")).toBeNull();
+    expect(getRun("b")).toBeNull();
+  });
+});
+
+describe("listRuns", () => {
+  it("returns only succeeded runs matching appId + country + locale, newest first", async () => {
+    const { listRuns } = await loadManager();
+    const base = {
+      kind: "keyword-research", appId: "app-1", country: "us", locale: "en-US",
+      createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
+    };
+    testDb.insert(workflowRuns).values([
+      { ...base, id: "r-old", status: "succeeded", createdAt: "2026-01-01T00:00:00.000Z" },
+      { ...base, id: "r-new", status: "succeeded", createdAt: "2026-01-02T00:00:00.000Z" },
+      { ...base, id: "r-running", status: "running" },
+      { ...base, id: "r-other-locale", status: "succeeded", locale: "fr-FR" },
+      { ...base, id: "r-other-country", status: "succeeded", country: "fr" },
+      { ...base, id: "r-other-app", status: "succeeded", appId: "app-2" },
+    ]).run();
+
+    const runs = listRuns("app-1", { country: "us", locale: "en-US" });
+    expect(runs.map((r) => r.id)).toEqual(["r-new", "r-old"]);
+  });
+});
+
 describe("event emission isolation (regression)", () => {
   // A throwing listener models the SSE route enqueuing to a controller that a
   // disconnected client has already closed. An unguarded emit would propagate

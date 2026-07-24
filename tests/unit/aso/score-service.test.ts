@@ -19,7 +19,7 @@ vi.mock("@/lib/aso/itunes", async (importOriginal) => {
   };
 });
 
-import { scoreKeyword, SCORE_TTL_MS } from "@/lib/aso/score-service";
+import { clearScoreCache, scoreKeyword, SCORE_TTL_MS } from "@/lib/aso/score-service";
 import { ItunesRateLimited, SearchApiUnavailableError } from "@/lib/aso/itunes";
 
 const competitors = [
@@ -343,5 +343,28 @@ describe("scoreKeyword", () => {
     );
     await vi.advanceTimersByTimeAsync(25_000);
     await assertion;
+  });
+});
+
+describe("clearScoreCache", () => {
+  beforeEach(() => {
+    testDb = createTestDb();
+  });
+
+  it("wipes both the score cache and its history", () => {
+    testDb.insert(keywordScores).values({
+      keyword: "meditation", country: "us", popularity: 50, difficulty: 20,
+      opportunity: 65, classification: "Good Target", fetchedAt: 1,
+      resultIds: "[]", details: null, competitors: null,
+    }).run();
+    testDb.insert(keywordScoreHistory).values({
+      keyword: "meditation", country: "us", popularity: 50, difficulty: 20,
+      opportunity: 65, resultIds: "[]", fetchedAt: 1,
+    }).run();
+
+    clearScoreCache();
+
+    expect(testDb.select().from(keywordScores).all()).toHaveLength(0);
+    expect(testDb.select().from(keywordScoreHistory).all()).toHaveLength(0);
   });
 });

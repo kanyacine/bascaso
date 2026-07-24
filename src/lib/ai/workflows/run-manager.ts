@@ -4,7 +4,7 @@
 // src/lib/aso/score-service.ts (keyed by appId here) so a second start for
 // an app already running is refused instead of racing.
 
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { workflowRuns } from "@/db/schema";
 import { ulid } from "@/lib/ulid";
@@ -218,6 +218,42 @@ export function getLatestRun(appId: string): WorkflowRunView | null {
     .limit(1)
     .get();
   return row ? toView(row) : null;
+}
+
+/** Succeeded runs for an app filtered by storefront country + locale, newest
+ *  first (capped at 20). Feeds the report-history list in the research dialog. */
+export function listRuns(
+  appId: string,
+  filter: { country: string; locale: string },
+): WorkflowRunView[] {
+  return db
+    .select()
+    .from(workflowRuns)
+    .where(
+      and(
+        eq(workflowRuns.appId, appId),
+        eq(workflowRuns.status, "succeeded"),
+        eq(workflowRuns.country, filter.country),
+        eq(workflowRuns.locale, filter.locale),
+      ),
+    )
+    .orderBy(desc(workflowRuns.createdAt), desc(workflowRuns.id))
+    .limit(20)
+    .all()
+    .map(toView);
+}
+
+/** Delete one persisted run row. Returns whether a row existed. Used by the
+ *  per-report delete button in the research history; in-flight runs are
+ *  cancelled via cancelRun, not deleted here. */
+export function deleteRun(runId: string): boolean {
+  return db.delete(workflowRuns).where(eq(workflowRuns.id, runId)).run().changes > 0;
+}
+
+/** Delete every workflow run row (all apps). Returns the number removed.
+ *  Backs the "delete all reports" settings action. */
+export function deleteAllRuns(): number {
+  return db.delete(workflowRuns).run().changes;
 }
 
 /** Test-only: resolves once the in-flight run for `runId` settles (or

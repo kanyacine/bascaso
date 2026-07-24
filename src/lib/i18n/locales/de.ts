@@ -15,6 +15,19 @@ export const de: Messages = {
       downloadsAllStorefronts: "Schätzungen für alle Storefronts anzeigen",
       downloadsAllStorefrontsHint:
         "Das Modell ist auf den US-App-Store kalibriert. Andere Storefronts werden nur anhand der installierten Basis hochgerechnet – die Zahlen sind dort bestenfalls Richtwerte und bleiben ausgeblendet, solange diese Option aus ist.",
+      dataTitle: "Recherchedaten",
+      deleted: "Gelöscht",
+      deleteSearch: "Suchverlauf löschen",
+      deleteSearchDesc:
+        "Der Keyword-Scoring-Cache und die im Recherche-Tab gespeicherten Keyword-Listen.",
+      deleteSearchTitle: "Gesamten Suchverlauf löschen?",
+      deleteSearchConfirm:
+        "Dies leert den Keyword-Scoring-Cache (und seinen Trendverlauf) sowie die im Recherche-Tab gespeicherten Keyword-Listen. Die Scores werden bei der nächsten Suche neu berechnet.",
+      deleteReports: "Berichte löschen",
+      deleteReportsDesc: "Alle gespeicherten Berichte der autonomen Recherche.",
+      deleteReportsTitle: "Alle Berichte löschen?",
+      deleteReportsConfirm:
+        "Dies entfernt dauerhaft alle gespeicherten Berichte der autonomen Keyword-Recherche für alle Apps.",
     },
     appearance: {
       theme: "Design",
@@ -1506,11 +1519,14 @@ export const de: Messages = {
         compose: "Metadaten-Vorschlag wird erstellt",
         report: "Bericht wird erstellt",
       },
-      addAll: "{count} Keywords zur Recherche hinzufügen",
       proposal: "Metadaten-Vorschlag",
       cancel: "Ausführung abbrechen",
       alreadyRunning: "Für diese App läuft bereits eine Recherche",
       failedAt: "Fehlgeschlagen bei Schritt „{step}“ – Teilergebnisse unten",
+      history: "Verlauf",
+      apply: "Hinzufügen",
+      applied: "Keyword-Feld aktualisiert",
+      editedElsewhere: "Bearbeitung unter App details / Store listing",
     },
   },
 };

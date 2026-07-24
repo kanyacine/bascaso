@@ -15,6 +15,17 @@ export const zhCN: Messages = {
       downloadsAllStorefronts: "为所有商店地区显示预估",
       downloadsAllStorefrontsHint:
         "模型基于美国 App Store 校准。其他商店地区仅按装机量比例外推，数值仅供参考，未开启此项时不显示。",
+      dataTitle: "研究数据",
+      deleted: "已删除",
+      deleteSearch: "删除搜索历史",
+      deleteSearchDesc: "关键词评分缓存以及在“研究”标签中保存的关键词列表。",
+      deleteSearchTitle: "删除所有搜索历史？",
+      deleteSearchConfirm:
+        "此操作将清空关键词评分缓存（及其趋势历史）以及在“研究”标签中保存的关键词列表。下次搜索时将重新计算评分。",
+      deleteReports: "删除报告",
+      deleteReportsDesc: "所有已保存的自主研究报告。",
+      deleteReportsTitle: "删除所有报告？",
+      deleteReportsConfirm: "此操作将永久删除所有应用中所有已保存的自主关键词研究报告。",
     },
     appearance: {
       theme: "主题",
@@ -1483,11 +1494,14 @@ export const zhCN: Messages = {
         compose: "生成元数据方案",
         report: "生成报告",
       },
-      addAll: "将 {count} 个关键词添加到研究",
       proposal: "元数据方案",
       cancel: "取消运行",
       alreadyRunning: "该应用已有一项研究正在进行中",
       failedAt: "在“{step}”步骤失败 – 下方为部分结果",
+      history: "历史",
+      apply: "添加",
+      applied: "关键词字段已更新",
+      editedElsewhere: "在 App details / Store listing 中编辑",
     },
   },
 };

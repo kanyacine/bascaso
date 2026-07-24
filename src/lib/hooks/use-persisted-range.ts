@@ -59,6 +59,19 @@ export function hasPersistedValue(key: string): boolean {
   return readStored(key) !== null;
 }
 
+/** Remove every localStorage key starting with `prefix` and notify
+ *  subscribers. Backs the "delete all search history" settings action, which
+ *  wipes the per-app/storefront research scratchpad (`aso-research-*`). */
+export function clearPersistedPrefix(prefix: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    for (const key of Object.keys(localStorage)) {
+      if (key.startsWith(prefix)) localStorage.removeItem(key);
+    }
+  } catch {}
+  emit();
+}
+
 export function usePersistedState(storageKey: string, defaultValue: string): [string, (v: string) => void] {
   const value = useSyncExternalStore(
     subscribe,

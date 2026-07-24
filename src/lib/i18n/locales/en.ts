@@ -13,6 +13,19 @@ export const en = {
       downloadsAllStorefronts: "Show estimates for every storefront",
       downloadsAllStorefrontsHint:
         "The model is calibrated on the US App Store. Other storefronts are only extrapolated from installed-base ratios, so figures there are indicative at best – they stay hidden unless you turn this on.",
+      dataTitle: "Research data",
+      deleted: "Deleted",
+      deleteSearch: "Delete search history",
+      deleteSearchDesc:
+        "The keyword scoring cache and the keyword lists saved in the Research tab.",
+      deleteSearchTitle: "Delete all search history?",
+      deleteSearchConfirm:
+        "This clears the keyword scoring cache (and its trend history) and the keyword lists saved in the Research tab. Scores are recomputed on the next search.",
+      deleteReports: "Delete reports",
+      deleteReportsDesc: "Every saved autonomous research report.",
+      deleteReportsTitle: "Delete all reports?",
+      deleteReportsConfirm:
+        "This permanently removes every saved autonomous keyword-research report across all apps.",
     },
     appearance: {
       theme: "Theme",
@@ -1504,11 +1517,14 @@ export const en = {
         compose: "Composing metadata proposal",
         report: "Building report",
       },
-      addAll: "Add {count} keywords to research",
       proposal: "Metadata proposal",
       cancel: "Cancel run",
       alreadyRunning: "A research run is already in progress for this app",
       failedAt: "Failed at step “{step}” – partial results below",
+      history: "History",
+      apply: "Add",
+      applied: "Keyword field updated",
+      editedElsewhere: "Edit in App details / Store listing",
     },
   },
 } as const;

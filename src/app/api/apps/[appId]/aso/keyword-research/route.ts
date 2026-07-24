@@ -3,7 +3,9 @@ import { z } from "zod";
 import { parseBody } from "@/lib/api-helpers";
 import {
   cancelRun,
+  deleteRun,
   getLatestRun,
+  listRuns,
   startKeywordResearch,
 } from "@/lib/ai/workflows/run-manager";
 
@@ -42,15 +44,27 @@ export async function POST(
 }
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ appId: string }> },
 ) {
   const { appId } = await params;
+  const url = new URL(request.url);
+  if (url.searchParams.get("list") === "1") {
+    const country = url.searchParams.get("country") ?? "";
+    const locale = url.searchParams.get("locale") ?? "";
+    return NextResponse.json({ runs: listRuns(appId, { country, locale }) });
+  }
   return NextResponse.json({ run: getLatestRun(appId) });
 }
 
 export async function DELETE(request: Request) {
-  const runId = new URL(request.url).searchParams.get("runId");
+  const url = new URL(request.url);
+  const runId = url.searchParams.get("runId");
+  // ?delete=1 removes a persisted (terminal) run – the history delete button;
+  // otherwise the request cancels an in-flight run.
+  if (runId && url.searchParams.get("delete") === "1") {
+    return NextResponse.json({ ok: deleteRun(runId) });
+  }
   if (!runId || !cancelRun(runId)) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }

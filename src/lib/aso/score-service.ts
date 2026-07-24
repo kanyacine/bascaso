@@ -21,6 +21,14 @@ import { AdaptiveRateLimiter, ItunesRateLimited, searchApps } from "./itunes";
 
 export const SCORE_TTL_MS = 24 * 60 * 60 * 1000; // 1 score/day/keyword/country
 
+/** Wipe the whole keyword scoring cache and its trend history. Backs the
+ *  "delete all search history" settings action; the next score request for
+ *  any keyword recomputes from scratch. */
+export function clearScoreCache(): void {
+  db.delete(keywordScores).run();
+  db.delete(keywordScoreHistory).run();
+}
+
 /** Trimmed competitor stored per score row and shown in the detail panel. */
 export interface CompetitorSnapshot {
   trackId: number | null;

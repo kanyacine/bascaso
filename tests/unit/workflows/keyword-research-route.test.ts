@@ -3,11 +3,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mockStart = vi.fn();
 const mockCancel = vi.fn();
 const mockGetLatest = vi.fn();
+const mockList = vi.fn();
+const mockDeleteRun = vi.fn();
 
 vi.mock("@/lib/ai/workflows/run-manager", () => ({
   startKeywordResearch: (...args: unknown[]) => mockStart(...args),
   cancelRun: (...args: unknown[]) => mockCancel(...args),
   getLatestRun: (...args: unknown[]) => mockGetLatest(...args),
+  listRuns: (...args: unknown[]) => mockList(...args),
+  deleteRun: (...args: unknown[]) => mockDeleteRun(...args),
 }));
 
 import {
@@ -34,6 +38,8 @@ beforeEach(() => {
   mockStart.mockReset();
   mockCancel.mockReset();
   mockGetLatest.mockReset();
+  mockList.mockReset();
+  mockDeleteRun.mockReset();
 });
 
 describe("POST /api/apps/[appId]/aso/keyword-research", () => {
@@ -123,6 +129,25 @@ describe("GET /api/apps/[appId]/aso/keyword-research", () => {
   });
 });
 
+describe("GET /api/apps/[appId]/aso/keyword-research (list mode)", () => {
+  it("returns the filtered runs when list=1", async () => {
+    mockList.mockReturnValue([{ id: "r-new" }, { id: "r-old" }]);
+    const req = new Request(
+      "http://localhost/api/apps/app-1/aso/keyword-research?list=1&country=us&locale=en-US",
+    );
+    const res = await GET(req, ctx("app-1"));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ runs: [{ id: "r-new" }, { id: "r-old" }] });
+    expect(mockList).toHaveBeenCalledWith("app-1", { country: "us", locale: "en-US" });
+  });
+
+  it("still returns the latest run without list param", async () => {
+    mockGetLatest.mockReturnValue({ id: "latest" });
+    const res = await GET(new Request("http://localhost/x"), ctx("app-1"));
+    expect(await res.json()).toEqual({ run: { id: "latest" } });
+  });
+});
+
 describe("DELETE /api/apps/[appId]/aso/keyword-research", () => {
   it("cancels a known run", async () => {
     mockCancel.mockReturnValue(true);
@@ -152,6 +177,19 @@ describe("DELETE /api/apps/[appId]/aso/keyword-research", () => {
     );
 
     expect(res.status).toBe(404);
+    expect(mockCancel).not.toHaveBeenCalled();
+  });
+
+  it("deletes a persisted run when delete=1 (does not cancel)", async () => {
+    mockDeleteRun.mockReturnValue(true);
+
+    const res = await DELETE(
+      new Request("http://localhost/x?runId=run-1&delete=1", { method: "DELETE" }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
+    expect(mockDeleteRun).toHaveBeenCalledWith("run-1");
     expect(mockCancel).not.toHaveBeenCalled();
   });
 });

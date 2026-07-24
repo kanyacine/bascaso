@@ -1,8 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Check, Circle, CircleNotch, Copy } from "@phosphor-icons/react";
+import {
+  ArrowLeft,
+  Check,
+  Circle,
+  CircleNotch,
+  Copy,
+  Plus,
+  Trash,
+} from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -14,6 +22,18 @@ import {
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  KeywordTagInput,
+  splitKeywords,
+} from "@/components/keyword-tag-input";
+import { KeywordDistributionBars } from "@/components/keyword-distribution-bars";
+import { KeywordDetailDialog } from "@/components/keyword-detail-dialog";
+import { useKeywordScores } from "@/lib/hooks/use-keyword-scores";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -23,6 +43,7 @@ import {
 import { CharCount } from "@/components/char-count";
 import { FIELD_LIMITS, localeName } from "@/lib/asc/locale-names";
 import { storefrontCountryCode } from "@/lib/aso/storefront-country";
+import { storefrontLocales } from "@/lib/asc/storefronts";
 import { useTranslations } from "@/lib/i18n/locale-context";
 import type { MessageKey } from "@/lib/i18n/messages";
 import { cn } from "@/lib/utils";
@@ -30,10 +51,7 @@ import { StorefrontPicker } from "../../_components/storefront-picker";
 
 // Type-only imports – erased at compile time so no server module (db, itunes,
 // provider-factory) is dragged into this client bundle.
-import type {
-  KeywordResearchResult,
-  WorkflowStepId,
-} from "@/lib/ai/workflows/keyword-research";
+import type { WorkflowStepId } from "@/lib/ai/workflows/keyword-research";
 import type { WorkflowRunView } from "@/lib/ai/workflows/run-manager";
 
 /** SSE payload shape (mirrors WorkflowEvent from the events module). */
@@ -74,13 +92,13 @@ interface KeywordResearchDialogProps {
   appAppleId?: number;
   storefront: string;
   onStorefrontChange: (iso: string) => void;
-  locales: string[];
-  defaultLocale: string;
   getTitle: (locale: string) => string | null;
   getSubtitle: (locale: string) => string | null;
   getDescription: (locale: string) => string;
   getKeywords: (locale: string) => string;
   onAddKeywords: (keywords: string[]) => void;
+  readOnly: boolean;
+  onApplyKeywords: (locale: string, keywords: string) => void;
 }
 
 export function KeywordResearchDialog({
@@ -91,25 +109,57 @@ export function KeywordResearchDialog({
   appAppleId,
   storefront,
   onStorefrontChange,
-  locales,
-  defaultLocale,
   getTitle,
   getSubtitle,
   getDescription,
   getKeywords,
   onAddKeywords,
+  readOnly,
+  onApplyKeywords,
 }: KeywordResearchDialogProps) {
   const t = useTranslations();
-  const [targetLocale, setTargetLocale] = useState(defaultLocale);
+  const researchLocales = useMemo(() => storefrontLocales(storefront), [storefront]);
+  const [targetLocale, setTargetLocale] = useState(researchLocales[0] ?? "en-US");
   const [runId, setRunId] = useState<string | null>(null);
   const [run, setRun] = useState<WorkflowRunView | null>(null);
   const [launching, setLaunching] = useState(false);
+  const [history, setHistory] = useState<WorkflowRunView[]>([]);
+  const [viewingHistory, setViewingHistory] = useState(false);
+  const country = storefrontCountryCode(storefront);
 
   const status = run?.status;
   const terminal =
     status === "succeeded" || status === "failed" || status === "cancelled";
   const phase: "form" | "progress" | "results" =
     runId == null ? "form" : terminal ? "results" : "progress";
+
+  /** Adopt a terminal run from the history list – read-only (the SSE effect
+   *  never subscribes when `terminal` is true). */
+  function openHistory(entry: WorkflowRunView) {
+    setRun(entry);
+    setRunId(entry.id);
+    setViewingHistory(true);
+  }
+
+  /** Back from a historized report to the form (with the history list). */
+  function backToForm() {
+    setRun(null);
+    setRunId(null);
+    setViewingHistory(false);
+  }
+
+  /** Delete one persisted report from the history list. */
+  async function deleteHistory(entry: WorkflowRunView) {
+    try {
+      await fetch(
+        `/api/apps/${appId}/aso/keyword-research?runId=${encodeURIComponent(entry.id)}&delete=1`,
+        { method: "DELETE" },
+      );
+      setHistory((prev) => prev.filter((h) => h.id !== entry.id));
+    } catch {
+      toast.error(t("common.networkError"));
+    }
+  }
 
   /** Fetch the app's latest run and adopt it when it matches `id`. */
   const fetchRun = useCallback(
@@ -132,8 +182,37 @@ export function KeywordResearchDialog({
     setRunId(null);
     setRun(null);
     setLaunching(false);
-    setTargetLocale(defaultLocale);
-  }, [open, defaultLocale]);
+    setViewingHistory(false);
+    setTargetLocale(researchLocales[0] ?? "en-US");
+  }, [open, researchLocales]);
+
+  // Keep the base language within the storefront's Apple-indexed set.
+  useEffect(() => {
+    if (!researchLocales.includes(targetLocale)) {
+      setTargetLocale(researchLocales[0] ?? "en-US");
+    }
+  }, [researchLocales, targetLocale]);
+
+  // Report history for the selected storefront + language. Refetched when
+  // either changes; only shown on the form (before starting a run).
+  useEffect(() => {
+    if (!open || phase !== "form" || !country) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/apps/${appId}/aso/keyword-research?list=1&country=${encodeURIComponent(country)}&locale=${encodeURIComponent(targetLocale)}`,
+        );
+        const data = await res.json();
+        if (!cancelled) setHistory(Array.isArray(data.runs) ? data.runs : []);
+      } catch {
+        if (!cancelled) setHistory([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, phase, appId, country, targetLocale]);
 
   // On open, resume an already-running run (catch-up GET). Terminal or absent
   // runs leave us on the form to start fresh.
@@ -196,7 +275,6 @@ export function KeywordResearchDialog({
   }, [open, runId, terminal, fetchRun]);
 
   async function launch() {
-    const country = storefrontCountryCode(storefront);
     if (!country) {
       toast.error(t("keywords.selectStorefront"));
       return;
@@ -272,16 +350,24 @@ export function KeywordResearchDialog({
     setRun(null);
   }
 
-  function addAll(result: KeywordResearchResult) {
-    onAddKeywords(result.candidates.map((c) => c.keyword));
-    onOpenChange(false);
-  }
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl max-h-[85vh] !grid grid-rows-[auto_1fr] gap-0">
         <DialogHeader className="pb-4">
-          <DialogTitle>{t("aso.research.autoTitle")}</DialogTitle>
+          <div className="flex items-center gap-2">
+            {viewingHistory && phase === "results" && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-7 shrink-0"
+                aria-label={t("common.back")}
+                onClick={backToForm}
+              >
+                <ArrowLeft className="size-4" />
+              </Button>
+            )}
+            <DialogTitle>{t("aso.research.autoTitle")}</DialogTitle>
+          </div>
         </DialogHeader>
 
         <ScrollArea className="min-h-0 overflow-hidden">
@@ -290,9 +376,12 @@ export function KeywordResearchDialog({
               <FormView
                 storefront={storefront}
                 onStorefrontChange={onStorefrontChange}
-                locales={locales}
+                locales={researchLocales}
                 targetLocale={targetLocale}
                 onTargetLocaleChange={setTargetLocale}
+                history={history}
+                onOpenHistory={openHistory}
+                onDeleteHistory={deleteHistory}
                 launching={launching}
                 onLaunch={launch}
                 onCancel={() => onOpenChange(false)}
@@ -302,7 +391,13 @@ export function KeywordResearchDialog({
               <ProgressView run={run} onCancel={cancel} />
             )}
             {phase === "results" && run && (
-              <ResultsView run={run} onAddAll={addAll} />
+              <ResultsView
+                run={run}
+                appAppleId={appAppleId}
+                readOnly={readOnly}
+                onApplyKeywords={onApplyKeywords}
+                onAddKeywords={onAddKeywords}
+              />
             )}
           </div>
         </ScrollArea>
@@ -317,6 +412,9 @@ function FormView({
   locales,
   targetLocale,
   onTargetLocaleChange,
+  history,
+  onOpenHistory,
+  onDeleteHistory,
   launching,
   onLaunch,
   onCancel,
@@ -326,6 +424,9 @@ function FormView({
   locales: string[];
   targetLocale: string;
   onTargetLocaleChange: (locale: string) => void;
+  history: WorkflowRunView[];
+  onOpenHistory: (run: WorkflowRunView) => void;
+  onDeleteHistory: (run: WorkflowRunView) => void;
   launching: boolean;
   onLaunch: () => void;
   onCancel: () => void;
@@ -353,6 +454,39 @@ function FormView({
           </SelectContent>
         </Select>
       </section>
+
+      {history.length > 0 && (
+        <section className="space-y-2">
+          <h3 className="section-title">{t("aso.research.history")}</h3>
+          <ul className="space-y-1.5">
+            {history.map((h) => (
+              <li key={h.id} className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => onOpenHistory(h)}
+                  className="flex min-w-0 flex-1 items-center justify-between rounded-md border px-3 py-2 text-left text-sm hover:bg-muted/50"
+                >
+                  <span className="truncate font-medium">
+                    {h.result?.proposal?.title ?? t("aso.research.autoTitle")}
+                  </span>
+                  <span className="ml-3 shrink-0 text-xs text-muted-foreground tabular-nums">
+                    {new Date(h.createdAt).toLocaleDateString()}
+                  </span>
+                </button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-8 shrink-0 text-muted-foreground"
+                  aria-label={t("common.remove")}
+                  onClick={() => onDeleteHistory(h)}
+                >
+                  <Trash className="size-4" />
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <div className="flex items-center justify-end gap-2 pt-2">
         <Button variant="outline" onClick={onCancel}>
@@ -429,14 +563,31 @@ function ProgressView({
 
 function ResultsView({
   run,
-  onAddAll,
+  appAppleId,
+  readOnly,
+  onApplyKeywords,
+  onAddKeywords,
 }: {
   run: WorkflowRunView;
-  onAddAll: (result: KeywordResearchResult) => void;
+  appAppleId?: number;
+  readOnly: boolean;
+  onApplyKeywords: (locale: string, keywords: string) => void;
+  onAddKeywords: (keywords: string[]) => void;
 }) {
   const t = useTranslations();
   const result = run.result;
   const failed = run.status === "failed";
+
+  // Auto-dump every researched candidate into the research table so it
+  // participates in the shared score cache. Fires once per distinct report
+  // shown (fresh or history); mergeKeywords dedups on the parent side.
+  const candidateCount = result?.candidates.length ?? 0;
+  useEffect(() => {
+    if (result && candidateCount > 0) {
+      onAddKeywords(result.candidates.map((c) => c.keyword));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [run.id]);
 
   return (
     <div className="space-y-6">
@@ -451,45 +602,81 @@ function ResultsView({
       {!result ? (
         <p className="text-sm text-muted-foreground">{t("common.unknownError")}</p>
       ) : (
-        <>
-          {result.candidates.length > 0 && (
-            <Button onClick={() => onAddAll(result)}>
-              {t("aso.research.addAll", { count: result.candidates.length })}
-            </Button>
-          )}
-
-          {result.proposal && (
-            <section className="space-y-3">
-              <h3 className="section-title">{t("aso.research.proposal")}</h3>
-              <Card className="gap-0 py-0">
-                <CardContent className="space-y-4 py-4">
-                  <ProposalField
-                    label={t("appDetails.name")}
-                    value={result.proposal.title}
-                    limit={FIELD_LIMITS.name}
-                  />
-                  <ProposalField
-                    label={t("appDetails.subtitle")}
-                    value={result.proposal.subtitle}
-                    limit={FIELD_LIMITS.subtitle}
-                  />
-                  <ProposalField
-                    label={t("storeListing.fields.keywords")}
-                    value={result.proposal.keywords}
-                    limit={FIELD_LIMITS.keywords}
-                  />
-                  {result.proposal.summary && (
-                    <p className="text-sm text-muted-foreground">
-                      {result.proposal.summary}
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
-            </section>
-          )}
-        </>
+        result.proposal && (
+          <section className="space-y-3">
+            <h3 className="section-title">{t("aso.research.proposal")}</h3>
+            <Card className="gap-0 py-0">
+              <CardContent className="space-y-4 py-4">
+                <ProposalField
+                  label={t("appDetails.name")}
+                  value={result.proposal.title}
+                  limit={FIELD_LIMITS.name}
+                  canApply={false}
+                  applyDisabledHint={t("aso.research.editedElsewhere")}
+                />
+                <ProposalField
+                  label={t("appDetails.subtitle")}
+                  value={result.proposal.subtitle}
+                  limit={FIELD_LIMITS.subtitle}
+                  canApply={false}
+                  applyDisabledHint={t("aso.research.editedElsewhere")}
+                />
+                <ProposalKeywordField
+                  label={t("storeListing.fields.keywords")}
+                  value={result.proposal.keywords}
+                  country={run.country}
+                  appAppleId={appAppleId}
+                  canApply={!readOnly}
+                  onApply={() =>
+                    onApplyKeywords(run.locale, result.proposal!.keywords)
+                  }
+                />
+                {result.proposal.summary && (
+                  <p className="text-sm text-muted-foreground">
+                    {result.proposal.summary}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          </section>
+        )
       )}
     </div>
+  );
+}
+
+function ApplyButton({
+  canApply,
+  hint,
+  onApply,
+}: {
+  canApply: boolean;
+  hint?: string;
+  onApply?: () => void;
+}) {
+  const t = useTranslations();
+  const btn = (
+    <Button
+      variant="outline"
+      size="icon"
+      aria-label={t("aso.research.apply")}
+      disabled={!canApply}
+      onClick={() => {
+        onApply?.();
+        toast.success(t("aso.research.applied"));
+      }}
+    >
+      <Plus className="size-4" />
+    </Button>
+  );
+  if (canApply || !hint) return btn;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span>{btn}</span>
+      </TooltipTrigger>
+      <TooltipContent>{hint}</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -497,10 +684,16 @@ function ProposalField({
   label,
   value,
   limit,
+  canApply,
+  applyDisabledHint,
+  onApply,
 }: {
   label: string;
   value: string;
   limit: number;
+  canApply: boolean;
+  applyDisabledHint?: string;
+  onApply?: () => void;
 }) {
   const t = useTranslations();
   return (
@@ -526,7 +719,70 @@ function ProposalField({
         >
           <Copy className="size-4" />
         </Button>
+        <ApplyButton canApply={canApply} hint={applyDisabledHint} onApply={onApply} />
       </div>
+    </div>
+  );
+}
+
+function ProposalKeywordField({
+  label,
+  value,
+  country,
+  appAppleId,
+  canApply,
+  onApply,
+}: {
+  label: string;
+  value: string;
+  country: string;
+  appAppleId?: number;
+  canApply: boolean;
+  onApply: () => void;
+}) {
+  const t = useTranslations();
+  const words = splitKeywords(value);
+  const getTagScore = useKeywordScores(words, country, appAppleId);
+  const [detailIndex, setDetailIndex] = useState<number | null>(null);
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between">
+        <h4 className="text-sm font-medium">{label}</h4>
+        <CharCount value={value} limit={FIELD_LIMITS.keywords} />
+      </div>
+      <div className="flex items-start gap-2">
+        <Card className="min-w-0 flex-1 gap-0 py-0">
+          <CardContent className="py-3">
+            <KeywordTagInput
+              value={value}
+              onChange={() => {}}
+              readOnly
+              getTagScore={getTagScore}
+              onTagClick={setDetailIndex}
+            />
+          </CardContent>
+        </Card>
+        <Button
+          variant="outline"
+          size="icon"
+          aria-label={t("common.copy")}
+          onClick={() => {
+            void navigator.clipboard.writeText(value);
+            toast.success(t("keywords.researchCopied"));
+          }}
+        >
+          <Copy className="size-4" />
+        </Button>
+        <ApplyButton canApply={canApply} onApply={onApply} />
+      </div>
+      <KeywordDistributionBars words={words} getTagScore={getTagScore} />
+      <KeywordDetailDialog
+        words={words}
+        openIndex={detailIndex}
+        onOpenIndexChange={setDetailIndex}
+        getTagScore={getTagScore}
+        country={country}
+      />
     </div>
   );
 }

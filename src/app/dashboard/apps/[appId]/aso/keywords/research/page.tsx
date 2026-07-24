@@ -142,16 +142,6 @@ export default function KeywordsResearchPage() {
     [keywords, getTagScore, sort],
   );
 
-  const targetLocales = useMemo(
-    () => editedLocalizations.map((l) => l.attributes.locale),
-    [editedLocalizations],
-  );
-  const defaultTargetLocale = useMemo(() => {
-    const primary = app?.primaryLocale ?? "en-US";
-    if (targetLocales.includes(primary)) return primary;
-    return targetLocales[0] ?? primary;
-  }, [targetLocales, app?.primaryLocale]);
-
   const getResearchKeywords = (locale: string) =>
     editedLocalizations.find((l) => l.attributes.locale === locale)?.attributes
       .keywords ?? "";
@@ -239,13 +229,13 @@ export default function KeywordsResearchPage() {
         appAppleId={numericAppleId(app?.id)}
         storefront={storefront}
         onStorefrontChange={setStorefront}
-        locales={targetLocales}
-        defaultLocale={defaultTargetLocale}
         getTitle={getTitle}
         getSubtitle={getSubtitle}
         getDescription={getDescription}
         getKeywords={getResearchKeywords}
         onAddKeywords={addResearchKeywords}
+        readOnly={readOnly}
+        onApplyKeywords={(locale, kw) => handleKeywordsChange(locale, kw)}
       />
 
       {rows.length === 0 ? (
