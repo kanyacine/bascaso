@@ -13,6 +13,8 @@ export interface RoutingState {
   // keyed by the entries of AI_ROUTED_GROUPS
   groups: Partial<Record<AIGroupId, { tier: AITier; explicit: boolean }>>;
   fallback: boolean;
+  /** Whether the built-in Apple model may generate in unsupported languages. */
+  allowUnsupportedLanguages: boolean;
 }
 
 interface Props {

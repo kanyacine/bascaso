@@ -150,10 +150,15 @@ describe("getLanguageModelForTask", () => {
 
   // --- apple-fm (embedded Apple Foundation Model on the local tier) ---
 
-  it("resolves the apple-fm model with maxInputChars when the sidecar is available", async () => {
+  it("resolves the apple-fm model with maxInputChars and supportedLanguages when the sidecar is available", async () => {
     mockGetTierSettings.mockImplementation(async (tier: string) =>
       tier === "local" ? APPLE_FM_SETTINGS : BYOK_SETTINGS,
     );
+    mockGetAppleFmStatus.mockResolvedValue({
+      available: true,
+      reason: null,
+      languages: ["en", "fr"],
+    });
 
     const result = await getLanguageModelForTask("draft-reply");
 
@@ -163,6 +168,7 @@ describe("getLanguageModelForTask", () => {
     expect(result.providerId).toBe("apple-fm");
     expect(result.modelId).toBe("apple-fm");
     expect(result.maxInputChars).toBe(12_000);
+    expect(result.supportedLanguages).toEqual(["en", "fr"]);
     expect(result.model).toBeDefined();
   });
 

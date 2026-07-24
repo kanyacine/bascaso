@@ -13,7 +13,11 @@ import {
 } from "@/lib/ai/prompts";
 import { errorJson, parseBody, routingErrorResponse } from "@/lib/api-helpers";
 import { noThinkingOptions, samplingTemperature } from "@/lib/ai/provider-options";
-import { getAIGuidance, type GuidanceScope } from "@/lib/app-preferences";
+import {
+  getAIGuidance,
+  getAppleFmAllowUnsupportedLanguages,
+  type GuidanceScope,
+} from "@/lib/app-preferences";
 import { APPLE_FM_PROVIDER_ID, appleFmInputTooLarge } from "@/lib/ai/apple-fm";
 
 /** Review replies/appeals use their own guidance bucket; everything else uses translation guidance. */
@@ -115,11 +119,30 @@ export async function POST(request: Request) {
   let providerId = "";
   let modelId = "";
   let maxInputChars: number | undefined;
+  let supportedLanguages: string[] | undefined;
   try {
     const resolved = await getLanguageModelForTask(action);
-    ({ model, providerId, modelId, maxInputChars } = resolved);
+    ({ model, providerId, modelId, maxInputChars, supportedLanguages } = resolved);
   } catch (err) {
     return routingErrorResponse(err);
+  }
+
+  // When the resolved model reports a supported-language list (only the built-in
+  // Apple model does), block outputs in a language it can't handle – unless the
+  // user has opted in. The output language is toLocale for translate, else the
+  // request locale; we compare on the BCP-47 primary subtag (e.g. "ar").
+  const outputLocale = toLocale ?? locale;
+  const outputLang = outputLocale?.split(/[-_]/)[0]?.toLowerCase();
+  if (
+    supportedLanguages &&
+    outputLang &&
+    !supportedLanguages.includes(outputLang) &&
+    !getAppleFmAllowUnsupportedLanguages()
+  ) {
+    return NextResponse.json(
+      { error: "apple_fm_language_unsupported", language: outputLang },
+      { status: 422 },
+    );
   }
 
   const context = { field: field ?? "", appName, charLimit };

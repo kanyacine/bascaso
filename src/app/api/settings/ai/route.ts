@@ -16,6 +16,7 @@ import {
 } from "@/lib/ai/local-provider";
 import { APPLE_FM_MODEL_ID, APPLE_FM_PROVIDER_ID, getAppleFmStatus } from "@/lib/ai/apple-fm";
 import {
+  getAppleFmAllowUnsupportedLanguages,
   getRoutingFallbackEnabled,
   getRoutingTier,
   isRoutingTierExplicit,
@@ -51,6 +52,7 @@ export async function GET() {
     routing: {
       groups,
       fallback: getRoutingFallbackEnabled(),
+      allowUnsupportedLanguages: getAppleFmAllowUnsupportedLanguages(),
     },
   });
 }

@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -52,7 +53,11 @@ interface TierSettings {
   hasApiKey: boolean;
 }
 
-const EMPTY_ROUTING: RoutingState = { groups: {}, fallback: false };
+const EMPTY_ROUTING: RoutingState = {
+  groups: {},
+  fallback: false,
+  allowUnsupportedLanguages: false,
+};
 
 export default function AISettingsPage() {
   const t = useTranslations();
@@ -518,6 +523,31 @@ export default function AISettingsPage() {
                       {appleFmLanguages.join(", ")}
                     </p>
                   )}
+                </div>
+              )}
+              {appleFmLanguages && (
+                <div className="flex items-start justify-between gap-4 pt-2 max-w-md">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="apple-fm-allow-unsupported" className="text-xs font-medium">
+                      {t("settings.ai.local.allowUnsupported")}
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      {t("settings.ai.local.allowUnsupportedHint")}
+                    </p>
+                  </div>
+                  <Switch
+                    id="apple-fm-allow-unsupported"
+                    checked={routing.allowUnsupportedLanguages}
+                    onCheckedChange={async (checked) => {
+                      const res = await fetch("/api/settings/ai/routing", {
+                        method: "PUT",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ allowUnsupportedLanguages: checked }),
+                      });
+                      if (res.ok) refetchRouting();
+                      else toast.error(t("common.saveFailed"));
+                    }}
+                  />
                 </div>
               )}
             </div>

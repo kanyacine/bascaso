@@ -432,6 +432,7 @@ describe("PUT/GET/DELETE /api/settings/ai (per-tier)", () => {
           workflows: { tier: "byok", explicit: false },
         },
         fallback: false,
+        allowUnsupportedLanguages: false,
       },
     });
   });

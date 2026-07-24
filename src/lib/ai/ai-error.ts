@@ -21,6 +21,8 @@ export function aiErrorMessage(errorCode: string | undefined, t: Translate): str
       return t("errors.appleFmUnavailable");
     case "apple_fm_input_too_large":
       return t("errors.appleFmInputTooLarge");
+    case "apple_fm_language_unsupported":
+      return t("errors.appleFmLanguageUnsupported");
     case "ai_auth_error":
       return t("ai.authError");
     default:

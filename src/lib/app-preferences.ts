@@ -5,6 +5,7 @@ import { AI_GROUP_DEFAULT_TIER, type AIGroupId, type AITier } from "@/lib/ai/tas
 
 const REVIEW_BEFORE_SAVING_KEY = "review_before_saving";
 const ROUTING_FALLBACK_KEY = "ai_routing_fallback";
+const APPLE_FM_ALLOW_UNSUPPORTED_LANGUAGES_KEY = "ai_apple_fm_allow_unsupported_languages";
 
 /** Distinct guidance buckets – translation tone vs review-reply voice are unrelated. */
 export type GuidanceScope = "translation" | "reviews";
@@ -109,6 +110,19 @@ export function getRoutingFallbackEnabled(): boolean {
 export function setRoutingFallbackEnabled(enabled: boolean): void {
   db.insert(appPreferences)
     .values({ key: ROUTING_FALLBACK_KEY, value: String(enabled) })
+    .onConflictDoUpdate({ target: appPreferences.key, set: { value: String(enabled) } })
+    .run();
+}
+
+/** When true, the built-in Apple model is allowed to generate in languages it
+ *  doesn't officially support (quality may be lower). Default false. */
+export function getAppleFmAllowUnsupportedLanguages(): boolean {
+  return readPreference(APPLE_FM_ALLOW_UNSUPPORTED_LANGUAGES_KEY) === "true";
+}
+
+export function setAppleFmAllowUnsupportedLanguages(enabled: boolean): void {
+  db.insert(appPreferences)
+    .values({ key: APPLE_FM_ALLOW_UNSUPPORTED_LANGUAGES_KEY, value: String(enabled) })
     .onConflictDoUpdate({ target: appPreferences.key, set: { value: String(enabled) } })
     .run();
 }

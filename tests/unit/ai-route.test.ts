@@ -12,6 +12,7 @@ const mockBuildFixKeywordsPrompt = vi.fn();
 const mockBuildNominationPrompt = vi.fn();
 const mockBuildShortenPrompt = vi.fn();
 const mockGetAIGuidance = vi.fn();
+const mockGetAppleFmAllowUnsupportedLanguages = vi.fn();
 const mockErrorJson = vi.fn();
 
 vi.mock("ai", () => ({
@@ -20,6 +21,7 @@ vi.mock("ai", () => ({
 
 vi.mock("@/lib/app-preferences", () => ({
   getAIGuidance: () => mockGetAIGuidance(),
+  getAppleFmAllowUnsupportedLanguages: () => mockGetAppleFmAllowUnsupportedLanguages(),
 }));
 
 vi.mock("@/lib/ai/provider-factory", async (importOriginal) => {
@@ -78,6 +80,8 @@ describe("AI route", () => {
     mockBuildShortenPrompt.mockReturnValue("shorten-prompt");
     mockGetAIGuidance.mockReset();
     mockGetAIGuidance.mockReturnValue("");
+    mockGetAppleFmAllowUnsupportedLanguages.mockReset();
+    mockGetAppleFmAllowUnsupportedLanguages.mockReturnValue(false);
     mockErrorJson.mockReset();
     mockErrorJson.mockImplementation(
       (_err, status = 500, fallback = "mapped") =>
@@ -637,6 +641,97 @@ describe("AI route", () => {
     expect(response.status).toBe(422);
     expect(await response.json()).toEqual({ error: "apple_fm_input_too_large" });
     expect(mockGenerateText).not.toHaveBeenCalled();
+  });
+
+  it("blocks apple-fm output in an unsupported language with 422", async () => {
+    const { POST } = await import("@/app/api/ai/route");
+    mockGetLanguageModelForTask.mockResolvedValue({
+      model: { id: "model" },
+      providerId: "apple-fm",
+      modelId: "apple-fm",
+      tier: "local",
+      maxInputChars: 100,
+      supportedLanguages: ["en", "fr"],
+    });
+
+    const response = await POST(
+      new Request("http://localhost", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "translate",
+          text: "hello",
+          fromLocale: "en-US",
+          toLocale: "ar-SA",
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(422);
+    expect(await response.json()).toEqual({
+      error: "apple_fm_language_unsupported",
+      language: "ar",
+    });
+    expect(mockGenerateText).not.toHaveBeenCalled();
+  });
+
+  it("allows apple-fm output in a supported language", async () => {
+    const { POST } = await import("@/app/api/ai/route");
+    mockGetLanguageModelForTask.mockResolvedValue({
+      model: { id: "model" },
+      providerId: "apple-fm",
+      modelId: "apple-fm",
+      tier: "local",
+      maxInputChars: 100,
+      supportedLanguages: ["en", "fr"],
+    });
+
+    const response = await POST(
+      new Request("http://localhost", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "translate",
+          text: "hello",
+          fromLocale: "en-US",
+          toLocale: "fr-FR",
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect((await response.json()).result).toBe("Generated output");
+    expect(mockGenerateText).toHaveBeenCalled();
+  });
+
+  it("allows an unsupported language when the override is enabled", async () => {
+    mockGetAppleFmAllowUnsupportedLanguages.mockReturnValue(true);
+    const { POST } = await import("@/app/api/ai/route");
+    mockGetLanguageModelForTask.mockResolvedValue({
+      model: { id: "model" },
+      providerId: "apple-fm",
+      modelId: "apple-fm",
+      tier: "local",
+      maxInputChars: 100,
+      supportedLanguages: ["en", "fr"],
+    });
+
+    const response = await POST(
+      new Request("http://localhost", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "translate",
+          text: "hello",
+          fromLocale: "en-US",
+          toLocale: "ar-SA",
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect((await response.json()).result).toBe("Generated output");
+    expect(mockGenerateText).toHaveBeenCalled();
   });
 
   it("includes length and overLimit:false for within-limit results", async () => {

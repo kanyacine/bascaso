@@ -108,6 +108,8 @@ export const de: Messages = {
         appleFmHint: "Läuft auf diesem Mac, nichts zu installieren oder herunterzuladen.",
         languagesNote: "Das integrierte Modell unterstützt nur eine Auswahl an Sprachen.",
         languagesShow: "Unterstützte Sprachen anzeigen",
+        allowUnsupported: "Nicht unterstützte Sprachen erlauben",
+        allowUnsupportedHint: "Lassen Sie das integrierte Modell in Sprachen generieren, die es nicht offiziell unterstützt (Qualität kann geringer sein).",
         server: "Lokaler Server",
         status: {
           available: "Verfügbar",
@@ -221,6 +223,7 @@ export const de: Messages = {
     aiTierNotConfigured: "Diese Aufgabe ist auf eine nicht konfigurierte Stufe geroutet. Konfigurieren Sie sie unter Einstellungen → AI, oder routen Sie die Gruppe anderswohin.",
     appleFmUnavailable: "Das integrierte Apple-Modell ist nicht verfügbar",
     appleFmInputTooLarge: "Diese Eingabe ist zu groß für das integrierte Modell – verwenden Sie BYOK oder einen lokalen Server für diese Aufgabe",
+    appleFmLanguageUnsupported: "Das integrierte Modell unterstützt diese Sprache nicht. Verwenden Sie BYOK oder erlauben Sie nicht unterstützte Sprachen unter Einstellungen → AI.",
     aiRequestFailed: "Die AI-Anfrage ist fehlgeschlagen. Bitte versuchen Sie es erneut.",
   },
   connectionErrors: {

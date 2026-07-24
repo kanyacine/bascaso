@@ -57,6 +57,17 @@ describe("PUT /api/settings/ai/routing", () => {
     expect(settings.routing.fallback).toBe(true);
   });
 
+  it("persists the allow-unsupported-languages toggle", async () => {
+    const { PUT } = await import("@/app/api/settings/ai/routing/route");
+    const { GET } = await import("@/app/api/settings/ai/route");
+
+    const response = await PUT(putRoutingRequest({ allowUnsupportedLanguages: true }));
+    expect(await response.json()).toEqual({ ok: true });
+
+    const settings = await (await GET()).json();
+    expect(settings.routing.allowUnsupportedLanguages).toBe(true);
+  });
+
   it("rejects a group outside AI_ROUTED_GROUPS", async () => {
     const { PUT } = await import("@/app/api/settings/ai/routing/route");
 

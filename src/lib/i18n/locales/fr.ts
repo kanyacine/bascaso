@@ -108,6 +108,8 @@ export const fr: Messages = {
         appleFmHint: "Tourne sur ce Mac, rien à installer ni télécharger.",
         languagesNote: "Le modèle intégré ne prend en charge qu’une sélection de langues.",
         languagesShow: "Voir les langues prises en charge",
+        allowUnsupported: "Autoriser les langues non prises en charge",
+        allowUnsupportedHint: "Laisser le modèle intégré générer dans des langues non officiellement prises en charge (qualité potentiellement moindre).",
         server: "Serveur local",
         status: {
           available: "Disponible",
@@ -221,6 +223,7 @@ export const fr: Messages = {
     aiTierNotConfigured: "Cette tâche est routée vers un tier non configuré. Configurez-le dans Réglages → AI, ou routez le groupe ailleurs.",
     appleFmUnavailable: "Le modèle Apple intégré est indisponible",
     appleFmInputTooLarge: "Cette entrée est trop grande pour le modèle intégré – utilisez BYOK ou un serveur local pour cette tâche",
+    appleFmLanguageUnsupported: "Le modèle intégré ne prend pas en charge cette langue. Utilisez BYOK, ou autorisez les langues non prises en charge dans Réglages → IA.",
     aiRequestFailed: "La requête AI a échoué. Veuillez réessayer.",
   },
   connectionErrors: {

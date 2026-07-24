@@ -96,6 +96,9 @@ export interface ResolvedTaskModel {
   tier: AITier;
   /** Set for the embedded Apple model – callers reject bigger inputs (étape 2). */
   maxInputChars?: number;
+  /** Set for the embedded Apple model – the BCP-47 primary codes it supports.
+   *  Callers can reject outputs in languages outside this list. */
+  supportedLanguages?: string[];
 }
 
 /** The single seam between call sites and providers: task → group → tier → model.
@@ -134,6 +137,7 @@ async function resolveTier(tier: AITier, allowFallback: boolean): Promise<Resolv
       modelId: APPLE_FM_MODEL_ID,
       tier,
       maxInputChars: APPLE_FM_MAX_INPUT_CHARS,
+      supportedLanguages: status.languages,
     };
   }
 

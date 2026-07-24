@@ -106,6 +106,8 @@ export const en = {
         appleFmHint: "Runs on this Mac, nothing to install or download.",
         languagesNote: "The built-in model supports only a selection of languages.",
         languagesShow: "See supported languages",
+        allowUnsupported: "Allow unsupported languages",
+        allowUnsupportedHint: "Let the built-in model generate in languages it doesn't officially support (quality may be lower).",
         server: "Local server",
         status: {
           available: "Available",
@@ -219,6 +221,7 @@ export const en = {
     aiTierNotConfigured: "This task is routed to a tier that is not configured. Configure it in Settings → AI, or route the group elsewhere.",
     appleFmUnavailable: "The Apple built-in model is unavailable",
     appleFmInputTooLarge: "This input is too large for the built-in model – use BYOK or a local server for this task",
+    appleFmLanguageUnsupported: "The built-in model doesn't support this language. Use BYOK, or allow unsupported languages in Settings → AI.",
     aiRequestFailed: "The AI request failed. Please try again.",
   },
   connectionErrors: {

@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { parseBody } from "@/lib/api-helpers";
-import { setRoutingFallbackEnabled, setRoutingTier } from "@/lib/app-preferences";
+import {
+  setAppleFmAllowUnsupportedLanguages,
+  setRoutingFallbackEnabled,
+  setRoutingTier,
+} from "@/lib/app-preferences";
 import { AI_ROUTED_GROUPS, type AIGroupId } from "@/lib/ai/tasks";
 
 const groupSchema = z.object({
@@ -13,7 +17,11 @@ const fallbackSchema = z.object({
   fallback: z.boolean(),
 });
 
-const bodySchema = z.union([groupSchema, fallbackSchema]);
+const allowUnsupportedSchema = z.object({
+  allowUnsupportedLanguages: z.boolean(),
+});
+
+const bodySchema = z.union([groupSchema, fallbackSchema, allowUnsupportedSchema]);
 
 export async function PUT(request: Request) {
   const parsed = await parseBody(request, bodySchema);
@@ -21,6 +29,8 @@ export async function PUT(request: Request) {
 
   if ("group" in parsed) {
     setRoutingTier(parsed.group, parsed.tier);
+  } else if ("allowUnsupportedLanguages" in parsed) {
+    setAppleFmAllowUnsupportedLanguages(parsed.allowUnsupportedLanguages);
   } else {
     setRoutingFallbackEnabled(parsed.fallback);
   }

@@ -15,6 +15,8 @@ import {
   isRoutingTierExplicit,
   getRoutingFallbackEnabled,
   setRoutingFallbackEnabled,
+  getAppleFmAllowUnsupportedLanguages,
+  setAppleFmAllowUnsupportedLanguages,
 } from "@/lib/app-preferences";
 
 describe("routing preferences", () => {
@@ -40,5 +42,13 @@ describe("routing preferences", () => {
     expect(getRoutingFallbackEnabled()).toBe(false);
     setRoutingFallbackEnabled(true);
     expect(getRoutingFallbackEnabled()).toBe(true);
+  });
+
+  it("allow-unsupported-languages toggle defaults to off and persists", () => {
+    expect(getAppleFmAllowUnsupportedLanguages()).toBe(false);
+    setAppleFmAllowUnsupportedLanguages(true);
+    expect(getAppleFmAllowUnsupportedLanguages()).toBe(true);
+    setAppleFmAllowUnsupportedLanguages(false);
+    expect(getAppleFmAllowUnsupportedLanguages()).toBe(false);
   });
 });

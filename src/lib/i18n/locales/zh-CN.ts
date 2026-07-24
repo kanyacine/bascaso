@@ -107,6 +107,8 @@ export const zhCN: Messages = {
         appleFmHint: "在此 Mac 上运行，无需安装或下载。",
         languagesNote: "内置模型仅支持部分语言。",
         languagesShow: "查看支持的语言",
+        allowUnsupported: "允许不受支持的语言",
+        allowUnsupportedHint: "让内置模型生成其未正式支持的语言的内容（质量可能较低）。",
         server: "本地服务器",
         status: {
           available: "可用",
@@ -220,6 +222,7 @@ export const zhCN: Messages = {
     aiTierNotConfigured: "此任务被路由到一个尚未配置的层级。请在设置 → AI 中进行配置，或将该分组路由到别处。",
     appleFmUnavailable: "Apple 内置模型不可用",
     appleFmInputTooLarge: "此输入对内置模型来说过大 – 请针对此任务使用 BYOK 或本地服务器",
+    appleFmLanguageUnsupported: "内置模型不支持此语言。请使用 BYOK，或在设置 → AI 中允许不受支持的语言。",
     aiRequestFailed: "AI 请求失败，请重试。",
   },
   connectionErrors: {
