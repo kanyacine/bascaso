@@ -148,6 +148,7 @@ export const en = {
         },
         local: "Local",
         byok: "BYOK",
+        managed: "Managed",
         resetDefault: "Restore defaults",
         fallback: "Fall back to BYOK when local is unavailable",
         fallbackHint: "Off by default – failures stay visible instead of silently switching.",

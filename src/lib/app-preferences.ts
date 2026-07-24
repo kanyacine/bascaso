@@ -83,12 +83,14 @@ function readPreference(key: string): string | null {
 /** Resolved tier for a group – explicit preference, else the shipped default. */
 export function getRoutingTier(group: AIGroupId): AITier {
   const value = readPreference(routingKey(group));
-  return value === "local" || value === "byok" ? value : AI_GROUP_DEFAULT_TIER[group];
+  return value === "local" || value === "byok" || value === "managed"
+    ? value
+    : AI_GROUP_DEFAULT_TIER[group];
 }
 
 export function isRoutingTierExplicit(group: AIGroupId): boolean {
   const value = readPreference(routingKey(group));
-  return value === "local" || value === "byok";
+  return value === "local" || value === "byok" || value === "managed";
 }
 
 /** Store an explicit tier, or null to restore the shipped default. */

@@ -34,6 +34,17 @@ describe("PUT /api/settings/ai/routing", () => {
     expect(settings.routing.groups.metadata).toEqual({ tier: "local", explicit: true });
   });
 
+  it("accepts the managed tier for a routed group", async () => {
+    const { PUT } = await import("@/app/api/settings/ai/routing/route");
+    const { GET } = await import("@/app/api/settings/ai/route");
+
+    const response = await PUT(putRoutingRequest({ group: "metadata", tier: "managed" }));
+    expect(await response.json()).toEqual({ ok: true });
+
+    const settings = await (await GET()).json();
+    expect(settings.routing.groups.metadata).toEqual({ tier: "managed", explicit: true });
+  });
+
   it("resets a group to its shipped default when tier is null", async () => {
     const { PUT } = await import("@/app/api/settings/ai/routing/route");
     const { GET } = await import("@/app/api/settings/ai/route");

@@ -150,6 +150,7 @@ export const de: Messages = {
         },
         local: "Lokal",
         byok: "BYOK",
+        managed: "Verwaltet",
         resetDefault: "Standards wiederherstellen",
         fallback: "Auf BYOK zurückgreifen, wenn das lokale Modell nicht verfügbar ist",
         fallbackHint: "Standardmäßig aus – Fehler bleiben sichtbar, statt stillschweigend umzuschalten.",

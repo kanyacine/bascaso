@@ -150,6 +150,7 @@ export const fr: Messages = {
         },
         local: "Local",
         byok: "BYOK",
+        managed: "Managé",
         resetDefault: "Restaurer les défauts",
         fallback: "Basculer sur BYOK si le local est indisponible",
         fallbackHint: "Désactivé par défaut – les échecs restent visibles au lieu de basculer en silence.",
