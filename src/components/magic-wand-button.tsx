@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import { MagicWand } from "@phosphor-icons/react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -22,6 +23,8 @@ import { PLATFORM_LABELS } from "@/lib/asc/version-types";
 import { AIRequiredDialog } from "./ai-required-dialog";
 import { AICompareDialog } from "./ai-compare-dialog";
 import { useTranslations } from "@/lib/i18n/locale-context";
+import type { MessageKey } from "@/lib/i18n/messages";
+import { aiErrorMessage } from "@/lib/ai/ai-error";
 
 export interface CopyFromVersion {
   versionId: string;
@@ -111,6 +114,52 @@ interface CompareState {
   charLimit?: number;
 }
 
+export interface TranslateFieldArgs {
+  baseValue: string;
+  field: string;
+  fromLocale: string;
+  toLocale: string;
+  appName?: string;
+  charLimit?: number;
+}
+
+/**
+ * Fetch a translation from `/api/ai` and apply it via `onChange`, or surface
+ * a localized toast on failure. Extracted from `handleTranslate` so the
+ * failure path (previously swallowed) is directly testable.
+ */
+export async function fetchTranslation(
+  args: TranslateFieldArgs,
+  t: (key: MessageKey, params?: Record<string, string | number>) => string,
+  onChange: (newValue: string) => void,
+): Promise<void> {
+  try {
+    const res = await fetch("/api/ai", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "translate",
+        text: args.baseValue,
+        field: args.field,
+        fromLocale: args.fromLocale,
+        toLocale: args.toLocale,
+        appName: args.appName,
+        charLimit: args.charLimit,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      toast.error(aiErrorMessage(data.error, t) ?? t("errors.aiRequestFailed"));
+      return;
+    }
+
+    onChange(data.result);
+  } catch {
+    toast.error(t("errors.aiRequestFailed"));
+  }
+}
+
 export function MagicWandButton({
   value,
   onChange,
@@ -158,27 +207,11 @@ export function MagicWandButton({
   function handleTranslate() {
     if (!requireAI()) return;
     setTranslating(true);
-    fetch("/api/ai", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "translate",
-        text: baseValue,
-        field,
-        fromLocale: baseLocale,
-        toLocale: locale,
-        appName,
-        charLimit,
-      }),
-    })
-      .then(async (res) => {
-        const data = await res.json();
-        if (res.ok) {
-          onChange(data.result);
-        }
-      })
-      .catch(() => {})
-      .finally(() => setTranslating(false));
+    fetchTranslation(
+      { baseValue, field, fromLocale: baseLocale, toLocale: locale, appName, charLimit },
+      t,
+      onChange,
+    ).finally(() => setTranslating(false));
   }
 
   function handleCopy() {

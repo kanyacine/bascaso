@@ -217,6 +217,7 @@ export const en = {
     aiTierNotConfigured: "This task is routed to a tier that is not configured. Configure it in Settings → AI, or route the group elsewhere.",
     appleFmUnavailable: "The Apple built-in model is unavailable",
     appleFmInputTooLarge: "This input is too large for the built-in model – use BYOK or a local server for this task",
+    aiRequestFailed: "The AI request failed. Please try again.",
   },
   connectionErrors: {
     loadAppsFailed: "Failed to load apps",

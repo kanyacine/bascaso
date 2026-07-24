@@ -28,6 +28,7 @@ import { useAIStatus } from "@/lib/hooks/use-ai-status";
 import { toast } from "sonner";
 import { useTranslations } from "@/lib/i18n/locale-context";
 import { useReviewFieldLabel } from "@/lib/i18n/use-review-field-labels";
+import { aiErrorMessage } from "@/lib/ai/ai-error";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -160,6 +161,9 @@ export function AddLocaleDialog({
   // Track whether we've already started for this open
   const initiatedRef = useRef(false);
 
+  // At most one failure toast per translate run, however many fields fail.
+  const errorToastShownRef = useRef(false);
+
   const updateField = useCallback(
     (field: string, updates: Partial<FieldState>) => {
       setFields((prev) => ({
@@ -168,6 +172,18 @@ export function AddLocaleDialog({
       }));
     },
     [],
+  );
+
+  // Show at most one failure toast per handleTranslate() run, however many
+  // fields fail – otherwise a bulk translate with e.g. Apple FM briefly down
+  // would fire one toast per field.
+  const reportTranslateFailure = useCallback(
+    (errorCode: string | undefined) => {
+      if (errorToastShownRef.current) return;
+      errorToastShownRef.current = true;
+      toast.error(aiErrorMessage(errorCode, t) ?? t("errors.aiRequestFailed"));
+    },
+    [t],
   );
 
   // Translate a single field
@@ -196,13 +212,16 @@ export function AddLocaleDialog({
           updateField(field, { value: data.result, translating: false });
           return data.result as string;
         }
+        const data = await res.json().catch(() => ({}));
+        reportTranslateFailure(data.error);
       } catch (err) {
         console.error("[add-locale] translateField: error", field, err);
+        reportTranslateFailure(undefined);
       }
       updateField(field, { translating: false });
       return undefined;
     },
-    [locale, primaryLocale, appName, updateField],
+    [locale, primaryLocale, appName, updateField, reportTranslateFailure],
   );
 
   // Fix keywords: dedupe, remove forbidden, fill budget
@@ -232,12 +251,15 @@ export function AddLocaleDialog({
           updateField("keywords", { value: data.result, translating: false });
           return;
         }
+        const data = await res.json().catch(() => ({}));
+        reportTranslateFailure(data.error);
       } catch (err) {
         console.error("[add-locale] fixKeywords: error", err);
+        reportTranslateFailure(undefined);
       }
       updateField("keywords", { translating: false });
     },
-    [locale, appName, updateField],
+    [locale, appName, updateField, reportTranslateFailure],
   );
 
   // Fetch base data when dialog opens (no auto-translate)
@@ -356,6 +378,7 @@ export function AddLocaleDialog({
     const base = baseDataRef.current;
     if (!base) return;
     console.log("[add-locale] handleTranslate: start");
+    errorToastShownRef.current = false;
 
     setFields((prev) => {
       const next = { ...prev };
@@ -452,6 +475,7 @@ export function AddLocaleDialog({
   useEffect(() => {
     if (!open) {
       initiatedRef.current = false;
+      errorToastShownRef.current = false;
       baseDataRef.current = null;
       setFields({});
       setLoading(true);

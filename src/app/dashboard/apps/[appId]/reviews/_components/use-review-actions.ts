@@ -4,6 +4,7 @@ import { useState, type Dispatch, type SetStateAction } from "react";
 import { toast } from "sonner";
 import { type Review, territoryToLocale } from "./territory-helpers";
 import { useTranslations } from "@/lib/i18n/locale-context";
+import { aiErrorMessage } from "@/lib/ai/ai-error";
 
 /** Resolve which app (and its display name) a review belongs to. */
 export type ResolveApp = (review: Review) => { appId: string; appName?: string };
@@ -185,23 +186,12 @@ export function useReviewActions<T extends Review>({
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        if (data.error === "ai_not_configured") {
+        const message = aiErrorMessage(data.error, t);
+        if (message === null) {
           setShowAIRequired(true);
           return;
         }
-        if (data.error === "ai_tier_not_configured") {
-          toast.error(t("errors.aiTierNotConfigured"));
-          return;
-        }
-        if (data.error === "apple_fm_unavailable") {
-          toast.error(t("errors.appleFmUnavailable"));
-          return;
-        }
-        if (data.error === "apple_fm_input_too_large") {
-          toast.error(t("errors.appleFmInputTooLarge"));
-          return;
-        }
-        throw new Error(data.error ?? t("reviews.toastGenerateReplyFailed"));
+        throw new Error(message);
       }
 
       const { result } = await res.json();
@@ -237,23 +227,12 @@ export function useReviewActions<T extends Review>({
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        if (data.error === "ai_not_configured") {
+        const message = aiErrorMessage(data.error, t);
+        if (message === null) {
           setShowAIRequired(true);
           return;
         }
-        if (data.error === "ai_tier_not_configured") {
-          toast.error(t("errors.aiTierNotConfigured"));
-          return;
-        }
-        if (data.error === "apple_fm_unavailable") {
-          toast.error(t("errors.appleFmUnavailable"));
-          return;
-        }
-        if (data.error === "apple_fm_input_too_large") {
-          toast.error(t("errors.appleFmInputTooLarge"));
-          return;
-        }
-        throw new Error(data.error ?? t("reviews.toastTranslationFailed"));
+        throw new Error(message);
       }
 
       const { result } = await res.json();
@@ -292,27 +271,13 @@ export function useReviewActions<T extends Review>({
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        if (data.error === "ai_not_configured") {
+        const message = aiErrorMessage(data.error, t);
+        if (message === null) {
           setAppealTarget(null);
           setShowAIRequired(true);
           return;
         }
-        if (data.error === "ai_tier_not_configured") {
-          setAppealTarget(null);
-          toast.error(t("errors.aiTierNotConfigured"));
-          return;
-        }
-        if (data.error === "apple_fm_unavailable") {
-          setAppealTarget(null);
-          toast.error(t("errors.appleFmUnavailable"));
-          return;
-        }
-        if (data.error === "apple_fm_input_too_large") {
-          setAppealTarget(null);
-          toast.error(t("errors.appleFmInputTooLarge"));
-          return;
-        }
-        throw new Error(data.error ?? t("reviews.toastGenerateAppealFailed"));
+        throw new Error(message);
       }
 
       const { result } = await res.json();

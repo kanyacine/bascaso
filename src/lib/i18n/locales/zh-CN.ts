@@ -218,6 +218,7 @@ export const zhCN: Messages = {
     aiTierNotConfigured: "此任务被路由到一个尚未配置的层级。请在设置 → AI 中进行配置，或将该分组路由到别处。",
     appleFmUnavailable: "Apple 内置模型不可用",
     appleFmInputTooLarge: "此输入对内置模型来说过大 – 请针对此任务使用 BYOK 或本地服务器",
+    aiRequestFailed: "AI 请求失败，请重试。",
   },
   connectionErrors: {
     loadAppsFailed: "加载 App 列表失败",

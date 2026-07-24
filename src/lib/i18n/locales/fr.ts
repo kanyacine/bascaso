@@ -219,6 +219,7 @@ export const fr: Messages = {
     aiTierNotConfigured: "Cette tâche est routée vers un tier non configuré. Configurez-le dans Réglages → AI, ou routez le groupe ailleurs.",
     appleFmUnavailable: "Le modèle Apple intégré est indisponible",
     appleFmInputTooLarge: "Cette entrée est trop grande pour le modèle intégré – utilisez BYOK ou un serveur local pour cette tâche",
+    aiRequestFailed: "La requête AI a échoué. Veuillez réessayer.",
   },
   connectionErrors: {
     loadAppsFailed: "Échec du chargement des apps",

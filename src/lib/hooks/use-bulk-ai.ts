@@ -1,4 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { toast } from "sonner";
+import { useTranslations } from "@/lib/i18n/locale-context";
+import { aiErrorMessage } from "@/lib/ai/ai-error";
 
 export interface BulkField {
   key: string;
@@ -58,9 +61,21 @@ export function useBulkAI({
   appName,
   guidance,
 }: UseBulkAIOptions): UseBulkAIReturn {
+  const t = useTranslations();
   const [results, setResults] = useState<Record<string, FieldResult>>({});
   const [authError, setAuthError] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+  // Identifies the current translate run (a full run, a single-field retry,
+  // or a single-locale retry) so a failure toast fires at most once per run
+  // instead of once per failing field.
+  const runIdRef = useRef(0);
+  const toastShownForRunRef = useRef<number | null>(null);
+
+  function reportRunFailure(runId: number, errorCode: string | undefined) {
+    if (toastShownForRunRef.current === runId) return;
+    toastShownForRunRef.current = runId;
+    toast.error(aiErrorMessage(errorCode, t) ?? t("errors.aiRequestFailed"));
+  }
 
   function runCopy() {
     setAuthError(false);
@@ -81,6 +96,7 @@ export function useBulkAI({
     locale: string,
     field: BulkField,
     controller: AbortController,
+    runId: number,
   ) {
     const baseFields = localeData[primaryLocale] ?? {};
     const baseValue = String(baseFields[field.key] ?? "");
@@ -125,6 +141,9 @@ export function useBulkAI({
           });
           return;
         }
+        if (!res.ok) {
+          reportRunFailure(runId, data.error);
+        }
         setResults((prev) => ({
           ...prev,
           [key]: res.ok
@@ -134,6 +153,7 @@ export function useBulkAI({
       })
       .catch(() => {
         if (controller.signal.aborted) return;
+        reportRunFailure(runId, undefined);
         setResults((prev) => ({
           ...prev,
           [key]: { status: "error", value: "" },
@@ -145,6 +165,7 @@ export function useBulkAI({
     setAuthError(false);
     const controller = new AbortController();
     abortRef.current = controller;
+    const runId = ++runIdRef.current;
 
     // Set all to loading
     const loading: Record<string, FieldResult> = {};
@@ -158,7 +179,7 @@ export function useBulkAI({
     // Fire requests for each locale x field
     for (const loc of targetLocales) {
       for (const field of fields) {
-        fireTranslate(loc, field, controller);
+        fireTranslate(loc, field, controller, runId);
       }
     }
   }
@@ -175,7 +196,7 @@ export function useBulkAI({
       }
       const key = resultKey(locale, fieldKey);
       setResults((prev) => ({ ...prev, [key]: { status: "loading", value: "" } }));
-      fireTranslate(locale, field, controller);
+      fireTranslate(locale, field, controller, ++runIdRef.current);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [fields, primaryLocale, appName, localeData, guidance],
@@ -196,8 +217,9 @@ export function useBulkAI({
         }
         return next;
       });
+      const runId = ++runIdRef.current;
       for (const f of fields) {
-        fireTranslate(locale, f, controller);
+        fireTranslate(locale, f, controller, runId);
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -219,6 +219,7 @@ export const de: Messages = {
     aiTierNotConfigured: "Diese Aufgabe ist auf eine nicht konfigurierte Stufe geroutet. Konfigurieren Sie sie unter Einstellungen → AI, oder routen Sie die Gruppe anderswohin.",
     appleFmUnavailable: "Das integrierte Apple-Modell ist nicht verfügbar",
     appleFmInputTooLarge: "Diese Eingabe ist zu groß für das integrierte Modell – verwenden Sie BYOK oder einen lokalen Server für diese Aufgabe",
+    aiRequestFailed: "Die AI-Anfrage ist fehlgeschlagen. Bitte versuchen Sie es erneut.",
   },
   connectionErrors: {
     loadAppsFailed: "Apps konnten nicht geladen werden",

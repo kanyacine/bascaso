@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { CharCount } from "@/components/char-count";
 import { useTranslations } from "@/lib/i18n/locale-context";
+import { aiErrorMessage } from "@/lib/ai/ai-error";
 
 interface AICompareDialogProps {
   open: boolean;
@@ -85,9 +86,7 @@ export function AICompareDialog({
         if (!res.ok) {
           setFetchResult({
             proposed: "",
-            error: data.error === "ai_auth_error"
-              ? t("ai.authError")
-              : data.error ?? t("ai.requestFailed"),
+            error: aiErrorMessage(data.error, t) ?? t("ai.requestFailed"),
             forKey: fetchKey,
           });
         } else {
