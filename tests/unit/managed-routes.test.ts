@@ -20,7 +20,9 @@ function post(body: unknown): Request {
 }
 
 describe("/api/managed/*", () => {
-  beforeEach(() => { vi.clearAllMocks(); });
+  // resetAllMocks (et non clearAllMocks) : seul reset vide la file des
+  // mockResolvedValueOnce – sinon une valeur non consommée fuit sur le test suivant.
+  beforeEach(() => { vi.resetAllMocks(); });
 
   it("auth POST login saves and returns the email", async () => {
     auth.signIn.mockResolvedValue({ email: "a@b.c" });
