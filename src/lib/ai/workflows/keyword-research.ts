@@ -23,10 +23,14 @@ import {
   buildComposePrompt,
   buildRelevancePrompt,
   buildSeedsPrompt,
-  type ResearchStrategy,
 } from "@/lib/ai/workflows/prompts";
+import {
+  DEFAULT_STRATEGY,
+  STRATEGIES,
+  type ResearchStrategy,
+} from "@/lib/ai/workflows/strategies";
 
-export type { ResearchStrategy } from "@/lib/ai/workflows/prompts";
+export type { ResearchStrategy } from "@/lib/ai/workflows/strategies";
 
 export interface KeywordResearchInput {
   appId: string;
@@ -95,14 +99,6 @@ export class WorkflowStepError extends Error {
 export const MAX_CANDIDATES = 120; // ponytail: hard cap, log dropped count – raise if users hit it
 const MAX_SEEDS = 25;
 
-// Multiplicateurs par classification respectASO – validés en revue le
-// 2026-07-24. Avoid reste pénalisé partout, jamais exclu.
-export const STRATEGY_WEIGHTS: Record<ResearchStrategy, Record<ClassificationLabel, number>> = {
-  balanced: { "Sweet Spot": 1.3, "Hidden Gem": 1.2, "Good Target": 1.1, "Moderate": 1.0, "Low Volume": 0.6, "High Competition": 0.4, "Avoid": 0.2 },
-  broad: { "Sweet Spot": 1.5, "Hidden Gem": 0.8, "Good Target": 1.2, "Moderate": 1.0, "Low Volume": 0.3, "High Competition": 0.6, "Avoid": 0.2 },
-  niche: { "Sweet Spot": 0.9, "Hidden Gem": 1.6, "Good Target": 1.0, "Moderate": 0.8, "Low Volume": 0.7, "High Competition": 0.2, "Avoid": 0.2 },
-};
-
 /** Strategy-weighted worth of a candidate – classification multiplier on top
  *  of the opportunity score. Unknown classifications (legacy rows) weigh 1. */
 export function strategyValue(
@@ -110,7 +106,7 @@ export function strategyValue(
   strategy: ResearchStrategy,
 ): number {
   const weight =
-    STRATEGY_WEIGHTS[strategy][candidate.classification as ClassificationLabel] ?? 1;
+    STRATEGIES[strategy].weights[candidate.classification as ClassificationLabel] ?? 1;
   return candidate.opportunity * weight;
 }
 
@@ -286,7 +282,7 @@ export async function runKeywordResearch(
   onProgress: (p: WorkflowProgress) => void,
   signal: AbortSignal,
 ): Promise<KeywordResearchResult> {
-  const strategy = input.strategy ?? "balanced";
+  const strategy = input.strategy ?? DEFAULT_STRATEGY;
   const partial: KeywordResearchResult = {
     candidates: [],
     proposal: null,

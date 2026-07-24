@@ -60,7 +60,15 @@ import { StorefrontPicker } from "../../_components/storefront-picker";
 
 // Type-only imports – erased at compile time so no server module (db, itunes,
 // provider-factory) is dragged into this client bundle.
-import type { ResearchStrategy, WorkflowStepId } from "@/lib/ai/workflows/keyword-research";
+import type { WorkflowStepId } from "@/lib/ai/workflows/keyword-research";
+// Value import – strategies.ts is a leaf (types only), so no server code
+// reaches this client bundle.
+import {
+  DEFAULT_STRATEGY,
+  RESEARCH_STRATEGIES,
+  STRATEGIES,
+  type ResearchStrategy,
+} from "@/lib/ai/workflows/strategies";
 import type { WorkflowRunView } from "@/lib/ai/workflows/run-manager";
 
 /** SSE payload shape (mirrors WorkflowEvent from the events module). */
@@ -91,20 +99,6 @@ const STEP_LABEL: Record<WorkflowStepId, MessageKey> = {
   rank: "aso.research.steps.rank",
   compose: "aso.research.steps.compose",
   report: "aso.research.steps.report",
-};
-
-const STRATEGY_LABEL: Record<ResearchStrategy, MessageKey> = {
-  balanced: "aso.research.strategies.balanced",
-  broad: "aso.research.strategies.broad",
-  niche: "aso.research.strategies.niche",
-};
-
-// Chip tint per strategy – balanced neutral, broad green, niche blue. Tinted
-// backgrounds mirror the classification chips in score-display.ts.
-const STRATEGY_CHIP: Record<ResearchStrategy, string> = {
-  balanced: "bg-muted text-muted-foreground",
-  broad: "bg-green-500/15 text-green-600 dark:text-green-400",
-  niche: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
 };
 
 interface KeywordResearchDialogProps {
@@ -143,7 +137,7 @@ export function KeywordResearchDialog({
   const t = useTranslations();
   const researchLocales = useMemo(() => storefrontLocales(storefront), [storefront]);
   const [targetLocale, setTargetLocale] = useState(researchLocales[0] ?? "en-US");
-  const [strategy, setStrategy] = useState<ResearchStrategy>("balanced");
+  const [strategy, setStrategy] = useState<ResearchStrategy>(DEFAULT_STRATEGY);
   const [runId, setRunId] = useState<string | null>(null);
   const [run, setRun] = useState<WorkflowRunView | null>(null);
   const [launching, setLaunching] = useState(false);
@@ -496,9 +490,9 @@ function FormView({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {(["balanced", "broad", "niche"] as const).map((s) => (
+            {RESEARCH_STRATEGIES.map((s) => (
               <SelectItem key={s} value={s}>
-                {t(STRATEGY_LABEL[s])}
+                {t(STRATEGIES[s].labelKey)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -532,8 +526,8 @@ function FormView({
                       </button>
                     </TableCell>
                     <TableCell>
-                      <Badge className={STRATEGY_CHIP[runStrategy]}>
-                        {t(STRATEGY_LABEL[runStrategy])}
+                      <Badge className={STRATEGIES[runStrategy].chipClass}>
+                        {t(STRATEGIES[runStrategy].labelKey)}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground tabular-nums">

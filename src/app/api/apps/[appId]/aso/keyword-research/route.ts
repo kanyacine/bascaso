@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { parseBody } from "@/lib/api-helpers";
 import {
+  RESEARCH_STRATEGIES,
+  type ResearchStrategy,
+} from "@/lib/ai/workflows/strategies";
+import {
   cancelRun,
   deleteRun,
   getLatestRun,
@@ -18,7 +22,9 @@ const bodySchema = z.object({
   subtitle: z.string().optional(),
   description: z.string().optional(),
   currentKeywords: z.string().optional(),
-  strategy: z.enum(["balanced", "broad", "niche"]).optional(),
+  strategy: z
+    .enum(RESEARCH_STRATEGIES as [ResearchStrategy, ...ResearchStrategy[]])
+    .optional(),
 });
 
 export async function POST(
