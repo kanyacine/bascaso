@@ -108,6 +108,9 @@ export function FixAllDialog({
   async function runFix() {
     const controller = new AbortController();
     abortRef.current = controller;
+    // 1 ouverture du dialogue « Fix All » = 1 action managée (1 jeton),
+    // quel que soit le nombre de locales corrigées par ce run.
+    const actionId = crypto.randomUUID();
 
     const loading: Record<string, LocaleResult> = {};
     for (const ld of fixableLocales) {
@@ -149,6 +152,7 @@ export function FixAllDialog({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             action: "fix-keywords",
+            actionId,
             text: cleaned,
             field: "keywords",
             locale: ld.locale,

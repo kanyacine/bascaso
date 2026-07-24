@@ -9,6 +9,18 @@ vi.mock("@/lib/app-preferences", () => ({
 }));
 vi.mock("@/lib/ai/settings", () => ({ getTierSettings: vi.fn() }));
 
+// Capture the config createOpenAI is built with – it's the only place the
+// x-action-id header (the managed tier's billing unit) is set. Without this
+// mock, a regression like dropping `context?.actionId` from that line (i.e.
+// always minting a fresh uuid, charging one gesture N times for N calls)
+// would pass every test in this file undetected.
+const mockCreateOpenAI = vi.fn((_config: Record<string, unknown>) => {
+  const provider = (modelId: string) => ({ modelId });
+  provider.chat = (modelId: string) => ({ modelId });
+  return provider;
+});
+vi.mock("@ai-sdk/openai", () => ({ createOpenAI: mockCreateOpenAI }));
+
 describe("managed tier resolution", () => {
   beforeEach(() => vi.clearAllMocks());
 
@@ -22,6 +34,21 @@ describe("managed tier resolution", () => {
     expect(resolved.modelId).toBe("bascaso/translate");
   });
 
+  it("passes the caller's action id verbatim as the x-action-id header, without minting a new one", async () => {
+    mockGetRoutingTier.mockReturnValue("managed");
+    mockGetValidAccessToken.mockResolvedValue("jwt-token");
+    const randomUUIDSpy = vi.spyOn(crypto, "randomUUID");
+    const { getLanguageModelForTask } = await import("@/lib/ai/provider-factory");
+    const actionId = "3f2c1b34-0000-4000-8000-000000000001";
+
+    await getLanguageModelForTask("translate", { actionId });
+
+    expect(mockCreateOpenAI).toHaveBeenCalledWith(
+      expect.objectContaining({ headers: { "x-action-id": actionId } }),
+    );
+    expect(randomUUIDSpy).not.toHaveBeenCalled();
+  });
+
   it("generates an action id when the caller does not provide one", async () => {
     mockGetRoutingTier.mockReturnValue("managed");
     mockGetValidAccessToken.mockResolvedValue("jwt-token");
@@ -30,6 +57,21 @@ describe("managed tier resolution", () => {
     const resolved = await getLanguageModelForTask("translate");
     expect(randomUUIDSpy).toHaveBeenCalled();
     expect(resolved.tier).toBe("managed");
+  });
+
+  it("stamps a freshly generated action id (not a constant) when the caller supplies none", async () => {
+    mockGetRoutingTier.mockReturnValue("managed");
+    mockGetValidAccessToken.mockResolvedValue("jwt-token");
+    const randomUUIDSpy = vi.spyOn(crypto, "randomUUID");
+    const { getLanguageModelForTask } = await import("@/lib/ai/provider-factory");
+
+    await getLanguageModelForTask("translate");
+
+    expect(randomUUIDSpy).toHaveBeenCalledTimes(1);
+    const generated = randomUUIDSpy.mock.results[0]?.value;
+    expect(mockCreateOpenAI).toHaveBeenCalledWith(
+      expect.objectContaining({ headers: { "x-action-id": generated } }),
+    );
   });
 
   it("throws ai_tier_not_configured when signed out", async () => {
