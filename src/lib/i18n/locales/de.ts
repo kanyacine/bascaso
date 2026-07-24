@@ -238,6 +238,7 @@ export const de: Messages = {
     appleFmInputTooLarge: "Diese Eingabe ist zu groß für das integrierte Modell – verwenden Sie BYOK oder einen lokalen Server für diese Aufgabe",
     appleFmLanguageUnsupported: "Das integrierte Modell unterstützt diese Sprache nicht. Verwenden Sie BYOK oder erlauben Sie nicht unterstützte Sprachen unter Einstellungen → AI.",
     aiRequestFailed: "Die AI-Anfrage ist fehlgeschlagen. Bitte versuchen Sie es erneut.",
+    aiCreditsExhausted: "Kein Guthaben mehr – Guthaben kaufen oder abonnieren unter Einstellungen → KI.",
   },
   connectionErrors: {
     loadAppsFailed: "Apps konnten nicht geladen werden",

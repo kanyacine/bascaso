@@ -97,6 +97,7 @@ export function useBulkAI({
     field: BulkField,
     controller: AbortController,
     runId: number,
+    actionId: string,
   ) {
     const baseFields = localeData[primaryLocale] ?? {};
     const baseValue = String(baseFields[field.key] ?? "");
@@ -115,6 +116,7 @@ export function useBulkAI({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         action: "translate",
+        actionId,
         text: baseValue,
         field: field.key,
         fromLocale: primaryLocale,
@@ -166,6 +168,9 @@ export function useBulkAI({
     const controller = new AbortController();
     abortRef.current = controller;
     const runId = ++runIdRef.current;
+    // 1 clic « traduire tout » = 1 action managée (1 jeton), quel que soit le
+    // nombre de locales/champs traduits par ce run.
+    const actionId = crypto.randomUUID();
 
     // Set all to loading
     const loading: Record<string, FieldResult> = {};
@@ -179,7 +184,7 @@ export function useBulkAI({
     // Fire requests for each locale x field
     for (const loc of targetLocales) {
       for (const field of fields) {
-        fireTranslate(loc, field, controller, runId);
+        fireTranslate(loc, field, controller, runId, actionId);
       }
     }
   }
@@ -196,7 +201,8 @@ export function useBulkAI({
       }
       const key = resultKey(locale, fieldKey);
       setResults((prev) => ({ ...prev, [key]: { status: "loading", value: "" } }));
-      fireTranslate(locale, field, controller, ++runIdRef.current);
+      // 1 clic « réessayer ce champ » = 1 action managée à part entière.
+      fireTranslate(locale, field, controller, ++runIdRef.current, crypto.randomUUID());
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [fields, primaryLocale, appName, localeData, guidance],
@@ -218,8 +224,11 @@ export function useBulkAI({
         return next;
       });
       const runId = ++runIdRef.current;
+      // 1 clic « réessayer cette locale » = 1 action managée, quel que soit
+      // le nombre de champs de cette locale.
+      const actionId = crypto.randomUUID();
       for (const f of fields) {
-        fireTranslate(locale, f, controller, runId);
+        fireTranslate(locale, f, controller, runId, actionId);
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -154,6 +154,9 @@ export async function POST(
       });
     }
     const category = classifyAIError(err);
+    if (category === "credits") {
+      return NextResponse.json({ error: "ai_credits_exhausted" }, { status: 402 });
+    }
     if (category === "auth" || category === "permission") {
       return NextResponse.json({ error: "ai_auth_error" }, { status: 401 });
     }

@@ -235,6 +235,7 @@ export const zhCN: Messages = {
     appleFmInputTooLarge: "此输入对内置模型来说过大 – 请针对此任务使用 BYOK 或本地服务器",
     appleFmLanguageUnsupported: "内置模型不支持此语言。请使用 BYOK，或在设置 → AI 中允许不受支持的语言。",
     aiRequestFailed: "AI 请求失败，请重试。",
+    aiCreditsExhausted: "点数已用完 – 请在设置 → AI 中购买点数或订阅。",
   },
   connectionErrors: {
     loadAppsFailed: "加载 App 列表失败",

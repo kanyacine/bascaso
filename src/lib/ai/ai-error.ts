@@ -25,6 +25,8 @@ export function aiErrorMessage(errorCode: string | undefined, t: Translate): str
       return t("errors.appleFmLanguageUnsupported");
     case "ai_auth_error":
       return t("ai.authError");
+    case "ai_credits_exhausted":
+      return t("errors.aiCreditsExhausted");
     default:
       return t("errors.aiRequestFailed");
   }

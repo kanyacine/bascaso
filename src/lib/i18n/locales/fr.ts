@@ -238,6 +238,7 @@ export const fr: Messages = {
     appleFmInputTooLarge: "Cette entrée est trop grande pour le modèle intégré – utilisez BYOK ou un serveur local pour cette tâche",
     appleFmLanguageUnsupported: "Le modèle intégré ne prend pas en charge cette langue. Utilisez BYOK, ou autorisez les langues non prises en charge dans Réglages → IA.",
     aiRequestFailed: "La requête AI a échoué. Veuillez réessayer.",
+    aiCreditsExhausted: "Plus de jetons – achetez des jetons ou abonnez-vous dans Réglages → IA.",
   },
   connectionErrors: {
     loadAppsFailed: "Échec du chargement des apps",

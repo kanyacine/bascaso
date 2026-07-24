@@ -236,6 +236,7 @@ export const en = {
     appleFmInputTooLarge: "This input is too large for the built-in model – use BYOK or a local server for this task",
     appleFmLanguageUnsupported: "The built-in model doesn't support this language. Use BYOK, or allow unsupported languages in Settings → AI.",
     aiRequestFailed: "The AI request failed. Please try again.",
+    aiCreditsExhausted: "No credits left – buy credits or subscribe in Settings → AI.",
   },
   connectionErrors: {
     loadAppsFailed: "Failed to load apps",

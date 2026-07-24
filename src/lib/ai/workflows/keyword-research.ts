@@ -283,6 +283,8 @@ export async function runKeywordResearch(
   signal: AbortSignal,
 ): Promise<KeywordResearchResult> {
   const strategy = input.strategy ?? DEFAULT_STRATEGY;
+  // 1 run de workflow = 1 action managée (1 jeton), quels que soient ses appels LLM.
+  const actionId = crypto.randomUUID();
   const partial: KeywordResearchResult = {
     candidates: [],
     proposal: null,
@@ -316,7 +318,7 @@ export async function runKeywordResearch(
   // 2. seeds – LLM.
   const seeds = await step("seeds", 1, async () => {
     abortIfCancelled(signal);
-    const resolved = await getLanguageModelForTask("workflow-seeds");
+    const resolved = await getLanguageModelForTask("workflow-seeds", { actionId });
     const built = buildSeedsPrompt({
       appName: input.appName,
       country: input.country,
@@ -381,7 +383,7 @@ export async function runKeywordResearch(
   const relevantSet = await step("relevance", toJudge.length, async () => {
     const relevant = new Set<string>();
     if (toJudge.length === 0) return relevant;
-    const resolved = await getLanguageModelForTask("workflow-relevance");
+    const resolved = await getLanguageModelForTask("workflow-relevance", { actionId });
     for (let i = 0; i < toJudge.length; i += RELEVANCE_BATCH) {
       abortIfCancelled(signal);
       const batch = toJudge.slice(i, i + RELEVANCE_BATCH);
@@ -454,7 +456,7 @@ export async function runKeywordResearch(
     const top = partial.candidates.slice(0, COMPOSE_TOP);
     if (top.length === 0) return;
     abortIfCancelled(signal);
-    const resolved = await getLanguageModelForTask("workflow-compose");
+    const resolved = await getLanguageModelForTask("workflow-compose", { actionId });
     const built = buildComposePrompt({
       appName: input.appName,
       locale: input.locale,

@@ -38,4 +38,9 @@ describe("managed tier resolution", () => {
     const { getLanguageModelForTask, AIRoutingError } = await import("@/lib/ai/provider-factory");
     await expect(getLanguageModelForTask("translate")).rejects.toThrow(AIRoutingError);
   });
+
+  it("classifies proxy credit errors", async () => {
+    const { classifyAIError } = await import("@/lib/ai/provider-factory");
+    expect(classifyAIError(new Error('402 {"error":{"code":"insufficient_credits"}}'))).toBe("credits");
+  });
 });

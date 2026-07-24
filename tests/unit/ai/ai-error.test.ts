@@ -27,6 +27,10 @@ describe("aiErrorMessage", () => {
     expect(aiErrorMessage("ai_auth_error", t)).toBe(en.ai.authError);
   });
 
+  it("maps ai_credits_exhausted to its localized message", () => {
+    expect(aiErrorMessage("ai_credits_exhausted", t)).toBe(en.errors.aiCreditsExhausted);
+  });
+
   it("falls back to a generic failure message for unknown error codes", () => {
     expect(aiErrorMessage("something_unexpected", t)).toBe(en.errors.aiRequestFailed);
   });

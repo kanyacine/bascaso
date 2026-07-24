@@ -200,11 +200,22 @@ async function tryByokFallback(
   return byok ? resolveTier("byok", false, taskId, context) : null;
 }
 
-export type AIErrorCategory = "auth" | "permission" | "model_not_found" | "rate_limit" | "unknown";
+export type AIErrorCategory =
+  | "auth"
+  | "permission"
+  | "model_not_found"
+  | "rate_limit"
+  | "credits"
+  | "unknown";
 
 /** Classify an AI provider error by inspecting its message. */
 export function classifyAIError(err: unknown): AIErrorCategory {
   const message = err instanceof Error ? err.message : String(err);
+  // Testé en premier : le message contient « 402 », qui ne matche aucune autre
+  // catégorie, mais l'ordre le rend explicite (erreur du proxy managed).
+  if (/insufficient_credits/i.test(message)) {
+    return "credits";
+  }
   if (/401|unauthorized|invalid.*key|invalid.*api|incorrect.*key|authentication/i.test(message)) {
     return "auth";
   }
@@ -225,6 +236,7 @@ const ERROR_MESSAGES: Record<AIErrorCategory, string | null> = {
   permission: "API key lacks required permissions",
   model_not_found: "Model not found – check your provider and model selection",
   rate_limit: null, // Rate limited but key is valid
+  credits: null, // Géré par les routes, pas par validateApiKey
   unknown: null, // Handled separately with original message
 };
 
