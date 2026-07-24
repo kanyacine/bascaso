@@ -38,6 +38,18 @@ export const aiSettings = sqliteTable("ai_settings", {
     .$defaultFn(() => new Date().toISOString()),
 });
 
+// Session du compte bascaso cloud (tier managé). Une seule ligne ;
+// encrypted_session = JSON { accessToken, refreshToken, expiresAt } chiffré AES-GCM.
+export const managedAccount = sqliteTable("managed_account", {
+  id: text("id").primaryKey().$defaultFn(ulid),
+  email: text("email").notNull(),
+  encryptedSession: text("encrypted_session").notNull(),
+  iv: text("iv").notNull(),
+  authTag: text("auth_tag").notNull(),
+  encryptedDek: text("encrypted_dek").notNull(),
+  updatedAt: text("updated_at").notNull().$defaultFn(() => new Date().toISOString()),
+});
+
 // --- Cache ---
 
 export const cacheEntries = sqliteTable("cache_entries", {
