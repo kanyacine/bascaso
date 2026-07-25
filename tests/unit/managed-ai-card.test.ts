@@ -100,6 +100,20 @@ describe("authenticateManaged", () => {
     expect(result).toEqual({ ok: false, reason: "network" });
   });
 
+  // #4 du roll-up (relecture) : le 500 renvoyé par route.ts pour une panne
+  // réseau côté cloud managé ne doit pas retomber sur "reason: auth" – ça
+  // afficherait "vérifiez votre mot de passe" pour une coupure réseau,
+  // exactement le préjudice que #4 existait pour supprimer.
+  it("reports reason 'network' (not 'auth') on a 500 from the route", async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: () => Promise.resolve({ error: "Unable to reach bascaso cloud" }),
+    });
+    const result = await authenticateManaged("login", "a@b.co", "password123");
+    expect(result).toEqual({ ok: false, reason: "network" });
+  });
+
   // Coeur du correctif (a) : un signup accepté par GoTrue mais en attente de
   // confirmation doit se distinguer d'un succès simple, sans passer par la
   // branche "reason: auth" (ce n'est pas un échec d'identifiants).
@@ -139,6 +153,13 @@ describe("verifyManagedSignup", () => {
 
   it("reports reason 'network' when the fetch itself throws", async () => {
     fetchMock.mockRejectedValue(new TypeError("Failed to fetch"));
+    const result = await verifyManagedSignup("a@b.co", "123456");
+    expect(result).toEqual({ ok: false, reason: "network" });
+  });
+
+  // #4 du roll-up (relecture) : même correctif que authenticateManaged.
+  it("reports reason 'network' (not 'auth') on a 500 from the route", async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 500 });
     const result = await verifyManagedSignup("a@b.co", "123456");
     expect(result).toEqual({ ok: false, reason: "network" });
   });

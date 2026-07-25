@@ -329,6 +329,76 @@ describe("runKeywordResearch – iTunes throttle degrades instead of failing", (
     expect(err.step).toBe("expand");
     expect(err.partial.skippedKeywords).toEqual([]);
   });
+
+  // Reviewer probe #1 (Critical 1): a total outage – every scoreKeyword call
+  // throws – used to "succeed" with 0 candidates / null proposal, and that
+  // empty run was persisted into the report history by listRuns (which only
+  // lists succeeded runs). It must now fail loudly instead, the way the whole
+  // run did before this file's degrade behaviour existed.
+  it("fails the run (does not succeed empty) on a total iTunes outage – reviewer probe #1", async () => {
+    relevantResponse = allRelevant;
+    mockScoreKeyword.mockImplementation(async () => {
+      throw new ItunesRateLimited("iTunes API rate-limited (429)");
+    });
+
+    const err = await runKeywordResearch(input, () => {}, new AbortController().signal).catch((e) => e);
+
+    expect(err).toBeInstanceOf(WorkflowStepError);
+    expect(err.step).toBe("score");
+    expect(err.partial.candidates.length).toBe(0);
+    expect((err.cause as Error).message).toContain("itunes_unavailable");
+    // Circuit breaker: only the 3 seeds are ever attempted (the failure that
+    // trips the breaker happens on the 3rd of them) – every harvested
+    // candidate the "score" step would otherwise have scored is skipped
+    // without a single further call, instead of paying the retry ladder for
+    // each of them.
+    expect(mockScoreKeyword).toHaveBeenCalledTimes(3);
+  });
+
+  // Reviewer probe #2 (Critical 2): 7 of 8 keywords skipped, one survivor –
+  // used to produce a one-click-appliable proposal built from a single
+  // scored keyword. It must now fail instead (ceiling), never reach the UI.
+  it("fails a thin-sample run instead of shipping an applyable proposal from one survivor – reviewer probe #2", async () => {
+    relevantResponse = allRelevant;
+    mockScoreKeyword.mockImplementation(async (keyword: string) => {
+      if (keyword === "habit tracker") return makeScore(keyword);
+      throw new ItunesRateLimited("iTunes API rate-limited (429)");
+    });
+
+    const err = await runKeywordResearch(input, () => {}, new AbortController().signal).catch((e) => e);
+
+    expect(err).toBeInstanceOf(WorkflowStepError);
+    expect(err.step).toBe("score");
+    expect(err.partial.candidates.length).toBe(1);
+    expect(err.partial.candidates[0].keyword).toBe("habit tracker");
+    expect((err.cause as Error).message).toContain("itunes_unavailable");
+    // Breaker trips on the 3rd straight failure (daily planner, goals, then
+    // the first harvested attempt) – nothing beyond that is even attempted.
+    expect(mockScoreKeyword).toHaveBeenCalledTimes(4);
+  });
+
+  it("stops attempting once the circuit breaker trips, without paying the retry ladder for the rest", async () => {
+    seedsResponse = ["s1", "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9", "s10"];
+    relevantResponse = allRelevant;
+    mockScoreKeyword.mockImplementation(async (keyword: string) => {
+      if (["s8", "s9", "s10"].includes(keyword)) {
+        throw new ItunesRateLimited("iTunes API rate-limited (429)");
+      }
+      return makeScore(keyword);
+    });
+
+    const result = await runKeywordResearch(input, () => {}, new AbortController().signal);
+
+    const scoredSeeds = result.candidates.filter((c) => c.source === "seed").map((c) => c.keyword);
+    expect(scoredSeeds).toEqual(["s1", "s2", "s3", "s4", "s5", "s6", "s7"]);
+    expect(result.skippedKeywords).toEqual(expect.arrayContaining(["s8", "s9", "s10"]));
+    // 10 seeds attempted (7 succeed, 3 fail and trip the breaker) – no
+    // harvested candidate is ever attempted since the breaker is already
+    // open by the time the "score" step runs.
+    expect(mockScoreKeyword).toHaveBeenCalledTimes(10);
+    // 7/10 = 70 % ≥ 30 % ceiling – still a usable, applyable proposal.
+    expect(result.proposal).not.toBeNull();
+  });
 });
 
 describe("runKeywordResearch – abort during scoring", () => {

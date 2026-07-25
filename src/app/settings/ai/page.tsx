@@ -93,6 +93,11 @@ export async function authenticateManaged(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ mode, email, password }),
     });
+    // Un 5xx est une panne réseau/serveur en parlant au cloud managé (voir
+    // route.ts), pas un problème d'identifiants – testé avant de lire le
+    // corps, sinon ce 500 (sans `code`) retombe sur managedAuthFailed
+    // ("vérifiez votre mot de passe") pour une coupure réseau.
+    if (res.status >= 500) return { ok: false, reason: "network" };
     if (!res.ok) {
       // La confirmation email active en prod rend "déjà inscrit" et "quota
       // d'emails dépassé" probables – ni l'un ni l'autre n'est un problème
@@ -157,6 +162,7 @@ export async function verifyManagedSignup(email: string, code: string): Promise<
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ mode: "verify", email, code }),
     });
+    if (res.status >= 500) return { ok: false, reason: "network" };
     return res.ok ? { ok: true } : { ok: false, reason: "auth" };
   } catch {
     return { ok: false, reason: "network" };

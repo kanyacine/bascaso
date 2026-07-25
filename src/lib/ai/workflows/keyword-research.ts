@@ -14,6 +14,21 @@
 // it is skipped and recorded in `skippedKeywords`, and the run keeps going
 // with whatever did score. Any other error still aborts (WorkflowStepError) –
 // only the iTunes-specific failure modes degrade.
+//
+// Three guards keep "degrade" from becoming its own failure mode:
+// - CONSECUTIVE_ITUNES_FAILURE_LIMIT trips a circuit breaker after N
+//   straight iTunes failures: the remaining keywords are skipped without
+//   even attempting them, so a fully-throttled run costs a handful of failed
+//   calls (~30 s) instead of paying the full retry/backoff ladder for every
+//   remaining keyword (tens of minutes – risking a second debit past the
+//   90-minute per-action window).
+// - MIN_SCORED_FRACTION: below this fraction of attempted keywords actually
+//   scored, the surviving sample is too thin to build a proposal a user
+//   should one-click-apply – the run fails instead of succeeding on a token
+//   sample.
+// - Zero scored candidates always fails loudly, the way the whole run used
+//   to before this file existed – degrading must mean "some data missing",
+//   never "no data, silently reported as done".
 
 import type { ZodType } from "zod";
 import { appleFmInputTooLarge } from "@/lib/ai/apple-fm";
@@ -293,8 +308,42 @@ const abortIfCancelled = (signal: AbortSignal): void => {
 /** True for the two iTunes-side failure modes that mean "this keyword didn't
  *  score" rather than a real bug – see itunes.ts. Any other error (a DB
  *  write failure, a programming error…) still aborts the step. */
-function isItunesUnavailable(err: unknown): boolean {
+function isItunesUnavailable(
+  err: unknown,
+): err is ItunesRateLimited | SearchApiUnavailableError {
   return err instanceof ItunesRateLimited || err instanceof SearchApiUnavailableError;
+}
+
+// After this many *consecutive* iTunes failures, stop attempting further
+// keywords for the rest of the run – see the file header. 3 is deliberately
+// small: each failure already represents a full itunesSearch (2 attempts,
+// ≤5 s apart) plus the adaptive backoff before the next call (grows ×1.6 per
+// failure, 3 s → 4.8 s → 7.68 s...), so 3 in a row is a strong, fast signal
+// (worst case ≈30 s) that iTunes is down for the rest of this run, not a
+// one-off blip a human would wait out.
+const CONSECUTIVE_ITUNES_FAILURE_LIMIT = 3;
+
+// Below this fraction of attempted keywords actually scored, the run fails
+// instead of succeeding – see the file header. 0.3 is chosen so the
+// pathological case the breaker exists to prevent (a couple of early
+// successes, then throttling for the rest – e.g. 1 scored out of 8 attempted,
+// 12.5 %) still fails loudly, while a run where sustained throttling only
+// hit after a broad, representative sample was already gathered (e.g. 20 of
+// 30 planned keywords) still delivers a proposal worth the spent credit.
+const MIN_SCORED_FRACTION = 0.3;
+
+/**
+ * Pure floor+ceiling decision, isolated from the orchestrator so the boundary
+ * math is testable without engineering exact mock call sequences. `scored`
+ * and `skipped` are counts of *attempted* keywords only (candidates that were
+ * never attempted at all – e.g. filtered out as irrelevant – don't belong in
+ * either number). Floor: any skips with zero scores fails outright. Ceiling:
+ * a non-zero score count still fails below MIN_SCORED_FRACTION.
+ */
+export function shouldFailForThinSample(scored: number, skipped: number): boolean {
+  if (skipped === 0) return false; // clean run – iTunes never caused a skip
+  if (scored === 0) return true; // floor
+  return scored / (scored + skipped) < MIN_SCORED_FRACTION; // ceiling
 }
 
 export async function runKeywordResearch(
@@ -313,6 +362,33 @@ export async function runKeywordResearch(
     skippedKeywords: [],
   };
   const scoresByKeyword = new Map<string, KeywordScore>();
+
+  // Circuit breaker shared across the "expand" and "score" loops (both score
+  // keywords via iTunes) – see CONSECUTIVE_ITUNES_FAILURE_LIMIT above. Once
+  // tripped it stays open for the rest of this run: there is no cool-down
+  // retry, since the whole point is bounding a fully-throttled run's
+  // duration, not eventually recovering within it.
+  let consecutiveItunesFailures = 0;
+  let itunesCircuitOpen = false;
+
+  /** Records one throttled keyword: skip it, count it toward the breaker,
+   *  and log. Trips the breaker at the limit so the caller's loop stops
+   *  attempting further keywords. */
+  function recordItunesFailure(keyword: string, err: ItunesRateLimited | SearchApiUnavailableError): void {
+    partial.skippedKeywords.push(keyword);
+    consecutiveItunesFailures++;
+    if (!itunesCircuitOpen && consecutiveItunesFailures >= CONSECUTIVE_ITUNES_FAILURE_LIMIT) {
+      itunesCircuitOpen = true;
+      console.warn(
+        `[workflow] keyword-research: iTunes unavailable ${CONSECUTIVE_ITUNES_FAILURE_LIMIT} times in a row – ` +
+          "skipping the rest of this run's keywords without further attempts",
+      );
+      return;
+    }
+    console.warn(
+      `[workflow] keyword-research: iTunes still unavailable for "${keyword}" – skipping (${err.message})`,
+    );
+  }
 
   const step = async <T>(
     id: WorkflowStepId,
@@ -366,8 +442,16 @@ export async function runKeywordResearch(
     for (let i = 0; i < seeds.length; i++) {
       abortIfCancelled(signal);
       const keyword = seeds[i];
+      if (itunesCircuitOpen) {
+        // Le disjoncteur est déjà ouvert – ne pas retenter, juste marquer
+        // manquant sans payer l'échelle de backoff.
+        partial.skippedKeywords.push(keyword);
+        onProgress({ step: "expand", done: i + 1, total: seeds.length });
+        continue;
+      }
       try {
         const score = await scoreKeyword(keyword, input.country, input.appAppleId ?? undefined);
+        consecutiveItunesFailures = 0;
         scoresByKeyword.set(keyword, score);
         partial.candidates.push({
           keyword,
@@ -388,10 +472,7 @@ export async function runKeywordResearch(
         // Le crédit géré est déjà dépensé (premier appel LLM à l'étape "seeds") –
         // une seed non scorable devient un point de donnée manquant, pas un run
         // avorté.
-        partial.skippedKeywords.push(keyword);
-        console.warn(
-          `[workflow] keyword-research: iTunes still unavailable for seed "${keyword}" – skipping (${(err as Error).message})`,
-        );
+        recordItunesFailure(keyword, err);
       }
       onProgress({ step: "expand", done: i + 1, total: seeds.length });
     }
@@ -457,8 +538,14 @@ export async function runKeywordResearch(
     for (let i = 0; i < toScore.length; i++) {
       abortIfCancelled(signal);
       const candidate = toScore[i];
+      if (itunesCircuitOpen) {
+        partial.skippedKeywords.push(candidate.keyword);
+        onProgress({ step: "score", done: i + 1, total: toScore.length });
+        continue;
+      }
       try {
         const score = await scoreKeyword(candidate.keyword, input.country, input.appAppleId ?? undefined);
+        consecutiveItunesFailures = 0;
         scoresByKeyword.set(candidate.keyword, score);
         partial.candidates.push({
           keyword: candidate.keyword,
@@ -471,12 +558,23 @@ export async function runKeywordResearch(
         });
       } catch (err) {
         if (!isItunesUnavailable(err)) throw err;
-        partial.skippedKeywords.push(candidate.keyword);
-        console.warn(
-          `[workflow] keyword-research: iTunes still unavailable for candidate "${candidate.keyword}" – skipping (${(err as Error).message})`,
-        );
+        recordItunesFailure(candidate.keyword, err);
       }
       onProgress({ step: "score", done: i + 1, total: toScore.length });
+    }
+
+    // Floor + ceiling – only fires when iTunes actually caused skips (a clean
+    // run, or one with an unrelated 0-candidate result e.g. no seeds
+    // generated, is untouched: this is scoped to the throttle failure mode).
+    if (shouldFailForThinSample(partial.candidates.length, partial.skippedKeywords.length)) {
+      const attempted = partial.candidates.length + partial.skippedKeywords.length;
+      throw new Error(
+        partial.candidates.length === 0
+          ? `itunes_unavailable: iTunes stayed unreachable for all ${attempted} attempted keyword(s) – ` +
+            "no usable data to build a proposal from"
+          : `itunes_unavailable: only ${partial.candidates.length}/${attempted} keyword(s) could be scored ` +
+            `(< ${Math.round(MIN_SCORED_FRACTION * 100)}%) – too thin a sample to propose metadata from`,
+      );
     }
   });
 

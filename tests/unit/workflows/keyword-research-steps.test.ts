@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildKeywordField, harvestCandidates, strategyValue } from "@/lib/ai/workflows/keyword-research";
+import {
+  buildKeywordField,
+  harvestCandidates,
+  shouldFailForThinSample,
+  strategyValue,
+} from "@/lib/ai/workflows/keyword-research";
 
 describe("harvestCandidates", () => {
   it("tokenizes competitor titles, lowercases, dedupes against seeds, drops short words", () => {
@@ -73,5 +78,30 @@ describe("strategyValue", () => {
 
   it("defaults unknown classifications to weight 1", () => {
     expect(strategyValue(mk("???", 40), "balanced")).toBe(40);
+  });
+});
+
+describe("shouldFailForThinSample (floor + ceiling on a degraded run)", () => {
+  it("never fails a clean run (nothing skipped), regardless of how few scored", () => {
+    expect(shouldFailForThinSample(0, 0)).toBe(false);
+    expect(shouldFailForThinSample(1, 0)).toBe(false);
+  });
+
+  it("floor: fails when iTunes caused skips and nothing at all scored", () => {
+    expect(shouldFailForThinSample(0, 1)).toBe(true);
+    expect(shouldFailForThinSample(0, 8)).toBe(true); // the reviewer's total-outage probe shape
+  });
+
+  it("ceiling: fails a non-empty but too-thin sample (1 of 8 scored, 12.5%)", () => {
+    expect(shouldFailForThinSample(1, 7)).toBe(true); // the reviewer's 1-survivor-of-8 probe shape
+  });
+
+  it("ceiling boundary: exactly 30% passes, just under fails", () => {
+    expect(shouldFailForThinSample(3, 7)).toBe(false); // 3/10 = 30% – passes
+    expect(shouldFailForThinSample(29, 71)).toBe(true); // 29/100 = 29% – fails
+  });
+
+  it("passes a run where throttling only hit after a broad sample was gathered", () => {
+    expect(shouldFailForThinSample(20, 10)).toBe(false); // 20/30 ≈ 67%
   });
 });
