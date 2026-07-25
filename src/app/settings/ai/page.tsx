@@ -499,6 +499,11 @@ export default function AISettingsPage() {
   }
 
   async function handleManagedSignOut() {
+    // Un poller de solde en cours n'a plus de sens une fois déconnecté.
+    if (managedPollRef.current) {
+      clearInterval(managedPollRef.current);
+      managedPollRef.current = null;
+    }
     try {
       await fetch("/api/managed/auth", { method: "DELETE" });
     } catch {
