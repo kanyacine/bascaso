@@ -99,6 +99,7 @@ export function createTestDb() {
       result TEXT,
       error TEXT,
       action_id TEXT,
+      action_started_at TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );

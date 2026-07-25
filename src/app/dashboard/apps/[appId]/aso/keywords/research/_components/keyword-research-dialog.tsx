@@ -121,13 +121,20 @@ const WORKFLOW_MAX_DURATION_MS = 60 * 60 * 1000;
  * min), not the raw 90: a run that already burned close to its own budget
  * before failing is exactly the case that must NOT be offered a free retry,
  * because retrying it can also take up to another hour. A fast failure
- * (the common case) leaves `createdAt` recent, comfortably inside 30 min,
- * so it stays free.
+ * (the common case) leaves the action recent, comfortably inside 30 min, so
+ * it stays free.
+ *
+ * The argument is `actionStartedAt` – when the actionId was MINTED – never a
+ * run's own `createdAt`. The two only agree on the first hop: each retry
+ * writes a fresh row while reusing the same action, so measuring from
+ * `createdAt` restarted the backend's clock at every hop, and a chain of two
+ * or more retries kept promising a free replay well past the real 90-minute
+ * window – the replay then failing with `action_exhausted`.
  */
 const SAFE_RETRY_WINDOW_MS = MANAGED_ACTION_WINDOW_MS - WORKFLOW_MAX_DURATION_MS;
 
-export function canRetryForFree(createdAt: string): boolean {
-  return Date.now() - new Date(createdAt).getTime() < SAFE_RETRY_WINDOW_MS;
+export function canRetryForFree(actionStartedAt: string): boolean {
+  return Date.now() - new Date(actionStartedAt).getTime() < SAFE_RETRY_WINDOW_MS;
 }
 
 interface KeywordResearchDialogProps {
@@ -384,6 +391,10 @@ export function KeywordResearchDialog({
         // catch-up GET; irrelevant meanwhile since retry only reads it from
         // a terminal run.
         actionId: retryActionId ?? null,
+        // A retry inherits the action's original mint time – NOT this row's
+        // own start, which would restart the replay window (see run-manager's
+        // mintedAt, which is the authoritative version of this same rule).
+        actionStartedAt: (retryActionId && run?.actionStartedAt) || nowIso,
       });
       setRunId(id);
     } catch {
@@ -458,7 +469,9 @@ export function KeywordResearchDialog({
                 onAddKeywords={onAddKeywords}
                 onRetry={() =>
                   launch(
-                    run.actionId && canRetryForFree(run.createdAt) ? run.actionId : undefined,
+                    run.actionId && canRetryForFree(run.actionStartedAt)
+                      ? run.actionId
+                      : undefined,
                   )
                 }
                 retrying={launching}
@@ -735,7 +748,7 @@ function ResultsView({
             {run.actionId && (
               <span className="text-xs text-muted-foreground">
                 {t(
-                  canRetryForFree(run.createdAt)
+                  canRetryForFree(run.actionStartedAt)
                     ? "aso.research.retryHint"
                     : "aso.research.retryUsesNewCredit",
                 )}

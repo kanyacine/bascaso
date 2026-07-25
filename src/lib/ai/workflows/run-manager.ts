@@ -58,6 +58,14 @@ export interface WorkflowRunView {
    *  retried under the same managed action instead of billing a second one –
    *  see startKeywordResearch. */
   actionId: string | null;
+  /** When `actionId` was first minted – the instant the backend's replay
+   *  window starts running, which is what a "free retry?" decision must be
+   *  measured against. Distinct from `createdAt` as soon as a retry chain is
+   *  two hops long: each retry is a fresh row with its own `createdAt` but the
+   *  SAME action, so reading `createdAt` would restart the clock at every hop
+   *  and keep offering a free replay long after the action really expired.
+   *  Falls back to `createdAt` for rows predating the column. */
+  actionStartedAt: string;
 }
 
 interface InFlightRun {
@@ -89,6 +97,7 @@ function toView(row: WorkflowRunRow): WorkflowRunView {
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     actionId: row.actionId,
+    actionStartedAt: row.actionStartedAt ?? row.createdAt,
   };
 }
 
@@ -189,6 +198,25 @@ async function driveRun(
   }
 }
 
+/** Earliest known start of `actionId` across the runs that share it, so a
+ *  retry chain keeps measuring its replay window from the original mint rather
+ *  than from its latest hop. Takes the minimum over every row (ISO-8601 sorts
+ *  chronologically) instead of the oldest row's value alone: reports are
+ *  deletable, and the chain's head row may well be gone. `fallback` is the
+ *  answer when no row survives – the action is then effectively new to us.
+ *  ponytail: full scan of a small local table, keyed lookup if it ever grows. */
+function mintedAt(actionId: string, fallback: string): string {
+  return db
+    .select({ startedAt: workflowRuns.actionStartedAt, createdAt: workflowRuns.createdAt })
+    .from(workflowRuns)
+    .where(eq(workflowRuns.actionId, actionId))
+    .all()
+    .reduce((earliest, row) => {
+      const started = row.startedAt ?? row.createdAt;
+      return started < earliest ? started : earliest;
+    }, fallback);
+}
+
 /**
  * Start a keyword-research run for an app. Returns the new runId, or
  * `{ error: "already_running" }` when a run for the same app is still
@@ -198,7 +226,9 @@ async function driveRun(
  * `input.actionId` lets a retry reuse a previous (failed) run's action –
  * resolved here rather than inside runKeywordResearch so it can be persisted
  * on the row at creation, before the run even starts: that's what makes it
- * available for a *future* retry if this run fails too.
+ * available for a *future* retry if this run fails too. Its original mint time
+ * travels with it (see mintedAt), so the third hop of a retry chain still
+ * knows when the backend's window actually opened.
  */
 export async function startKeywordResearch(
   input: KeywordResearchInput,
@@ -218,6 +248,7 @@ export async function startKeywordResearch(
       country: input.country,
       locale: input.locale,
       actionId,
+      actionStartedAt: input.actionId ? mintedAt(input.actionId, createdAt) : createdAt,
       status: "running",
       createdAt,
       updatedAt: createdAt,

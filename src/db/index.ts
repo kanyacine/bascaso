@@ -51,6 +51,7 @@ function init() {
     "CREATE TABLE IF NOT EXISTS keyword_score_history (keyword text NOT NULL, country text NOT NULL, popularity integer, difficulty integer NOT NULL, opportunity integer NOT NULL, result_ids text, fetched_at integer NOT NULL, PRIMARY KEY(keyword, country, fetched_at))",
     "CREATE TABLE IF NOT EXISTS workflow_runs (id text PRIMARY KEY NOT NULL, kind text NOT NULL, app_id text NOT NULL, country text NOT NULL, locale text NOT NULL, status text NOT NULL, step text, progress text, result text, error text, created_at text NOT NULL, updated_at text NOT NULL)",
     "ALTER TABLE workflow_runs ADD COLUMN action_id text",
+    "ALTER TABLE workflow_runs ADD COLUMN action_started_at text",
     "CREATE TABLE IF NOT EXISTS managed_account (id text PRIMARY KEY NOT NULL, email text NOT NULL, encrypted_session text NOT NULL, iv text NOT NULL, auth_tag text NOT NULL, encrypted_dek text NOT NULL, updated_at text NOT NULL)",
   ];
   for (const stmt of safeguardStatements) {

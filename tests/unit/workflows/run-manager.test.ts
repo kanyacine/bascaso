@@ -306,6 +306,78 @@ describe("startKeywordResearch", () => {
     expect(mockRun.mock.calls[0][0]).toMatchObject({ actionId: "reuse-me" });
   });
 
+  // Re-review Important : la fenêtre de rejeu gratuit se mesure depuis le mint
+  // de l'actionId, pas depuis le createdAt du dernier run. Chaque retry écrit
+  // une ligne neuve en réutilisant la même action : lire createdAt remettait
+  // l'horloge à zéro à chaque saut, et l'UI promettait un retry gratuit bien
+  // après l'expiration réelle côté backend.
+  it("carries the action's mint time across a multi-hop retry chain", async () => {
+    mockRun.mockResolvedValue(succeededResult);
+    const { startKeywordResearch, getRun, __whenSettled } = await loadManager();
+
+    // Horloge pilotee : sans elle les trois sauts partagent la meme
+    // milliseconde et le test ne peut plus distinguer createdAt du mint.
+    vi.useFakeTimers();
+    const mint = "2026-01-01T12:00:00.000Z";
+    vi.setSystemTime(new Date(mint));
+
+    const first = (await startKeywordResearch(input)) as { runId: string };
+    await __whenSettled(first.runId);
+    const origin = getRun(first.runId)!;
+    expect(origin.createdAt).toBe(mint);
+    expect(origin.actionStartedAt).toBe(mint); // premier saut : les deux coïncident
+
+    // Deux retries successifs sur la même action, chacun avec son propre createdAt.
+    const hops: string[] = [];
+    for (const minutes of [20, 40]) {
+      vi.setSystemTime(new Date(Date.parse(mint) + minutes * 60_000));
+      const retry = (await startKeywordResearch({
+        ...input,
+        actionId: origin.actionId!,
+      })) as { runId: string };
+      await __whenSettled(retry.runId);
+      const hop = getRun(retry.runId)!;
+      hops.push(hop.createdAt);
+      expect(hop.actionStartedAt).toBe(mint);
+    }
+    // Le 3e saut a bien son propre createdAt : c'est l'écart que la lecture de
+    // createdAt masquait.
+    expect(hops).toEqual(["2026-01-01T12:20:00.000Z", "2026-01-01T12:40:00.000Z"]);
+    vi.useRealTimers();
+  });
+
+  // La suppression d'un rapport ne doit pas rouvrir la fenêtre : le mint voyage
+  // sur chaque ligne de la chaîne, il survit donc à la perte de la tête.
+  it("keeps the mint time when the chain's head row is deleted", async () => {
+    mockRun.mockResolvedValue(succeededResult);
+    const { startKeywordResearch, getRun, deleteRun, __whenSettled } = await loadManager();
+
+    vi.useFakeTimers();
+    const mint = "2026-01-01T12:00:00.000Z";
+    vi.setSystemTime(new Date(mint));
+
+    const first = (await startKeywordResearch(input)) as { runId: string };
+    await __whenSettled(first.runId);
+    const origin = getRun(first.runId)!;
+
+    vi.setSystemTime(new Date(Date.parse(mint) + 10 * 60_000));
+    const second = (await startKeywordResearch({
+      ...input,
+      actionId: origin.actionId!,
+    })) as { runId: string };
+    await __whenSettled(second.runId);
+    expect(deleteRun(first.runId)).toBe(true);
+
+    vi.setSystemTime(new Date(Date.parse(mint) + 20 * 60_000));
+    const third = (await startKeywordResearch({
+      ...input,
+      actionId: origin.actionId!,
+    })) as { runId: string };
+    await __whenSettled(third.runId);
+    expect(getRun(third.runId)?.actionStartedAt).toBe(mint);
+    vi.useRealTimers();
+  });
+
   it("writes throttled onProgress updates (step + progress) to the row", async () => {
     const deferred = makeDeferred<KeywordResearchResult>();
     let captured: ((p: WorkflowProgress) => void) | null = null;

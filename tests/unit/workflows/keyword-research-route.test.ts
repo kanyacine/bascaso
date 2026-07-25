@@ -92,12 +92,23 @@ describe("POST /api/apps/[appId]/aso/keyword-research", () => {
   // same managed action instead of billing a second credit for one gesture.
   it("passes an actionId through when retrying a failed run", async () => {
     mockStart.mockResolvedValue({ runId: "run-3" });
+    const actionId = "0f1e2d3c-4b5a-4c7d-8e9f-a0b1c2d3e4f5";
 
-    await POST(postRequest({ ...validBody, actionId: "reuse-me" }), ctx("app-1"));
+    await POST(postRequest({ ...validBody, actionId }), ctx("app-1"));
 
-    expect(mockStart).toHaveBeenCalledWith(
-      expect.objectContaining({ actionId: "reuse-me" }),
+    expect(mockStart).toHaveBeenCalledWith(expect.objectContaining({ actionId }));
+  });
+
+  // The value becomes the managed proxy's x-action-id header, which only
+  // accepts a uuid: rejecting it here beats failing mid-run, after billing.
+  it("rejects an actionId that is not a uuid", async () => {
+    const res = await POST(
+      postRequest({ ...validBody, actionId: "reuse-me" }),
+      ctx("app-1"),
     );
+
+    expect(res.status).toBe(400);
+    expect(mockStart).not.toHaveBeenCalled();
   });
 
   it("returns 409 when a run is already running", async () => {

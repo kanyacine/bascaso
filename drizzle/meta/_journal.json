@@ -120,6 +120,13 @@
       "when": 1784974617304,
       "tag": "0016_fearless_captain_cross",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1784980925711,
+      "tag": "0017_superb_celestials",
+      "breakpoints": true
     }
   ]
 }

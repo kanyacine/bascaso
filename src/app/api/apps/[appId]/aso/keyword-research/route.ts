@@ -26,8 +26,11 @@ const bodySchema = z.object({
     .enum(RESEARCH_STRATEGIES as [ResearchStrategy, ...ResearchStrategy[]])
     .optional(),
   // Present when retrying a previous (failed) run – reuses its actionId
-  // instead of minting a fresh one, see startKeywordResearch.
-  actionId: z.string().min(1).optional(),
+  // instead of minting a fresh one, see startKeywordResearch. `uuid()` and not
+  // `min(1)`: this value becomes the managed proxy's `x-action-id`, which only
+  // accepts a uuid – anything else is rejected there, mid-run, after the first
+  // LLM call has already been billed. Same rule as /api/ai's actionId.
+  actionId: z.string().uuid().optional(),
 });
 
 export async function POST(

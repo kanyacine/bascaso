@@ -153,6 +153,12 @@ export const workflowRuns = sqliteTable("workflow_runs", {
   // actionId is free within the backend's per-action window, a fresh one on
   // every retry would bill twice for one gesture.
   actionId: text("action_id"),
+  // When `action_id` was first minted, carried over unchanged by every retry
+  // that reuses it. NOT the same as `created_at`, which is this row's own
+  // start: a retry chain would otherwise reset the clock on every hop and the
+  // UI would keep promising a free replay past the backend's real window.
+  // Nullable: rows written before this column existed fall back to created_at.
+  actionStartedAt: text("action_started_at"),
   createdAt: text("created_at")
     .notNull()
     .$defaultFn(() => new Date().toISOString()),
