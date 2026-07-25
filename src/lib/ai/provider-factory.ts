@@ -206,6 +206,11 @@ export type AIErrorCategory =
   | "model_not_found"
   | "rate_limit"
   | "credits"
+  // Les deux codes 429 propres au proxy managed – distincts de "rate_limit"
+  // (429 générique renvoyé par un fournisseur BYOK) car ils ont chacun un
+  // message et une sémantique dédiés côté UI (cap horaire vs. cap par action).
+  | "rate_limited"
+  | "action_exhausted"
   | "unknown";
 
 /** Classify an AI provider error by inspecting its message. */
@@ -215,6 +220,15 @@ export function classifyAIError(err: unknown): AIErrorCategory {
   // catégorie, mais l'ordre le rend explicite (erreur du proxy managed).
   if (/insufficient_credits/i.test(message)) {
     return "credits";
+  }
+  // Testés avant le pattern générique /429|rate.limit|quota/ ci-dessous, qui
+  // matcherait "rate_limited" par accident (rate.limit ⊂ rate_limited) et ne
+  // laisserait jamais "action_exhausted" atteindre sa propre catégorie.
+  if (/rate_limited/i.test(message)) {
+    return "rate_limited";
+  }
+  if (/action_exhausted/i.test(message)) {
+    return "action_exhausted";
   }
   if (/401|unauthorized|invalid.*key|invalid.*api|incorrect.*key|authentication/i.test(message)) {
     return "auth";
@@ -237,6 +251,8 @@ const ERROR_MESSAGES: Record<AIErrorCategory, string | null> = {
   model_not_found: "Model not found – check your provider and model selection",
   rate_limit: null, // Rate limited but key is valid
   credits: null, // Géré par les routes, pas par validateApiKey
+  rate_limited: null, // Erreurs du proxy managed – jamais vues par un test de clé BYOK
+  action_exhausted: null, // Idem
   unknown: null, // Handled separately with original message
 };
 

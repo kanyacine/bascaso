@@ -427,6 +427,40 @@ describe("AI route", () => {
     expect(await response.json()).toEqual({ error: "AI request failed" });
   });
 
+  it("maps the proxy's hourly rate-limit code to a 429 with ai_rate_limited", async () => {
+    const { POST } = await import("@/app/api/ai/route");
+    mockGenerateText.mockRejectedValue(new Error('429 {"error":{"code":"rate_limited"}}'));
+    mockClassifyAIError.mockReturnValue("rate_limited");
+
+    const response = await POST(
+      new Request("http://localhost", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "improve", text: "hello", locale: "en-US" }),
+      }),
+    );
+
+    expect(response.status).toBe(429);
+    expect(await response.json()).toEqual({ error: "ai_rate_limited" });
+  });
+
+  it("maps the proxy's action-exhausted code to a 429 with ai_action_exhausted", async () => {
+    const { POST } = await import("@/app/api/ai/route");
+    mockGenerateText.mockRejectedValue(new Error('429 {"error":{"code":"action_exhausted"}}'));
+    mockClassifyAIError.mockReturnValue("action_exhausted");
+
+    const response = await POST(
+      new Request("http://localhost", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "improve", text: "hello", locale: "en-US" }),
+      }),
+    );
+
+    expect(response.status).toBe(429);
+    expect(await response.json()).toEqual({ error: "ai_action_exhausted" });
+  });
+
   it("passes google thinkingLevel low for gemini-3 models", async () => {
     const { POST } = await import("@/app/api/ai/route");
     mockGetLanguageModelForTask.mockResolvedValue({

@@ -424,4 +424,32 @@ describe("analytics insights route", () => {
     expect(response.status).toBe(500);
     expect(await response.json()).toEqual({ error: "AI request failed" });
   });
+
+  it("POST maps the proxy's hourly rate-limit code to a 429 with ai_rate_limited", async () => {
+    const { POST } = await import("@/app/api/apps/[appId]/analytics/insights/route");
+    mockCacheGet.mockReturnValueOnce(analyticsData).mockReturnValueOnce(null);
+    mockGenerateObjectWithRepair.mockRejectedValue(new Error('429 {"error":{"code":"rate_limited"}}'));
+    mockClassifyAIError.mockReturnValue("rate_limited");
+
+    const response = await POST(new Request("http://localhost", { method: "POST" }), {
+      params: Promise.resolve({ appId: "app-1" }),
+    });
+
+    expect(response.status).toBe(429);
+    expect(await response.json()).toEqual({ error: "ai_rate_limited" });
+  });
+
+  it("POST maps the proxy's action-exhausted code to a 429 with ai_action_exhausted", async () => {
+    const { POST } = await import("@/app/api/apps/[appId]/analytics/insights/route");
+    mockCacheGet.mockReturnValueOnce(analyticsData).mockReturnValueOnce(null);
+    mockGenerateObjectWithRepair.mockRejectedValue(new Error('429 {"error":{"code":"action_exhausted"}}'));
+    mockClassifyAIError.mockReturnValue("action_exhausted");
+
+    const response = await POST(new Request("http://localhost", { method: "POST" }), {
+      params: Promise.resolve({ appId: "app-1" }),
+    });
+
+    expect(response.status).toBe(429);
+    expect(await response.json()).toEqual({ error: "ai_action_exhausted" });
+  });
 });

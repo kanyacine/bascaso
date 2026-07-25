@@ -157,6 +157,12 @@ export async function POST(
     if (category === "credits") {
       return NextResponse.json({ error: "ai_credits_exhausted" }, { status: 402 });
     }
+    if (category === "rate_limited") {
+      return NextResponse.json({ error: "ai_rate_limited" }, { status: 429 });
+    }
+    if (category === "action_exhausted") {
+      return NextResponse.json({ error: "ai_action_exhausted" }, { status: 429 });
+    }
     if (category === "auth" || category === "permission") {
       return NextResponse.json({ error: "ai_auth_error" }, { status: 401 });
     }

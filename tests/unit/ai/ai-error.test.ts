@@ -31,6 +31,14 @@ describe("aiErrorMessage", () => {
     expect(aiErrorMessage("ai_credits_exhausted", t)).toBe(en.errors.aiCreditsExhausted);
   });
 
+  it("maps ai_rate_limited to its localized message", () => {
+    expect(aiErrorMessage("ai_rate_limited", t)).toBe(en.errors.aiRateLimited);
+  });
+
+  it("maps ai_action_exhausted to its localized message", () => {
+    expect(aiErrorMessage("ai_action_exhausted", t)).toBe(en.errors.aiActionExhausted);
+  });
+
   it("falls back to a generic failure message for unknown error codes", () => {
     expect(aiErrorMessage("something_unexpected", t)).toBe(en.errors.aiRequestFailed);
   });

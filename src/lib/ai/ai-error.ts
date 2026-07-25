@@ -27,6 +27,10 @@ export function aiErrorMessage(errorCode: string | undefined, t: Translate): str
       return t("ai.authError");
     case "ai_credits_exhausted":
       return t("errors.aiCreditsExhausted");
+    case "ai_rate_limited":
+      return t("errors.aiRateLimited");
+    case "ai_action_exhausted":
+      return t("errors.aiActionExhausted");
     default:
       return t("errors.aiRequestFailed");
   }

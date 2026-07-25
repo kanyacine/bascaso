@@ -85,4 +85,18 @@ describe("managed tier resolution", () => {
     const { classifyAIError } = await import("@/lib/ai/provider-factory");
     expect(classifyAIError(new Error('402 {"error":{"code":"insufficient_credits"}}'))).toBe("credits");
   });
+
+  // Les deux codes 429 renvoyés par le proxy managed – aucun des deux n'avait
+  // de catégorie dédiée avant ce correctif (rate_limited retombait dans le
+  // "rate_limit" générique BYOK, action_exhausted dans "unknown"), donc les
+  // routes IA les faisaient tous deux échouer en 500 générique.
+  it("classifies proxy hourly rate-limit errors distinctly from generic BYOK rate limits", async () => {
+    const { classifyAIError } = await import("@/lib/ai/provider-factory");
+    expect(classifyAIError(new Error('429 {"error":{"code":"rate_limited"}}'))).toBe("rate_limited");
+  });
+
+  it("classifies proxy action-exhausted errors", async () => {
+    const { classifyAIError } = await import("@/lib/ai/provider-factory");
+    expect(classifyAIError(new Error('429 {"error":{"code":"action_exhausted"}}'))).toBe("action_exhausted");
+  });
 });
