@@ -27,7 +27,12 @@ describe("managed auth (GoTrue REST)", () => {
     process.env.ENCRYPTION_MASTER_KEY = TEST_MASTER_KEY;
     fetchMock.mockReset();
   });
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(() => {
+    vi.restoreAllMocks();
+    // Un test tourne volontairement la clé maître ; la beforeEach la restaure pour ce
+    // fichier, mais pas pour les suites qui partagent le même worker vitest.
+    process.env.ENCRYPTION_MASTER_KEY = TEST_MASTER_KEY;
+  });
 
   it("signIn stores the session and hits the password grant", async () => {
     fetchMock.mockResolvedValueOnce(tokenResponse());
