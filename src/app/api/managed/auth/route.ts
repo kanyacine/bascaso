@@ -34,7 +34,11 @@ export async function POST(request: Request) {
       : NextResponse.json({ confirmationRequired: true });
   } catch (err) {
     const message = err instanceof ManagedAuthError ? err.message : "Authentication failed";
-    return NextResponse.json({ error: message }, { status: 401 });
+    // Code GoTrue (ex. "user_already_exists", "over_email_send_rate_limit")
+    // quand disponible – le client s'en sert pour un message spécifique au
+    // cas plutôt que le générique "vérifiez identifiants" (voir authenticateManaged).
+    const code = err instanceof ManagedAuthError ? err.code : undefined;
+    return NextResponse.json({ error: message, code }, { status: 401 });
   }
 }
 

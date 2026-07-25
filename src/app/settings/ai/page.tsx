@@ -55,7 +55,24 @@ const MANAGED_PACKS = [
 
 type ManagedAuthResult =
   | { ok: true; confirmationRequired?: boolean }
-  | { ok: false; reason: "auth" | "network" };
+  // `code`/`message` viennent du corps du 401 (voir route.ts) : le vrai code
+  // GoTrue et son message, pour que l'appelant affiche autre chose que
+  // "vérifiez identifiants" quand ce n'est pas le problème (voir
+  // managedAuthErrorMessage).
+  | { ok: false; reason: "auth"; code?: string; message?: string }
+  | { ok: false; reason: "network" };
+
+/** `res.json().catch(...)` ne rattrape pas un `res.json` absent (le throw est
+ *  synchrone, avant la promesse) – utilisé par les tests qui ne mockent que
+ *  `ok`/`status`. Ce wrapper couvre les deux cas : méthode absente et corps
+ *  non-JSON. */
+async function safeJson(res: Response): Promise<Record<string, unknown>> {
+  try {
+    return await res.json();
+  } catch {
+    return {};
+  }
+}
 
 /**
  * Isolé du composant pour être testable sans rendu React : distingue un échec
@@ -76,11 +93,44 @@ export async function authenticateManaged(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ mode, email, password }),
     });
-    if (!res.ok) return { ok: false, reason: "auth" };
-    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      // La confirmation email active en prod rend "déjà inscrit" et "quota
+      // d'emails dépassé" probables – ni l'un ni l'autre n'est un problème
+      // d'identifiants (voir managedAuthErrorMessage côté appelant).
+      const data = await safeJson(res);
+      return { ok: false, reason: "auth", code: data.code as string | undefined, message: data.error as string | undefined };
+    }
+    const data = await safeJson(res);
     return data.confirmationRequired ? { ok: true, confirmationRequired: true } : { ok: true };
   } catch {
     return { ok: false, reason: "network" };
+  }
+}
+
+/**
+ * Message affiché sous le formulaire managé pour un échec "auth" (401). Les
+ * deux cas connus – compte déjà inscrit, quota d'emails Supabase dépassé –
+ * ont chacun une action différente et un message dédié. Le grant OAuth2 du
+ * login (mauvais mot de passe) ne porte pas de `code` : c'est le seul cas où
+ * le message générique "vérifiez vos identifiants" reste correct. Pour tout
+ * autre code (renvoyé par le serveur mais non mappé ici), on affiche son
+ * message plutôt que d'accuser un mot de passe qui n'est peut-être pas en
+ * cause – jamais le générique par défaut pour un code qu'on ne reconnaît pas.
+ */
+export function managedAuthErrorMessage(
+  code: string | undefined,
+  message: string | undefined,
+  t: (key: MessageKey, params?: Record<string, string | number>) => string,
+): string {
+  switch (code) {
+    case "user_already_exists":
+      return t("settings.ai.managedAuthUserExists");
+    case "over_email_send_rate_limit":
+      return t("settings.ai.managedAuthRateLimited");
+    case undefined:
+      return t("settings.ai.managedAuthFailed");
+    default:
+      return message || t("settings.ai.managedAuthFailed");
   }
 }
 
@@ -117,6 +167,28 @@ export async function runWithBusyFlag(setBusy: (busy: boolean) => void, fn: () =
   } finally {
     setBusy(false);
   }
+}
+
+interface ManagedSubscription {
+  status: string;
+  currentPeriodEnd: string | null;
+}
+
+/**
+ * Miroir exact de la condition de `debit_action` côté backend : un
+ * abonnement ne dispense de débit que s'il est actif/en essai ET pas expiré
+ * (`currentPeriodEnd` null = pas d'échéance connue → traité comme valide,
+ * sinon comparé à "maintenant"). Une divergence ici ferait afficher
+ * "Abonnement illimité" sur la carte alors qu'un abonnement zombie fait
+ * débiter des jetons à chaque appel IA.
+ */
+export function isManagedSubscriptionActive(
+  subscription: ManagedSubscription | null | undefined,
+): boolean {
+  if (!subscription) return false;
+  if (subscription.status !== "active" && subscription.status !== "trialing") return false;
+  if (subscription.currentPeriodEnd == null) return true;
+  return new Date(subscription.currentPeriodEnd).getTime() > Date.now();
 }
 
 interface TierSettings {
@@ -184,7 +256,9 @@ export default function AISettingsPage() {
   const [managedEmail, setManagedEmail] = useState("");
   const [managedPassword, setManagedPassword] = useState("");
   const [managedBusy, setManagedBusy] = useState(false);
-  const [managedError, setManagedError] = useState(false);
+  // Message affiché sous le formulaire (déjà localisé) plutôt qu'un simple
+  // booléen – le message dépend du code d'erreur serveur, voir managedAuthErrorMessage.
+  const [managedError, setManagedError] = useState<string | null>(null);
   // Un signup accepté mais en attente de confirmation email bascule sur un
   // 3e état de la carte : ni le formulaire de connexion, ni "connecté". Le
   // modèle d'email en place n'a qu'un lien de confirmation (pas de code – le
@@ -216,7 +290,7 @@ export default function AISettingsPage() {
       setManagedInfo({
         email: data.email,
         balance: data.balance,
-        subscribed: data.subscription?.status === "active" || data.subscription?.status === "trialing",
+        subscribed: isManagedSubscriptionActive(data.subscription),
       });
     } catch {
       // Cloud injoignable (réseau, panne) – on garde le dernier état connu sans planter.
@@ -557,14 +631,15 @@ export default function AISettingsPage() {
 
   // ── IA managée ────────────────────────────────────────────────────────────
   async function handleManagedAuth(mode: "login" | "signup") {
-    setManagedError(false);
+    setManagedError(null);
     await runWithBusyFlag(setManagedBusy, async () => {
       const result = await authenticateManaged(mode, managedEmail, managedPassword);
       if (!result.ok) {
-        // 401 (identifiants) : message inline dédié. Échec réseau : toast
-        // générique – sinon l'utilisateur cherche une faute de frappe qui
-        // n'existe pas.
-        if (result.reason === "auth") setManagedError(true);
+        // 401 : message inline dédié au code serveur (compte déjà inscrit,
+        // quota d'emails dépassé, ou identifiants invalides – voir
+        // managedAuthErrorMessage). Échec réseau : toast générique, sinon
+        // l'utilisateur cherche une faute de frappe qui n'existe pas.
+        if (result.reason === "auth") setManagedError(managedAuthErrorMessage(result.code, result.message, t));
         else toast.error(t("common.networkError"));
         return;
       }
@@ -1006,7 +1081,7 @@ export default function AISettingsPage() {
                 {t("settings.ai.managedConfirmHint", { email: managedEmail })}
               </p>
               {managedError && (
-                <p className="text-sm text-destructive">{t("settings.ai.managedAuthFailed")}</p>
+                <p className="text-sm text-destructive">{managedError}</p>
               )}
               <Button disabled={managedBusy} onClick={() => void handleManagedAuth("login")}>
                 {t("settings.ai.managedConfirmSignIn")}
@@ -1061,7 +1136,7 @@ export default function AISettingsPage() {
                 onChange={(e) => setManagedPassword(e.target.value)}
               />
               {managedError && (
-                <p className="text-sm text-destructive">{t("settings.ai.managedAuthFailed")}</p>
+                <p className="text-sm text-destructive">{managedError}</p>
               )}
               <div className="flex gap-2">
                 <Button disabled={managedBusy} onClick={() => void handleManagedAuth("login")}>

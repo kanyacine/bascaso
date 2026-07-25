@@ -46,6 +46,27 @@ describe("/api/managed/*", () => {
     expect(res.status).toBe(401);
   });
 
+  // Le body porte déjà le vrai message serveur ; il doit aussi porter le code
+  // GoTrue quand il existe, pour que le client distingue "déjà inscrit" et
+  // "quota d'emails dépassé" d'un vrai problème d'identifiants au lieu de
+  // tout collapse sur "vérifiez votre mot de passe".
+  it("auth POST surfaces the server's error code alongside the message", async () => {
+    const { ManagedAuthError } = await import("@/lib/managed/auth");
+    auth.signUp.mockRejectedValue(new ManagedAuthError("User already registered", "user_already_exists"));
+    const { POST } = await import("@/app/api/managed/auth/route");
+    const res = await POST(post({ mode: "signup", email: "a@b.co", password: "password123" }));
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: "User already registered", code: "user_already_exists" });
+  });
+
+  it("auth POST omits code when the server error carries none", async () => {
+    const { ManagedAuthError } = await import("@/lib/managed/auth");
+    auth.signIn.mockRejectedValue(new ManagedAuthError("Invalid login credentials"));
+    const { POST } = await import("@/app/api/managed/auth/route");
+    const res = await POST(post({ mode: "login", email: "a@b.co", password: "bad-pass" }));
+    expect(await res.json()).toEqual({ error: "Invalid login credentials" });
+  });
+
   it("auth POST signup returns the email when confirmations are off", async () => {
     auth.signUp.mockResolvedValue({ status: "signed_in", session: { email: "a@b.c" } });
     const { POST } = await import("@/app/api/managed/auth/route");

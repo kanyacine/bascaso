@@ -130,6 +130,8 @@ export const fr: Messages = {
       managedSubscribe: "S’abonner – 20 €/mois",
       managedManage: "Gérer mon abonnement",
       managedAuthFailed: "Échec de la connexion – vérifiez votre email et votre mot de passe.",
+      managedAuthUserExists: "Cette adresse est déjà inscrite – connectez-vous plutôt.",
+      managedAuthRateLimited: "Trop d’emails envoyés – patientez quelques minutes puis réessayez.",
       managedRefresh: "Actualiser le solde",
       managedConfirmHint: "Nous avons envoyé un email de confirmation à {email}. Ouvrez-le, confirmez, puis connectez-vous ci-dessous.",
       managedConfirmSignIn: "J’ai confirmé – me connecter",

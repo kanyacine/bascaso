@@ -130,6 +130,8 @@ export const ru: Messages = {
       managedSubscribe: "Подписаться – 20 €/мес.",
       managedManage: "Управлять подпиской",
       managedAuthFailed: "Не удалось войти – проверьте email и пароль.",
+      managedAuthUserExists: "Этот адрес уже зарегистрирован – просто войдите в аккаунт.",
+      managedAuthRateLimited: "Слишком много писем отправлено – подождите пару минут и попробуйте снова.",
       managedRefresh: "Обновить баланс",
       managedConfirmHint: "Мы отправили письмо для подтверждения на {email}. Откройте его, подтвердите и войдите ниже.",
       managedConfirmSignIn: "Я подтвердил(а) – войти",

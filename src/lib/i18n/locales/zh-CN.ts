@@ -127,6 +127,8 @@ export const zhCN: Messages = {
       managedSubscribe: "订阅 – 20 €/月",
       managedManage: "管理订阅",
       managedAuthFailed: "登录失败 – 请检查邮箱和密码。",
+      managedAuthUserExists: "该邮箱已注册 – 请直接登录。",
+      managedAuthRateLimited: "邮件发送过于频繁 – 请等待几分钟后再试。",
       managedRefresh: "刷新余额",
       managedConfirmHint: "我们已向 {email} 发送确认邮件，请打开邮件完成确认，然后在下方登录。",
       managedConfirmSignIn: "已确认，去登录",

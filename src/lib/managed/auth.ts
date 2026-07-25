@@ -7,7 +7,12 @@ import {
 } from "./account";
 
 export class ManagedAuthError extends Error {
-  constructor(message: string) {
+  // `code` porte le error_code GoTrue quand il est présent (ex. "user_already_exists",
+  // "over_email_send_rate_limit") – absent pour la forme OAuth2 du grant password
+  // (mauvais mot de passe), qui ne renvoie que error/error_description. Permet à
+  // l'appelant de distinguer ces cas d'un vrai problème d'identifiants au lieu
+  // de tout collapse sur le même message générique.
+  constructor(message: string, public code?: string) {
     super(message);
     this.name = "ManagedAuthError";
   }
@@ -26,6 +31,9 @@ interface GoTrueResponse {
   id?: string;
   error_description?: string;
   msg?: string;
+  // Code machine-readable des endpoints REST (signup/verify) – absent sur la
+  // forme OAuth2 du endpoint /token (grant password/refresh).
+  error_code?: string;
 }
 
 /** POST bas niveau vers GoTrue : ne lève jamais, laisse l'appelant décider
@@ -52,7 +60,7 @@ async function postGoTrue(
 async function goTrue(path: string, body: Record<string, string>): Promise<GoTrueResponse> {
   const { res, json } = await postGoTrue(path, body);
   if (!res.ok || !json.access_token) {
-    throw new ManagedAuthError(json.error_description ?? json.msg ?? "Authentication failed");
+    throw new ManagedAuthError(json.error_description ?? json.msg ?? "Authentication failed", json.error_code);
   }
   return json;
 }
@@ -87,7 +95,7 @@ export async function signUp(email: string, password: string): Promise<SignUpOut
     return { status: "confirmation_required" };
   }
   if (!res.ok || !json.access_token) {
-    throw new ManagedAuthError(json.error_description ?? json.msg ?? "Authentication failed");
+    throw new ManagedAuthError(json.error_description ?? json.msg ?? "Authentication failed", json.error_code);
   }
   const session = toSession(json, email);
   saveManagedSession(session);
@@ -109,7 +117,7 @@ export async function verifySignup(email: string, code: string): Promise<Managed
     ({ res, json } = await postGoTrue("verify", { type: "email", email, token: code }));
   }
   if (!res.ok || !json.access_token) {
-    throw new ManagedAuthError(json.error_description ?? json.msg ?? "Verification failed");
+    throw new ManagedAuthError(json.error_description ?? json.msg ?? "Verification failed", json.error_code);
   }
   const session = toSession(json, email);
   saveManagedSession(session);

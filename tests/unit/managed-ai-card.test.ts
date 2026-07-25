@@ -1,5 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { authenticateManaged, runWithBusyFlag, verifyManagedSignup } from "@/app/settings/ai/page";
+import {
+  authenticateManaged,
+  isManagedSubscriptionActive,
+  managedAuthErrorMessage,
+  runWithBusyFlag,
+  verifyManagedSignup,
+} from "@/app/settings/ai/page";
+import { en } from "@/lib/i18n/locales/en";
+import { getMessages, translate } from "@/lib/i18n/messages";
+
+const t = (key: Parameters<typeof translate>[1], params?: Record<string, string | number>) =>
+  translate(getMessages("en"), key, params);
 
 describe("runWithBusyFlag", () => {
   // Régression : le formulaire de connexion managé restait bloqué (boutons
@@ -57,6 +68,32 @@ describe("authenticateManaged", () => {
     expect(result).toEqual({ ok: false, reason: "auth" });
   });
 
+  // Coeur du correctif : le body du 401 porte déjà le vrai message serveur
+  // (route.ts) – il ne doit plus être jeté, sinon settings.ai.managedAuthFailed
+  // ("vérifiez votre mot de passe") s'affiche même quand ce n'est pas un
+  // problème de mot de passe (compte déjà inscrit, quota d'emails dépassé).
+  it("surfaces the server's error code and message on a 401", async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 401,
+      json: () => Promise.resolve({ error: "User already registered", code: "user_already_exists" }),
+    });
+    const result = await authenticateManaged("signup", "a@b.co", "password123");
+    expect(result).toEqual({
+      ok: false, reason: "auth", code: "user_already_exists", message: "User already registered",
+    });
+  });
+
+  it("still reports reason 'auth' when the 401 body isn't JSON", async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 401,
+      json: () => Promise.reject(new Error("not json")),
+    });
+    const result = await authenticateManaged("login", "a@b.co", "wrong-password");
+    expect(result).toEqual({ ok: false, reason: "auth" });
+  });
+
   it("reports reason 'network' when the fetch itself throws", async () => {
     fetchMock.mockRejectedValue(new TypeError("Failed to fetch"));
     const result = await authenticateManaged("login", "a@b.co", "password123");
@@ -104,5 +141,76 @@ describe("verifyManagedSignup", () => {
     fetchMock.mockRejectedValue(new TypeError("Failed to fetch"));
     const result = await verifyManagedSignup("a@b.co", "123456");
     expect(result).toEqual({ ok: false, reason: "network" });
+  });
+});
+
+describe("managedAuthErrorMessage", () => {
+  // Les deux cas rendus probables par la confirmation email en prod : ni
+  // l'un ni l'autre n'est un problème d'identifiants.
+  it("maps user_already_exists to its own localized message", () => {
+    expect(managedAuthErrorMessage("user_already_exists", "User already registered", t))
+      .toBe(en.settings.ai.managedAuthUserExists);
+  });
+
+  it("maps over_email_send_rate_limit to its own localized message", () => {
+    expect(managedAuthErrorMessage("over_email_send_rate_limit", "Email rate limit exceeded", t))
+      .toBe(en.settings.ai.managedAuthRateLimited);
+  });
+
+  // Le grant OAuth2 du login (mauvais mot de passe) ne porte pas de code :
+  // c'est le seul cas où "vérifiez identifiants" reste le bon message.
+  it("falls back to the generic credentials message when no code is present", () => {
+    expect(managedAuthErrorMessage(undefined, "Invalid login credentials", t))
+      .toBe(en.settings.ai.managedAuthFailed);
+  });
+
+  // Régression centrale du correctif : un code renvoyé par le serveur mais
+  // non mappé ne doit jamais afficher "vérifiez votre mot de passe" – ce
+  // n'est probablement pas le problème. Le message serveur est la meilleure
+  // information disponible.
+  it("surfaces the server's own message for a coded but unmapped failure", () => {
+    expect(managedAuthErrorMessage("signup_disabled", "Signups are disabled", t))
+      .toBe("Signups are disabled");
+  });
+
+  it("falls back to the generic message when a coded failure has no message", () => {
+    expect(managedAuthErrorMessage("some_future_code", undefined, t))
+      .toBe(en.settings.ai.managedAuthFailed);
+  });
+});
+
+describe("isManagedSubscriptionActive", () => {
+  const HOUR = 60 * 60 * 1000;
+  const future = () => new Date(Date.now() + HOUR).toISOString();
+  const past = () => new Date(Date.now() - HOUR).toISOString();
+
+  // Miroir exact de la condition backend de debit_action : status actif/essai
+  // ET (pas d'échéance connue OU échéance dans le futur).
+  it("is false when there is no subscription", () => {
+    expect(isManagedSubscriptionActive(null)).toBe(false);
+    expect(isManagedSubscriptionActive(undefined)).toBe(false);
+  });
+
+  it("is false for a status outside active/trialing, regardless of currentPeriodEnd", () => {
+    expect(isManagedSubscriptionActive({ status: "past_due", currentPeriodEnd: future() })).toBe(false);
+    expect(isManagedSubscriptionActive({ status: "canceled", currentPeriodEnd: null })).toBe(false);
+  });
+
+  it("is true for active/trialing with no known expiry (currentPeriodEnd null)", () => {
+    expect(isManagedSubscriptionActive({ status: "active", currentPeriodEnd: null })).toBe(true);
+    expect(isManagedSubscriptionActive({ status: "trialing", currentPeriodEnd: null })).toBe(true);
+  });
+
+  it("is true for active/trialing with a currentPeriodEnd in the future", () => {
+    expect(isManagedSubscriptionActive({ status: "active", currentPeriodEnd: future() })).toBe(true);
+    expect(isManagedSubscriptionActive({ status: "trialing", currentPeriodEnd: future() })).toBe(true);
+  });
+
+  // Le bug corrigé ici : une ligne zombie (status "active" mais échéance
+  // dépassée) ne doit plus afficher "Abonnement illimité" pendant que le
+  // backend débite des jetons à chaque appel.
+  it("is false for active/trialing with a currentPeriodEnd already in the past", () => {
+    expect(isManagedSubscriptionActive({ status: "active", currentPeriodEnd: past() })).toBe(false);
+    expect(isManagedSubscriptionActive({ status: "trialing", currentPeriodEnd: past() })).toBe(false);
   });
 });

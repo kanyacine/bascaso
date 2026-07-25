@@ -97,6 +97,50 @@ describe("managed auth (GoTrue REST)", () => {
     await expect(signUp("a@b.c", "password123")).rejects.toThrow(ManagedAuthError);
   });
 
+  // Régression : la confirmation email activée en prod rend ces deux cas
+  // probables (compte déjà inscrit, quota Supabase d'emails/heure dépassé) –
+  // ni l'un ni l'autre n'est un problème d'identifiants, donc le code GoTrue
+  // doit survivre jusqu'au client pour éviter le message générique "vérifiez
+  // votre mot de passe".
+  it("signUp carries the server's error_code for an already-registered account (422)", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: false, json: () => Promise.resolve({ error_code: "user_already_exists", msg: "User already registered" }),
+    });
+    const { signUp, ManagedAuthError } = await import("@/lib/managed/auth");
+    const err = await signUp("a@b.c", "password123").catch((e) => e);
+    expect(err).toBeInstanceOf(ManagedAuthError);
+    expect((err as InstanceType<typeof ManagedAuthError>).code).toBe("user_already_exists");
+    expect((err as Error).message).toBe("User already registered");
+  });
+
+  it("signUp carries the server's error_code when Supabase's email rate limit is hit (429)", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      json: () => Promise.resolve({
+        error_code: "over_email_send_rate_limit",
+        msg: "For security purposes, you can only request this after 57 seconds.",
+      }),
+    });
+    const { signUp, ManagedAuthError } = await import("@/lib/managed/auth");
+    const err = await signUp("a@b.c", "password123").catch((e) => e);
+    expect(err).toBeInstanceOf(ManagedAuthError);
+    expect((err as InstanceType<typeof ManagedAuthError>).code).toBe("over_email_send_rate_limit");
+  });
+
+  // Le grant OAuth2 du login (mauvais mot de passe) ne porte pas de
+  // error_code, seulement error/error_description – confirmé par le shape
+  // observé de /token?grant_type=password. `code` doit rester undefined
+  // plutôt qu'une valeur inventée.
+  it("signIn's ManagedAuthError has no code for the OAuth2 invalid_grant shape", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: false, json: () => Promise.resolve({ error: "invalid_grant", error_description: "Invalid login credentials" }),
+    });
+    const { signIn, ManagedAuthError } = await import("@/lib/managed/auth");
+    const err = await signIn("a@b.c", "bad").catch((e) => e);
+    expect(err).toBeInstanceOf(ManagedAuthError);
+    expect((err as InstanceType<typeof ManagedAuthError>).code).toBeUndefined();
+  });
+
   describe("verifySignup", () => {
     it("posts to /verify with type signup and stores the session on success", async () => {
       fetchMock.mockResolvedValueOnce(tokenResponse());

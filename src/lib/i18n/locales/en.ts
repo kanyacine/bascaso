@@ -128,6 +128,8 @@ export const en = {
       managedSubscribe: "Subscribe – €20/month",
       managedManage: "Manage subscription",
       managedAuthFailed: "Sign-in failed – check your email and password.",
+      managedAuthUserExists: "This address is already registered – sign in instead.",
+      managedAuthRateLimited: "Too many emails sent – wait a few minutes, then try again.",
       managedRefresh: "Refresh balance",
       managedConfirmHint: "We sent a confirmation email to {email}. Open it, confirm, then sign in below.",
       managedConfirmSignIn: "I've confirmed – sign in",
