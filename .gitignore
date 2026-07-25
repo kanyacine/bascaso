@@ -51,3 +51,4 @@ electron/*.js.map
 # personal/internal working docs – never committed to this public repo
 /docs/superpowers/
 /.claude/
+/.superpowers/
