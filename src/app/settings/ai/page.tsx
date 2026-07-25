@@ -555,6 +555,18 @@ export default function AISettingsPage() {
     invalidateAIStatus();
   }
 
+  // Un échec de checkout/portal n'est pas forcément réseau : le cas le plus courant est une
+  // session expirée pendant que l'onglet Réglages restait ouvert. Afficher « erreur réseau »
+  // enverrait l'utilisateur vérifier son wifi au lieu de se reconnecter – on repasse donc la
+  // carte au formulaire de connexion, qui est à la fois le diagnostic et l'action à faire.
+  function reportManagedFailure(status: number) {
+    if (status === 401) {
+      setManagedInfo(null);
+      return;
+    }
+    toast.error(t("common.unknownError"));
+  }
+
   async function handleManagedCheckout(sku: string) {
     try {
       const res = await fetch("/api/managed/checkout", {
@@ -563,7 +575,7 @@ export default function AISettingsPage() {
         body: JSON.stringify({ sku }),
       });
       if (!res.ok) {
-        toast.error(t("common.networkError"));
+        reportManagedFailure(res.status);
         return;
       }
       const { url } = await res.json();
@@ -589,7 +601,7 @@ export default function AISettingsPage() {
     try {
       const res = await fetch("/api/managed/portal", { method: "POST" });
       if (!res.ok) {
-        toast.error(t("common.networkError"));
+        reportManagedFailure(res.status);
         return;
       }
       const { url } = await res.json();
