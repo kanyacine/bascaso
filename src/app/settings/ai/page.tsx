@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -45,6 +45,13 @@ interface AppleFmStatus {
 /** Cloud providers only – the local server is configured in its own section. */
 const BYOK_PROVIDERS = AI_PROVIDERS.filter((p) => !isLocalOpenAIProvider(p.id));
 const DEFAULT_BYOK_PROVIDER = BYOK_PROVIDERS[0];
+
+// Prix indicatifs non définitifs – doivent refléter les prices Stripe du backend.
+const MANAGED_PACKS = [
+  { sku: "pack_10", credits: 10, price: "10 €" },
+  { sku: "pack_50", credits: 50, price: "45 €" },
+  { sku: "pack_100", credits: 100, price: "80 €" },
+] as const;
 
 interface TierSettings {
   provider: string;
@@ -105,6 +112,48 @@ export default function AISettingsPage() {
   const [byokStoredModel, setByokStoredModel] = useState("");
   const [savingByok, setSavingByok] = useState(false);
   const [removingByok, setRemovingByok] = useState(false);
+
+  // IA managée (bascaso cloud)
+  const [managedInfo, setManagedInfo] = useState<{ email: string; balance: number; subscribed: boolean } | null>(null);
+  const [managedEmail, setManagedEmail] = useState("");
+  const [managedPassword, setManagedPassword] = useState("");
+  const [managedBusy, setManagedBusy] = useState(false);
+  const [managedError, setManagedError] = useState(false);
+  // Un seul poller de solde actif à la fois (double achat), coupé si la page est quittée.
+  const managedPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const managedMountedRef = useRef(true);
+
+  const refreshManaged = useCallback(async () => {
+    try {
+      const res = await fetch("/api/managed/me");
+      if (!managedMountedRef.current) return;
+      if (!res.ok) {
+        setManagedInfo(null);
+        return;
+      }
+      const data = await res.json();
+      if (!managedMountedRef.current) return;
+      setManagedInfo({
+        email: data.email,
+        balance: data.balance,
+        subscribed: data.subscription?.status === "active" || data.subscription?.status === "trialing",
+      });
+    } catch {
+      // Cloud injoignable (réseau, panne) – on garde le dernier état connu sans planter.
+    }
+  }, []);
+
+  useEffect(() => {
+    managedMountedRef.current = true;
+    void refreshManaged();
+    return () => {
+      managedMountedRef.current = false;
+      if (managedPollRef.current) {
+        clearInterval(managedPollRef.current);
+        managedPollRef.current = null;
+      }
+    };
+  }, [refreshManaged]);
 
   // Routing
   const [routing, setRouting] = useState<RoutingState>(EMPTY_ROUTING);
@@ -426,6 +475,78 @@ export default function AISettingsPage() {
     setRemovingByok(false);
   }
 
+  // ── IA managée ────────────────────────────────────────────────────────────
+  async function handleManagedAuth(mode: "login" | "signup") {
+    setManagedBusy(true);
+    setManagedError(false);
+    try {
+      const res = await fetch("/api/managed/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode, email: managedEmail, password: managedPassword }),
+      });
+      if (!res.ok) {
+        setManagedError(true);
+        return;
+      }
+      setManagedPassword("");
+      invalidateAIStatus();
+      void refreshManaged();
+    } catch {
+      setManagedError(true);
+    }
+    setManagedBusy(false);
+  }
+
+  async function handleManagedSignOut() {
+    try {
+      await fetch("/api/managed/auth", { method: "DELETE" });
+    } catch {
+      // Ignoré – l'état local est réinitialisé dans tous les cas ; un rechargement
+      // reflétera l'état réel du serveur si la requête n'a pas abouti.
+    }
+    setManagedInfo(null);
+    invalidateAIStatus();
+  }
+
+  async function handleManagedCheckout(sku: string) {
+    try {
+      const res = await fetch("/api/managed/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sku }),
+      });
+      if (!res.ok) return;
+      const { url } = await res.json();
+      window.open(url, "_blank"); // Electron route _blank vers le navigateur (setWindowOpenHandler)
+
+      // Un second achat avant la fin du premier remplace le poller en cours au
+      // lieu d'en cumuler un deuxième.
+      if (managedPollRef.current) clearInterval(managedPollRef.current);
+      let ticks = 0; // polling du solde ~1 min après ouverture du checkout
+      managedPollRef.current = setInterval(() => {
+        void refreshManaged();
+        if (++ticks >= 6 && managedPollRef.current) {
+          clearInterval(managedPollRef.current);
+          managedPollRef.current = null;
+        }
+      }, 10_000);
+    } catch {
+      // Cloud injoignable – l'utilisateur peut réessayer, rien à afficher ici.
+    }
+  }
+
+  async function handleManagedPortal() {
+    try {
+      const res = await fetch("/api/managed/portal", { method: "POST" });
+      if (!res.ok) return;
+      const { url } = await res.json();
+      window.open(url, "_blank");
+    } catch {
+      // Cloud injoignable – l'utilisateur peut réessayer, rien à afficher ici.
+    }
+  }
+
   // ── Gemini key ────────────────────────────────────────────────────────────
   async function handleSaveGeminiKey() {
     if (!geminiKey.trim()) return;
@@ -739,6 +860,72 @@ export default function AISettingsPage() {
             t("settings.ai.save")
           )}
         </Button>
+      </section>
+
+      {/* IA managée – compte cloud bascaso */}
+      <section className="space-y-4">
+        <h3 className="section-title">{t("settings.ai.managedSection")}</h3>
+        <p className="text-sm text-muted-foreground">{t("settings.ai.managedHint")}</p>
+        {managedInfo === null ? (
+          <div className="max-w-[320px] space-y-2">
+            <Input
+              type="email"
+              placeholder={t("settings.ai.managedEmail")}
+              value={managedEmail}
+              onChange={(e) => setManagedEmail(e.target.value)}
+            />
+            <Input
+              type="password"
+              placeholder={t("settings.ai.managedPassword")}
+              value={managedPassword}
+              onChange={(e) => setManagedPassword(e.target.value)}
+            />
+            {managedError && (
+              <p className="text-sm text-destructive">{t("settings.ai.managedAuthFailed")}</p>
+            )}
+            <div className="flex gap-2">
+              <Button disabled={managedBusy} onClick={() => void handleManagedAuth("login")}>
+                {t("settings.ai.managedSignIn")}
+              </Button>
+              <Button variant="outline" disabled={managedBusy} onClick={() => void handleManagedAuth("signup")}>
+                {t("settings.ai.managedSignUp")}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-sm">{t("settings.ai.managedSignedInAs", { email: managedInfo.email })}</p>
+            <p className="text-sm font-medium">
+              {managedInfo.subscribed
+                ? t("settings.ai.managedUnlimited")
+                : t("settings.ai.managedBalance", { count: managedInfo.balance })}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {MANAGED_PACKS.map((p) => (
+                <Button key={p.sku} variant="outline" onClick={() => void handleManagedCheckout(p.sku)}>
+                  {t("settings.ai.managedBuyPack", { count: p.credits, price: p.price })}
+                </Button>
+              ))}
+              {managedInfo.subscribed ? (
+                <Button variant="outline" onClick={() => void handleManagedPortal()}>
+                  {t("settings.ai.managedManage")}
+                </Button>
+              ) : (
+                <Button onClick={() => void handleManagedCheckout("sub_monthly")}>
+                  {t("settings.ai.managedSubscribe")}
+                </Button>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <Button variant="ghost" size="sm" onClick={() => void refreshManaged()}>
+                {t("settings.ai.managedRefresh")}
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => void handleManagedSignOut()}>
+                {t("settings.ai.managedSignOut")}
+              </Button>
+            </div>
+          </div>
+        )}
       </section>
 
       {/* Routing */}
