@@ -263,6 +263,9 @@ describe("database schema", () => {
         id,
         email: "user@example.com",
         encryptedSession: "encrypted-session",
+        iv: "random-iv",
+        authTag: "tag",
+        encryptedDek: "encrypted-dek",
       });
     });
   });

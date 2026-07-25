@@ -33,12 +33,17 @@ export async function POST(request: Request) {
       ? NextResponse.json({ email: outcome.session.email })
       : NextResponse.json({ confirmationRequired: true });
   } catch (err) {
-    const message = err instanceof ManagedAuthError ? err.message : "Authentication failed";
-    // Code GoTrue (ex. "user_already_exists", "over_email_send_rate_limit")
-    // quand disponible – le client s'en sert pour un message spécifique au
-    // cas plutôt que le générique "vérifiez identifiants" (voir authenticateManaged).
-    const code = err instanceof ManagedAuthError ? err.code : undefined;
-    return NextResponse.json({ error: message, code }, { status: 401 });
+    if (err instanceof ManagedAuthError) {
+      // Code GoTrue (ex. "user_already_exists", "over_email_send_rate_limit")
+      // quand disponible – le client s'en sert pour un message spécifique au
+      // cas plutôt que le générique "vérifiez identifiants" (voir authenticateManaged).
+      return NextResponse.json({ error: err.message, code: err.code }, { status: 401 });
+    }
+    // Pas un ManagedAuthError : panne réseau ou bug interne en parlant au cloud
+    // managé, pas un problème d'identifiants – un 401 ferait afficher
+    // "vérifiez votre mot de passe" côté client pour une coupure réseau.
+    console.error("[managed/auth] unexpected error", err);
+    return NextResponse.json({ error: "Unable to reach bascaso cloud" }, { status: 500 });
   }
 }
 

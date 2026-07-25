@@ -109,6 +109,18 @@ describe("/api/managed/*", () => {
     expect(auth.verifySignup).not.toHaveBeenCalled();
   });
 
+  // #4 du roll-up : une panne réseau en parlant au cloud managé n'est pas un
+  // échec d'identifiants – ne doit plus se faire passer pour un 401.
+  it("auth POST maps a non-ManagedAuthError exception (network fault) to 500, not 401", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    auth.signIn.mockRejectedValue(new TypeError("fetch failed"));
+    const { POST } = await import("@/app/api/managed/auth/route");
+    const res = await POST(post({ mode: "login", email: "a@b.co", password: "password123" }));
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: "Unable to reach bascaso cloud" });
+    errorSpy.mockRestore();
+  });
+
   it("auth DELETE clears the session", async () => {
     const { DELETE } = await import("@/app/api/managed/auth/route");
     const res = await DELETE();
@@ -126,6 +138,27 @@ describe("/api/managed/*", () => {
     const res = await GET();
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ email: "a@b.c", balance: 4, subscription: null });
+  });
+
+  // #3 du roll-up : un fetch qui lève (backend injoignable) ou un res.json()
+  // qui échoue (réponse non-JSON) doit remonter la forme {error} du contrat
+  // docs/BACKEND.md plutôt que l'erreur Next générique hors contrat.
+  it("me returns a 500 {error} when the upstream fetch throws", async () => {
+    auth.getValidAccessToken.mockResolvedValueOnce("token");
+    fetchMock.mockRejectedValueOnce(new TypeError("fetch failed"));
+    const { GET } = await import("@/app/api/managed/me/route");
+    const res = await GET();
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: "fetch failed" });
+  });
+
+  it("me returns a 500 {error} when the upstream response isn't JSON", async () => {
+    auth.getValidAccessToken.mockResolvedValueOnce("token");
+    fetchMock.mockResolvedValueOnce({ ok: true, status: 200, json: () => Promise.reject(new Error("not json")) });
+    const { GET } = await import("@/app/api/managed/me/route");
+    const res = await GET();
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: "not json" });
   });
 
   it("checkout validates the sku and returns the url", async () => {
@@ -163,5 +196,23 @@ describe("/api/managed/*", () => {
     const res = await POST();
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ url: "https://stripe/portal" });
+  });
+
+  it("checkout returns a 500 {error} when the upstream fetch throws", async () => {
+    auth.getValidAccessToken.mockResolvedValue("token");
+    fetchMock.mockRejectedValueOnce(new TypeError("fetch failed"));
+    const { POST } = await import("@/app/api/managed/checkout/route");
+    const res = await POST(post({ sku: "pack_10" }));
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: "fetch failed" });
+  });
+
+  it("portal returns a 500 {error} when the upstream fetch throws", async () => {
+    auth.getValidAccessToken.mockResolvedValueOnce("token");
+    fetchMock.mockRejectedValueOnce(new TypeError("fetch failed"));
+    const { POST } = await import("@/app/api/managed/portal/route");
+    const res = await POST();
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: "fetch failed" });
   });
 });

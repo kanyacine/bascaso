@@ -255,6 +255,22 @@ describe("managed auth (GoTrue REST)", () => {
     expect(getManagedSession()).toBeNull();
   });
 
+  // #6 du roll-up : les deux catch nus de getValidAccessToken étaient
+  // silencieux – une rotation de clé maître ou une ligne corrompue en
+  // production restait invisible. Logué sans jamais exposer le token.
+  it("logs (without the token) when a refresh fails, before clearing the session", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { saveManagedSession } = await import("@/lib/managed/account");
+    saveManagedSession({ email: "a@b.c", accessToken: "old", refreshToken: "rt-dead-secret", expiresAt: 0 });
+    fetchMock.mockResolvedValueOnce({ ok: false, json: () => Promise.resolve({ error_description: "Invalid Refresh Token" }) });
+    const { getValidAccessToken } = await import("@/lib/managed/auth");
+    expect(await getValidAccessToken()).toBeNull();
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    const loggedArgs = warnSpy.mock.calls[0].join(" ");
+    expect(loggedArgs).toContain("Invalid Refresh Token");
+    expect(loggedArgs).not.toContain("rt-dead-secret");
+  });
+
   // Cas supplémentaires pour couvrir les chaînes de repli (??) de goTrue/toSession,
   // au-delà de ceux du brief.
   it("falls back to the server's msg field when error_description is absent", async () => {
@@ -309,8 +325,13 @@ describe("managed auth (GoTrue REST)", () => {
     // Rotation de la clé maître entre l'écriture et la lecture : la ligne
     // existante devient indéchiffrable (authTag mismatch).
     process.env.ENCRYPTION_MASTER_KEY = "a".repeat(64);
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const { getValidAccessToken } = await import("@/lib/managed/auth");
     await expect(getValidAccessToken()).resolves.toBeNull();
     expect(getManagedSession()).toBeNull();
+    // #6 du roll-up : cette rotation de clé doit désormais laisser une trace,
+    // jamais le token déchiffrable ("old") qui a été purgé.
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy.mock.calls[0].join(" ")).not.toContain("old");
   });
 });

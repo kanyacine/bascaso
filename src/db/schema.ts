@@ -47,7 +47,9 @@ export const managedAccount = sqliteTable("managed_account", {
   iv: text("iv").notNull(),
   authTag: text("auth_tag").notNull(),
   encryptedDek: text("encrypted_dek").notNull(),
-  updatedAt: text("updated_at").notNull().$defaultFn(() => new Date().toISOString()),
+  updatedAt: text("updated_at")
+    .notNull()
+    .$defaultFn(() => new Date().toISOString()),
 });
 
 // --- Cache ---

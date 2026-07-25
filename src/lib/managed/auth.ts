@@ -151,10 +151,16 @@ export async function getValidAccessToken(): Promise<string | null> {
   let session: ManagedSession | null;
   try {
     session = getManagedSession();
-  } catch {
+  } catch (err) {
     // Session illisible (clé maître changée, ligne corrompue…) : traitée
     // comme déconnectée. Elle ne sera plus jamais exploitable, on la purge
-    // pour éviter de répéter l'échec à chaque appel.
+    // pour éviter de répéter l'échec à chaque appel. Logué (jamais le
+    // contenu du token) pour qu'une rotation de clé mal préparée reste
+    // visible en prod plutôt qu'un silencieux "déconnecté".
+    console.warn(
+      "[managed/auth] unreadable session, clearing:",
+      err instanceof Error ? err.message : String(err),
+    );
     clearManagedSession();
     return null;
   }
@@ -167,7 +173,11 @@ export async function getValidAccessToken(): Promise<string | null> {
     );
     saveManagedSession(refreshed);
     return refreshed.accessToken;
-  } catch {
+  } catch (err) {
+    console.warn(
+      "[managed/auth] token refresh failed, clearing session:",
+      err instanceof Error ? err.message : String(err),
+    );
     clearManagedSession();
     return null;
   }
