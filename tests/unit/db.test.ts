@@ -50,6 +50,16 @@ function migrateTestDb(sqlite: InstanceType<typeof Database>) {
       fetched_at INTEGER NOT NULL,
       ttl_ms INTEGER NOT NULL
     );
+
+    CREATE TABLE managed_account (
+      id TEXT PRIMARY KEY NOT NULL,
+      email TEXT NOT NULL,
+      encrypted_session TEXT NOT NULL,
+      iv TEXT NOT NULL,
+      auth_tag TEXT NOT NULL,
+      encrypted_dek TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
   `);
 }
 
@@ -229,6 +239,34 @@ describe("database schema", () => {
         .all();
 
       expect(rows).toHaveLength(0); // stale, not returned
+    });
+  });
+
+  describe("managedAccount", () => {
+    it("inserts and queries a managed account session", () => {
+      const id = ulid();
+      const now = new Date().toISOString();
+
+      db.insert(schema.managedAccount).values({
+        id,
+        email: "user@example.com",
+        encryptedSession: "encrypted-session",
+        iv: "random-iv",
+        authTag: "tag",
+        encryptedDek: "encrypted-dek",
+        updatedAt: now,
+      }).run();
+
+      const rows = db.select().from(schema.managedAccount).all();
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({
+        id,
+        email: "user@example.com",
+        encryptedSession: "encrypted-session",
+        iv: "random-iv",
+        authTag: "tag",
+        encryptedDek: "encrypted-dek",
+      });
     });
   });
 });

@@ -14,7 +14,7 @@ export type AITaskId =
   | "workflow-compose";
 
 export type AIGroupId = "redaction" | "metadata" | "insights" | "workflows";
-export type AITier = "local" | "byok";
+export type AITier = "local" | "byok" | "managed";
 
 export const AI_TASK_GROUPS: Record<AITaskId, AIGroupId> = {
   "draft-reply": "redaction",

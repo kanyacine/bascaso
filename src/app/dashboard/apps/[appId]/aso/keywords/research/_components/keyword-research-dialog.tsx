@@ -10,6 +10,7 @@ import {
   Copy,
   Plus,
   Trash,
+  Warning,
 } from "@phosphor-icons/react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -55,6 +56,7 @@ import { storefrontCountryCode } from "@/lib/aso/storefront-country";
 import { storefrontLocales } from "@/lib/asc/storefronts";
 import { useTranslations } from "@/lib/i18n/locale-context";
 import type { MessageKey } from "@/lib/i18n/messages";
+import { aiErrorMessage, MANAGED_WORKFLOW_ERROR_CODES } from "@/lib/ai/ai-error";
 import { cn } from "@/lib/utils";
 import { StorefrontPicker } from "../../_components/storefront-picker";
 
@@ -100,6 +102,40 @@ const STEP_LABEL: Record<WorkflowStepId, MessageKey> = {
   compose: "aso.research.steps.compose",
   report: "aso.research.steps.report",
 };
+
+// Mirrors the backend's per-action replay window – kept as a local literal
+// (not imported from keyword-research.ts) so this "use client" file never
+// pulls in that module's server-only dependencies (db, itunes,
+// provider-factory), same reasoning as the STEP_LABEL/WorkflowStepId
+// type-only imports above.
+const MANAGED_ACTION_WINDOW_MS = 90 * 60 * 1000;
+// Mirrors MAX_RUN_DURATION_MS in keyword-research.ts – a retry's own worst
+// case is bounded by the same wall-clock budget the original run was.
+const WORKFLOW_MAX_DURATION_MS = 60 * 60 * 1000;
+/**
+ * A retry only reuses the original run's actionId (free replay) if there is
+ * enough of the 90-minute window left that the retry's OWN worst-case
+ * duration – up to WORKFLOW_MAX_DURATION_MS, the same wall-clock budget
+ * that bounds any run – cannot push its eventual compose call past the
+ * window. So the safe threshold is the window minus that worst case (30
+ * min), not the raw 90: a run that already burned close to its own budget
+ * before failing is exactly the case that must NOT be offered a free retry,
+ * because retrying it can also take up to another hour. A fast failure
+ * (the common case) leaves the action recent, comfortably inside 30 min, so
+ * it stays free.
+ *
+ * The argument is `actionStartedAt` – when the actionId was MINTED – never a
+ * run's own `createdAt`. The two only agree on the first hop: each retry
+ * writes a fresh row while reusing the same action, so measuring from
+ * `createdAt` restarted the backend's clock at every hop, and a chain of two
+ * or more retries kept promising a free replay well past the real 90-minute
+ * window – the replay then failing with `action_exhausted`.
+ */
+const SAFE_RETRY_WINDOW_MS = MANAGED_ACTION_WINDOW_MS - WORKFLOW_MAX_DURATION_MS;
+
+export function canRetryForFree(actionStartedAt: string): boolean {
+  return Date.now() - new Date(actionStartedAt).getTime() < SAFE_RETRY_WINDOW_MS;
+}
 
 interface KeywordResearchDialogProps {
   open: boolean;
@@ -292,7 +328,11 @@ export function KeywordResearchDialog({
     return () => es.close();
   }, [open, runId, terminal, fetchRun]);
 
-  async function launch() {
+  // `retryActionId` reuses a previous (failed) run's action instead of
+  // minting a fresh one – see startKeywordResearch. Replaying the same
+  // actionId is free within the backend's window, so a retry never bills a
+  // second credit for the same gesture.
+  async function launch(retryActionId?: string) {
     if (!country) {
       toast.error(t("keywords.selectStorefront"));
       return;
@@ -312,6 +352,7 @@ export function KeywordResearchDialog({
           description: getDescription(targetLocale) || undefined,
           currentKeywords: getKeywords(targetLocale) || undefined,
           strategy,
+          ...(retryActionId ? { actionId: retryActionId } : {}),
         }),
       });
       if (res.status === 409) {
@@ -346,6 +387,14 @@ export function KeywordResearchDialog({
         error: null,
         createdAt: nowIso,
         updatedAt: nowIso,
+        // The real (resolved server-side) actionId lands on the next
+        // catch-up GET; irrelevant meanwhile since retry only reads it from
+        // a terminal run.
+        actionId: retryActionId ?? null,
+        // A retry inherits the action's original mint time – NOT this row's
+        // own start, which would restart the replay window (see run-manager's
+        // mintedAt, which is the authoritative version of this same rule).
+        actionStartedAt: (retryActionId && run?.actionStartedAt) || nowIso,
       });
       setRunId(id);
     } catch {
@@ -418,6 +467,14 @@ export function KeywordResearchDialog({
                 readOnly={readOnly}
                 onApplyKeywords={onApplyKeywords}
                 onAddKeywords={onAddKeywords}
+                onRetry={() =>
+                  launch(
+                    run.actionId && canRetryForFree(run.actionStartedAt)
+                      ? run.actionId
+                      : undefined,
+                  )
+                }
+                retrying={launching}
               />
             )}
           </div>
@@ -631,16 +688,31 @@ function ResultsView({
   readOnly,
   onApplyKeywords,
   onAddKeywords,
+  onRetry,
+  retrying,
 }: {
   run: WorkflowRunView;
   appAppleId?: number;
   readOnly: boolean;
   onApplyKeywords: (locale: string, keywords: string) => void;
   onAddKeywords: (keywords: string[]) => void;
+  onRetry: () => void;
+  retrying: boolean;
 }) {
   const t = useTranslations();
   const result = run.result;
   const failed = run.status === "failed";
+  const failureMessage =
+    failed && run.error && MANAGED_WORKFLOW_ERROR_CODES.has(run.error) ? aiErrorMessage(run.error, t) : null;
+  const hasProposal = result?.proposal != null;
+  // Some keywords couldn't be scored (iTunes stayed throttled) – the
+  // proposal below is real but built from less data than usual. Gated on
+  // whether a proposal is actually being shown, not on overall run status:
+  // a run that skipped keywords but still produced a proposal (e.g. it later
+  // failed at "report", an unrelated step) carries the exact same caveat, and
+  // the disclosure must not disappear just because something else broke.
+  const skippedCount = result?.skippedKeywords?.length ?? 0;
+  const degraded = hasProposal && skippedCount > 0;
 
   // Auto-dump every researched candidate into the research table so it
   // participates in the shared score cache. Fires once per distinct report
@@ -656,10 +728,45 @@ function ResultsView({
   return (
     <div className="space-y-6">
       {failed && (
-        <div className="error-banner">
-          {t("aso.research.failedAt", {
-            step: run.step ? t(STEP_LABEL[run.step]) : "",
-          })}
+        <div className="error-banner space-y-2">
+          <p>
+            {run.step
+              ? t("aso.research.failedAt", { step: t(STEP_LABEL[run.step]) })
+              : t("aso.research.failedGeneric")}
+          </p>
+          {failureMessage && <p>{failureMessage}</p>}
+          <div className="flex items-center gap-2 pt-1">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onRetry}
+              disabled={retrying}
+            >
+              {retrying && <CircleNotch className="size-4 animate-spin" />}
+              {t("common.retry")}
+            </Button>
+            {run.actionId && (
+              <span className="text-xs text-muted-foreground">
+                {t(
+                  canRetryForFree(run.actionStartedAt)
+                    ? "aso.research.retryHint"
+                    : "aso.research.retryUsesNewCredit",
+                )}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {degraded && (
+        <div className="flex items-start gap-2 rounded-md bg-amber-500/10 px-3 py-2">
+          <Warning size={14} className="mt-0.5 shrink-0 text-amber-500" weight="fill" />
+          <p className="text-sm text-amber-700 dark:text-amber-400">
+            {t(
+              skippedCount === 1 ? "aso.research.degraded" : "aso.research.degradedPlural",
+              { count: skippedCount },
+            )}
+          </p>
         </div>
       )}
 

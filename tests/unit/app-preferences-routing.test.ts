@@ -38,6 +38,11 @@ describe("routing preferences", () => {
     expect(getRoutingTier("redaction")).toBe("local");
   });
 
+  it("persists and reads the managed tier", () => {
+    setRoutingTier("metadata", "managed");
+    expect(getRoutingTier("metadata")).toBe("managed");
+  });
+
   it("fallback toggle defaults to off", () => {
     expect(getRoutingFallbackEnabled()).toBe(false);
     setRoutingFallbackEnabled(true);

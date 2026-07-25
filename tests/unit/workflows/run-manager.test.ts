@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestDb } from "../../helpers/test-db";
 import { workflowRuns } from "@/db/schema";
 import {
+  ItunesUnavailableError,
   WorkflowStepError,
   type KeywordResearchInput,
   type KeywordResearchResult,
@@ -36,11 +37,36 @@ const input: KeywordResearchInput = {
   locale: "en-US",
 };
 
+// A null proposal now means "failed" (see driveRun's cause-independent
+// guard) – this fixture stays proposal:null on purpose for tests exercising
+// WorkflowStepError partials (a failure always may carry no proposal) and
+// for tests that only need *a* value to resolve/settle the mocked run
+// without asserting the final status. Tests that assert `status: "succeeded"`
+// use succeededResult below instead.
 const emptyResult: KeywordResearchResult = {
   candidates: [],
   proposal: null,
   opportunities: [],
   strategy: "balanced",
+  skippedKeywords: [],
+};
+
+const succeededResult: KeywordResearchResult = {
+  candidates: [
+    {
+      keyword: "habit tracker",
+      source: "seed",
+      popularity: 40,
+      difficulty: 12,
+      opportunity: 60,
+      classification: "Good Target",
+      relevant: true,
+    },
+  ],
+  proposal: { title: "Habitly", subtitle: "Track habits", keywords: "habit,routine", summary: "ok" },
+  opportunities: [],
+  strategy: "balanced",
+  skippedKeywords: [],
 };
 
 function makeDeferred<T>() {
@@ -85,7 +111,7 @@ describe("startKeywordResearch", () => {
     expect(second).toEqual({ error: "already_running" });
 
     // Let the first run finish so the in-flight slot clears.
-    deferred.resolve(emptyResult);
+    deferred.resolve(succeededResult);
     await __whenSettled(runId);
     expect(getRun(runId)?.status).toBe("succeeded");
   });
@@ -106,6 +132,7 @@ describe("startKeywordResearch", () => {
       proposal: { title: "Habitly", subtitle: "Track habits", keywords: "habit,routine", summary: "ok" },
       opportunities: [{ keyword: "habit tracker", signals: [] }],
       strategy: "balanced",
+      skippedKeywords: [],
     };
     mockRun.mockResolvedValue(result);
     const { startKeywordResearch, getRun, __whenSettled } = await loadManager();
@@ -135,6 +162,7 @@ describe("startKeywordResearch", () => {
       proposal: null,
       opportunities: [],
       strategy: "balanced",
+      skippedKeywords: [],
     };
     mockRun.mockRejectedValue(
       new WorkflowStepError("score", partial, new Error("itunes down")),
@@ -163,6 +191,193 @@ describe("startKeywordResearch", () => {
     expect(row?.error).toBe("boom");
   });
 
+  // Régression : la cause d'un WorkflowStepError (le vrai rejet du proxy
+  // managé) était perdue – seul le message générique "workflow_step_failed:X"
+  // était stocké, jamais traduisible côté client via aiErrorMessage. Même
+  // mapping que les routes /api/ai, /api/apps/.../insights (classifyAIError).
+  it("maps a rate_limited proxy error (WorkflowStepError cause) to the same code the AI routes return", async () => {
+    const cause = new Error('429 {"error":{"code":"rate_limited"}}');
+    mockRun.mockRejectedValue(new WorkflowStepError("seeds", emptyResult, cause));
+    const { startKeywordResearch, getRun, __whenSettled } = await loadManager();
+
+    const started = (await startKeywordResearch(input)) as { runId: string };
+    await __whenSettled(started.runId);
+
+    expect(getRun(started.runId)?.error).toBe("ai_rate_limited");
+  });
+
+  it("maps an action_exhausted proxy error (WorkflowStepError cause) to ai_action_exhausted", async () => {
+    const cause = new Error('429 {"error":{"code":"action_exhausted"}}');
+    mockRun.mockRejectedValue(new WorkflowStepError("rank", emptyResult, cause));
+    const { startKeywordResearch, getRun, __whenSettled } = await loadManager();
+
+    const started = (await startKeywordResearch(input)) as { runId: string };
+    await __whenSettled(started.runId);
+
+    expect(getRun(started.runId)?.error).toBe("ai_action_exhausted");
+  });
+
+  it("maps an insufficient_credits proxy error (WorkflowStepError cause) to ai_credits_exhausted", async () => {
+    const cause = new Error('402 {"error":{"code":"insufficient_credits"}}');
+    mockRun.mockRejectedValue(new WorkflowStepError("compose", emptyResult, cause));
+    const { startKeywordResearch, getRun, __whenSettled } = await loadManager();
+
+    const started = (await startKeywordResearch(input)) as { runId: string };
+    await __whenSettled(started.runId);
+
+    expect(getRun(started.runId)?.error).toBe("ai_credits_exhausted");
+  });
+
+  // Filet défensif (le pipeline ne devrait jamais laisser passer une erreur
+  // brute hors WorkflowStepError/AbortError) : même mapping si le contrat
+  // était rompu, plutôt que le message brut du proxy.
+  it("maps a raw rate_limited error via the defensive catch-all branch too", async () => {
+    mockRun.mockRejectedValue(new Error('429 {"error":{"code":"rate_limited"}}'));
+    const { startKeywordResearch, getRun, __whenSettled } = await loadManager();
+
+    const started = (await startKeywordResearch(input)) as { runId: string };
+    await __whenSettled(started.runId);
+
+    expect(getRun(started.runId)?.error).toBe("ai_rate_limited");
+  });
+
+  // Re-review Important : le message n'était visible que sur err.cause, jamais
+  // persisté – classifyAIError renvoyait "unknown", le code stocké restait le
+  // générique "workflow_step_failed:score", donc rien de traduisible côté UI.
+  it("maps an ItunesUnavailableError (WorkflowStepError cause) to the stable itunes_unavailable code", async () => {
+    const cause = new ItunesUnavailableError(
+      "itunes_unavailable: only 1/8 attempted keyword(s) could be scored (< 30%) – too thin a sample to propose metadata from",
+    );
+    mockRun.mockRejectedValue(new WorkflowStepError("score", emptyResult, cause));
+    const { startKeywordResearch, getRun, __whenSettled } = await loadManager();
+
+    const started = (await startKeywordResearch(input)) as { runId: string };
+    await __whenSettled(started.runId);
+
+    expect(getRun(started.runId)?.error).toBe("itunes_unavailable");
+  });
+
+  // Re-review Critical 1 : une proposition nulle pouvait encore être persistée
+  // "succeeded" par une autre porte (ex. seedsSchema acceptant des chaînes
+  // vides, filtrées ensuite) que le floor/ceiling propre à keyword-research.ts
+  // ne couvre pas (il n'agit que quand skippedKeywords > 0). Garde-fou posé une
+  // fois ici, indépendant de la cause.
+  it("fails a run that resolved with a null proposal instead of persisting it as succeeded", async () => {
+    mockRun.mockResolvedValue(emptyResult); // proposal: null, skippedKeywords: [] – not an iTunes case
+    const { startKeywordResearch, getRun, __whenSettled } = await loadManager();
+
+    const started = (await startKeywordResearch(input)) as { runId: string };
+    await __whenSettled(started.runId);
+
+    const row = getRun(started.runId);
+    expect(row?.status).toBe("failed");
+    expect(row?.error).toBe("no_proposal");
+    // Not hardcoded to "compose" – see run-manager.ts's comment: this isn't a
+    // step throwing, so it doesn't belong to any one step.
+    expect(row?.step).toBeNull();
+    expect(row?.result).toEqual(emptyResult);
+  });
+
+  // Re-review Important : rejouer avec un nouvel actionId à chaque retry
+  // facturait un second crédit pour le même geste – l'actionId d'origine doit
+  // être réutilisable.
+  it("mints a fresh actionId and persists it on the row when none is provided", async () => {
+    mockRun.mockResolvedValue(succeededResult);
+    const { startKeywordResearch, getRun, __whenSettled } = await loadManager();
+
+    const started = (await startKeywordResearch(input)) as { runId: string };
+    await __whenSettled(started.runId);
+
+    const row = getRun(started.runId);
+    expect(row?.actionId).toEqual(expect.any(String));
+    expect(row?.actionId!.length).toBeGreaterThan(0);
+    // The same actionId reaches the orchestrator (bills the credit under it).
+    expect(mockRun.mock.calls[0][0]).toMatchObject({ actionId: row?.actionId });
+  });
+
+  it("reuses a caller-provided actionId (retry) instead of minting a fresh one", async () => {
+    mockRun.mockResolvedValue(succeededResult);
+    const { startKeywordResearch, getRun, __whenSettled } = await loadManager();
+
+    const started = (await startKeywordResearch({ ...input, actionId: "reuse-me" })) as { runId: string };
+    await __whenSettled(started.runId);
+
+    expect(getRun(started.runId)?.actionId).toBe("reuse-me");
+    expect(mockRun.mock.calls[0][0]).toMatchObject({ actionId: "reuse-me" });
+  });
+
+  // Re-review Important : la fenêtre de rejeu gratuit se mesure depuis le mint
+  // de l'actionId, pas depuis le createdAt du dernier run. Chaque retry écrit
+  // une ligne neuve en réutilisant la même action : lire createdAt remettait
+  // l'horloge à zéro à chaque saut, et l'UI promettait un retry gratuit bien
+  // après l'expiration réelle côté backend.
+  it("carries the action's mint time across a multi-hop retry chain", async () => {
+    mockRun.mockResolvedValue(succeededResult);
+    const { startKeywordResearch, getRun, __whenSettled } = await loadManager();
+
+    // Horloge pilotee : sans elle les trois sauts partagent la meme
+    // milliseconde et le test ne peut plus distinguer createdAt du mint.
+    vi.useFakeTimers();
+    const mint = "2026-01-01T12:00:00.000Z";
+    vi.setSystemTime(new Date(mint));
+
+    const first = (await startKeywordResearch(input)) as { runId: string };
+    await __whenSettled(first.runId);
+    const origin = getRun(first.runId)!;
+    expect(origin.createdAt).toBe(mint);
+    expect(origin.actionStartedAt).toBe(mint); // premier saut : les deux coïncident
+
+    // Deux retries successifs sur la même action, chacun avec son propre createdAt.
+    const hops: string[] = [];
+    for (const minutes of [20, 40]) {
+      vi.setSystemTime(new Date(Date.parse(mint) + minutes * 60_000));
+      const retry = (await startKeywordResearch({
+        ...input,
+        actionId: origin.actionId!,
+      })) as { runId: string };
+      await __whenSettled(retry.runId);
+      const hop = getRun(retry.runId)!;
+      hops.push(hop.createdAt);
+      expect(hop.actionStartedAt).toBe(mint);
+    }
+    // Le 3e saut a bien son propre createdAt : c'est l'écart que la lecture de
+    // createdAt masquait.
+    expect(hops).toEqual(["2026-01-01T12:20:00.000Z", "2026-01-01T12:40:00.000Z"]);
+    vi.useRealTimers();
+  });
+
+  // La suppression d'un rapport ne doit pas rouvrir la fenêtre : le mint voyage
+  // sur chaque ligne de la chaîne, il survit donc à la perte de la tête.
+  it("keeps the mint time when the chain's head row is deleted", async () => {
+    mockRun.mockResolvedValue(succeededResult);
+    const { startKeywordResearch, getRun, deleteRun, __whenSettled } = await loadManager();
+
+    vi.useFakeTimers();
+    const mint = "2026-01-01T12:00:00.000Z";
+    vi.setSystemTime(new Date(mint));
+
+    const first = (await startKeywordResearch(input)) as { runId: string };
+    await __whenSettled(first.runId);
+    const origin = getRun(first.runId)!;
+
+    vi.setSystemTime(new Date(Date.parse(mint) + 10 * 60_000));
+    const second = (await startKeywordResearch({
+      ...input,
+      actionId: origin.actionId!,
+    })) as { runId: string };
+    await __whenSettled(second.runId);
+    expect(deleteRun(first.runId)).toBe(true);
+
+    vi.setSystemTime(new Date(Date.parse(mint) + 20 * 60_000));
+    const third = (await startKeywordResearch({
+      ...input,
+      actionId: origin.actionId!,
+    })) as { runId: string };
+    await __whenSettled(third.runId);
+    expect(getRun(third.runId)?.actionStartedAt).toBe(mint);
+    vi.useRealTimers();
+  });
+
   it("writes throttled onProgress updates (step + progress) to the row", async () => {
     const deferred = makeDeferred<KeywordResearchResult>();
     let captured: ((p: WorkflowProgress) => void) | null = null;
@@ -182,7 +397,7 @@ describe("startKeywordResearch", () => {
     expect(mid?.step).toBe("score");
     expect(mid?.progress).toEqual({ step: "score", done: 2, total: 5 });
 
-    deferred.resolve(emptyResult);
+    deferred.resolve(succeededResult);
     await __whenSettled(started.runId);
     expect(getRun(started.runId)?.status).toBe("succeeded");
   });
@@ -266,7 +481,7 @@ describe("getRun / getLatestRun", () => {
   });
 
   it("getLatestRun returns the newest run for an app, null otherwise", async () => {
-    mockRun.mockResolvedValue(emptyResult);
+    mockRun.mockResolvedValue(succeededResult);
     const { startKeywordResearch, getLatestRun, __whenSettled } = await loadManager();
 
     expect(getLatestRun("app-1")).toBeNull();
@@ -339,7 +554,7 @@ describe("event emission isolation (regression)", () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     workflowEvents.on("workflow", throwing);
     try {
-      mockRun.mockResolvedValue(emptyResult);
+      mockRun.mockResolvedValue(succeededResult);
       const { startKeywordResearch, getRun, __whenSettled } = await loadManager();
 
       const started = (await startKeywordResearch(input)) as { runId: string };

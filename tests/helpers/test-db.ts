@@ -98,7 +98,19 @@ export function createTestDb() {
       progress TEXT,
       result TEXT,
       error TEXT,
+      action_id TEXT,
+      action_started_at TEXT,
       created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE managed_account (
+      id TEXT PRIMARY KEY NOT NULL,
+      email TEXT NOT NULL,
+      encrypted_session TEXT NOT NULL,
+      iv TEXT NOT NULL,
+      auth_tag TEXT NOT NULL,
+      encrypted_dek TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
   `);

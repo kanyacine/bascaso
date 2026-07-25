@@ -6,9 +6,16 @@ const mockScoreKeyword = vi.fn();
 const mockGetLanguageModelForTask = vi.fn();
 const mockGenerateObject = vi.fn();
 
-vi.mock("@/lib/aso/itunes", () => ({
-  searchApps: (...args: unknown[]) => mockSearchApps(...args),
-}));
+// importOriginal préserve ItunesRateLimited / SearchApiUnavailableError réelles –
+// seule searchApps est stubbée. Le SUT en a besoin pour classer les échecs
+// itunes rencontrés via scoreKeyword (voir tests "iTunes throttle").
+vi.mock("@/lib/aso/itunes", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/aso/itunes")>();
+  return {
+    ...actual,
+    searchApps: (...args: unknown[]) => mockSearchApps(...args),
+  };
+});
 vi.mock("@/lib/aso/score-service", () => ({
   scoreKeyword: (...args: unknown[]) => mockScoreKeyword(...args),
 }));
@@ -19,6 +26,7 @@ vi.mock("@/lib/ai/structured-output", () => ({
   generateObjectWithRepair: (...args: unknown[]) => mockGenerateObject(...args),
 }));
 
+import { ItunesRateLimited, SearchApiUnavailableError } from "@/lib/aso/itunes";
 import {
   MAX_CANDIDATES,
   runKeywordResearch,
@@ -259,6 +267,219 @@ describe("runKeywordResearch – scoring failure", () => {
     expect(err).toBeInstanceOf(WorkflowStepError);
     expect(err.step).toBe("score");
     expect(err.partial.candidates.length).toBe(3); // the three scored seeds
+  });
+});
+
+describe("runKeywordResearch – iTunes throttle degrades instead of failing", () => {
+  // Le crédit managé est débité au premier appel LLM ("seeds", étape 2) – tout
+  // ce qui suit (expand, score) tourne sur un crédit déjà dépensé. Un double
+  // 429 iTunes qui abortait le workflow ici gaspillait donc ce crédit sans
+  // rien livrer. La marque "relevant" pour tout index judgé isole le test de
+  // l'arithmétique d'index (voir commentaire de relevantResponse plus haut).
+  const allRelevant = Array.from({ length: 30 }, (_, i) => i);
+
+  it("skips a seed whose scoring stays iTunes-rate-limited and still completes with the rest", async () => {
+    relevantResponse = allRelevant;
+    mockScoreKeyword.mockImplementation(async (keyword: string) => {
+      if (keyword === "daily planner") {
+        throw new ItunesRateLimited("iTunes API rate-limited (429)");
+      }
+      return makeScore(keyword);
+    });
+
+    const result = await runKeywordResearch(input, () => {}, new AbortController().signal);
+
+    expect(result.skippedKeywords).toEqual(["daily planner"]);
+    const keywords = result.candidates.map((c) => c.keyword);
+    expect(keywords).not.toContain("daily planner");
+    expect(keywords).toContain("habit tracker");
+    expect(keywords).toContain("goals");
+    // The run still reaches compose – the whole point of degrading rather
+    // than aborting is that the already-spent credit buys something.
+    expect(result.proposal).not.toBeNull();
+  });
+
+  it("skips a harvested candidate whose scoring finds both iTunes sources down and still completes", async () => {
+    relevantResponse = allRelevant;
+    mockScoreKeyword.mockImplementation(async (keyword: string) => {
+      if (keyword === "planner") {
+        throw new SearchApiUnavailableError("both search paths down");
+      }
+      return makeScore(keyword);
+    });
+
+    const result = await runKeywordResearch(input, () => {}, new AbortController().signal);
+
+    expect(result.skippedKeywords).toEqual(["planner"]);
+    const keywords = result.candidates.map((c) => c.keyword);
+    expect(keywords).not.toContain("planner");
+    expect(keywords).toContain("habit"); // another harvested candidate, still scored
+    expect(result.proposal).not.toBeNull();
+  });
+
+  it("still wraps a non-throttle scoring error in WorkflowStepError (regression: does not swallow real bugs)", async () => {
+    mockScoreKeyword.mockImplementation(async (keyword: string) => {
+      if (keyword === "daily planner") throw new Error("db write failed");
+      return makeScore(keyword);
+    });
+
+    const err = await runKeywordResearch(input, () => {}, new AbortController().signal).catch((e) => e);
+
+    expect(err).toBeInstanceOf(WorkflowStepError);
+    expect(err.step).toBe("expand");
+    expect(err.partial.skippedKeywords).toEqual([]);
+  });
+
+  // Reviewer probe #1 (Critical 1): a total outage – every scoreKeyword call
+  // throws – used to "succeed" with 0 candidates / null proposal, and that
+  // empty run was persisted into the report history by listRuns (which only
+  // lists succeeded runs). It must now fail loudly instead, the way the whole
+  // run did before this file's degrade behaviour existed.
+  it("fails the run (does not succeed empty) on a total iTunes outage – reviewer probe #1", async () => {
+    relevantResponse = allRelevant;
+    mockScoreKeyword.mockImplementation(async () => {
+      throw new ItunesRateLimited("iTunes API rate-limited (429)");
+    });
+
+    const err = await runKeywordResearch(input, () => {}, new AbortController().signal).catch((e) => e);
+
+    expect(err).toBeInstanceOf(WorkflowStepError);
+    expect(err.step).toBe("score");
+    expect(err.partial.candidates.length).toBe(0);
+    expect((err.cause as Error).message).toContain("itunes_unavailable");
+    // Circuit breaker: only the 3 seeds are ever attempted (the failure that
+    // trips the breaker happens on the 3rd of them) – every harvested
+    // candidate the "score" step would otherwise have scored is skipped
+    // without a single further call, instead of paying the retry ladder for
+    // each of them.
+    expect(mockScoreKeyword).toHaveBeenCalledTimes(3);
+  });
+
+  // Reviewer probe #2 (Critical 2): 7 of 8 keywords skipped, one survivor –
+  // used to produce a one-click-appliable proposal built from a single
+  // scored keyword. It must now fail instead (ceiling), never reach the UI.
+  it("fails a thin-sample run instead of shipping an applyable proposal from one survivor – reviewer probe #2", async () => {
+    relevantResponse = allRelevant;
+    mockScoreKeyword.mockImplementation(async (keyword: string) => {
+      if (keyword === "habit tracker") return makeScore(keyword);
+      throw new ItunesRateLimited("iTunes API rate-limited (429)");
+    });
+
+    const err = await runKeywordResearch(input, () => {}, new AbortController().signal).catch((e) => e);
+
+    expect(err).toBeInstanceOf(WorkflowStepError);
+    expect(err.step).toBe("score");
+    expect(err.partial.candidates.length).toBe(1);
+    expect(err.partial.candidates[0].keyword).toBe("habit tracker");
+    expect((err.cause as Error).message).toContain("itunes_unavailable");
+    // Breaker trips on the 3rd straight failure (daily planner, goals, then
+    // the first harvested attempt) – nothing beyond that is even attempted.
+    expect(mockScoreKeyword).toHaveBeenCalledTimes(4);
+  });
+
+  // Third re-review Critical: an outage that starts *after* a couple of
+  // successes used to sail through the ratio ceiling, because the breaker
+  // caps its denominator at CONSECUTIVE_ITUNES_FAILURE_LIMIT (3) – 2 scored /
+  // (2 scored + 3 attempted failures) = 40 % ≥ 30 %. This is the exact
+  // "two-word proposal, Apply enabled" shape the review flagged. The
+  // absolute floor (MIN_SCORED_KEYWORDS) must catch it where the ratio
+  // structurally cannot.
+  it("fails a run where an outage starts after two successes, instead of shipping a two-keyword proposal – reviewer probe #3", async () => {
+    relevantResponse = allRelevant;
+    mockScoreKeyword.mockImplementation(async (keyword: string) => {
+      if (keyword === "habit tracker" || keyword === "daily planner") return makeScore(keyword);
+      throw new ItunesRateLimited("iTunes API rate-limited (429)");
+    });
+
+    const err = await runKeywordResearch(input, () => {}, new AbortController().signal).catch((e) => e);
+
+    expect(err).toBeInstanceOf(WorkflowStepError);
+    expect(err.step).toBe("score");
+    expect(err.partial.candidates.length).toBe(2);
+    expect(err.partial.candidates.map((c: { keyword: string }) => c.keyword)).toEqual(
+      expect.arrayContaining(["habit tracker", "daily planner"]),
+    );
+    expect((err.cause as Error).message).toContain("itunes_unavailable");
+    expect((err.cause as Error).message).toContain("below the 5-keyword floor");
+    // The ratio alone (2/5 = 40 %) would have passed this – proves the
+    // absolute floor, not the ratio, is what caught it.
+    expect(2 / (2 + 3)).toBeGreaterThanOrEqual(0.3);
+    // 3 seeds + 2 harvested attempted before the breaker trips on the 3rd
+    // straight failure (goals, then the first two harvested attempts).
+    expect(mockScoreKeyword).toHaveBeenCalledTimes(5);
+  });
+
+  // Second re-review Critical: shouldFailForThinSample must be fed *attempted*
+  // counts only. partial.skippedKeywords also holds keywords the breaker
+  // skipped without ever attempting them – a realistic run harvests up to
+  // MAX_CANDIDATES worth of those, so a version of this test with only a
+  // handful of harvested candidates would pass for the wrong reason (it
+  // "encodes the fixture, not the behaviour"). This one harvests a
+  // realistic-scale pool (well over 100 unique tokens, capped by
+  // MAX_CANDIDATES like a real run) to prove the fix generalizes.
+  it("stops attempting once the circuit breaker trips, without paying the retry ladder for the rest – realistic harvest size", async () => {
+    seedsResponse = ["s1", "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9", "s10"];
+    relevantResponse = allRelevant;
+    // 130 uniquely-named competitor apps – tokenizes to well over the
+    // MAX_CANDIDATES - seeds.length = 110 harvested-candidate cap, so the
+    // harvested pool is capped exactly the way a real, popular-app run
+    // would be, not left artificially small.
+    const bigCompetitors = Array.from({ length: 130 }, (_, i) => ({
+      trackName: `Zzzword${i}`,
+      userRatingCount: 1,
+      averageUserRating: 4,
+      releaseDate: new Date().toISOString(),
+      primaryGenreName: "Productivity",
+    }));
+    mockScoreKeyword.mockImplementation(async (keyword: string) => {
+      if (["s8", "s9", "s10"].includes(keyword)) {
+        throw new ItunesRateLimited("iTunes API rate-limited (429)");
+      }
+      return { ...makeScore(keyword), competitors: bigCompetitors };
+    });
+
+    const result = await runKeywordResearch(input, () => {}, new AbortController().signal);
+
+    const scoredSeeds = result.candidates.filter((c) => c.source === "seed").map((c) => c.keyword);
+    expect(scoredSeeds).toEqual(["s1", "s2", "s3", "s4", "s5", "s6", "s7"]);
+    expect(result.skippedKeywords).toEqual(expect.arrayContaining(["s8", "s9", "s10"]));
+    // Well over 100 harvested candidates exist and are marked "relevant",
+    // but none of them is ever attempted – the breaker is already open by
+    // the time the "score" step runs, so only the 10 seeds cost a call.
+    expect(result.skippedKeywords.length).toBeGreaterThan(100);
+    expect(mockScoreKeyword).toHaveBeenCalledTimes(10);
+    // The reviewer's exact numbers: 7 attempted-and-scored, 3 attempted-and-
+    // failed → 7/10 = 70 % ≥ 30 % ceiling on *attempted* keywords – passes.
+    // Counting the 100+ never-attempted harvested candidates in the
+    // denominator instead (the bug) would give 7/120 ≈ 5.8 % and wrongly fail.
+    expect(result.proposal).not.toBeNull();
+  });
+
+  it("bounds duration with a wall-clock budget when a cache hit keeps resetting the consecutive-failure counter", async () => {
+    // Interleaved cache-hit / throttled-miss pattern: every other call
+    // succeeds, so 3 *consecutive* failures never happens and the breaker
+    // alone would never trip – only MAX_RUN_DURATION_MS (60 min) bounds this.
+    seedsResponse = Array.from({ length: 20 }, (_, i) => `s${i}`);
+    relevantResponse = []; // isolate to the seed loop – no harvested attempts to muddy the call count
+    let elapsedMs = 0;
+    const nowSpy = vi.spyOn(Date, "now").mockImplementation(() => elapsedMs);
+    let call = 0;
+    mockScoreKeyword.mockImplementation(async (keyword: string) => {
+      call++;
+      elapsedMs += 5 * 60 * 1000; // each call "takes" 5 simulated minutes
+      if (call % 2 === 0) throw new ItunesRateLimited("iTunes API rate-limited (429)");
+      return makeScore(keyword);
+    });
+
+    try {
+      const result = await runKeywordResearch(input, () => {}, new AbortController().signal);
+      // 20 calls × 5 min would be 100 min of simulated time – past the 60-min
+      // budget – so not every seed can have been attempted.
+      expect(mockScoreKeyword.mock.calls.length).toBeLessThan(20);
+      expect(result.skippedKeywords.length).toBeGreaterThan(0);
+    } finally {
+      nowSpy.mockRestore();
+    }
   });
 });
 

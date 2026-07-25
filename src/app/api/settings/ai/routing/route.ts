@@ -10,7 +10,7 @@ import { AI_ROUTED_GROUPS, type AIGroupId } from "@/lib/ai/tasks";
 
 const groupSchema = z.object({
   group: z.enum(AI_ROUTED_GROUPS as [AIGroupId, ...AIGroupId[]]),
-  tier: z.enum(["local", "byok"]).nullable(),
+  tier: z.enum(["local", "byok", "managed"]).nullable(),
 });
 
 const fallbackSchema = z.object({

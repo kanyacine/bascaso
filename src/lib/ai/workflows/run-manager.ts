@@ -9,6 +9,7 @@ import { db } from "@/db";
 import { workflowRuns } from "@/db/schema";
 import { ulid } from "@/lib/ulid";
 import {
+  ItunesUnavailableError,
   runKeywordResearch,
   WorkflowStepError,
   type KeywordResearchInput,
@@ -17,6 +18,22 @@ import {
   type WorkflowStepId,
 } from "@/lib/ai/workflows/keyword-research";
 import { emitWorkflowEvent } from "@/lib/ai/workflows/events";
+import { classifyAIError } from "@/lib/ai/provider-factory";
+// Source unique du mapping catégorie → code (voir ai-error.ts) : l'UI d'un run lit
+// le Set qui en dérive, donc les deux côtés ne peuvent plus diverger.
+import { MANAGED_ERROR_CODE_BY_CATEGORY } from "@/lib/ai/ai-error";
+
+
+/** Code stocké dans workflow_runs.error : un échec du proxy managé connu
+ *  devient le même code que les routes AI renvoient ; un ItunesUnavailableError
+ *  (floor/ceiling – voir keyword-research.ts) devient le code maison stable
+ *  "itunes_unavailable" plutôt que le message générique "workflow_step_failed:X".
+ *  Toute autre erreur (bug interne…) garde son message d'origine – comportement
+ *  inchangé, utile pour le debug serveur, jamais montré tel quel côté client. */
+function workflowErrorCode(cause: unknown, fallback: string): string {
+  if (cause instanceof ItunesUnavailableError) return "itunes_unavailable";
+  return MANAGED_ERROR_CODE_BY_CATEGORY[classifyAIError(cause)] ?? fallback;
+}
 
 // Progress can fire once per scored keyword; coalesce DB writes/events so a
 // long score step doesn't hammer SQLite. The final status write is never
@@ -37,6 +54,18 @@ export interface WorkflowRunView {
   error: string | null;
   createdAt: string;
   updatedAt: string;
+  /** Null on rows written before this column existed. Lets a failed run be
+   *  retried under the same managed action instead of billing a second one –
+   *  see startKeywordResearch. */
+  actionId: string | null;
+  /** When `actionId` was first minted – the instant the backend's replay
+   *  window starts running, which is what a "free retry?" decision must be
+   *  measured against. Distinct from `createdAt` as soon as a retry chain is
+   *  two hops long: each retry is a fresh row with its own `createdAt` but the
+   *  SAME action, so reading `createdAt` would restart the clock at every hop
+   *  and keep offering a free replay long after the action really expired.
+   *  Falls back to `createdAt` for rows predating the column. */
+  actionStartedAt: string;
 }
 
 interface InFlightRun {
@@ -67,6 +96,8 @@ function toView(row: WorkflowRunRow): WorkflowRunView {
     error: row.error,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
+    actionId: row.actionId,
+    actionStartedAt: row.actionStartedAt ?? row.createdAt,
   };
 }
 
@@ -95,6 +126,36 @@ async function driveRun(
 
   try {
     const result = await runKeywordResearch(input, onProgress, signal);
+    if (result.proposal === null) {
+      // Cause-independent guard, checked once here regardless of *why* the
+      // proposal is missing (a throttle case the workflow's own floor/
+      // ceiling didn't catch, zero seeds generated, …): a "succeeded" run
+      // must always carry a proposal. An empty success is worse than a
+      // failure – it renders as an amber note over nothing, and listRuns
+      // only lists succeeded runs, so it would pollute report history with
+      // nothing to show.
+      //
+      // step: null rather than a hardcoded "compose" – runKeywordResearch
+      // always runs every step through to "report" (its onProgress fires
+      // unconditionally, win or lose), so the true last-reported step here
+      // is "report", not "compose", regardless of cause. Neither name is
+      // actually accurate: this isn't a step throwing, it's a boundary
+      // policy decision made after the pipeline finished, so it doesn't
+      // belong to any one step. The banner falls back to a step-less
+      // message when step is null (see failedGeneric).
+      db.update(workflowRuns)
+        .set({
+          status: "failed",
+          step: null,
+          error: "no_proposal",
+          result: JSON.stringify(result),
+          updatedAt: nowIso(),
+        })
+        .where(eq(workflowRuns.id, runId))
+        .run();
+      emitWorkflowEvent({ runId, status: "failed", step: "compose" });
+      return;
+    }
     db.update(workflowRuns)
       .set({ status: "succeeded", result: JSON.stringify(result), updatedAt: nowIso() })
       .where(eq(workflowRuns.id, runId))
@@ -102,11 +163,13 @@ async function driveRun(
     emitWorkflowEvent({ runId, status: "succeeded" });
   } catch (err) {
     if (err instanceof WorkflowStepError) {
+      // La vraie erreur (ex. rejet du proxy managé) est `err.cause` – `err.message`
+      // n'est que "workflow_step_failed:<step>", jamais classifiable.
       db.update(workflowRuns)
         .set({
           status: "failed",
           step: err.step,
-          error: err.message,
+          error: workflowErrorCode(err.cause, err.message),
           result: JSON.stringify(err.partial),
           updatedAt: nowIso(),
         })
@@ -128,11 +191,30 @@ async function driveRun(
     // never leave a row stuck on "running" if that contract is ever broken.
     const message = err instanceof Error ? err.message : "workflow_failed";
     db.update(workflowRuns)
-      .set({ status: "failed", error: message, updatedAt: nowIso() })
+      .set({ status: "failed", error: workflowErrorCode(err, message), updatedAt: nowIso() })
       .where(eq(workflowRuns.id, runId))
       .run();
     emitWorkflowEvent({ runId, status: "failed" });
   }
+}
+
+/** Earliest known start of `actionId` across the runs that share it, so a
+ *  retry chain keeps measuring its replay window from the original mint rather
+ *  than from its latest hop. Takes the minimum over every row (ISO-8601 sorts
+ *  chronologically) instead of the oldest row's value alone: reports are
+ *  deletable, and the chain's head row may well be gone. `fallback` is the
+ *  answer when no row survives – the action is then effectively new to us.
+ *  ponytail: full scan of a small local table, keyed lookup if it ever grows. */
+function mintedAt(actionId: string, fallback: string): string {
+  return db
+    .select({ startedAt: workflowRuns.actionStartedAt, createdAt: workflowRuns.createdAt })
+    .from(workflowRuns)
+    .where(eq(workflowRuns.actionId, actionId))
+    .all()
+    .reduce((earliest, row) => {
+      const started = row.startedAt ?? row.createdAt;
+      return started < earliest ? started : earliest;
+    }, fallback);
 }
 
 /**
@@ -140,6 +222,13 @@ async function driveRun(
  * `{ error: "already_running" }` when a run for the same app is still
  * in flight. The pipeline runs fire-and-forget; poll via getRun/getLatestRun
  * or subscribe to workflowEvents for progress.
+ *
+ * `input.actionId` lets a retry reuse a previous (failed) run's action –
+ * resolved here rather than inside runKeywordResearch so it can be persisted
+ * on the row at creation, before the run even starts: that's what makes it
+ * available for a *future* retry if this run fails too. Its original mint time
+ * travels with it (see mintedAt), so the third hop of a retry chain still
+ * knows when the backend's window actually opened.
  */
 export async function startKeywordResearch(
   input: KeywordResearchInput,
@@ -148,6 +237,7 @@ export async function startKeywordResearch(
     return { error: "already_running" };
   }
 
+  const actionId = input.actionId ?? crypto.randomUUID();
   const runId = ulid();
   const createdAt = nowIso();
   db.insert(workflowRuns)
@@ -157,6 +247,8 @@ export async function startKeywordResearch(
       appId: input.appId,
       country: input.country,
       locale: input.locale,
+      actionId,
+      actionStartedAt: input.actionId ? mintedAt(input.actionId, createdAt) : createdAt,
       status: "running",
       createdAt,
       updatedAt: createdAt,
@@ -167,7 +259,7 @@ export async function startKeywordResearch(
   const controller = new AbortController();
   // Reserve the slot synchronously (no await before this) so a concurrent
   // start for the same app is refused.
-  const promise = driveRun(runId, input, controller.signal).finally(() => {
+  const promise = driveRun(runId, { ...input, actionId }, controller.signal).finally(() => {
     inFlight.delete(input.appId);
   });
   inFlight.set(input.appId, { runId, controller, promise });

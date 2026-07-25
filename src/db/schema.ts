@@ -38,6 +38,20 @@ export const aiSettings = sqliteTable("ai_settings", {
     .$defaultFn(() => new Date().toISOString()),
 });
 
+// Session du compte bascaso cloud (tier managé). Une seule ligne ;
+// encrypted_session = JSON { accessToken, refreshToken, expiresAt } chiffré AES-GCM.
+export const managedAccount = sqliteTable("managed_account", {
+  id: text("id").primaryKey().$defaultFn(ulid),
+  email: text("email").notNull(),
+  encryptedSession: text("encrypted_session").notNull(),
+  iv: text("iv").notNull(),
+  authTag: text("auth_tag").notNull(),
+  encryptedDek: text("encrypted_dek").notNull(),
+  updatedAt: text("updated_at")
+    .notNull()
+    .$defaultFn(() => new Date().toISOString()),
+});
+
 // --- Cache ---
 
 export const cacheEntries = sqliteTable("cache_entries", {
@@ -134,6 +148,17 @@ export const workflowRuns = sqliteTable("workflow_runs", {
   progress: text("progress"), // JSON WorkflowProgress
   result: text("result"), // JSON KeywordResearchResult (may be partial on failure)
   error: text("error"), // error code, e.g. "workflow_step_failed:score"
+  // Nullable: rows written before this column existed have none. Persisted so
+  // a failed run can be retried under the SAME managed action – replaying an
+  // actionId is free within the backend's per-action window, a fresh one on
+  // every retry would bill twice for one gesture.
+  actionId: text("action_id"),
+  // When `action_id` was first minted, carried over unchanged by every retry
+  // that reuses it. NOT the same as `created_at`, which is this row's own
+  // start: a retry chain would otherwise reset the clock on every hop and the
+  // UI would keep promising a free replay past the backend's real window.
+  // Nullable: rows written before this column existed fall back to created_at.
+  actionStartedAt: text("action_started_at"),
   createdAt: text("created_at")
     .notNull()
     .$defaultFn(() => new Date().toISOString()),

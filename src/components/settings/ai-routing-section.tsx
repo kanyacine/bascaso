@@ -77,6 +77,7 @@ export function AiRoutingSection({ routing, onChanged }: Props) {
               >
                 <ToggleGroupItem value="local">{t("settings.ai.routing.local")}</ToggleGroupItem>
                 <ToggleGroupItem value="byok">{t("settings.ai.routing.byok")}</ToggleGroupItem>
+                <ToggleGroupItem value="managed">{t("settings.ai.routing.managed")}</ToggleGroupItem>
               </ToggleGroup>
             </div>
           );

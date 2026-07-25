@@ -93,6 +93,10 @@ const requestSchema = z.object({
   whatsNew: z.string().optional(),
   promotionalText: z.string().optional(),
   isLaunch: z.boolean().optional(),
+  // 1 geste utilisateur = 1 action managée : l'appelant fournit l'id quand son
+  // geste peut déclencher plusieurs appels (bulk, workflow) ; sinon la
+  // résolution en génère un (voir getLanguageModelForTask).
+  actionId: z.string().uuid().optional(),
 });
 
 export async function POST(request: Request) {
@@ -102,7 +106,7 @@ export async function POST(request: Request) {
   const {
     action, text, field, reviewTitle, rating, fromLocale, toLocale, locale,
     appName, charLimit, guidance, description, subtitle, forbiddenWords,
-    versionString, whatsNew, promotionalText, isLaunch,
+    versionString, whatsNew, promotionalText, isLaunch, actionId,
   } = parsed;
 
   // Copy needs no AI – echo the text back
@@ -121,7 +125,7 @@ export async function POST(request: Request) {
   let maxInputChars: number | undefined;
   let supportedLanguages: string[] | undefined;
   try {
-    const resolved = await getLanguageModelForTask(action);
+    const resolved = await getLanguageModelForTask(action, { actionId });
     ({ model, providerId, modelId, maxInputChars, supportedLanguages } = resolved);
   } catch (err) {
     return routingErrorResponse(err);
@@ -333,6 +337,15 @@ export async function POST(request: Request) {
   } catch (err) {
     console.error("[ai] error: action=%s field=%s", action, field, err);
     const category = classifyAIError(err);
+    if (category === "credits") {
+      return NextResponse.json({ error: "ai_credits_exhausted" }, { status: 402 });
+    }
+    if (category === "rate_limited") {
+      return NextResponse.json({ error: "ai_rate_limited" }, { status: 429 });
+    }
+    if (category === "action_exhausted") {
+      return NextResponse.json({ error: "ai_action_exhausted" }, { status: 429 });
+    }
     if (category === "auth" || category === "permission") {
       return NextResponse.json({ error: "ai_auth_error" }, { status: 401 });
     }

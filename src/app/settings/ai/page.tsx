@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -45,6 +45,166 @@ interface AppleFmStatus {
 /** Cloud providers only – the local server is configured in its own section. */
 const BYOK_PROVIDERS = AI_PROVIDERS.filter((p) => !isLocalOpenAIProvider(p.id));
 const DEFAULT_BYOK_PROVIDER = BYOK_PROVIDERS[0];
+
+// Prix indicatifs non définitifs – doivent refléter les prices Stripe du backend.
+const MANAGED_PACKS = [
+  { sku: "pack_10", credits: 10, price: "10 €" },
+  { sku: "pack_50", credits: 50, price: "45 €" },
+  { sku: "pack_100", credits: 100, price: "80 €" },
+] as const;
+
+type ManagedAuthResult =
+  | { ok: true; confirmationRequired?: boolean }
+  // `code`/`message` viennent du corps du 401 (voir route.ts) : le vrai code
+  // GoTrue et son message, pour que l'appelant affiche autre chose que
+  // "vérifiez identifiants" quand ce n'est pas le problème (voir
+  // managedAuthErrorMessage).
+  | { ok: false; reason: "auth"; code?: string; message?: string }
+  | { ok: false; reason: "network" };
+
+/** `res.json().catch(...)` ne rattrape pas un `res.json` absent (le throw est
+ *  synchrone, avant la promesse) – utilisé par les tests qui ne mockent que
+ *  `ok`/`status`. Ce wrapper couvre les deux cas : méthode absente et corps
+ *  non-JSON. */
+async function safeJson(res: Response): Promise<Record<string, unknown>> {
+  try {
+    return await res.json();
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Isolé du composant pour être testable sans rendu React : distingue un échec
+ * d'authentification (401 – identifiants) d'un échec réseau (fetch qui lève),
+ * pour que l'appelant puisse afficher le bon message dans chaque cas. Un
+ * signup accepté mais en attente de confirmation email est un succès HTTP
+ * (200) qui porte `confirmationRequired: true` dans le corps – ni un échec
+ * ni une connexion effective.
+ */
+export async function authenticateManaged(
+  mode: "login" | "signup",
+  email: string,
+  password: string,
+): Promise<ManagedAuthResult> {
+  try {
+    const res = await fetch("/api/managed/auth", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode, email, password }),
+    });
+    // Un 5xx est une panne réseau/serveur en parlant au cloud managé (voir
+    // route.ts), pas un problème d'identifiants – testé avant de lire le
+    // corps, sinon ce 500 (sans `code`) retombe sur managedAuthFailed
+    // ("vérifiez votre mot de passe") pour une coupure réseau.
+    if (res.status >= 500) return { ok: false, reason: "network" };
+    if (!res.ok) {
+      // La confirmation email active en prod rend "déjà inscrit" et "quota
+      // d'emails dépassé" probables – ni l'un ni l'autre n'est un problème
+      // d'identifiants (voir managedAuthErrorMessage côté appelant).
+      const data = await safeJson(res);
+      return { ok: false, reason: "auth", code: data.code as string | undefined, message: data.error as string | undefined };
+    }
+    const data = await safeJson(res);
+    return data.confirmationRequired ? { ok: true, confirmationRequired: true } : { ok: true };
+  } catch {
+    return { ok: false, reason: "network" };
+  }
+}
+
+/**
+ * Message affiché sous le formulaire managé pour un échec "auth" (401). Les
+ * codes connus – compte déjà inscrit, quota d'emails Supabase dépassé, email
+ * pas encore confirmé – ont chacun une action différente et un message dédié.
+ * `invalid_credentials` (mauvais mot de passe – forme réelle mesurée en prod :
+ * {code:400, error_code:"invalid_credentials", msg:…}, pas la forme OAuth2
+ * {error, error_description} supposée avant) et l'absence de code partagent
+ * le même message générique "vérifiez vos identifiants". Pour tout autre code
+ * (renvoyé par le serveur mais non mappé ici), on affiche son message plutôt
+ * que d'accuser un mot de passe qui n'est peut-être pas en cause – jamais le
+ * générique par défaut pour un code qu'on ne reconnaît pas.
+ */
+export function managedAuthErrorMessage(
+  code: string | undefined,
+  message: string | undefined,
+  t: (key: MessageKey, params?: Record<string, string | number>) => string,
+): string {
+  switch (code) {
+    case "user_already_exists":
+      return t("settings.ai.managedAuthUserExists");
+    case "over_email_send_rate_limit":
+      return t("settings.ai.managedAuthRateLimited");
+    case "email_not_confirmed":
+      return t("settings.ai.managedAuthEmailNotConfirmed");
+    // Distinct de over_email_send_rate_limit : GoTrue limite aussi /token et /signup
+    // par IP, ce que produit un clic répété impatient sur « je me suis confirmé ».
+    case "over_request_rate_limit":
+      return t("settings.ai.managedAuthTooManyRequests");
+    case "invalid_credentials":
+    case undefined:
+      return t("settings.ai.managedAuthFailed");
+    default:
+      return message || t("settings.ai.managedAuthFailed");
+  }
+}
+
+type ManagedVerifyResult = { ok: true } | { ok: false; reason: "auth" | "network" };
+
+/**
+ * Chemin secondaire de la confirmation par email : vérifie un code reçu par
+ * l'utilisateur (quand le modèle d'email en contient un, plutôt qu'un simple
+ * lien de confirmation). Même distinction auth/réseau qu'authenticateManaged.
+ */
+export async function verifyManagedSignup(email: string, code: string): Promise<ManagedVerifyResult> {
+  try {
+    const res = await fetch("/api/managed/auth", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode: "verify", email, code }),
+    });
+    if (res.status >= 500) return { ok: false, reason: "network" };
+    return res.ok ? { ok: true } : { ok: false, reason: "auth" };
+  } catch {
+    return { ok: false, reason: "network" };
+  }
+}
+
+/**
+ * Remet `setBusy(false)` quel que soit le chemin de sortie de `fn` – succès,
+ * retour anticipé ou exception. Corrige une régression où un `return` précoce
+ * dans le bloc `!res.ok` contournait la remise à zéro du flag "busy" et
+ * bloquait définitivement les boutons du formulaire après un échec.
+ */
+export async function runWithBusyFlag(setBusy: (busy: boolean) => void, fn: () => Promise<void>): Promise<void> {
+  setBusy(true);
+  try {
+    await fn();
+  } finally {
+    setBusy(false);
+  }
+}
+
+interface ManagedSubscription {
+  status: string;
+  currentPeriodEnd: string | null;
+}
+
+/**
+ * Miroir exact de la condition de `debit_action` côté backend : un
+ * abonnement ne dispense de débit que s'il est actif/en essai ET pas expiré
+ * (`currentPeriodEnd` null = pas d'échéance connue → traité comme valide,
+ * sinon comparé à "maintenant"). Une divergence ici ferait afficher
+ * "Abonnement illimité" sur la carte alors qu'un abonnement zombie fait
+ * débiter des jetons à chaque appel IA.
+ */
+export function isManagedSubscriptionActive(
+  subscription: ManagedSubscription | null | undefined,
+): boolean {
+  if (!subscription) return false;
+  if (subscription.status !== "active" && subscription.status !== "trialing") return false;
+  if (subscription.currentPeriodEnd == null) return true;
+  return new Date(subscription.currentPeriodEnd).getTime() > Date.now();
+}
 
 interface TierSettings {
   provider: string;
@@ -105,6 +265,64 @@ export default function AISettingsPage() {
   const [byokStoredModel, setByokStoredModel] = useState("");
   const [savingByok, setSavingByok] = useState(false);
   const [removingByok, setRemovingByok] = useState(false);
+
+  // IA managée (bascaso cloud)
+  const [managedInfo, setManagedInfo] = useState<{ email: string; balance: number; subscribed: boolean } | null>(null);
+  const [managedEmail, setManagedEmail] = useState("");
+  const [managedPassword, setManagedPassword] = useState("");
+  const [managedBusy, setManagedBusy] = useState(false);
+  // Message affiché sous le formulaire (déjà localisé) plutôt qu'un simple
+  // booléen – le message dépend du code d'erreur serveur, voir managedAuthErrorMessage.
+  const [managedError, setManagedError] = useState<string | null>(null);
+  // Un signup accepté mais en attente de confirmation email bascule sur un
+  // 3e état de la carte : ni le formulaire de connexion, ni "connecté". Le
+  // modèle d'email en place n'a qu'un lien de confirmation (pas de code – le
+  // SMTP personnalisé qui portera {{ .Token }} arrive plus tard) : le chemin
+  // principal est donc "confirmez puis reconnectez-vous", et le code reste
+  // une alternative repliée, prête pour quand le modèle changera.
+  const [managedPendingConfirmation, setManagedPendingConfirmation] = useState(false);
+  const [managedShowCodeInput, setManagedShowCodeInput] = useState(false);
+  const [managedCode, setManagedCode] = useState("");
+  const [managedVerifyBusy, setManagedVerifyBusy] = useState(false);
+  const [managedVerifyError, setManagedVerifyError] = useState(false);
+  // Un seul poller de solde actif à la fois (double achat), coupé si la page est quittée.
+  const managedPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const managedMountedRef = useRef(true);
+  // Un tick de poll déjà en vol au moment d'un clic "déconnexion" ne doit pas
+  // repeupler managedInfo après coup – distinct de managedMountedRef (démontage).
+  const managedSignedOutRef = useRef(false);
+
+  const refreshManaged = useCallback(async () => {
+    try {
+      const res = await fetch("/api/managed/me");
+      if (!managedMountedRef.current || managedSignedOutRef.current) return;
+      if (!res.ok) {
+        setManagedInfo(null);
+        return;
+      }
+      const data = await res.json();
+      if (!managedMountedRef.current || managedSignedOutRef.current) return;
+      setManagedInfo({
+        email: data.email,
+        balance: data.balance,
+        subscribed: isManagedSubscriptionActive(data.subscription),
+      });
+    } catch {
+      // Cloud injoignable (réseau, panne) – on garde le dernier état connu sans planter.
+    }
+  }, []);
+
+  useEffect(() => {
+    managedMountedRef.current = true;
+    void refreshManaged();
+    return () => {
+      managedMountedRef.current = false;
+      if (managedPollRef.current) {
+        clearInterval(managedPollRef.current);
+        managedPollRef.current = null;
+      }
+    };
+  }, [refreshManaged]);
 
   // Routing
   const [routing, setRouting] = useState<RoutingState>(EMPTY_ROUTING);
@@ -426,6 +644,132 @@ export default function AISettingsPage() {
     setRemovingByok(false);
   }
 
+  // ── IA managée ────────────────────────────────────────────────────────────
+  async function handleManagedAuth(mode: "login" | "signup") {
+    setManagedError(null);
+    await runWithBusyFlag(setManagedBusy, async () => {
+      const result = await authenticateManaged(mode, managedEmail, managedPassword);
+      if (!result.ok) {
+        // 401 : message inline dédié au code serveur (compte déjà inscrit,
+        // quota d'emails dépassé, ou identifiants invalides – voir
+        // managedAuthErrorMessage). Échec réseau : toast générique, sinon
+        // l'utilisateur cherche une faute de frappe qui n'existe pas.
+        if (result.reason === "auth") setManagedError(managedAuthErrorMessage(result.code, result.message, t));
+        else toast.error(t("common.networkError"));
+        return;
+      }
+      if (result.confirmationRequired) {
+        // On garde email/mot de passe en état : c'est ce qui permet au bouton
+        // "Je me suis confirmé" de retenter signIn sans les redemander.
+        setManagedPendingConfirmation(true);
+        return;
+      }
+      managedSignedOutRef.current = false;
+      setManagedPendingConfirmation(false);
+      setManagedShowCodeInput(false);
+      setManagedPassword("");
+      setManagedCode("");
+      invalidateAIStatus();
+      void refreshManaged();
+    });
+  }
+
+  async function handleManagedVerify() {
+    setManagedVerifyError(false);
+    await runWithBusyFlag(setManagedVerifyBusy, async () => {
+      const result = await verifyManagedSignup(managedEmail, managedCode.trim());
+      if (!result.ok) {
+        if (result.reason === "auth") setManagedVerifyError(true);
+        else toast.error(t("common.networkError"));
+        return;
+      }
+      managedSignedOutRef.current = false;
+      setManagedPendingConfirmation(false);
+      setManagedShowCodeInput(false);
+      setManagedPassword("");
+      setManagedCode("");
+      invalidateAIStatus();
+      void refreshManaged();
+    });
+  }
+
+  async function handleManagedSignOut() {
+    // Empêche un tick de poll déjà en vol de repeupler managedInfo après coup.
+    managedSignedOutRef.current = true;
+    // Un poller de solde en cours n'a plus de sens une fois déconnecté.
+    if (managedPollRef.current) {
+      clearInterval(managedPollRef.current);
+      managedPollRef.current = null;
+    }
+    try {
+      await fetch("/api/managed/auth", { method: "DELETE" });
+    } catch {
+      // Ignoré – l'état local est réinitialisé dans tous les cas ; un rechargement
+      // reflétera l'état réel du serveur si la requête n'a pas abouti.
+    }
+    setManagedInfo(null);
+    setManagedPendingConfirmation(false);
+    setManagedShowCodeInput(false);
+    setManagedCode("");
+    invalidateAIStatus();
+  }
+
+  // Un échec de checkout/portal n'est pas forcément réseau : le cas le plus courant est une
+  // session expirée pendant que l'onglet Réglages restait ouvert. Afficher « erreur réseau »
+  // enverrait l'utilisateur vérifier son wifi au lieu de se reconnecter – on repasse donc la
+  // carte au formulaire de connexion, qui est à la fois le diagnostic et l'action à faire.
+  function reportManagedFailure(status: number) {
+    if (status === 401) {
+      setManagedInfo(null);
+      return;
+    }
+    toast.error(t("common.unknownError"));
+  }
+
+  async function handleManagedCheckout(sku: string) {
+    try {
+      const res = await fetch("/api/managed/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sku }),
+      });
+      if (!res.ok) {
+        reportManagedFailure(res.status);
+        return;
+      }
+      const { url } = await res.json();
+      window.open(url, "_blank"); // Electron route _blank vers le navigateur (setWindowOpenHandler)
+
+      // Un second achat avant la fin du premier remplace le poller en cours au
+      // lieu d'en cumuler un deuxième.
+      if (managedPollRef.current) clearInterval(managedPollRef.current);
+      let ticks = 0; // polling du solde ~1 min après ouverture du checkout
+      managedPollRef.current = setInterval(() => {
+        void refreshManaged();
+        if (++ticks >= 6 && managedPollRef.current) {
+          clearInterval(managedPollRef.current);
+          managedPollRef.current = null;
+        }
+      }, 10_000);
+    } catch {
+      toast.error(t("common.networkError"));
+    }
+  }
+
+  async function handleManagedPortal() {
+    try {
+      const res = await fetch("/api/managed/portal", { method: "POST" });
+      if (!res.ok) {
+        reportManagedFailure(res.status);
+        return;
+      }
+      const { url } = await res.json();
+      window.open(url, "_blank");
+    } catch {
+      toast.error(t("common.networkError"));
+    }
+  }
+
   // ── Gemini key ────────────────────────────────────────────────────────────
   async function handleSaveGeminiKey() {
     if (!geminiKey.trim()) return;
@@ -739,6 +1083,120 @@ export default function AISettingsPage() {
             t("settings.ai.save")
           )}
         </Button>
+      </section>
+
+      {/* IA managée – compte cloud bascaso */}
+      <section className="space-y-4">
+        <h3 className="section-title">{t("settings.ai.managedSection")}</h3>
+        <p className="text-sm text-muted-foreground">{t("settings.ai.managedHint")}</p>
+        {managedInfo === null ? (
+          managedPendingConfirmation ? (
+            <div className="max-w-[320px] space-y-3">
+              <p className="text-sm text-muted-foreground">
+                {t("settings.ai.managedConfirmHint", { email: managedEmail })}
+              </p>
+              {managedError && (
+                <p className="text-sm text-destructive">{managedError}</p>
+              )}
+              <Button disabled={managedBusy} onClick={() => void handleManagedAuth("login")}>
+                {t("settings.ai.managedConfirmSignIn")}
+              </Button>
+
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setManagedShowCodeInput((v) => !v)}
+                  className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                  aria-expanded={managedShowCodeInput}
+                >
+                  <CaretRight
+                    className={managedShowCodeInput ? "rotate-90 transition-transform" : "transition-transform"}
+                  />
+                  {t("settings.ai.managedConfirmCodeToggle")}
+                </button>
+                {managedShowCodeInput && (
+                  <div className="space-y-2 pt-2">
+                    <Input
+                      type="text"
+                      placeholder={t("settings.ai.managedConfirmCode")}
+                      value={managedCode}
+                      onChange={(e) => setManagedCode(e.target.value)}
+                    />
+                    {managedVerifyError && (
+                      <p className="text-sm text-destructive">{t("settings.ai.managedConfirmFailed")}</p>
+                    )}
+                    <Button
+                      variant="outline"
+                      disabled={managedVerifyBusy || !managedCode.trim()}
+                      onClick={() => void handleManagedVerify()}
+                    >
+                      {t("settings.ai.managedConfirmSubmit")}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="max-w-[320px] space-y-2">
+              <Input
+                type="email"
+                placeholder={t("settings.ai.managedEmail")}
+                value={managedEmail}
+                onChange={(e) => setManagedEmail(e.target.value)}
+              />
+              <Input
+                type="password"
+                placeholder={t("settings.ai.managedPassword")}
+                value={managedPassword}
+                onChange={(e) => setManagedPassword(e.target.value)}
+              />
+              {managedError && (
+                <p className="text-sm text-destructive">{managedError}</p>
+              )}
+              <div className="flex gap-2">
+                <Button disabled={managedBusy} onClick={() => void handleManagedAuth("login")}>
+                  {t("settings.ai.managedSignIn")}
+                </Button>
+                <Button variant="outline" disabled={managedBusy} onClick={() => void handleManagedAuth("signup")}>
+                  {t("settings.ai.managedSignUp")}
+                </Button>
+              </div>
+            </div>
+          )
+        ) : (
+          <div className="space-y-3">
+            <p className="text-sm">{t("settings.ai.managedSignedInAs", { email: managedInfo.email })}</p>
+            <p className="text-sm font-medium">
+              {managedInfo.subscribed
+                ? t("settings.ai.managedUnlimited")
+                : t("settings.ai.managedBalance", { count: managedInfo.balance })}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {MANAGED_PACKS.map((p) => (
+                <Button key={p.sku} variant="outline" onClick={() => void handleManagedCheckout(p.sku)}>
+                  {t("settings.ai.managedBuyPack", { count: p.credits, price: p.price })}
+                </Button>
+              ))}
+              {managedInfo.subscribed ? (
+                <Button variant="outline" onClick={() => void handleManagedPortal()}>
+                  {t("settings.ai.managedManage")}
+                </Button>
+              ) : (
+                <Button onClick={() => void handleManagedCheckout("sub_monthly")}>
+                  {t("settings.ai.managedSubscribe")}
+                </Button>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <Button variant="ghost" size="sm" onClick={() => void refreshManaged()}>
+                {t("settings.ai.managedRefresh")}
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => void handleManagedSignOut()}>
+                {t("settings.ai.managedSignOut")}
+              </Button>
+            </div>
+          </div>
+        )}
       </section>
 
       {/* Routing */}

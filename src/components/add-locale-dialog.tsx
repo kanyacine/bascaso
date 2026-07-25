@@ -188,7 +188,7 @@ export function AddLocaleDialog({
 
   // Translate a single field
   const translateField = useCallback(
-    async (field: string, baseValue: string) => {
+    async (field: string, baseValue: string, actionId: string) => {
       if (!baseValue.trim()) return;
       console.log("[add-locale] translateField: start", field, `(${baseValue.length} chars)`);
       updateField(field, { translating: true });
@@ -198,6 +198,7 @@ export function AddLocaleDialog({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             action: "translate",
+            actionId,
             text: baseValue,
             field,
             fromLocale: primaryLocale,
@@ -226,7 +227,13 @@ export function AddLocaleDialog({
 
   // Fix keywords: dedupe, remove forbidden, fill budget
   const fixKeywords = useCallback(
-    async (translatedKeywords: string, description: string, subtitle: string, forbiddenWords: string[]) => {
+    async (
+      translatedKeywords: string,
+      description: string,
+      subtitle: string,
+      forbiddenWords: string[],
+      actionId: string,
+    ) => {
       console.log("[add-locale] fixKeywords: start", `(${translatedKeywords.length} chars, ${forbiddenWords.length} forbidden)`);
       updateField("keywords", { translating: true });
       try {
@@ -235,6 +242,7 @@ export function AddLocaleDialog({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             action: "fix-keywords",
+            actionId,
             text: translatedKeywords,
             field: "keywords",
             locale,
@@ -379,6 +387,9 @@ export function AddLocaleDialog({
     if (!base) return;
     console.log("[add-locale] handleTranslate: start");
     errorToastShownRef.current = false;
+    // 1 clic « traduire » = 1 action managée (1 jeton), quel que soit le
+    // nombre de champs/appels /api/ai que ce run déclenche.
+    const actionId = crypto.randomUUID();
 
     setFields((prev) => {
       const next = { ...prev };
@@ -419,7 +430,7 @@ export function AddLocaleDialog({
         return;
       }
 
-      const result = await translateField(f, baseValue);
+      const result = await translateField(f, baseValue, actionId);
       if (f === "description") descResult = result;
       if (f === "subtitle") subtitleResult = result;
     });
@@ -432,7 +443,7 @@ export function AddLocaleDialog({
     if (keywordsChecked && base.storeListing.keywords.trim()) {
       console.log("[add-locale] handleTranslate: keywords step 1 – translate");
       // Step 1: Translate base keywords
-      const translatedKw = await translateField("keywords", base.storeListing.keywords);
+      const translatedKw = await translateField("keywords", base.storeListing.keywords, actionId);
 
       const finalSubtitle = subtitleResult ?? base.appDetails.subtitle;
       const finalDesc = descResult ?? base.storeListing.description;
@@ -453,7 +464,7 @@ export function AddLocaleDialog({
 
       // Step 3: Fill remaining budget with new locale-specific keywords
       console.log("[add-locale] handleTranslate: keywords step 3 – fix-keywords");
-      await fixKeywords(raw, finalDesc, finalSubtitle, forbidden);
+      await fixKeywords(raw, finalDesc, finalSubtitle, forbidden, actionId);
     } else if (keywordsChecked) {
       updateField("keywords", { translating: false });
     }
