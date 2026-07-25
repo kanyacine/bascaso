@@ -15,7 +15,7 @@
 // with whatever did score. Any other error still aborts (WorkflowStepError) –
 // only the iTunes-specific failure modes degrade.
 //
-// Three guards keep "degrade" from becoming its own failure mode:
+// Four guards keep "degrade" from becoming its own failure mode:
 // - CONSECUTIVE_ITUNES_FAILURE_LIMIT trips a circuit breaker after N
 //   straight iTunes failures: the remaining keywords are skipped without
 //   even attempting them, so a fully-throttled run costs a handful of failed
@@ -34,9 +34,16 @@
 //   would punish the breaker for doing its job (the more work it saves, the
 //   worse the fraction looks) instead of measuring how representative the
 //   real sample is.
+// - MIN_SCORED_KEYWORDS: the ratio above is not enough on its own, because
+//   the breaker caps how large its denominator can ever get – a sustained
+//   outage pins attemptedItunesFailures at CONSECUTIVE_ITUNES_FAILURE_LIMIT,
+//   so the ratio alone can only fail a run with 0 or 1 scored keyword. An
+//   absolute floor catches the 2-keyword case the ratio structurally cannot.
 // - Zero scored candidates always fails loudly, the way the whole run used
 //   to before this file existed – degrading must mean "some data missing",
-//   never "no data, silently reported as done".
+//   never "no data, silently reported as done". (Subsumed by
+//   MIN_SCORED_KEYWORDS above, kept as its own bullet because it's the
+//   guard's original, easiest-to-reason-about case.)
 
 import type { ZodType } from "zod";
 import { appleFmInputTooLarge } from "@/lib/ai/apple-fm";
@@ -376,20 +383,38 @@ const MAX_RUN_DURATION_MS = 60 * 60 * 1000;
 // 12.5 %) still fails loudly, while a run where sustained throttling only
 // hit after a broad, representative sample was already gathered (e.g. 20 of
 // 30 planned keywords) still delivers a proposal worth the spent credit.
+//
+// This ratio alone is not enough: the breaker caps attemptedItunesFailures at
+// CONSECUTIVE_ITUNES_FAILURE_LIMIT (3), so in a sustained outage the
+// denominator is pinned at `scored + 3` – solving scored/(scored+3) < 0.3
+// gives scored < 9/7, i.e. the ratio can only fail a run with 0 or 1 scored
+// keyword. An outage that starts after 2 successes (2/(2+3) = 40 %) would
+// sail through with a two-keyword proposal. MIN_SCORED_KEYWORDS below is an
+// absolute floor alongside the ratio for exactly this case – it doesn't
+// re-punish the breaker for saving work (it's a floor, not a fraction of
+// planned-but-abandoned keywords), it just refuses to trust a handful of
+// data points regardless of how good their ratio looks. 5 is chosen to kill
+// 1–2-keyword proposals outright while still passing the breaker's own
+// confirmed-good case (7 scored, 3 attempted failures, a realistic ~130-
+// candidate harvest – see the "realistic harvest size" test): the LLM
+// compose step gets a genuinely small candidate pool, not a token sample.
 const MIN_SCORED_FRACTION = 0.3;
+const MIN_SCORED_KEYWORDS = 5;
 
 /**
  * Pure floor+ceiling decision, isolated from the orchestrator so the boundary
  * math is testable without engineering exact mock call sequences. `scored`
  * and `skipped` are counts of *attempted* keywords only (candidates that were
- * never attempted at all – e.g. filtered out as irrelevant – don't belong in
- * either number). Floor: any skips with zero scores fails outright. Ceiling:
- * a non-zero score count still fails below MIN_SCORED_FRACTION.
+ * never attempted at all – e.g. filtered out as irrelevant, or skipped by the
+ * breaker/budget without a call – don't belong in either number). Two
+ * independent guards: an absolute floor (too few real data points, full
+ * stop, regardless of how favourable the ratio looks) and a ratio ceiling
+ * (a large-enough sample that's still disproportionately full of failures).
  */
 export function shouldFailForThinSample(scored: number, skipped: number): boolean {
   if (skipped === 0) return false; // clean run – iTunes never caused a skip
-  if (scored === 0) return true; // floor
-  return scored / (scored + skipped) < MIN_SCORED_FRACTION; // ceiling
+  if (scored < MIN_SCORED_KEYWORDS) return true; // absolute floor
+  return scored / (scored + skipped) < MIN_SCORED_FRACTION; // ratio ceiling
 }
 
 export async function runKeywordResearch(
@@ -646,9 +671,9 @@ export async function runKeywordResearch(
     if (shouldFailForThinSample(partial.candidates.length, attemptedItunesFailures)) {
       const attempted = partial.candidates.length + attemptedItunesFailures;
       throw new ItunesUnavailableError(
-        partial.candidates.length === 0
-          ? `itunes_unavailable: iTunes stayed unreachable for all ${attempted} attempted keyword(s) – ` +
-            "no usable data to build a proposal from"
+        partial.candidates.length < MIN_SCORED_KEYWORDS
+          ? `itunes_unavailable: only ${partial.candidates.length} keyword(s) scored (of ${attempted} attempted) ` +
+            `– below the ${MIN_SCORED_KEYWORDS}-keyword floor, too few to propose metadata from`
           : `itunes_unavailable: only ${partial.candidates.length}/${attempted} attempted keyword(s) could be ` +
             `scored (< ${Math.round(MIN_SCORED_FRACTION * 100)}%) – too thin a sample to propose metadata from`,
       );

@@ -377,6 +377,38 @@ describe("runKeywordResearch – iTunes throttle degrades instead of failing", (
     expect(mockScoreKeyword).toHaveBeenCalledTimes(4);
   });
 
+  // Third re-review Critical: an outage that starts *after* a couple of
+  // successes used to sail through the ratio ceiling, because the breaker
+  // caps its denominator at CONSECUTIVE_ITUNES_FAILURE_LIMIT (3) – 2 scored /
+  // (2 scored + 3 attempted failures) = 40 % ≥ 30 %. This is the exact
+  // "two-word proposal, Apply enabled" shape the review flagged. The
+  // absolute floor (MIN_SCORED_KEYWORDS) must catch it where the ratio
+  // structurally cannot.
+  it("fails a run where an outage starts after two successes, instead of shipping a two-keyword proposal – reviewer probe #3", async () => {
+    relevantResponse = allRelevant;
+    mockScoreKeyword.mockImplementation(async (keyword: string) => {
+      if (keyword === "habit tracker" || keyword === "daily planner") return makeScore(keyword);
+      throw new ItunesRateLimited("iTunes API rate-limited (429)");
+    });
+
+    const err = await runKeywordResearch(input, () => {}, new AbortController().signal).catch((e) => e);
+
+    expect(err).toBeInstanceOf(WorkflowStepError);
+    expect(err.step).toBe("score");
+    expect(err.partial.candidates.length).toBe(2);
+    expect(err.partial.candidates.map((c: { keyword: string }) => c.keyword)).toEqual(
+      expect.arrayContaining(["habit tracker", "daily planner"]),
+    );
+    expect((err.cause as Error).message).toContain("itunes_unavailable");
+    expect((err.cause as Error).message).toContain("below the 5-keyword floor");
+    // The ratio alone (2/5 = 40 %) would have passed this – proves the
+    // absolute floor, not the ratio, is what caught it.
+    expect(2 / (2 + 3)).toBeGreaterThanOrEqual(0.3);
+    // 3 seeds + 2 harvested attempted before the breaker trips on the 3rd
+    // straight failure (goals, then the first two harvested attempts).
+    expect(mockScoreKeyword).toHaveBeenCalledTimes(5);
+  });
+
   // Second re-review Critical: shouldFailForThinSample must be fed *attempted*
   // counts only. partial.skippedKeywords also holds keywords the breaker
   // skipped without ever attempting them – a realistic run harvests up to

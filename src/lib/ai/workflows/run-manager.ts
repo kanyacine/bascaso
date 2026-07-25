@@ -125,10 +125,19 @@ async function driveRun(
       // failure – it renders as an amber note over nothing, and listRuns
       // only lists succeeded runs, so it would pollute report history with
       // nothing to show.
+      //
+      // step: null rather than a hardcoded "compose" – runKeywordResearch
+      // always runs every step through to "report" (its onProgress fires
+      // unconditionally, win or lose), so the true last-reported step here
+      // is "report", not "compose", regardless of cause. Neither name is
+      // actually accurate: this isn't a step throwing, it's a boundary
+      // policy decision made after the pipeline finished, so it doesn't
+      // belong to any one step. The banner falls back to a step-less
+      // message when step is null (see failedGeneric).
       db.update(workflowRuns)
         .set({
           status: "failed",
-          step: "compose",
+          step: null,
           error: "no_proposal",
           result: JSON.stringify(result),
           updatedAt: nowIso(),

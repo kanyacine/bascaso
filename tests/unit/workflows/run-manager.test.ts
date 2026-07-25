@@ -272,7 +272,9 @@ describe("startKeywordResearch", () => {
     const row = getRun(started.runId);
     expect(row?.status).toBe("failed");
     expect(row?.error).toBe("no_proposal");
-    expect(row?.step).toBe("compose");
+    // Not hardcoded to "compose" – see run-manager.ts's comment: this isn't a
+    // step throwing, so it doesn't belong to any one step.
+    expect(row?.step).toBeNull();
     expect(row?.result).toEqual(emptyResult);
   });
 

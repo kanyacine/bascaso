@@ -103,6 +103,33 @@ const STEP_LABEL: Record<WorkflowStepId, MessageKey> = {
   report: "aso.research.steps.report",
 };
 
+// Mirrors the backend's per-action replay window – kept as a local literal
+// (not imported from keyword-research.ts) so this "use client" file never
+// pulls in that module's server-only dependencies (db, itunes,
+// provider-factory), same reasoning as the STEP_LABEL/WorkflowStepId
+// type-only imports above.
+const MANAGED_ACTION_WINDOW_MS = 90 * 60 * 1000;
+// Mirrors MAX_RUN_DURATION_MS in keyword-research.ts – a retry's own worst
+// case is bounded by the same wall-clock budget the original run was.
+const WORKFLOW_MAX_DURATION_MS = 60 * 60 * 1000;
+/**
+ * A retry only reuses the original run's actionId (free replay) if there is
+ * enough of the 90-minute window left that the retry's OWN worst-case
+ * duration – up to WORKFLOW_MAX_DURATION_MS, the same wall-clock budget
+ * that bounds any run – cannot push its eventual compose call past the
+ * window. So the safe threshold is the window minus that worst case (30
+ * min), not the raw 90: a run that already burned close to its own budget
+ * before failing is exactly the case that must NOT be offered a free retry,
+ * because retrying it can also take up to another hour. A fast failure
+ * (the common case) leaves `createdAt` recent, comfortably inside 30 min,
+ * so it stays free.
+ */
+const SAFE_RETRY_WINDOW_MS = MANAGED_ACTION_WINDOW_MS - WORKFLOW_MAX_DURATION_MS;
+
+export function canRetryForFree(createdAt: string): boolean {
+  return Date.now() - new Date(createdAt).getTime() < SAFE_RETRY_WINDOW_MS;
+}
+
 interface KeywordResearchDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -429,7 +456,11 @@ export function KeywordResearchDialog({
                 readOnly={readOnly}
                 onApplyKeywords={onApplyKeywords}
                 onAddKeywords={onAddKeywords}
-                onRetry={() => launch(run.actionId ?? undefined)}
+                onRetry={() =>
+                  launch(
+                    run.actionId && canRetryForFree(run.createdAt) ? run.actionId : undefined,
+                  )
+                }
                 retrying={launching}
               />
             )}
@@ -686,9 +717,9 @@ function ResultsView({
       {failed && (
         <div className="error-banner space-y-2">
           <p>
-            {t("aso.research.failedAt", {
-              step: run.step ? t(STEP_LABEL[run.step]) : "",
-            })}
+            {run.step
+              ? t("aso.research.failedAt", { step: t(STEP_LABEL[run.step]) })
+              : t("aso.research.failedGeneric")}
           </p>
           {failureMessage && <p>{failureMessage}</p>}
           <div className="flex items-center gap-2 pt-1">
@@ -703,7 +734,11 @@ function ResultsView({
             </Button>
             {run.actionId && (
               <span className="text-xs text-muted-foreground">
-                {t("aso.research.retryHint")}
+                {t(
+                  canRetryForFree(run.createdAt)
+                    ? "aso.research.retryHint"
+                    : "aso.research.retryUsesNewCredit",
+                )}
               </span>
             )}
           </div>
