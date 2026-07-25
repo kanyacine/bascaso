@@ -53,6 +53,45 @@ const MANAGED_PACKS = [
   { sku: "pack_100", credits: 100, price: "80 €" },
 ] as const;
 
+type ManagedAuthResult = { ok: true } | { ok: false; reason: "auth" | "network" };
+
+/**
+ * Isolé du composant pour être testable sans rendu React : distingue un échec
+ * d'authentification (401 – identifiants) d'un échec réseau (fetch qui lève),
+ * pour que l'appelant puisse afficher le bon message dans chaque cas.
+ */
+export async function authenticateManaged(
+  mode: "login" | "signup",
+  email: string,
+  password: string,
+): Promise<ManagedAuthResult> {
+  try {
+    const res = await fetch("/api/managed/auth", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode, email, password }),
+    });
+    return res.ok ? { ok: true } : { ok: false, reason: "auth" };
+  } catch {
+    return { ok: false, reason: "network" };
+  }
+}
+
+/**
+ * Remet `setBusy(false)` quel que soit le chemin de sortie de `fn` – succès,
+ * retour anticipé ou exception. Corrige une régression où un `return` précoce
+ * dans le bloc `!res.ok` contournait la remise à zéro du flag "busy" et
+ * bloquait définitivement les boutons du formulaire après un échec.
+ */
+export async function runWithBusyFlag(setBusy: (busy: boolean) => void, fn: () => Promise<void>): Promise<void> {
+  setBusy(true);
+  try {
+    await fn();
+  } finally {
+    setBusy(false);
+  }
+}
+
 interface TierSettings {
   provider: string;
   modelId: string;
@@ -122,17 +161,20 @@ export default function AISettingsPage() {
   // Un seul poller de solde actif à la fois (double achat), coupé si la page est quittée.
   const managedPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const managedMountedRef = useRef(true);
+  // Un tick de poll déjà en vol au moment d'un clic "déconnexion" ne doit pas
+  // repeupler managedInfo après coup – distinct de managedMountedRef (démontage).
+  const managedSignedOutRef = useRef(false);
 
   const refreshManaged = useCallback(async () => {
     try {
       const res = await fetch("/api/managed/me");
-      if (!managedMountedRef.current) return;
+      if (!managedMountedRef.current || managedSignedOutRef.current) return;
       if (!res.ok) {
         setManagedInfo(null);
         return;
       }
       const data = await res.json();
-      if (!managedMountedRef.current) return;
+      if (!managedMountedRef.current || managedSignedOutRef.current) return;
       setManagedInfo({
         email: data.email,
         balance: data.balance,
@@ -477,28 +519,27 @@ export default function AISettingsPage() {
 
   // ── IA managée ────────────────────────────────────────────────────────────
   async function handleManagedAuth(mode: "login" | "signup") {
-    setManagedBusy(true);
     setManagedError(false);
-    try {
-      const res = await fetch("/api/managed/auth", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode, email: managedEmail, password: managedPassword }),
-      });
-      if (!res.ok) {
-        setManagedError(true);
+    await runWithBusyFlag(setManagedBusy, async () => {
+      const result = await authenticateManaged(mode, managedEmail, managedPassword);
+      if (!result.ok) {
+        // 401 (identifiants) : message inline dédié. Échec réseau : toast
+        // générique – sinon l'utilisateur cherche une faute de frappe qui
+        // n'existe pas.
+        if (result.reason === "auth") setManagedError(true);
+        else toast.error(t("common.networkError"));
         return;
       }
+      managedSignedOutRef.current = false;
       setManagedPassword("");
       invalidateAIStatus();
       void refreshManaged();
-    } catch {
-      setManagedError(true);
-    }
-    setManagedBusy(false);
+    });
   }
 
   async function handleManagedSignOut() {
+    // Empêche un tick de poll déjà en vol de repeupler managedInfo après coup.
+    managedSignedOutRef.current = true;
     // Un poller de solde en cours n'a plus de sens une fois déconnecté.
     if (managedPollRef.current) {
       clearInterval(managedPollRef.current);
@@ -521,7 +562,10 @@ export default function AISettingsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sku }),
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        toast.error(t("common.networkError"));
+        return;
+      }
       const { url } = await res.json();
       window.open(url, "_blank"); // Electron route _blank vers le navigateur (setWindowOpenHandler)
 
@@ -537,18 +581,21 @@ export default function AISettingsPage() {
         }
       }, 10_000);
     } catch {
-      // Cloud injoignable – l'utilisateur peut réessayer, rien à afficher ici.
+      toast.error(t("common.networkError"));
     }
   }
 
   async function handleManagedPortal() {
     try {
       const res = await fetch("/api/managed/portal", { method: "POST" });
-      if (!res.ok) return;
+      if (!res.ok) {
+        toast.error(t("common.networkError"));
+        return;
+      }
       const { url } = await res.json();
       window.open(url, "_blank");
     } catch {
-      // Cloud injoignable – l'utilisateur peut réessayer, rien à afficher ici.
+      toast.error(t("common.networkError"));
     }
   }
 
