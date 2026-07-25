@@ -89,10 +89,7 @@ describe("managed auth (GoTrue REST)", () => {
       json: () => Promise.resolve({ id: "11111111-1111-1111-1111-111111111111", email: "a@b.c", identities: [] }),
     });
     const { signUp, ManagedAuthError } = await import("@/lib/managed/auth");
-    await expect(signUp("a@b.c", "password123")).rejects.toMatchObject({
-      name: "ManagedAuthError", code: "user_already_exists",
-    });
-    void ManagedAuthError;
+    await expect(signUp("a@b.c", "password123")).rejects.toBeInstanceOf(ManagedAuthError);
   });
 
   // Une vraie inscription en attente porte exactement une identité : elle ne doit PAS

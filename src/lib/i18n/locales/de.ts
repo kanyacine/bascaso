@@ -133,6 +133,7 @@ export const de: Messages = {
       managedAuthUserExists: "Diese Adresse ist bereits registriert – bitte stattdessen anmelden.",
       managedAuthRateLimited: "Zu viele E-Mails versendet – bitte in ein paar Minuten erneut versuchen.",
       managedAuthEmailNotConfirmed: "Ihre E-Mail-Adresse ist noch nicht bestätigt – öffnen Sie zuerst die Bestätigungs-E-Mail.",
+      managedAuthTooManyRequests: "Zu viele Versuche – warten Sie einen Moment und versuchen Sie es erneut.",
       managedRefresh: "Guthaben aktualisieren",
       managedConfirmHint: "Wir haben eine Bestätigungs-E-Mail an {email} gesendet. Öffnen Sie sie, bestätigen Sie, und melden Sie sich anschließend unten an.",
       managedConfirmSignIn: "Bestätigt – jetzt anmelden",

@@ -102,7 +102,6 @@ const STEP_LABEL: Record<WorkflowStepId, MessageKey> = {
   report: "aso.research.steps.report",
 };
 
-
 interface KeywordResearchDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;

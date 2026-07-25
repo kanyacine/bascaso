@@ -131,6 +131,10 @@ export function managedAuthErrorMessage(
       return t("settings.ai.managedAuthRateLimited");
     case "email_not_confirmed":
       return t("settings.ai.managedAuthEmailNotConfirmed");
+    // Distinct de over_email_send_rate_limit : GoTrue limite aussi /token et /signup
+    // par IP, ce que produit un clic répété impatient sur « je me suis confirmé ».
+    case "over_request_rate_limit":
+      return t("settings.ai.managedAuthTooManyRequests");
     case "invalid_credentials":
     case undefined:
       return t("settings.ai.managedAuthFailed");

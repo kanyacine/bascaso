@@ -133,6 +133,7 @@ export const ru: Messages = {
       managedAuthUserExists: "Этот адрес уже зарегистрирован – просто войдите в аккаунт.",
       managedAuthRateLimited: "Слишком много писем отправлено – подождите пару минут и попробуйте снова.",
       managedAuthEmailNotConfirmed: "Ваш email ещё не подтверждён – сначала откройте письмо с подтверждением.",
+      managedAuthTooManyRequests: "Слишком много попыток – подождите немного и попробуйте снова.",
       managedRefresh: "Обновить баланс",
       managedConfirmHint: "Мы отправили письмо для подтверждения на {email}. Откройте его, подтвердите и войдите ниже.",
       managedConfirmSignIn: "Я подтвердил(а) – войти",

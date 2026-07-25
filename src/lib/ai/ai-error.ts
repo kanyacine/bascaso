@@ -1,4 +1,5 @@
 import type { MessageKey } from "@/lib/i18n/messages";
+import type { AIErrorCategory } from "@/lib/ai/provider-factory";
 
 type Translate = (key: MessageKey, params?: Record<string, string | number>) => string;
 
@@ -36,16 +37,22 @@ export function aiErrorMessage(errorCode: string | undefined, t: Translate): str
   }
 }
 
-/** Codes produits par `run-manager.ts` pour un échec du proxy managé, et seuls codes
- *  que l'UI d'un run doit traduire via `aiErrorMessage` : toute autre valeur de
- *  `workflow_runs.error` (panne iTunes, bug interne…) reste un message brut, il serait
- *  faux d'annoncer « requête IA échouée » pour une cause qui n'est pas l'IA.
- *  Source unique : run-manager écrit ces codes, le dialogue les lit. Les deux lisaient
- *  jusqu'ici deux listes séparées – ajouter un code d'un côté cessait silencieusement
- *  de l'afficher de l'autre. */
-export const MANAGED_WORKFLOW_ERROR_CODES: ReadonlySet<string> = new Set([
-  "ai_credits_exhausted",
-  "ai_rate_limited",
-  "ai_action_exhausted",
-  "ai_auth_error",
-]);
+/** Catégorie d'échec du proxy managé → code stocké dans `workflow_runs.error`.
+ *  Source unique : `run-manager.ts` écrit d'après cette map, l'UI d'un run traduit
+ *  d'après le Set qui en dérive. Les deux listes étaient auparavant écrites à la main
+ *  chacune de son côté – ajouter un code d'un seul côté cessait silencieusement de
+ *  l'afficher de l'autre. Ici la dérive n'est plus représentable.
+ *  Import de type seulement : rien de `provider-factory` n'entre dans le bundle client. */
+export const MANAGED_ERROR_CODE_BY_CATEGORY: Partial<Record<AIErrorCategory, string>> = {
+  credits: "ai_credits_exhausted",
+  rate_limited: "ai_rate_limited",
+  action_exhausted: "ai_action_exhausted",
+  auth: "ai_auth_error",
+  permission: "ai_auth_error",
+};
+
+/** Seuls codes qu'une UI de run doit traduire : toute autre valeur de
+ *  `workflow_runs.error` (panne iTunes, bug interne…) reste un message brut – il serait
+ *  faux d'annoncer « requête IA échouée » pour une cause qui n'est pas l'IA. */
+export const MANAGED_WORKFLOW_ERROR_CODES: ReadonlySet<string> =
+  new Set(Object.values(MANAGED_ERROR_CODE_BY_CATEGORY));

@@ -34,10 +34,14 @@ interface GoTrueResponse {
   // Vide sur la réponse sanitisée d'une adresse déjà inscrite ; exactement une entrée
   // sur une vraie inscription en attente. Seul signal qui distingue les deux.
   identities?: unknown[];
+  // Jamais envoyé par ce GoTrue : vestige de l'hypothèse OAuth2. Conservé en
+  // premier arm du ?? uniquement par prudence si un proxy le réintroduisait.
   error_description?: string;
   msg?: string;
-  // Code machine-readable des endpoints REST (signup/verify) – absent sur la
-  // forme OAuth2 du endpoint /token (grant password/refresh).
+  // Code machine-readable, présent sur TOUS les endpoints, /token compris.
+  // L'hypothèse inverse (forme OAuth2 sur /token) est ce qui avait rendu
+  // managedAuthFailed inatteignable et affiché de l'anglais brut aux non-anglophones.
+  // Mesuré en prod : mot de passe erroné → {code:400, error_code:"invalid_credentials", msg:…}.
   error_code?: string;
 }
 
@@ -97,6 +101,10 @@ export async function signUp(email: string, password: string): Promise<SignUpOut
   // qu'une vraie nouvelle inscription en porte exactement une. Sans ce test, l'utilisateur qui
   // revient s'inscrire se voit promettre un email de confirmation qu'il ne recevra jamais.
   // Le cas 422 reste géré plus bas : le code doit rester correct si l'autoconfirm est réactivé.
+  // Réserve connue : GoTrue vide aussi `identities` pour un utilisateur INVITÉ
+  // (HasBeenInvited, internal/api/signup.go) – une vraie inscription en attente qui
+  // serait ici prise pour un doublon. bascaso n'a aucun flux d'invitation ; si on en
+  // ajoute un pour le tier payant, discriminer avec `invited_at`.
   if (res.ok && !json.access_token && Array.isArray(json.identities) && json.identities.length === 0) {
     throw new ManagedAuthError("User already registered", "user_already_exists");
   }

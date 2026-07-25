@@ -17,26 +17,18 @@ import {
   type WorkflowStepId,
 } from "@/lib/ai/workflows/keyword-research";
 import { emitWorkflowEvent } from "@/lib/ai/workflows/events";
-import { classifyAIError, type AIErrorCategory } from "@/lib/ai/provider-factory";
+import { classifyAIError } from "@/lib/ai/provider-factory";
+// Source unique du mapping catégorie → code (voir ai-error.ts) : l'UI d'un run lit
+// le Set qui en dérive, donc les deux côtés ne peuvent plus diverger.
+import { MANAGED_ERROR_CODE_BY_CATEGORY } from "@/lib/ai/ai-error";
 
-// Même mapping catégorie → code que les routes /api/ai, /api/apps/.../insights
-// (voir classifyAIError et leurs branches credits/rate_limited/action_exhausted/
-// auth) : un code proxy managé connu doit rester traduisible côté client via
-// aiErrorMessage plutôt que de figer un message serveur brut dans la ligne.
-const AI_ERROR_CODES: Partial<Record<AIErrorCategory, string>> = {
-  credits: "ai_credits_exhausted",
-  rate_limited: "ai_rate_limited",
-  action_exhausted: "ai_action_exhausted",
-  auth: "ai_auth_error",
-  permission: "ai_auth_error",
-};
 
 /** Code stocké dans workflow_runs.error : un échec du proxy managé connu
  *  devient le même code que les routes AI renvoient. Toute autre erreur
  *  (panne iTunes, bug interne…) garde son message d'origine – comportement
  *  inchangé, utile pour le debug serveur, jamais montré tel quel côté client. */
 function workflowErrorCode(cause: unknown, fallback: string): string {
-  return AI_ERROR_CODES[classifyAIError(cause)] ?? fallback;
+  return MANAGED_ERROR_CODE_BY_CATEGORY[classifyAIError(cause)] ?? fallback;
 }
 
 // Progress can fire once per scored keyword; coalesce DB writes/events so a

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { aiErrorMessage } from "@/lib/ai/ai-error";
+import { aiErrorMessage, MANAGED_WORKFLOW_ERROR_CODES } from "@/lib/ai/ai-error";
 import { en } from "@/lib/i18n/locales/en";
 import { getMessages, translate } from "@/lib/i18n/messages";
 
@@ -48,24 +48,23 @@ describe("aiErrorMessage", () => {
   });
 });
 
-// Garde anti-dérive : run-manager.ts écrit ces codes, le dialogue de run les lit.
-// Les deux côtés lisaient auparavant deux listes séparées, donc ajouter un code
-// d'un côté cessait silencieusement de l'afficher de l'autre.
+// La dérive entre run-manager et l'UI d'un run n'est plus testable parce qu'elle
+// n'est plus représentable : les deux dérivent de MANAGED_ERROR_CODE_BY_CATEGORY.
+// Reste à vérifier que chaque code de cette source a bien sa traduction dédiée –
+// sans quoi le dialogue afficherait le message générique pour un code qui a un sens
+// précis. Itère le Set, jamais une liste recopiée : une liste en dur ici recréerait
+// exactement la duplication qu'on vient de supprimer.
 describe("MANAGED_WORKFLOW_ERROR_CODES", () => {
-  it("couvre exactement les codes que run-manager sait produire", async () => {
-    const { MANAGED_WORKFLOW_ERROR_CODES } = await import("@/lib/ai/ai-error");
-    const src = await import("node:fs").then((fs) =>
-      fs.readFileSync("src/lib/ai/workflows/run-manager.ts", "utf8"));
-    const produced = new Set(
-      [...src.matchAll(/"(ai_[a-z_]+)"/g)].map((m) => m[1]),
-    );
-    expect([...produced].sort()).toEqual([...MANAGED_WORKFLOW_ERROR_CODES].sort());
+  it("n'est pas vide", () => {
+    expect(MANAGED_WORKFLOW_ERROR_CODES.size).toBeGreaterThan(0);
   });
 
-  it("chaque code a bien une traduction dédiée, pas le message générique", () => {
+  it("donne à chaque code une traduction dédiée, jamais le message générique ni null", () => {
     const t = ((key: string) => key) as never;
-    for (const code of ["ai_credits_exhausted", "ai_rate_limited", "ai_action_exhausted", "ai_auth_error"]) {
-      expect(aiErrorMessage(code, t)).not.toBe("errors.aiRequestFailed");
+    for (const code of MANAGED_WORKFLOW_ERROR_CODES) {
+      const message = aiErrorMessage(code, t);
+      expect(message).not.toBeNull();
+      expect(message).not.toBe("errors.aiRequestFailed");
     }
   });
 });
