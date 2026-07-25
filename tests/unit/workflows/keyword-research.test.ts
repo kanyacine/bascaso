@@ -6,9 +6,16 @@ const mockScoreKeyword = vi.fn();
 const mockGetLanguageModelForTask = vi.fn();
 const mockGenerateObject = vi.fn();
 
-vi.mock("@/lib/aso/itunes", () => ({
-  searchApps: (...args: unknown[]) => mockSearchApps(...args),
-}));
+// importOriginal préserve ItunesRateLimited / SearchApiUnavailableError réelles –
+// seule searchApps est stubbée. Le SUT en a besoin pour classer les échecs
+// itunes rencontrés via scoreKeyword (voir tests "iTunes throttle").
+vi.mock("@/lib/aso/itunes", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/aso/itunes")>();
+  return {
+    ...actual,
+    searchApps: (...args: unknown[]) => mockSearchApps(...args),
+  };
+});
 vi.mock("@/lib/aso/score-service", () => ({
   scoreKeyword: (...args: unknown[]) => mockScoreKeyword(...args),
 }));
@@ -19,6 +26,7 @@ vi.mock("@/lib/ai/structured-output", () => ({
   generateObjectWithRepair: (...args: unknown[]) => mockGenerateObject(...args),
 }));
 
+import { ItunesRateLimited, SearchApiUnavailableError } from "@/lib/aso/itunes";
 import {
   MAX_CANDIDATES,
   runKeywordResearch,
@@ -259,6 +267,67 @@ describe("runKeywordResearch – scoring failure", () => {
     expect(err).toBeInstanceOf(WorkflowStepError);
     expect(err.step).toBe("score");
     expect(err.partial.candidates.length).toBe(3); // the three scored seeds
+  });
+});
+
+describe("runKeywordResearch – iTunes throttle degrades instead of failing", () => {
+  // Le crédit managé est débité au premier appel LLM ("seeds", étape 2) – tout
+  // ce qui suit (expand, score) tourne sur un crédit déjà dépensé. Un double
+  // 429 iTunes qui abortait le workflow ici gaspillait donc ce crédit sans
+  // rien livrer. La marque "relevant" pour tout index judgé isole le test de
+  // l'arithmétique d'index (voir commentaire de relevantResponse plus haut).
+  const allRelevant = Array.from({ length: 30 }, (_, i) => i);
+
+  it("skips a seed whose scoring stays iTunes-rate-limited and still completes with the rest", async () => {
+    relevantResponse = allRelevant;
+    mockScoreKeyword.mockImplementation(async (keyword: string) => {
+      if (keyword === "daily planner") {
+        throw new ItunesRateLimited("iTunes API rate-limited (429)");
+      }
+      return makeScore(keyword);
+    });
+
+    const result = await runKeywordResearch(input, () => {}, new AbortController().signal);
+
+    expect(result.skippedKeywords).toEqual(["daily planner"]);
+    const keywords = result.candidates.map((c) => c.keyword);
+    expect(keywords).not.toContain("daily planner");
+    expect(keywords).toContain("habit tracker");
+    expect(keywords).toContain("goals");
+    // The run still reaches compose – the whole point of degrading rather
+    // than aborting is that the already-spent credit buys something.
+    expect(result.proposal).not.toBeNull();
+  });
+
+  it("skips a harvested candidate whose scoring finds both iTunes sources down and still completes", async () => {
+    relevantResponse = allRelevant;
+    mockScoreKeyword.mockImplementation(async (keyword: string) => {
+      if (keyword === "planner") {
+        throw new SearchApiUnavailableError("both search paths down");
+      }
+      return makeScore(keyword);
+    });
+
+    const result = await runKeywordResearch(input, () => {}, new AbortController().signal);
+
+    expect(result.skippedKeywords).toEqual(["planner"]);
+    const keywords = result.candidates.map((c) => c.keyword);
+    expect(keywords).not.toContain("planner");
+    expect(keywords).toContain("habit"); // another harvested candidate, still scored
+    expect(result.proposal).not.toBeNull();
+  });
+
+  it("still wraps a non-throttle scoring error in WorkflowStepError (regression: does not swallow real bugs)", async () => {
+    mockScoreKeyword.mockImplementation(async (keyword: string) => {
+      if (keyword === "daily planner") throw new Error("db write failed");
+      return makeScore(keyword);
+    });
+
+    const err = await runKeywordResearch(input, () => {}, new AbortController().signal).catch((e) => e);
+
+    expect(err).toBeInstanceOf(WorkflowStepError);
+    expect(err.step).toBe("expand");
+    expect(err.partial.skippedKeywords).toEqual([]);
   });
 });
 

@@ -1555,6 +1555,8 @@ export const de: Messages = {
       cancel: "Ausführung abbrechen",
       alreadyRunning: "Für diese App läuft bereits eine Recherche",
       failedAt: "Fehlgeschlagen bei Schritt „{step}“ – Teilergebnisse unten",
+      degraded: "{count} Keyword konnte nicht bewertet werden – die App-Store-Suche blieb nicht erreichbar, dieser Vorschlag basiert auf dem Rest.",
+      degradedPlural: "{count} Keywords konnten nicht bewertet werden – die App-Store-Suche blieb nicht erreichbar, dieser Vorschlag basiert auf dem Rest.",
       history: "Verlauf",
       apply: "Hinzufügen",
       applied: "Keyword-Feld aktualisiert",

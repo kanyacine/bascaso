@@ -5,10 +5,19 @@
 // iTunes search. Every step reports progress and can be aborted between
 // units of work; a non-abort throw is wrapped in a WorkflowStepError
 // carrying the partial result gathered so far.
+//
+// The managed credit is spent on the first LLM call ("seeds"), before any
+// per-keyword iTunes scoring runs – so a scoring call that fails from then on
+// is spending an already-paid-for run. A persistently-throttled iTunes call
+// (ItunesRateLimited / SearchApiUnavailableError – see itunes.ts) is treated
+// as a missing data point for that one keyword rather than aborting the run:
+// it is skipped and recorded in `skippedKeywords`, and the run keeps going
+// with whatever did score. Any other error still aborts (WorkflowStepError) –
+// only the iTunes-specific failure modes degrade.
 
 import type { ZodType } from "zod";
 import { appleFmInputTooLarge } from "@/lib/ai/apple-fm";
-import { searchApps } from "@/lib/aso/itunes";
+import { ItunesRateLimited, SearchApiUnavailableError, searchApps } from "@/lib/aso/itunes";
 import { scoreKeyword, type KeywordScore } from "@/lib/aso/score-service";
 import type { ClassificationLabel } from "@/lib/aso/scoring";
 import {
@@ -83,6 +92,10 @@ export interface KeywordResearchResult {
   proposal: MetadataProposal | null; // null when compose step didn't run
   opportunities: Array<{ keyword: string; signals: unknown[] }>; // deriveOpportunities output for top 10
   strategy: ResearchStrategy; // the strategy this run was configured with
+  /** Keywords dropped mid-run because iTunes stayed throttled after retries –
+   *  the run still completed with the remaining candidates. Empty on a clean
+   *  run; a non-empty list means the result is honest but partial. */
+  skippedKeywords: string[];
 }
 
 export class WorkflowStepError extends Error {
@@ -277,6 +290,13 @@ const abortIfCancelled = (signal: AbortSignal): void => {
   if (signal.aborted) throw new DOMException("aborted", "AbortError");
 };
 
+/** True for the two iTunes-side failure modes that mean "this keyword didn't
+ *  score" rather than a real bug – see itunes.ts. Any other error (a DB
+ *  write failure, a programming error…) still aborts the step. */
+function isItunesUnavailable(err: unknown): boolean {
+  return err instanceof ItunesRateLimited || err instanceof SearchApiUnavailableError;
+}
+
 export async function runKeywordResearch(
   input: KeywordResearchInput,
   onProgress: (p: WorkflowProgress) => void,
@@ -290,6 +310,7 @@ export async function runKeywordResearch(
     proposal: null,
     opportunities: [],
     strategy,
+    skippedKeywords: [],
   };
   const scoresByKeyword = new Map<string, KeywordScore>();
 
@@ -345,21 +366,32 @@ export async function runKeywordResearch(
     for (let i = 0; i < seeds.length; i++) {
       abortIfCancelled(signal);
       const keyword = seeds[i];
-      const score = await scoreKeyword(keyword, input.country, input.appAppleId ?? undefined);
-      scoresByKeyword.set(keyword, score);
-      partial.candidates.push({
-        keyword,
-        source: "seed",
-        popularity: score.popularity,
-        difficulty: score.difficulty,
-        opportunity: score.opportunity,
-        classification: score.classification,
-        relevant: false,
-      });
-      for (const app of score.competitors ?? []) {
-        if (typeof app.trackName === "string" && app.trackName.trim() !== "") {
-          snapshotTitles.push(app.trackName);
+      try {
+        const score = await scoreKeyword(keyword, input.country, input.appAppleId ?? undefined);
+        scoresByKeyword.set(keyword, score);
+        partial.candidates.push({
+          keyword,
+          source: "seed",
+          popularity: score.popularity,
+          difficulty: score.difficulty,
+          opportunity: score.opportunity,
+          classification: score.classification,
+          relevant: false,
+        });
+        for (const app of score.competitors ?? []) {
+          if (typeof app.trackName === "string" && app.trackName.trim() !== "") {
+            snapshotTitles.push(app.trackName);
+          }
         }
+      } catch (err) {
+        if (!isItunesUnavailable(err)) throw err;
+        // Le crédit géré est déjà dépensé (premier appel LLM à l'étape "seeds") –
+        // une seed non scorable devient un point de donnée manquant, pas un run
+        // avorté.
+        partial.skippedKeywords.push(keyword);
+        console.warn(
+          `[workflow] keyword-research: iTunes still unavailable for seed "${keyword}" – skipping (${(err as Error).message})`,
+        );
       }
       onProgress({ step: "expand", done: i + 1, total: seeds.length });
     }
@@ -425,17 +457,25 @@ export async function runKeywordResearch(
     for (let i = 0; i < toScore.length; i++) {
       abortIfCancelled(signal);
       const candidate = toScore[i];
-      const score = await scoreKeyword(candidate.keyword, input.country, input.appAppleId ?? undefined);
-      scoresByKeyword.set(candidate.keyword, score);
-      partial.candidates.push({
-        keyword: candidate.keyword,
-        source: candidate.source,
-        popularity: score.popularity,
-        difficulty: score.difficulty,
-        opportunity: score.opportunity,
-        classification: score.classification,
-        relevant: true,
-      });
+      try {
+        const score = await scoreKeyword(candidate.keyword, input.country, input.appAppleId ?? undefined);
+        scoresByKeyword.set(candidate.keyword, score);
+        partial.candidates.push({
+          keyword: candidate.keyword,
+          source: candidate.source,
+          popularity: score.popularity,
+          difficulty: score.difficulty,
+          opportunity: score.opportunity,
+          classification: score.classification,
+          relevant: true,
+        });
+      } catch (err) {
+        if (!isItunesUnavailable(err)) throw err;
+        partial.skippedKeywords.push(candidate.keyword);
+        console.warn(
+          `[workflow] keyword-research: iTunes still unavailable for candidate "${candidate.keyword}" – skipping (${(err as Error).message})`,
+        );
+      }
       onProgress({ step: "score", done: i + 1, total: toScore.length });
     }
   });

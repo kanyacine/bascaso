@@ -1530,6 +1530,8 @@ export const zhCN: Messages = {
       cancel: "取消运行",
       alreadyRunning: "该应用已有一项研究正在进行中",
       failedAt: "在“{step}”步骤失败 – 下方为部分结果",
+      degraded: "{count} 个关键词无法评分 – App Store 搜索持续不可用，此方案基于其余关键词生成。",
+      degradedPlural: "{count} 个关键词无法评分 – App Store 搜索持续不可用，此方案基于其余关键词生成。",
       history: "历史",
       apply: "添加",
       applied: "关键词字段已更新",

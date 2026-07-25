@@ -41,6 +41,7 @@ const emptyResult: KeywordResearchResult = {
   proposal: null,
   opportunities: [],
   strategy: "balanced",
+  skippedKeywords: [],
 };
 
 function makeDeferred<T>() {
@@ -106,6 +107,7 @@ describe("startKeywordResearch", () => {
       proposal: { title: "Habitly", subtitle: "Track habits", keywords: "habit,routine", summary: "ok" },
       opportunities: [{ keyword: "habit tracker", signals: [] }],
       strategy: "balanced",
+      skippedKeywords: [],
     };
     mockRun.mockResolvedValue(result);
     const { startKeywordResearch, getRun, __whenSettled } = await loadManager();
@@ -135,6 +137,7 @@ describe("startKeywordResearch", () => {
       proposal: null,
       opportunities: [],
       strategy: "balanced",
+      skippedKeywords: [],
     };
     mockRun.mockRejectedValue(
       new WorkflowStepError("score", partial, new Error("itunes down")),

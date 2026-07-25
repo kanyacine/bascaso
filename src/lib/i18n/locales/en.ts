@@ -1553,6 +1553,8 @@ export const en = {
       cancel: "Cancel run",
       alreadyRunning: "A research run is already in progress for this app",
       failedAt: "Failed at step “{step}” – partial results below",
+      degraded: "{count} keyword couldn't be scored – the App Store search stayed unavailable, so this proposal is based on the rest.",
+      degradedPlural: "{count} keywords couldn't be scored – the App Store search stayed unavailable, so this proposal is based on the rest.",
       history: "History",
       apply: "Add",
       applied: "Keyword field updated",

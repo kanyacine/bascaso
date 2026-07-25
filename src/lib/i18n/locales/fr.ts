@@ -1557,6 +1557,8 @@ export const fr: Messages = {
       cancel: "Annuler l’exécution",
       alreadyRunning: "Une recherche est déjà en cours pour cette app",
       failedAt: "Échec à l’étape « {step} » – résultats partiels ci-dessous",
+      degraded: "{count} mot-clé n’a pas pu être noté – la recherche App Store est restée indisponible, cette proposition se base sur le reste.",
+      degradedPlural: "{count} mots-clés n’ont pas pu être notés – la recherche App Store est restée indisponible, cette proposition se base sur le reste.",
       history: "Historique",
       apply: "Ajouter",
       applied: "Champ keywords mis à jour",

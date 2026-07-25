@@ -10,6 +10,7 @@ import {
   Copy,
   Plus,
   Trash,
+  Warning,
 } from "@phosphor-icons/react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -644,6 +645,12 @@ function ResultsView({
   const failed = run.status === "failed";
   const failureMessage =
     failed && run.error && MANAGED_WORKFLOW_ERROR_CODES.has(run.error) ? aiErrorMessage(run.error, t) : null;
+  // Run succeeded but some keywords couldn't be scored (iTunes stayed
+  // throttled) – the proposal below is real but built from less data than
+  // usual. Only shown on a non-failed run: a failed run already has its own
+  // (louder) error banner.
+  const skippedCount = result?.skippedKeywords?.length ?? 0;
+  const degraded = !failed && skippedCount > 0;
 
   // Auto-dump every researched candidate into the research table so it
   // participates in the shared score cache. Fires once per distinct report
@@ -666,6 +673,18 @@ function ResultsView({
             })}
           </p>
           {failureMessage && <p>{failureMessage}</p>}
+        </div>
+      )}
+
+      {degraded && (
+        <div className="flex items-start gap-2 rounded-md bg-amber-500/10 px-3 py-2">
+          <Warning size={14} className="mt-0.5 shrink-0 text-amber-500" weight="fill" />
+          <p className="text-sm text-amber-700 dark:text-amber-400">
+            {t(
+              skippedCount === 1 ? "aso.research.degraded" : "aso.research.degradedPlural",
+              { count: skippedCount },
+            )}
+          </p>
         </div>
       )}
 
