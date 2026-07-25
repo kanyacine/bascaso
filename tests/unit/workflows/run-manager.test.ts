@@ -163,6 +163,56 @@ describe("startKeywordResearch", () => {
     expect(row?.error).toBe("boom");
   });
 
+  // Régression : la cause d'un WorkflowStepError (le vrai rejet du proxy
+  // managé) était perdue – seul le message générique "workflow_step_failed:X"
+  // était stocké, jamais traduisible côté client via aiErrorMessage. Même
+  // mapping que les routes /api/ai, /api/apps/.../insights (classifyAIError).
+  it("maps a rate_limited proxy error (WorkflowStepError cause) to the same code the AI routes return", async () => {
+    const cause = new Error('429 {"error":{"code":"rate_limited"}}');
+    mockRun.mockRejectedValue(new WorkflowStepError("seeds", emptyResult, cause));
+    const { startKeywordResearch, getRun, __whenSettled } = await loadManager();
+
+    const started = (await startKeywordResearch(input)) as { runId: string };
+    await __whenSettled(started.runId);
+
+    expect(getRun(started.runId)?.error).toBe("ai_rate_limited");
+  });
+
+  it("maps an action_exhausted proxy error (WorkflowStepError cause) to ai_action_exhausted", async () => {
+    const cause = new Error('429 {"error":{"code":"action_exhausted"}}');
+    mockRun.mockRejectedValue(new WorkflowStepError("rank", emptyResult, cause));
+    const { startKeywordResearch, getRun, __whenSettled } = await loadManager();
+
+    const started = (await startKeywordResearch(input)) as { runId: string };
+    await __whenSettled(started.runId);
+
+    expect(getRun(started.runId)?.error).toBe("ai_action_exhausted");
+  });
+
+  it("maps an insufficient_credits proxy error (WorkflowStepError cause) to ai_credits_exhausted", async () => {
+    const cause = new Error('402 {"error":{"code":"insufficient_credits"}}');
+    mockRun.mockRejectedValue(new WorkflowStepError("compose", emptyResult, cause));
+    const { startKeywordResearch, getRun, __whenSettled } = await loadManager();
+
+    const started = (await startKeywordResearch(input)) as { runId: string };
+    await __whenSettled(started.runId);
+
+    expect(getRun(started.runId)?.error).toBe("ai_credits_exhausted");
+  });
+
+  // Filet défensif (le pipeline ne devrait jamais laisser passer une erreur
+  // brute hors WorkflowStepError/AbortError) : même mapping si le contrat
+  // était rompu, plutôt que le message brut du proxy.
+  it("maps a raw rate_limited error via the defensive catch-all branch too", async () => {
+    mockRun.mockRejectedValue(new Error('429 {"error":{"code":"rate_limited"}}'));
+    const { startKeywordResearch, getRun, __whenSettled } = await loadManager();
+
+    const started = (await startKeywordResearch(input)) as { runId: string };
+    await __whenSettled(started.runId);
+
+    expect(getRun(started.runId)?.error).toBe("ai_rate_limited");
+  });
+
   it("writes throttled onProgress updates (step + progress) to the row", async () => {
     const deferred = makeDeferred<KeywordResearchResult>();
     let captured: ((p: WorkflowProgress) => void) | null = null;

@@ -55,6 +55,7 @@ import { storefrontCountryCode } from "@/lib/aso/storefront-country";
 import { storefrontLocales } from "@/lib/asc/storefronts";
 import { useTranslations } from "@/lib/i18n/locale-context";
 import type { MessageKey } from "@/lib/i18n/messages";
+import { aiErrorMessage } from "@/lib/ai/ai-error";
 import { cn } from "@/lib/utils";
 import { StorefrontPicker } from "../../_components/storefront-picker";
 
@@ -100,6 +101,14 @@ const STEP_LABEL: Record<WorkflowStepId, MessageKey> = {
   compose: "aso.research.steps.compose",
   report: "aso.research.steps.report",
 };
+
+// Codes proxy managé que run-manager.ts sait produire (voir workflowErrorCode) –
+// seuls ceux-là valent la peine d'être traduits via aiErrorMessage. Toute autre
+// valeur de run.error (panne iTunes, bug interne…) reste un message serveur brut :
+// pas la peine d'annoncer "requête IA échouée" à tort pour une cause non-IA.
+const KNOWN_AI_ERROR_CODES = new Set([
+  "ai_credits_exhausted", "ai_rate_limited", "ai_action_exhausted", "ai_auth_error",
+]);
 
 interface KeywordResearchDialogProps {
   open: boolean;
@@ -641,6 +650,8 @@ function ResultsView({
   const t = useTranslations();
   const result = run.result;
   const failed = run.status === "failed";
+  const failureMessage =
+    failed && run.error && KNOWN_AI_ERROR_CODES.has(run.error) ? aiErrorMessage(run.error, t) : null;
 
   // Auto-dump every researched candidate into the research table so it
   // participates in the shared score cache. Fires once per distinct report
@@ -656,10 +667,13 @@ function ResultsView({
   return (
     <div className="space-y-6">
       {failed && (
-        <div className="error-banner">
-          {t("aso.research.failedAt", {
-            step: run.step ? t(STEP_LABEL[run.step]) : "",
-          })}
+        <div className="error-banner space-y-1">
+          <p>
+            {t("aso.research.failedAt", {
+              step: run.step ? t(STEP_LABEL[run.step]) : "",
+            })}
+          </p>
+          {failureMessage && <p>{failureMessage}</p>}
         </div>
       )}
 

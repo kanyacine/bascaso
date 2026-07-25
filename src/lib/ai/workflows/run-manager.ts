@@ -17,6 +17,27 @@ import {
   type WorkflowStepId,
 } from "@/lib/ai/workflows/keyword-research";
 import { emitWorkflowEvent } from "@/lib/ai/workflows/events";
+import { classifyAIError, type AIErrorCategory } from "@/lib/ai/provider-factory";
+
+// Même mapping catégorie → code que les routes /api/ai, /api/apps/.../insights
+// (voir classifyAIError et leurs branches credits/rate_limited/action_exhausted/
+// auth) : un code proxy managé connu doit rester traduisible côté client via
+// aiErrorMessage plutôt que de figer un message serveur brut dans la ligne.
+const AI_ERROR_CODES: Partial<Record<AIErrorCategory, string>> = {
+  credits: "ai_credits_exhausted",
+  rate_limited: "ai_rate_limited",
+  action_exhausted: "ai_action_exhausted",
+  auth: "ai_auth_error",
+  permission: "ai_auth_error",
+};
+
+/** Code stocké dans workflow_runs.error : un échec du proxy managé connu
+ *  devient le même code que les routes AI renvoient. Toute autre erreur
+ *  (panne iTunes, bug interne…) garde son message d'origine – comportement
+ *  inchangé, utile pour le debug serveur, jamais montré tel quel côté client. */
+function workflowErrorCode(cause: unknown, fallback: string): string {
+  return AI_ERROR_CODES[classifyAIError(cause)] ?? fallback;
+}
 
 // Progress can fire once per scored keyword; coalesce DB writes/events so a
 // long score step doesn't hammer SQLite. The final status write is never
@@ -102,11 +123,13 @@ async function driveRun(
     emitWorkflowEvent({ runId, status: "succeeded" });
   } catch (err) {
     if (err instanceof WorkflowStepError) {
+      // La vraie erreur (ex. rejet du proxy managé) est `err.cause` – `err.message`
+      // n'est que "workflow_step_failed:<step>", jamais classifiable.
       db.update(workflowRuns)
         .set({
           status: "failed",
           step: err.step,
-          error: err.message,
+          error: workflowErrorCode(err.cause, err.message),
           result: JSON.stringify(err.partial),
           updatedAt: nowIso(),
         })
@@ -128,7 +151,7 @@ async function driveRun(
     // never leave a row stuck on "running" if that contract is ever broken.
     const message = err instanceof Error ? err.message : "workflow_failed";
     db.update(workflowRuns)
-      .set({ status: "failed", error: message, updatedAt: nowIso() })
+      .set({ status: "failed", error: workflowErrorCode(err, message), updatedAt: nowIso() })
       .where(eq(workflowRuns.id, runId))
       .run();
     emitWorkflowEvent({ runId, status: "failed" });
