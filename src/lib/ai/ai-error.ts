@@ -32,6 +32,10 @@ export function aiErrorMessage(errorCode: string | undefined, t: Translate): str
       return t("errors.aiRateLimited");
     case "ai_action_exhausted":
       return t("errors.aiActionExhausted");
+    case "itunes_unavailable":
+      return t("errors.itunesUnavailable");
+    case "no_proposal":
+      return t("errors.noProposal");
     default:
       return t("errors.aiRequestFailed");
   }
@@ -52,7 +56,15 @@ export const MANAGED_ERROR_CODE_BY_CATEGORY: Partial<Record<AIErrorCategory, str
 };
 
 /** Seuls codes qu'une UI de run doit traduire : toute autre valeur de
- *  `workflow_runs.error` (panne iTunes, bug interne…) reste un message brut – il serait
- *  faux d'annoncer « requête IA échouée » pour une cause qui n'est pas l'IA. */
-export const MANAGED_WORKFLOW_ERROR_CODES: ReadonlySet<string> =
-  new Set(Object.values(MANAGED_ERROR_CODE_BY_CATEGORY));
+ *  `workflow_runs.error` (bug interne…) reste un message brut – il serait faux
+ *  d'annoncer « requête IA échouée » pour une cause qui n'est pas l'IA.
+ *  "itunes_unavailable" et "no_proposal" sont posés directement par
+ *  run-manager.ts (pas via classifyAIError – ce ne sont pas des catégories
+ *  d'échec du proxy IA, donc pas de place dans MANAGED_ERROR_CODE_BY_CATEGORY)
+ *  mais méritent le même traitement traduit : un run qui échoue par manque
+ *  de données iTunes ou sans proposition doit dire pourquoi, pas rester muet. */
+export const MANAGED_WORKFLOW_ERROR_CODES: ReadonlySet<string> = new Set([
+  ...Object.values(MANAGED_ERROR_CODE_BY_CATEGORY),
+  "itunes_unavailable",
+  "no_proposal",
+]);

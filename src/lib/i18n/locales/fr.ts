@@ -266,6 +266,8 @@ export const fr: Messages = {
     aiCreditsExhausted: "Plus de jetons – achetez des jetons ou abonnez-vous dans Réglages → IA.",
     aiRateLimited: "Trop d’actions cette heure-ci – réessayez dans quelques instants.",
     aiActionExhausted: "Cette opération a déclenché trop d’appels IA – relancez-la.",
+    itunesUnavailable: "La recherche App Store est restée indisponible pour trop de mots-clés – il n’y a pas assez de données pour une proposition fiable.",
+    noProposal: "Cette exécution n’a produit aucune proposition de métadonnées.",
   },
   connectionErrors: {
     loadAppsFailed: "Échec du chargement des apps",
@@ -1559,6 +1561,7 @@ export const fr: Messages = {
       failedAt: "Échec à l’étape « {step} » – résultats partiels ci-dessous",
       degraded: "{count} mot-clé n’a pas pu être noté – la recherche App Store est restée indisponible, cette proposition se base sur le reste.",
       degradedPlural: "{count} mots-clés n’ont pas pu être notés – la recherche App Store est restée indisponible, cette proposition se base sur le reste.",
+      retryHint: "Relancer réutilise le crédit de cette exécution, c’est donc gratuit.",
       history: "Historique",
       apply: "Ajouter",
       applied: "Champ keywords mis à jour",

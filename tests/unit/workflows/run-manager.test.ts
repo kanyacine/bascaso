@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestDb } from "../../helpers/test-db";
 import { workflowRuns } from "@/db/schema";
 import {
+  ItunesUnavailableError,
   WorkflowStepError,
   type KeywordResearchInput,
   type KeywordResearchResult,
@@ -36,9 +37,33 @@ const input: KeywordResearchInput = {
   locale: "en-US",
 };
 
+// A null proposal now means "failed" (see driveRun's cause-independent
+// guard) – this fixture stays proposal:null on purpose for tests exercising
+// WorkflowStepError partials (a failure always may carry no proposal) and
+// for tests that only need *a* value to resolve/settle the mocked run
+// without asserting the final status. Tests that assert `status: "succeeded"`
+// use succeededResult below instead.
 const emptyResult: KeywordResearchResult = {
   candidates: [],
   proposal: null,
+  opportunities: [],
+  strategy: "balanced",
+  skippedKeywords: [],
+};
+
+const succeededResult: KeywordResearchResult = {
+  candidates: [
+    {
+      keyword: "habit tracker",
+      source: "seed",
+      popularity: 40,
+      difficulty: 12,
+      opportunity: 60,
+      classification: "Good Target",
+      relevant: true,
+    },
+  ],
+  proposal: { title: "Habitly", subtitle: "Track habits", keywords: "habit,routine", summary: "ok" },
   opportunities: [],
   strategy: "balanced",
   skippedKeywords: [],
@@ -86,7 +111,7 @@ describe("startKeywordResearch", () => {
     expect(second).toEqual({ error: "already_running" });
 
     // Let the first run finish so the in-flight slot clears.
-    deferred.resolve(emptyResult);
+    deferred.resolve(succeededResult);
     await __whenSettled(runId);
     expect(getRun(runId)?.status).toBe("succeeded");
   });
@@ -216,6 +241,69 @@ describe("startKeywordResearch", () => {
     expect(getRun(started.runId)?.error).toBe("ai_rate_limited");
   });
 
+  // Re-review Important : le message n'était visible que sur err.cause, jamais
+  // persisté – classifyAIError renvoyait "unknown", le code stocké restait le
+  // générique "workflow_step_failed:score", donc rien de traduisible côté UI.
+  it("maps an ItunesUnavailableError (WorkflowStepError cause) to the stable itunes_unavailable code", async () => {
+    const cause = new ItunesUnavailableError(
+      "itunes_unavailable: only 1/8 attempted keyword(s) could be scored (< 30%) – too thin a sample to propose metadata from",
+    );
+    mockRun.mockRejectedValue(new WorkflowStepError("score", emptyResult, cause));
+    const { startKeywordResearch, getRun, __whenSettled } = await loadManager();
+
+    const started = (await startKeywordResearch(input)) as { runId: string };
+    await __whenSettled(started.runId);
+
+    expect(getRun(started.runId)?.error).toBe("itunes_unavailable");
+  });
+
+  // Re-review Critical 1 : une proposition nulle pouvait encore être persistée
+  // "succeeded" par une autre porte (ex. seedsSchema acceptant des chaînes
+  // vides, filtrées ensuite) que le floor/ceiling propre à keyword-research.ts
+  // ne couvre pas (il n'agit que quand skippedKeywords > 0). Garde-fou posé une
+  // fois ici, indépendant de la cause.
+  it("fails a run that resolved with a null proposal instead of persisting it as succeeded", async () => {
+    mockRun.mockResolvedValue(emptyResult); // proposal: null, skippedKeywords: [] – not an iTunes case
+    const { startKeywordResearch, getRun, __whenSettled } = await loadManager();
+
+    const started = (await startKeywordResearch(input)) as { runId: string };
+    await __whenSettled(started.runId);
+
+    const row = getRun(started.runId);
+    expect(row?.status).toBe("failed");
+    expect(row?.error).toBe("no_proposal");
+    expect(row?.step).toBe("compose");
+    expect(row?.result).toEqual(emptyResult);
+  });
+
+  // Re-review Important : rejouer avec un nouvel actionId à chaque retry
+  // facturait un second crédit pour le même geste – l'actionId d'origine doit
+  // être réutilisable.
+  it("mints a fresh actionId and persists it on the row when none is provided", async () => {
+    mockRun.mockResolvedValue(succeededResult);
+    const { startKeywordResearch, getRun, __whenSettled } = await loadManager();
+
+    const started = (await startKeywordResearch(input)) as { runId: string };
+    await __whenSettled(started.runId);
+
+    const row = getRun(started.runId);
+    expect(row?.actionId).toEqual(expect.any(String));
+    expect(row?.actionId!.length).toBeGreaterThan(0);
+    // The same actionId reaches the orchestrator (bills the credit under it).
+    expect(mockRun.mock.calls[0][0]).toMatchObject({ actionId: row?.actionId });
+  });
+
+  it("reuses a caller-provided actionId (retry) instead of minting a fresh one", async () => {
+    mockRun.mockResolvedValue(succeededResult);
+    const { startKeywordResearch, getRun, __whenSettled } = await loadManager();
+
+    const started = (await startKeywordResearch({ ...input, actionId: "reuse-me" })) as { runId: string };
+    await __whenSettled(started.runId);
+
+    expect(getRun(started.runId)?.actionId).toBe("reuse-me");
+    expect(mockRun.mock.calls[0][0]).toMatchObject({ actionId: "reuse-me" });
+  });
+
   it("writes throttled onProgress updates (step + progress) to the row", async () => {
     const deferred = makeDeferred<KeywordResearchResult>();
     let captured: ((p: WorkflowProgress) => void) | null = null;
@@ -235,7 +323,7 @@ describe("startKeywordResearch", () => {
     expect(mid?.step).toBe("score");
     expect(mid?.progress).toEqual({ step: "score", done: 2, total: 5 });
 
-    deferred.resolve(emptyResult);
+    deferred.resolve(succeededResult);
     await __whenSettled(started.runId);
     expect(getRun(started.runId)?.status).toBe("succeeded");
   });
@@ -319,7 +407,7 @@ describe("getRun / getLatestRun", () => {
   });
 
   it("getLatestRun returns the newest run for an app, null otherwise", async () => {
-    mockRun.mockResolvedValue(emptyResult);
+    mockRun.mockResolvedValue(succeededResult);
     const { startKeywordResearch, getLatestRun, __whenSettled } = await loadManager();
 
     expect(getLatestRun("app-1")).toBeNull();
@@ -392,7 +480,7 @@ describe("event emission isolation (regression)", () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     workflowEvents.on("workflow", throwing);
     try {
-      mockRun.mockResolvedValue(emptyResult);
+      mockRun.mockResolvedValue(succeededResult);
       const { startKeywordResearch, getRun, __whenSettled } = await loadManager();
 
       const started = (await startKeywordResearch(input)) as { runId: string };

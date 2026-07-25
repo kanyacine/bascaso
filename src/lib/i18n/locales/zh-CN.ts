@@ -263,6 +263,8 @@ export const zhCN: Messages = {
     aiCreditsExhausted: "点数已用完 – 请在设置 → AI 中购买点数或订阅。",
     aiRateLimited: "本小时内操作次数过多 – 请稍后重试。",
     aiActionExhausted: "此操作调用 AI 次数过多 – 请重新开始。",
+    itunesUnavailable: "App Store 搜索对太多关键词持续不可用 – 数据不足，无法生成可靠的方案。",
+    noProposal: "本次运行未生成元数据方案。",
   },
   connectionErrors: {
     loadAppsFailed: "加载 App 列表失败",
@@ -1532,6 +1534,7 @@ export const zhCN: Messages = {
       failedAt: "在“{step}”步骤失败 – 下方为部分结果",
       degraded: "{count} 个关键词无法评分 – App Store 搜索持续不可用，此方案基于其余关键词生成。",
       degradedPlural: "{count} 个关键词无法评分 – App Store 搜索持续不可用，此方案基于其余关键词生成。",
+      retryHint: "重试将复用本次运行的额度，因此免费。",
       history: "历史",
       apply: "添加",
       applied: "关键词字段已更新",

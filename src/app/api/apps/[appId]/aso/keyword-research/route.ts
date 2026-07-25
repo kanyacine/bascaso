@@ -25,6 +25,9 @@ const bodySchema = z.object({
   strategy: z
     .enum(RESEARCH_STRATEGIES as [ResearchStrategy, ...ResearchStrategy[]])
     .optional(),
+  // Present when retrying a previous (failed) run – reuses its actionId
+  // instead of minting a fresh one, see startKeywordResearch.
+  actionId: z.string().min(1).optional(),
 });
 
 export async function POST(

@@ -19,13 +19,21 @@
 // - CONSECUTIVE_ITUNES_FAILURE_LIMIT trips a circuit breaker after N
 //   straight iTunes failures: the remaining keywords are skipped without
 //   even attempting them, so a fully-throttled run costs a handful of failed
-//   calls (~30 s) instead of paying the full retry/backoff ladder for every
+//   calls instead of paying the full retry/backoff ladder for every
 //   remaining keyword (tens of minutes – risking a second debit past the
-//   90-minute per-action window).
-// - MIN_SCORED_FRACTION: below this fraction of attempted keywords actually
-//   scored, the surviving sample is too thin to build a proposal a user
-//   should one-click-apply – the run fails instead of succeeding on a token
-//   sample.
+//   90-minute per-action window). A run-level wall-clock budget
+//   (MAX_RUN_DURATION_MS) backs this up: scoreKeyword is cache-first, so an
+//   interleaved run (cache hit, throttled miss, cache hit, …) keeps
+//   resetting the consecutive-failure counter without the breaker ever
+//   tripping – the budget bounds duration even then.
+// - MIN_SCORED_FRACTION: below this fraction of *attempted* keywords
+//   actually scored, the surviving sample is too thin to build a proposal a
+//   user should one-click-apply – the run fails instead of succeeding on a
+//   token sample. "Attempted" excludes keywords the breaker/budget skipped
+//   without ever calling scoreKeyword – counting those against the fraction
+//   would punish the breaker for doing its job (the more work it saves, the
+//   worse the fraction looks) instead of measuring how representative the
+//   real sample is.
 // - Zero scored candidates always fails loudly, the way the whole run used
 //   to before this file existed – degrading must mean "some data missing",
 //   never "no data, silently reported as done".
@@ -67,6 +75,11 @@ export interface KeywordResearchInput {
   description?: string; // truncated to 1500 chars before prompting
   currentKeywords?: string;
   strategy?: ResearchStrategy; // défaut "balanced"
+  /** Reuse a previous run's action id (retry) instead of minting a fresh one –
+   *  see run-manager.ts's startKeywordResearch. Replaying the same actionId
+   *  is free within the backend's per-action window; omitted for a first
+   *  attempt. */
+  actionId?: string;
 }
 
 export type WorkflowStepId =
@@ -121,6 +134,18 @@ export class WorkflowStepError extends Error {
   ) {
     super(`workflow_step_failed:${step}`);
     this.cause = cause;
+  }
+}
+
+/** Thrown (as a WorkflowStepError's cause, step "score") when the floor or
+ *  ceiling guard rejects a run's iTunes data as unusable – see the file
+ *  header. A distinct class (rather than a plain Error) lets run-manager.ts
+ *  recognize it and store a stable, translatable `workflow_runs.error` code
+ *  instead of the generic `workflow_step_failed:score`. */
+export class ItunesUnavailableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ItunesUnavailableError";
   }
 }
 
@@ -314,14 +339,35 @@ function isItunesUnavailable(
   return err instanceof ItunesRateLimited || err instanceof SearchApiUnavailableError;
 }
 
-// After this many *consecutive* iTunes failures, stop attempting further
-// keywords for the rest of the run – see the file header. 3 is deliberately
-// small: each failure already represents a full itunesSearch (2 attempts,
-// ≤5 s apart) plus the adaptive backoff before the next call (grows ×1.6 per
-// failure, 3 s → 4.8 s → 7.68 s...), so 3 in a row is a strong, fast signal
-// (worst case ≈30 s) that iTunes is down for the rest of this run, not a
-// one-off blip a human would wait out.
+// After this many *consecutive, actually-attempted* iTunes failures, stop
+// attempting further keywords for the rest of the run – see the file header.
+// 3 is deliberately small: on the fast path (iTunes Search API rate-limits,
+// itunesSearch's own 2 attempts ≤5 s apart, plus the adaptive backoff before
+// the next call – grows ×1.6 per failure, 3 s → 4.8 s → 7.68 s…), 3 in a row
+// is ≈30 s worst case. On the rarer SSR fallback path (reached only when
+// iTunes returns a non-rate-limit error, not a 429/503) a single failure is
+// slower – itunesSearch's 2 attempts at up to 15 s each, then fetchSsrPage's
+// 3 attempts at up to 30 s each plus backoff, ≈2 min worst case – so 3 in a
+// row there is on the order of 6–7 min. Either way this is minutes, not the
+// tens of minutes the breaker exists to avoid, and comfortably inside the
+// 90-minute per-action window. "Actually-attempted" matters: a keyword the
+// breaker or MAX_RUN_DURATION_MS skips without calling scoreKeyword must
+// never count toward this – see recordItunesFailure.
 const CONSECUTIVE_ITUNES_FAILURE_LIMIT = 3;
+
+// Backstop for CONSECUTIVE_ITUNES_FAILURE_LIMIT: scoreKeyword is cache-first,
+// so a run that interleaves cache hits with throttled misses (e.g. a second
+// research run for the same app – the dialog auto-dumps every candidate into
+// the shared score cache, so this is the common case, not an edge case) can
+// see a cache-hit success reset the consecutive-failure counter before it
+// ever reaches the limit, even though the cache hit says nothing about
+// whether iTunes itself has recovered. Duration is the quantity actually
+// being protected, so bound it directly: once a run has spent this long
+// since it started, stop attempting further keywords the same way the
+// breaker does. 60 min leaves a 30-min margin under the 90-minute
+// per-action window for the LLM steps (seeds/relevance/compose) that still
+// need to run afterwards.
+const MAX_RUN_DURATION_MS = 60 * 60 * 1000;
 
 // Below this fraction of attempted keywords actually scored, the run fails
 // instead of succeeding – see the file header. 0.3 is chosen so the
@@ -353,7 +399,10 @@ export async function runKeywordResearch(
 ): Promise<KeywordResearchResult> {
   const strategy = input.strategy ?? DEFAULT_STRATEGY;
   // 1 run de workflow = 1 action managée (1 jeton), quels que soient ses appels LLM.
-  const actionId = crypto.randomUUID();
+  // Un retry fourni par l'appelant réutilise le même actionId (fenêtre de
+  // rejeu gratuite côté backend) plutôt que d'en frapper un nouveau.
+  const actionId = input.actionId ?? crypto.randomUUID();
+  const runStartedAt = Date.now();
   const partial: KeywordResearchResult = {
     candidates: [],
     proposal: null,
@@ -370,12 +419,33 @@ export async function runKeywordResearch(
   // duration, not eventually recovering within it.
   let consecutiveItunesFailures = 0;
   let itunesCircuitOpen = false;
+  // Keywords actually attempted (scoreKeyword was called) that failed –
+  // distinct from partial.skippedKeywords, which also holds keywords the
+  // breaker/budget skipped without ever attempting them. Only this count
+  // feeds shouldFailForThinSample; see the file header and that function's
+  // doc comment for why conflating the two is wrong.
+  let attemptedItunesFailures = 0;
 
-  /** Records one throttled keyword: skip it, count it toward the breaker,
-   *  and log. Trips the breaker at the limit so the caller's loop stops
+  /** Trips the breaker once the run has been going for too long – see
+   *  MAX_RUN_DURATION_MS. A cache hit resets consecutiveItunesFailures
+   *  without this ever having attempted a real iTunes call, so it cannot be
+   *  caught by the consecutive-failure count alone. */
+  function tripBreakerIfOverBudget(): void {
+    if (itunesCircuitOpen || Date.now() - runStartedAt <= MAX_RUN_DURATION_MS) return;
+    itunesCircuitOpen = true;
+    console.warn(
+      `[workflow] keyword-research: run exceeded its ${MAX_RUN_DURATION_MS / 60_000} min wall-clock budget – ` +
+        "skipping the rest of this run's keywords without further attempts",
+    );
+  }
+
+  /** Records one *attempted* keyword that failed against iTunes: skip it,
+   *  count it toward both the breaker and the attempted-failure tally, and
+   *  log. Trips the breaker at the limit so the caller's loop stops
    *  attempting further keywords. */
   function recordItunesFailure(keyword: string, err: ItunesRateLimited | SearchApiUnavailableError): void {
     partial.skippedKeywords.push(keyword);
+    attemptedItunesFailures++;
     consecutiveItunesFailures++;
     if (!itunesCircuitOpen && consecutiveItunesFailures >= CONSECUTIVE_ITUNES_FAILURE_LIMIT) {
       itunesCircuitOpen = true;
@@ -442,6 +512,7 @@ export async function runKeywordResearch(
     for (let i = 0; i < seeds.length; i++) {
       abortIfCancelled(signal);
       const keyword = seeds[i];
+      tripBreakerIfOverBudget();
       if (itunesCircuitOpen) {
         // Le disjoncteur est déjà ouvert – ne pas retenter, juste marquer
         // manquant sans payer l'échelle de backoff.
@@ -538,6 +609,7 @@ export async function runKeywordResearch(
     for (let i = 0; i < toScore.length; i++) {
       abortIfCancelled(signal);
       const candidate = toScore[i];
+      tripBreakerIfOverBudget();
       if (itunesCircuitOpen) {
         partial.skippedKeywords.push(candidate.keyword);
         onProgress({ step: "score", done: i + 1, total: toScore.length });
@@ -563,17 +635,22 @@ export async function runKeywordResearch(
       onProgress({ step: "score", done: i + 1, total: toScore.length });
     }
 
-    // Floor + ceiling – only fires when iTunes actually caused skips (a clean
-    // run, or one with an unrelated 0-candidate result e.g. no seeds
-    // generated, is untouched: this is scoped to the throttle failure mode).
-    if (shouldFailForThinSample(partial.candidates.length, partial.skippedKeywords.length)) {
-      const attempted = partial.candidates.length + partial.skippedKeywords.length;
-      throw new Error(
+    // Floor + ceiling – only fires when iTunes actually caused attempted
+    // failures (a clean run, or one with an unrelated 0-candidate result e.g.
+    // no seeds generated, is untouched: this is scoped to the throttle
+    // failure mode). Deliberately counts attemptedItunesFailures, NOT
+    // partial.skippedKeywords.length – the latter also holds keywords the
+    // breaker/budget skipped without ever attempting them, and counting
+    // those here would mean the more work the breaker saves, the more
+    // likely this fails a run that actually had a perfectly good sample.
+    if (shouldFailForThinSample(partial.candidates.length, attemptedItunesFailures)) {
+      const attempted = partial.candidates.length + attemptedItunesFailures;
+      throw new ItunesUnavailableError(
         partial.candidates.length === 0
           ? `itunes_unavailable: iTunes stayed unreachable for all ${attempted} attempted keyword(s) – ` +
             "no usable data to build a proposal from"
-          : `itunes_unavailable: only ${partial.candidates.length}/${attempted} keyword(s) could be scored ` +
-            `(< ${Math.round(MIN_SCORED_FRACTION * 100)}%) – too thin a sample to propose metadata from`,
+          : `itunes_unavailable: only ${partial.candidates.length}/${attempted} attempted keyword(s) could be ` +
+            `scored (< ${Math.round(MIN_SCORED_FRACTION * 100)}%) – too thin a sample to propose metadata from`,
       );
     }
   });

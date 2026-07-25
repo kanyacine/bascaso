@@ -264,6 +264,8 @@ export const en = {
     aiCreditsExhausted: "No credits left – buy credits or subscribe in Settings → AI.",
     aiRateLimited: "Too many actions this hour – try again shortly.",
     aiActionExhausted: "This operation made too many AI calls – start it again.",
+    itunesUnavailable: "The App Store search stayed unavailable for too many keywords – there isn't enough data for a trustworthy proposal.",
+    noProposal: "This run didn't produce a metadata proposal.",
   },
   connectionErrors: {
     loadAppsFailed: "Failed to load apps",
@@ -1555,6 +1557,7 @@ export const en = {
       failedAt: "Failed at step “{step}” – partial results below",
       degraded: "{count} keyword couldn't be scored – the App Store search stayed unavailable, so this proposal is based on the rest.",
       degradedPlural: "{count} keywords couldn't be scored – the App Store search stayed unavailable, so this proposal is based on the rest.",
+      retryHint: "Retry reuses this run's credit, so it's free.",
       history: "History",
       apply: "Add",
       applied: "Keyword field updated",

@@ -148,6 +148,11 @@ export const workflowRuns = sqliteTable("workflow_runs", {
   progress: text("progress"), // JSON WorkflowProgress
   result: text("result"), // JSON KeywordResearchResult (may be partial on failure)
   error: text("error"), // error code, e.g. "workflow_step_failed:score"
+  // Nullable: rows written before this column existed have none. Persisted so
+  // a failed run can be retried under the SAME managed action – replaying an
+  // actionId is free within the backend's per-action window, a fresh one on
+  // every retry would bill twice for one gesture.
+  actionId: text("action_id"),
   createdAt: text("created_at")
     .notNull()
     .$defaultFn(() => new Date().toISOString()),

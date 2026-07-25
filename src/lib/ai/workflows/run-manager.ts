@@ -9,6 +9,7 @@ import { db } from "@/db";
 import { workflowRuns } from "@/db/schema";
 import { ulid } from "@/lib/ulid";
 import {
+  ItunesUnavailableError,
   runKeywordResearch,
   WorkflowStepError,
   type KeywordResearchInput,
@@ -24,10 +25,13 @@ import { MANAGED_ERROR_CODE_BY_CATEGORY } from "@/lib/ai/ai-error";
 
 
 /** Code stocké dans workflow_runs.error : un échec du proxy managé connu
- *  devient le même code que les routes AI renvoient. Toute autre erreur
- *  (panne iTunes, bug interne…) garde son message d'origine – comportement
+ *  devient le même code que les routes AI renvoient ; un ItunesUnavailableError
+ *  (floor/ceiling – voir keyword-research.ts) devient le code maison stable
+ *  "itunes_unavailable" plutôt que le message générique "workflow_step_failed:X".
+ *  Toute autre erreur (bug interne…) garde son message d'origine – comportement
  *  inchangé, utile pour le debug serveur, jamais montré tel quel côté client. */
 function workflowErrorCode(cause: unknown, fallback: string): string {
+  if (cause instanceof ItunesUnavailableError) return "itunes_unavailable";
   return MANAGED_ERROR_CODE_BY_CATEGORY[classifyAIError(cause)] ?? fallback;
 }
 
@@ -50,6 +54,10 @@ export interface WorkflowRunView {
   error: string | null;
   createdAt: string;
   updatedAt: string;
+  /** Null on rows written before this column existed. Lets a failed run be
+   *  retried under the same managed action instead of billing a second one –
+   *  see startKeywordResearch. */
+  actionId: string | null;
 }
 
 interface InFlightRun {
@@ -80,6 +88,7 @@ function toView(row: WorkflowRunRow): WorkflowRunView {
     error: row.error,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
+    actionId: row.actionId,
   };
 }
 
@@ -108,6 +117,27 @@ async function driveRun(
 
   try {
     const result = await runKeywordResearch(input, onProgress, signal);
+    if (result.proposal === null) {
+      // Cause-independent guard, checked once here regardless of *why* the
+      // proposal is missing (a throttle case the workflow's own floor/
+      // ceiling didn't catch, zero seeds generated, …): a "succeeded" run
+      // must always carry a proposal. An empty success is worse than a
+      // failure – it renders as an amber note over nothing, and listRuns
+      // only lists succeeded runs, so it would pollute report history with
+      // nothing to show.
+      db.update(workflowRuns)
+        .set({
+          status: "failed",
+          step: "compose",
+          error: "no_proposal",
+          result: JSON.stringify(result),
+          updatedAt: nowIso(),
+        })
+        .where(eq(workflowRuns.id, runId))
+        .run();
+      emitWorkflowEvent({ runId, status: "failed", step: "compose" });
+      return;
+    }
     db.update(workflowRuns)
       .set({ status: "succeeded", result: JSON.stringify(result), updatedAt: nowIso() })
       .where(eq(workflowRuns.id, runId))
@@ -155,6 +185,11 @@ async function driveRun(
  * `{ error: "already_running" }` when a run for the same app is still
  * in flight. The pipeline runs fire-and-forget; poll via getRun/getLatestRun
  * or subscribe to workflowEvents for progress.
+ *
+ * `input.actionId` lets a retry reuse a previous (failed) run's action –
+ * resolved here rather than inside runKeywordResearch so it can be persisted
+ * on the row at creation, before the run even starts: that's what makes it
+ * available for a *future* retry if this run fails too.
  */
 export async function startKeywordResearch(
   input: KeywordResearchInput,
@@ -163,6 +198,7 @@ export async function startKeywordResearch(
     return { error: "already_running" };
   }
 
+  const actionId = input.actionId ?? crypto.randomUUID();
   const runId = ulid();
   const createdAt = nowIso();
   db.insert(workflowRuns)
@@ -172,6 +208,7 @@ export async function startKeywordResearch(
       appId: input.appId,
       country: input.country,
       locale: input.locale,
+      actionId,
       status: "running",
       createdAt,
       updatedAt: createdAt,
@@ -182,7 +219,7 @@ export async function startKeywordResearch(
   const controller = new AbortController();
   // Reserve the slot synchronously (no await before this) so a concurrent
   // start for the same app is refused.
-  const promise = driveRun(runId, input, controller.signal).finally(() => {
+  const promise = driveRun(runId, { ...input, actionId }, controller.signal).finally(() => {
     inFlight.delete(input.appId);
   });
   inFlight.set(input.appId, { runId, controller, promise });

@@ -88,6 +88,18 @@ describe("POST /api/apps/[appId]/aso/keyword-research", () => {
     );
   });
 
+  // Retry path: the dialog resends a failed run's actionId so it reuses the
+  // same managed action instead of billing a second credit for one gesture.
+  it("passes an actionId through when retrying a failed run", async () => {
+    mockStart.mockResolvedValue({ runId: "run-3" });
+
+    await POST(postRequest({ ...validBody, actionId: "reuse-me" }), ctx("app-1"));
+
+    expect(mockStart).toHaveBeenCalledWith(
+      expect.objectContaining({ actionId: "reuse-me" }),
+    );
+  });
+
   it("returns 409 when a run is already running", async () => {
     mockStart.mockResolvedValue({ error: "already_running" });
 

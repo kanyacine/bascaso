@@ -266,6 +266,8 @@ export const de: Messages = {
     aiCreditsExhausted: "Kein Guthaben mehr – Guthaben kaufen oder abonnieren unter Einstellungen → KI.",
     aiRateLimited: "Zu viele Aktionen in dieser Stunde – bitte in Kürze erneut versuchen.",
     aiActionExhausted: "Dieser Vorgang hat zu viele KI-Aufrufe ausgelöst – bitte erneut starten.",
+    itunesUnavailable: "Die App-Store-Suche blieb für zu viele Keywords nicht erreichbar – nicht genug Daten für einen verlässlichen Vorschlag.",
+    noProposal: "Dieser Lauf hat keinen Metadaten-Vorschlag erzeugt.",
   },
   connectionErrors: {
     loadAppsFailed: "Apps konnten nicht geladen werden",
@@ -1557,6 +1559,7 @@ export const de: Messages = {
       failedAt: "Fehlgeschlagen bei Schritt „{step}“ – Teilergebnisse unten",
       degraded: "{count} Keyword konnte nicht bewertet werden – die App-Store-Suche blieb nicht erreichbar, dieser Vorschlag basiert auf dem Rest.",
       degradedPlural: "{count} Keywords konnten nicht bewertet werden – die App-Store-Suche blieb nicht erreichbar, dieser Vorschlag basiert auf dem Rest.",
+      retryHint: "Erneut versuchen nutzt das Guthaben dieses Laufs erneut – also kostenlos.",
       history: "Verlauf",
       apply: "Hinzufügen",
       applied: "Keyword-Feld aktualisiert",

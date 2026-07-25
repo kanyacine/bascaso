@@ -294,7 +294,11 @@ export function KeywordResearchDialog({
     return () => es.close();
   }, [open, runId, terminal, fetchRun]);
 
-  async function launch() {
+  // `retryActionId` reuses a previous (failed) run's action instead of
+  // minting a fresh one – see startKeywordResearch. Replaying the same
+  // actionId is free within the backend's window, so a retry never bills a
+  // second credit for the same gesture.
+  async function launch(retryActionId?: string) {
     if (!country) {
       toast.error(t("keywords.selectStorefront"));
       return;
@@ -314,6 +318,7 @@ export function KeywordResearchDialog({
           description: getDescription(targetLocale) || undefined,
           currentKeywords: getKeywords(targetLocale) || undefined,
           strategy,
+          ...(retryActionId ? { actionId: retryActionId } : {}),
         }),
       });
       if (res.status === 409) {
@@ -348,6 +353,10 @@ export function KeywordResearchDialog({
         error: null,
         createdAt: nowIso,
         updatedAt: nowIso,
+        // The real (resolved server-side) actionId lands on the next
+        // catch-up GET; irrelevant meanwhile since retry only reads it from
+        // a terminal run.
+        actionId: retryActionId ?? null,
       });
       setRunId(id);
     } catch {
@@ -420,6 +429,8 @@ export function KeywordResearchDialog({
                 readOnly={readOnly}
                 onApplyKeywords={onApplyKeywords}
                 onAddKeywords={onAddKeywords}
+                onRetry={() => launch(run.actionId ?? undefined)}
+                retrying={launching}
               />
             )}
           </div>
@@ -633,24 +644,31 @@ function ResultsView({
   readOnly,
   onApplyKeywords,
   onAddKeywords,
+  onRetry,
+  retrying,
 }: {
   run: WorkflowRunView;
   appAppleId?: number;
   readOnly: boolean;
   onApplyKeywords: (locale: string, keywords: string) => void;
   onAddKeywords: (keywords: string[]) => void;
+  onRetry: () => void;
+  retrying: boolean;
 }) {
   const t = useTranslations();
   const result = run.result;
   const failed = run.status === "failed";
   const failureMessage =
     failed && run.error && MANAGED_WORKFLOW_ERROR_CODES.has(run.error) ? aiErrorMessage(run.error, t) : null;
-  // Run succeeded but some keywords couldn't be scored (iTunes stayed
-  // throttled) – the proposal below is real but built from less data than
-  // usual. Only shown on a non-failed run: a failed run already has its own
-  // (louder) error banner.
+  const hasProposal = result?.proposal != null;
+  // Some keywords couldn't be scored (iTunes stayed throttled) – the
+  // proposal below is real but built from less data than usual. Gated on
+  // whether a proposal is actually being shown, not on overall run status:
+  // a run that skipped keywords but still produced a proposal (e.g. it later
+  // failed at "report", an unrelated step) carries the exact same caveat, and
+  // the disclosure must not disappear just because something else broke.
   const skippedCount = result?.skippedKeywords?.length ?? 0;
-  const degraded = !failed && skippedCount > 0;
+  const degraded = hasProposal && skippedCount > 0;
 
   // Auto-dump every researched candidate into the research table so it
   // participates in the shared score cache. Fires once per distinct report
@@ -666,13 +684,29 @@ function ResultsView({
   return (
     <div className="space-y-6">
       {failed && (
-        <div className="error-banner space-y-1">
+        <div className="error-banner space-y-2">
           <p>
             {t("aso.research.failedAt", {
               step: run.step ? t(STEP_LABEL[run.step]) : "",
             })}
           </p>
           {failureMessage && <p>{failureMessage}</p>}
+          <div className="flex items-center gap-2 pt-1">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onRetry}
+              disabled={retrying}
+            >
+              {retrying && <CircleNotch className="size-4 animate-spin" />}
+              {t("common.retry")}
+            </Button>
+            {run.actionId && (
+              <span className="text-xs text-muted-foreground">
+                {t("aso.research.retryHint")}
+              </span>
+            )}
+          </div>
         </div>
       )}
 

@@ -377,14 +377,33 @@ describe("runKeywordResearch – iTunes throttle degrades instead of failing", (
     expect(mockScoreKeyword).toHaveBeenCalledTimes(4);
   });
 
-  it("stops attempting once the circuit breaker trips, without paying the retry ladder for the rest", async () => {
+  // Second re-review Critical: shouldFailForThinSample must be fed *attempted*
+  // counts only. partial.skippedKeywords also holds keywords the breaker
+  // skipped without ever attempting them – a realistic run harvests up to
+  // MAX_CANDIDATES worth of those, so a version of this test with only a
+  // handful of harvested candidates would pass for the wrong reason (it
+  // "encodes the fixture, not the behaviour"). This one harvests a
+  // realistic-scale pool (well over 100 unique tokens, capped by
+  // MAX_CANDIDATES like a real run) to prove the fix generalizes.
+  it("stops attempting once the circuit breaker trips, without paying the retry ladder for the rest – realistic harvest size", async () => {
     seedsResponse = ["s1", "s2", "s3", "s4", "s5", "s6", "s7", "s8", "s9", "s10"];
     relevantResponse = allRelevant;
+    // 130 uniquely-named competitor apps – tokenizes to well over the
+    // MAX_CANDIDATES - seeds.length = 110 harvested-candidate cap, so the
+    // harvested pool is capped exactly the way a real, popular-app run
+    // would be, not left artificially small.
+    const bigCompetitors = Array.from({ length: 130 }, (_, i) => ({
+      trackName: `Zzzword${i}`,
+      userRatingCount: 1,
+      averageUserRating: 4,
+      releaseDate: new Date().toISOString(),
+      primaryGenreName: "Productivity",
+    }));
     mockScoreKeyword.mockImplementation(async (keyword: string) => {
       if (["s8", "s9", "s10"].includes(keyword)) {
         throw new ItunesRateLimited("iTunes API rate-limited (429)");
       }
-      return makeScore(keyword);
+      return { ...makeScore(keyword), competitors: bigCompetitors };
     });
 
     const result = await runKeywordResearch(input, () => {}, new AbortController().signal);
@@ -392,12 +411,43 @@ describe("runKeywordResearch – iTunes throttle degrades instead of failing", (
     const scoredSeeds = result.candidates.filter((c) => c.source === "seed").map((c) => c.keyword);
     expect(scoredSeeds).toEqual(["s1", "s2", "s3", "s4", "s5", "s6", "s7"]);
     expect(result.skippedKeywords).toEqual(expect.arrayContaining(["s8", "s9", "s10"]));
-    // 10 seeds attempted (7 succeed, 3 fail and trip the breaker) – no
-    // harvested candidate is ever attempted since the breaker is already
-    // open by the time the "score" step runs.
+    // Well over 100 harvested candidates exist and are marked "relevant",
+    // but none of them is ever attempted – the breaker is already open by
+    // the time the "score" step runs, so only the 10 seeds cost a call.
+    expect(result.skippedKeywords.length).toBeGreaterThan(100);
     expect(mockScoreKeyword).toHaveBeenCalledTimes(10);
-    // 7/10 = 70 % ≥ 30 % ceiling – still a usable, applyable proposal.
+    // The reviewer's exact numbers: 7 attempted-and-scored, 3 attempted-and-
+    // failed → 7/10 = 70 % ≥ 30 % ceiling on *attempted* keywords – passes.
+    // Counting the 100+ never-attempted harvested candidates in the
+    // denominator instead (the bug) would give 7/120 ≈ 5.8 % and wrongly fail.
     expect(result.proposal).not.toBeNull();
+  });
+
+  it("bounds duration with a wall-clock budget when a cache hit keeps resetting the consecutive-failure counter", async () => {
+    // Interleaved cache-hit / throttled-miss pattern: every other call
+    // succeeds, so 3 *consecutive* failures never happens and the breaker
+    // alone would never trip – only MAX_RUN_DURATION_MS (60 min) bounds this.
+    seedsResponse = Array.from({ length: 20 }, (_, i) => `s${i}`);
+    relevantResponse = []; // isolate to the seed loop – no harvested attempts to muddy the call count
+    let elapsedMs = 0;
+    const nowSpy = vi.spyOn(Date, "now").mockImplementation(() => elapsedMs);
+    let call = 0;
+    mockScoreKeyword.mockImplementation(async (keyword: string) => {
+      call++;
+      elapsedMs += 5 * 60 * 1000; // each call "takes" 5 simulated minutes
+      if (call % 2 === 0) throw new ItunesRateLimited("iTunes API rate-limited (429)");
+      return makeScore(keyword);
+    });
+
+    try {
+      const result = await runKeywordResearch(input, () => {}, new AbortController().signal);
+      // 20 calls × 5 min would be 100 min of simulated time – past the 60-min
+      // budget – so not every seed can have been attempted.
+      expect(mockScoreKeyword.mock.calls.length).toBeLessThan(20);
+      expect(result.skippedKeywords.length).toBeGreaterThan(0);
+    } finally {
+      nowSpy.mockRestore();
+    }
   });
 });
 
