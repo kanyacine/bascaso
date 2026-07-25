@@ -129,6 +129,12 @@ export const en = {
       managedManage: "Manage subscription",
       managedAuthFailed: "Sign-in failed – check your email and password.",
       managedRefresh: "Refresh balance",
+      managedConfirmHint: "We sent a confirmation email to {email}. Open it, confirm, then sign in below.",
+      managedConfirmSignIn: "I've confirmed – sign in",
+      managedConfirmCodeToggle: "Got a code instead?",
+      managedConfirmCode: "Confirmation code",
+      managedConfirmSubmit: "Confirm",
+      managedConfirmFailed: "Invalid or expired code – try again.",
       local: {
         appleFm: "Apple built-in model",
         appleFmHint: "Runs on this Mac, nothing to install or download.",
@@ -252,6 +258,8 @@ export const en = {
     appleFmLanguageUnsupported: "The built-in model doesn't support this language. Use BYOK, or allow unsupported languages in Settings → AI.",
     aiRequestFailed: "The AI request failed. Please try again.",
     aiCreditsExhausted: "No credits left – buy credits or subscribe in Settings → AI.",
+    aiRateLimited: "Too many actions this hour – try again shortly.",
+    aiActionExhausted: "This operation made too many AI calls – start it again.",
   },
   connectionErrors: {
     loadAppsFailed: "Failed to load apps",

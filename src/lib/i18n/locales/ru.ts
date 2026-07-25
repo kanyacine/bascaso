@@ -131,6 +131,12 @@ export const ru: Messages = {
       managedManage: "Управлять подпиской",
       managedAuthFailed: "Не удалось войти – проверьте email и пароль.",
       managedRefresh: "Обновить баланс",
+      managedConfirmHint: "Мы отправили письмо для подтверждения на {email}. Откройте его, подтвердите и войдите ниже.",
+      managedConfirmSignIn: "Я подтвердил(а) – войти",
+      managedConfirmCodeToggle: "Получили код?",
+      managedConfirmCode: "Код подтверждения",
+      managedConfirmSubmit: "Подтвердить",
+      managedConfirmFailed: "Неверный или истёкший код – попробуйте снова.",
       local: {
         appleFm: "Встроенная модель Apple",
         appleFmHint: "Работает на этом Mac, ничего устанавливать или скачивать не нужно.",
@@ -254,6 +260,8 @@ export const ru: Messages = {
     appleFmLanguageUnsupported: "Встроенная модель не поддерживает этот язык. Используйте BYOK или разрешите неподдерживаемые языки в Настройки → AI.",
     aiRequestFailed: "Запрос AI не выполнен. Пожалуйста, попробуйте снова.",
     aiCreditsExhausted: "Токены закончились – купите токены или оформите подписку в Настройки → ИИ.",
+    aiRateLimited: "Слишком много действий за этот час – попробуйте немного позже.",
+    aiActionExhausted: "Эта операция сделала слишком много обращений к ИИ – запустите её заново.",
   },
   connectionErrors: {
     loadAppsFailed: "Не удалось загрузить приложения",

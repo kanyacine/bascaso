@@ -128,6 +128,12 @@ export const zhCN: Messages = {
       managedManage: "管理订阅",
       managedAuthFailed: "登录失败 – 请检查邮箱和密码。",
       managedRefresh: "刷新余额",
+      managedConfirmHint: "我们已向 {email} 发送确认邮件，请打开邮件完成确认，然后在下方登录。",
+      managedConfirmSignIn: "已确认，去登录",
+      managedConfirmCodeToggle: "改用验证码",
+      managedConfirmCode: "确认码",
+      managedConfirmSubmit: "确认",
+      managedConfirmFailed: "验证码无效或已过期 – 请重试。",
       local: {
         appleFm: "Apple 内置模型",
         appleFmHint: "在此 Mac 上运行，无需安装或下载。",
@@ -251,6 +257,8 @@ export const zhCN: Messages = {
     appleFmLanguageUnsupported: "内置模型不支持此语言。请使用 BYOK，或在设置 → AI 中允许不受支持的语言。",
     aiRequestFailed: "AI 请求失败，请重试。",
     aiCreditsExhausted: "点数已用完 – 请在设置 → AI 中购买点数或订阅。",
+    aiRateLimited: "本小时内操作次数过多 – 请稍后重试。",
+    aiActionExhausted: "此操作调用 AI 次数过多 – 请重新开始。",
   },
   connectionErrors: {
     loadAppsFailed: "加载 App 列表失败",

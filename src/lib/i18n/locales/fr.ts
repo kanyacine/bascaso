@@ -131,6 +131,12 @@ export const fr: Messages = {
       managedManage: "Gérer mon abonnement",
       managedAuthFailed: "Échec de la connexion – vérifiez votre email et votre mot de passe.",
       managedRefresh: "Actualiser le solde",
+      managedConfirmHint: "Nous avons envoyé un email de confirmation à {email}. Ouvrez-le, confirmez, puis connectez-vous ci-dessous.",
+      managedConfirmSignIn: "J’ai confirmé – me connecter",
+      managedConfirmCodeToggle: "Vous avez reçu un code ?",
+      managedConfirmCode: "Code de confirmation",
+      managedConfirmSubmit: "Confirmer",
+      managedConfirmFailed: "Code invalide ou expiré – réessayez.",
       local: {
         appleFm: "Modèle Apple intégré",
         appleFmHint: "Tourne sur ce Mac, rien à installer ni télécharger.",
@@ -254,6 +260,8 @@ export const fr: Messages = {
     appleFmLanguageUnsupported: "Le modèle intégré ne prend pas en charge cette langue. Utilisez BYOK, ou autorisez les langues non prises en charge dans Réglages → IA.",
     aiRequestFailed: "La requête AI a échoué. Veuillez réessayer.",
     aiCreditsExhausted: "Plus de jetons – achetez des jetons ou abonnez-vous dans Réglages → IA.",
+    aiRateLimited: "Trop d’actions cette heure-ci – réessayez dans quelques instants.",
+    aiActionExhausted: "Cette opération a déclenché trop d’appels IA – relancez-la.",
   },
   connectionErrors: {
     loadAppsFailed: "Échec du chargement des apps",

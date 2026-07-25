@@ -131,6 +131,12 @@ export const de: Messages = {
       managedManage: "Abo verwalten",
       managedAuthFailed: "Anmeldung fehlgeschlagen – E-Mail und Passwort prüfen.",
       managedRefresh: "Guthaben aktualisieren",
+      managedConfirmHint: "Wir haben eine Bestätigungs-E-Mail an {email} gesendet. Öffnen Sie sie, bestätigen Sie, und melden Sie sich anschließend unten an.",
+      managedConfirmSignIn: "Bestätigt – jetzt anmelden",
+      managedConfirmCodeToggle: "Haben Sie einen Code erhalten?",
+      managedConfirmCode: "Bestätigungscode",
+      managedConfirmSubmit: "Bestätigen",
+      managedConfirmFailed: "Ungültiger oder abgelaufener Code – bitte erneut versuchen.",
       local: {
         appleFm: "Integriertes Apple-Modell",
         appleFmHint: "Läuft auf diesem Mac, nichts zu installieren oder herunterzuladen.",
@@ -254,6 +260,8 @@ export const de: Messages = {
     appleFmLanguageUnsupported: "Das integrierte Modell unterstützt diese Sprache nicht. Verwenden Sie BYOK oder erlauben Sie nicht unterstützte Sprachen unter Einstellungen → AI.",
     aiRequestFailed: "Die AI-Anfrage ist fehlgeschlagen. Bitte versuchen Sie es erneut.",
     aiCreditsExhausted: "Kein Guthaben mehr – Guthaben kaufen oder abonnieren unter Einstellungen → KI.",
+    aiRateLimited: "Zu viele Aktionen in dieser Stunde – bitte in Kürze erneut versuchen.",
+    aiActionExhausted: "Dieser Vorgang hat zu viele KI-Aufrufe ausgelöst – bitte erneut starten.",
   },
   connectionErrors: {
     loadAppsFailed: "Apps konnten nicht geladen werden",

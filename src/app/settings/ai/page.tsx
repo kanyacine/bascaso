@@ -53,12 +53,17 @@ const MANAGED_PACKS = [
   { sku: "pack_100", credits: 100, price: "80 €" },
 ] as const;
 
-type ManagedAuthResult = { ok: true } | { ok: false; reason: "auth" | "network" };
+type ManagedAuthResult =
+  | { ok: true; confirmationRequired?: boolean }
+  | { ok: false; reason: "auth" | "network" };
 
 /**
  * Isolé du composant pour être testable sans rendu React : distingue un échec
  * d'authentification (401 – identifiants) d'un échec réseau (fetch qui lève),
- * pour que l'appelant puisse afficher le bon message dans chaque cas.
+ * pour que l'appelant puisse afficher le bon message dans chaque cas. Un
+ * signup accepté mais en attente de confirmation email est un succès HTTP
+ * (200) qui porte `confirmationRequired: true` dans le corps – ni un échec
+ * ni une connexion effective.
  */
 export async function authenticateManaged(
   mode: "login" | "signup",
@@ -70,6 +75,28 @@ export async function authenticateManaged(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ mode, email, password }),
+    });
+    if (!res.ok) return { ok: false, reason: "auth" };
+    const data = await res.json().catch(() => ({}));
+    return data.confirmationRequired ? { ok: true, confirmationRequired: true } : { ok: true };
+  } catch {
+    return { ok: false, reason: "network" };
+  }
+}
+
+type ManagedVerifyResult = { ok: true } | { ok: false; reason: "auth" | "network" };
+
+/**
+ * Chemin secondaire de la confirmation par email : vérifie un code reçu par
+ * l'utilisateur (quand le modèle d'email en contient un, plutôt qu'un simple
+ * lien de confirmation). Même distinction auth/réseau qu'authenticateManaged.
+ */
+export async function verifyManagedSignup(email: string, code: string): Promise<ManagedVerifyResult> {
+  try {
+    const res = await fetch("/api/managed/auth", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode: "verify", email, code }),
     });
     return res.ok ? { ok: true } : { ok: false, reason: "auth" };
   } catch {
@@ -158,6 +185,17 @@ export default function AISettingsPage() {
   const [managedPassword, setManagedPassword] = useState("");
   const [managedBusy, setManagedBusy] = useState(false);
   const [managedError, setManagedError] = useState(false);
+  // Un signup accepté mais en attente de confirmation email bascule sur un
+  // 3e état de la carte : ni le formulaire de connexion, ni "connecté". Le
+  // modèle d'email en place n'a qu'un lien de confirmation (pas de code – le
+  // SMTP personnalisé qui portera {{ .Token }} arrive plus tard) : le chemin
+  // principal est donc "confirmez puis reconnectez-vous", et le code reste
+  // une alternative repliée, prête pour quand le modèle changera.
+  const [managedPendingConfirmation, setManagedPendingConfirmation] = useState(false);
+  const [managedShowCodeInput, setManagedShowCodeInput] = useState(false);
+  const [managedCode, setManagedCode] = useState("");
+  const [managedVerifyBusy, setManagedVerifyBusy] = useState(false);
+  const [managedVerifyError, setManagedVerifyError] = useState(false);
   // Un seul poller de solde actif à la fois (double achat), coupé si la page est quittée.
   const managedPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const managedMountedRef = useRef(true);
@@ -530,8 +568,36 @@ export default function AISettingsPage() {
         else toast.error(t("common.networkError"));
         return;
       }
+      if (result.confirmationRequired) {
+        // On garde email/mot de passe en état : c'est ce qui permet au bouton
+        // "Je me suis confirmé" de retenter signIn sans les redemander.
+        setManagedPendingConfirmation(true);
+        return;
+      }
       managedSignedOutRef.current = false;
+      setManagedPendingConfirmation(false);
+      setManagedShowCodeInput(false);
       setManagedPassword("");
+      setManagedCode("");
+      invalidateAIStatus();
+      void refreshManaged();
+    });
+  }
+
+  async function handleManagedVerify() {
+    setManagedVerifyError(false);
+    await runWithBusyFlag(setManagedVerifyBusy, async () => {
+      const result = await verifyManagedSignup(managedEmail, managedCode.trim());
+      if (!result.ok) {
+        if (result.reason === "auth") setManagedVerifyError(true);
+        else toast.error(t("common.networkError"));
+        return;
+      }
+      managedSignedOutRef.current = false;
+      setManagedPendingConfirmation(false);
+      setManagedShowCodeInput(false);
+      setManagedPassword("");
+      setManagedCode("");
       invalidateAIStatus();
       void refreshManaged();
     });
@@ -552,6 +618,9 @@ export default function AISettingsPage() {
       // reflétera l'état réel du serveur si la requête n'a pas abouti.
     }
     setManagedInfo(null);
+    setManagedPendingConfirmation(false);
+    setManagedShowCodeInput(false);
+    setManagedCode("");
     invalidateAIStatus();
   }
 
@@ -931,31 +1000,79 @@ export default function AISettingsPage() {
         <h3 className="section-title">{t("settings.ai.managedSection")}</h3>
         <p className="text-sm text-muted-foreground">{t("settings.ai.managedHint")}</p>
         {managedInfo === null ? (
-          <div className="max-w-[320px] space-y-2">
-            <Input
-              type="email"
-              placeholder={t("settings.ai.managedEmail")}
-              value={managedEmail}
-              onChange={(e) => setManagedEmail(e.target.value)}
-            />
-            <Input
-              type="password"
-              placeholder={t("settings.ai.managedPassword")}
-              value={managedPassword}
-              onChange={(e) => setManagedPassword(e.target.value)}
-            />
-            {managedError && (
-              <p className="text-sm text-destructive">{t("settings.ai.managedAuthFailed")}</p>
-            )}
-            <div className="flex gap-2">
+          managedPendingConfirmation ? (
+            <div className="max-w-[320px] space-y-3">
+              <p className="text-sm text-muted-foreground">
+                {t("settings.ai.managedConfirmHint", { email: managedEmail })}
+              </p>
+              {managedError && (
+                <p className="text-sm text-destructive">{t("settings.ai.managedAuthFailed")}</p>
+              )}
               <Button disabled={managedBusy} onClick={() => void handleManagedAuth("login")}>
-                {t("settings.ai.managedSignIn")}
+                {t("settings.ai.managedConfirmSignIn")}
               </Button>
-              <Button variant="outline" disabled={managedBusy} onClick={() => void handleManagedAuth("signup")}>
-                {t("settings.ai.managedSignUp")}
-              </Button>
+
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setManagedShowCodeInput((v) => !v)}
+                  className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                  aria-expanded={managedShowCodeInput}
+                >
+                  <CaretRight
+                    className={managedShowCodeInput ? "rotate-90 transition-transform" : "transition-transform"}
+                  />
+                  {t("settings.ai.managedConfirmCodeToggle")}
+                </button>
+                {managedShowCodeInput && (
+                  <div className="space-y-2 pt-2">
+                    <Input
+                      type="text"
+                      placeholder={t("settings.ai.managedConfirmCode")}
+                      value={managedCode}
+                      onChange={(e) => setManagedCode(e.target.value)}
+                    />
+                    {managedVerifyError && (
+                      <p className="text-sm text-destructive">{t("settings.ai.managedConfirmFailed")}</p>
+                    )}
+                    <Button
+                      variant="outline"
+                      disabled={managedVerifyBusy || !managedCode.trim()}
+                      onClick={() => void handleManagedVerify()}
+                    >
+                      {t("settings.ai.managedConfirmSubmit")}
+                    </Button>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="max-w-[320px] space-y-2">
+              <Input
+                type="email"
+                placeholder={t("settings.ai.managedEmail")}
+                value={managedEmail}
+                onChange={(e) => setManagedEmail(e.target.value)}
+              />
+              <Input
+                type="password"
+                placeholder={t("settings.ai.managedPassword")}
+                value={managedPassword}
+                onChange={(e) => setManagedPassword(e.target.value)}
+              />
+              {managedError && (
+                <p className="text-sm text-destructive">{t("settings.ai.managedAuthFailed")}</p>
+              )}
+              <div className="flex gap-2">
+                <Button disabled={managedBusy} onClick={() => void handleManagedAuth("login")}>
+                  {t("settings.ai.managedSignIn")}
+                </Button>
+                <Button variant="outline" disabled={managedBusy} onClick={() => void handleManagedAuth("signup")}>
+                  {t("settings.ai.managedSignUp")}
+                </Button>
+              </div>
+            </div>
+          )
         ) : (
           <div className="space-y-3">
             <p className="text-sm">{t("settings.ai.managedSignedInAs", { email: managedInfo.email })}</p>

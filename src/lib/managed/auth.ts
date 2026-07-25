@@ -13,17 +13,28 @@ export class ManagedAuthError extends Error {
   }
 }
 
-interface GoTrueTokenResponse {
-  access_token: string;
-  refresh_token: string;
+interface GoTrueResponse {
+  access_token?: string;
+  refresh_token?: string;
   expires_at?: number;
   expires_in?: number;
   user?: { email?: string };
+  // Réponse d'un signup en attente de confirmation : GoTrue renvoie l'objet
+  // utilisateur directement à la racine (champ "id" au premier niveau), pas
+  // sous une clé "user" imbriquée – cf. internal/api/signup.go de
+  // supabase/auth (`sendJSON(w, http.StatusOK, user)`).
+  id?: string;
   error_description?: string;
   msg?: string;
 }
 
-async function goTrue(path: string, body: Record<string, string>): Promise<GoTrueTokenResponse> {
+/** POST bas niveau vers GoTrue : ne lève jamais, laisse l'appelant décider
+ *  comment interpréter un statut non-2xx (signUp et verifySignup ont chacun
+ *  une logique différente pour ça). */
+async function postGoTrue(
+  path: string,
+  body: Record<string, string>,
+): Promise<{ res: Response; json: GoTrueResponse }> {
   const res = await fetch(`${BASCASO_CLOUD_URL}/auth/v1/${path}`, {
     method: "POST",
     headers: {
@@ -32,18 +43,25 @@ async function goTrue(path: string, body: Record<string, string>): Promise<GoTru
     },
     body: JSON.stringify(body),
   });
-  const json = (await res.json()) as GoTrueTokenResponse;
+  const json = (await res.json()) as GoTrueResponse;
+  return { res, json };
+}
+
+/** Variante stricte utilisée par signIn/refresh : un statut non-2xx ou une
+ *  réponse sans access_token est toujours un échec d'authentification. */
+async function goTrue(path: string, body: Record<string, string>): Promise<GoTrueResponse> {
+  const { res, json } = await postGoTrue(path, body);
   if (!res.ok || !json.access_token) {
     throw new ManagedAuthError(json.error_description ?? json.msg ?? "Authentication failed");
   }
   return json;
 }
 
-function toSession(json: GoTrueTokenResponse, email: string): ManagedSession {
+function toSession(json: GoTrueResponse, email: string): ManagedSession {
   return {
     email: json.user?.email ?? email,
-    accessToken: json.access_token,
-    refreshToken: json.refresh_token,
+    accessToken: json.access_token!,
+    refreshToken: json.refresh_token!,
     expiresAt: json.expires_at ?? Math.floor(Date.now() / 1000) + (json.expires_in ?? 3600),
   };
 }
@@ -54,8 +72,46 @@ export async function signIn(email: string, password: string): Promise<ManagedSe
   return session;
 }
 
-export async function signUp(email: string, password: string): Promise<ManagedSession> {
-  const session = toSession(await goTrue("signup", { email, password }), email);
+export type SignUpOutcome =
+  | { status: "signed_in"; session: ManagedSession }
+  | { status: "confirmation_required" };
+
+export async function signUp(email: string, password: string): Promise<SignUpOutcome> {
+  const { res, json } = await postGoTrue("signup", { email, password });
+  // Confirmation email activée côté projet : /signup répond 200 sans tokens.
+  // Ce n'est pas un échec d'identifiants – lever ManagedAuthError ferait
+  // afficher « identifiants invalides » pour un compte qui vient d'être créé.
+  // On détecte l'objet utilisateur sous ses deux formes possibles (voir
+  // GoTrueResponse ci-dessus) : "user" imbriqué, ou "id" à la racine.
+  if (res.ok && !json.access_token && (json.user != null || json.id != null)) {
+    return { status: "confirmation_required" };
+  }
+  if (!res.ok || !json.access_token) {
+    throw new ManagedAuthError(json.error_description ?? json.msg ?? "Authentication failed");
+  }
+  const session = toSession(json, email);
+  saveManagedSession(session);
+  return { status: "signed_in", session };
+}
+
+/**
+ * Confirme un signup via le code de vérification envoyé par email. GoTrue
+ * attend `type: "signup"` pour ce flux, mais selon la version du projet ce
+ * type peut être rejeté (400) au profit de `type: "email"` – le repli est
+ * géré ici plutôt que figé à l'écriture, pour rester correct quelle que soit
+ * la version acceptée par ce backend. Un code invalide/expiré (observé
+ * empiriquement : 403 "otp_expired") n'est PAS un problème de type : on ne
+ * retente donc que sur un 400.
+ */
+export async function verifySignup(email: string, code: string): Promise<ManagedSession> {
+  let { res, json } = await postGoTrue("verify", { type: "signup", email, token: code });
+  if (res.status === 400) {
+    ({ res, json } = await postGoTrue("verify", { type: "email", email, token: code }));
+  }
+  if (!res.ok || !json.access_token) {
+    throw new ManagedAuthError(json.error_description ?? json.msg ?? "Verification failed");
+  }
+  const session = toSession(json, email);
   saveManagedSession(session);
   return session;
 }
