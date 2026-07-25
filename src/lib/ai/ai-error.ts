@@ -35,3 +35,17 @@ export function aiErrorMessage(errorCode: string | undefined, t: Translate): str
       return t("errors.aiRequestFailed");
   }
 }
+
+/** Codes produits par `run-manager.ts` pour un échec du proxy managé, et seuls codes
+ *  que l'UI d'un run doit traduire via `aiErrorMessage` : toute autre valeur de
+ *  `workflow_runs.error` (panne iTunes, bug interne…) reste un message brut, il serait
+ *  faux d'annoncer « requête IA échouée » pour une cause qui n'est pas l'IA.
+ *  Source unique : run-manager écrit ces codes, le dialogue les lit. Les deux lisaient
+ *  jusqu'ici deux listes séparées – ajouter un code d'un côté cessait silencieusement
+ *  de l'afficher de l'autre. */
+export const MANAGED_WORKFLOW_ERROR_CODES: ReadonlySet<string> = new Set([
+  "ai_credits_exhausted",
+  "ai_rate_limited",
+  "ai_action_exhausted",
+  "ai_auth_error",
+]);

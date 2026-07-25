@@ -7,9 +7,11 @@ import {
 } from "./account";
 
 export class ManagedAuthError extends Error {
-  // `code` porte le error_code GoTrue quand il est présent (ex. "user_already_exists",
-  // "over_email_send_rate_limit") – absent pour la forme OAuth2 du grant password
-  // (mauvais mot de passe), qui ne renvoie que error/error_description. Permet à
+  // `code` porte le error_code GoTrue (ex. "invalid_credentials", "user_already_exists",
+  // "over_email_send_rate_limit", "email_not_confirmed"). Mesuré en prod : ce GoTrue
+  // renvoie systématiquement {code, error_code, msg} sur /token comme sur /signup –
+  // pas la forme OAuth2 {error, error_description} qu'on supposait avant. `code`
+  // reste undefined seulement si le serveur omet error_code (défensif). Permet à
   // l'appelant de distinguer ces cas d'un vrai problème d'identifiants au lieu
   // de tout collapse sur le même message générique.
   constructor(message: string, public code?: string) {
@@ -29,6 +31,9 @@ interface GoTrueResponse {
   // sous une clé "user" imbriquée – cf. internal/api/signup.go de
   // supabase/auth (`sendJSON(w, http.StatusOK, user)`).
   id?: string;
+  // Vide sur la réponse sanitisée d'une adresse déjà inscrite ; exactement une entrée
+  // sur une vraie inscription en attente. Seul signal qui distingue les deux.
+  identities?: unknown[];
   error_description?: string;
   msg?: string;
   // Code machine-readable des endpoints REST (signup/verify) – absent sur la
@@ -86,6 +91,15 @@ export type SignUpOutcome =
 
 export async function signUp(email: string, password: string): Promise<SignUpOutcome> {
   const { res, json } = await postGoTrue("signup", { email, password });
+  // Adresse déjà inscrite. GoTrue ne renvoie 422 user_already_exists que si l'autoconfirm
+  // email OU SMS est actif ; les deux étant coupés sur ce projet, il répond un 200 « sanitisé »
+  // impossible à distinguer d'une inscription en attente – sauf par `identities`, vide ici alors
+  // qu'une vraie nouvelle inscription en porte exactement une. Sans ce test, l'utilisateur qui
+  // revient s'inscrire se voit promettre un email de confirmation qu'il ne recevra jamais.
+  // Le cas 422 reste géré plus bas : le code doit rester correct si l'autoconfirm est réactivé.
+  if (res.ok && !json.access_token && Array.isArray(json.identities) && json.identities.length === 0) {
+    throw new ManagedAuthError("User already registered", "user_already_exists");
+  }
   // Confirmation email activée côté projet : /signup répond 200 sans tokens.
   // Ce n'est pas un échec d'identifiants – lever ManagedAuthError ferait
   // afficher « identifiants invalides » pour un compte qui vient d'être créé.

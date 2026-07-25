@@ -47,3 +47,25 @@ describe("aiErrorMessage", () => {
     expect(aiErrorMessage(undefined, t)).toBe(en.errors.aiRequestFailed);
   });
 });
+
+// Garde anti-dérive : run-manager.ts écrit ces codes, le dialogue de run les lit.
+// Les deux côtés lisaient auparavant deux listes séparées, donc ajouter un code
+// d'un côté cessait silencieusement de l'afficher de l'autre.
+describe("MANAGED_WORKFLOW_ERROR_CODES", () => {
+  it("couvre exactement les codes que run-manager sait produire", async () => {
+    const { MANAGED_WORKFLOW_ERROR_CODES } = await import("@/lib/ai/ai-error");
+    const src = await import("node:fs").then((fs) =>
+      fs.readFileSync("src/lib/ai/workflows/run-manager.ts", "utf8"));
+    const produced = new Set(
+      [...src.matchAll(/"(ai_[a-z_]+)"/g)].map((m) => m[1]),
+    );
+    expect([...produced].sort()).toEqual([...MANAGED_WORKFLOW_ERROR_CODES].sort());
+  });
+
+  it("chaque code a bien une traduction dédiée, pas le message générique", () => {
+    const t = ((key: string) => key) as never;
+    for (const code of ["ai_credits_exhausted", "ai_rate_limited", "ai_action_exhausted", "ai_auth_error"]) {
+      expect(aiErrorMessage(code, t)).not.toBe("errors.aiRequestFailed");
+    }
+  });
+});

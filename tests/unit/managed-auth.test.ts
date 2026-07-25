@@ -79,6 +79,33 @@ describe("managed auth (GoTrue REST)", () => {
     expect(getManagedSession()).toBeNull();
   });
 
+  // Adresse déjà inscrite : GoTrue (autoconfirm coupé des deux côtés, cas de la prod)
+  // renvoie un 200 sanitisé indiscernable d'une inscription en attente, SAUF par
+  // `identities` vide. Sans ce test, la promesse « on t'a envoyé un mail » repart pour
+  // un compte qui n'en recevra jamais.
+  it("signUp reports user_already_exists when the sanitized 200 carries an empty identities array", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ id: "11111111-1111-1111-1111-111111111111", email: "a@b.c", identities: [] }),
+    });
+    const { signUp, ManagedAuthError } = await import("@/lib/managed/auth");
+    await expect(signUp("a@b.c", "password123")).rejects.toMatchObject({
+      name: "ManagedAuthError", code: "user_already_exists",
+    });
+    void ManagedAuthError;
+  });
+
+  // Une vraie inscription en attente porte exactement une identité : elle ne doit PAS
+  // être confondue avec le cas ci-dessus.
+  it("signUp still reports confirmation_required when identities carries one entry", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ id: "22222222-2222-4222-8222-222222222222", email: "a@b.c", identities: [{ id: "x" }] }),
+    });
+    const { signUp } = await import("@/lib/managed/auth");
+    expect(await signUp("a@b.c", "password123")).toEqual({ status: "confirmation_required" });
+  });
+
   it("signUp reports confirmation_required when GoTrue nests the user under a 'user' key", async () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,
@@ -127,18 +154,21 @@ describe("managed auth (GoTrue REST)", () => {
     expect((err as InstanceType<typeof ManagedAuthError>).code).toBe("over_email_send_rate_limit");
   });
 
-  // Le grant OAuth2 du login (mauvais mot de passe) ne porte pas de
-  // error_code, seulement error/error_description – confirmé par le shape
-  // observé de /token?grant_type=password. `code` doit rester undefined
-  // plutôt qu'une valeur inventée.
-  it("signIn's ManagedAuthError has no code for the OAuth2 invalid_grant shape", async () => {
+  // Mesuré en prod : /token?grant_type=password sur un mauvais mot de passe
+  // renvoie {code:400, error_code:"invalid_credentials", msg:"Invalid login
+  // credentials"} – pas la forme OAuth2 {error, error_description} supposée
+  // avant (jamais envoyée par ce GoTrue). `code` doit porter "invalid_credentials",
+  // que managedAuthErrorMessage (page.tsx) mappe vers le message générique
+  // localisé plutôt que d'afficher ce texte anglais brut.
+  it("signIn's ManagedAuthError carries invalid_credentials for the real GoTrue password-grant shape", async () => {
     fetchMock.mockResolvedValueOnce({
-      ok: false, json: () => Promise.resolve({ error: "invalid_grant", error_description: "Invalid login credentials" }),
+      ok: false, json: () => Promise.resolve({ code: 400, error_code: "invalid_credentials", msg: "Invalid login credentials" }),
     });
     const { signIn, ManagedAuthError } = await import("@/lib/managed/auth");
     const err = await signIn("a@b.c", "bad").catch((e) => e);
     expect(err).toBeInstanceOf(ManagedAuthError);
-    expect((err as InstanceType<typeof ManagedAuthError>).code).toBeUndefined();
+    expect((err as InstanceType<typeof ManagedAuthError>).code).toBe("invalid_credentials");
+    expect((err as Error).message).toBe("Invalid login credentials");
   });
 
   describe("verifySignup", () => {

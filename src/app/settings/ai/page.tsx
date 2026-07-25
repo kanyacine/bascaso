@@ -109,13 +109,15 @@ export async function authenticateManaged(
 
 /**
  * Message affiché sous le formulaire managé pour un échec "auth" (401). Les
- * deux cas connus – compte déjà inscrit, quota d'emails Supabase dépassé –
- * ont chacun une action différente et un message dédié. Le grant OAuth2 du
- * login (mauvais mot de passe) ne porte pas de `code` : c'est le seul cas où
- * le message générique "vérifiez vos identifiants" reste correct. Pour tout
- * autre code (renvoyé par le serveur mais non mappé ici), on affiche son
- * message plutôt que d'accuser un mot de passe qui n'est peut-être pas en
- * cause – jamais le générique par défaut pour un code qu'on ne reconnaît pas.
+ * codes connus – compte déjà inscrit, quota d'emails Supabase dépassé, email
+ * pas encore confirmé – ont chacun une action différente et un message dédié.
+ * `invalid_credentials` (mauvais mot de passe – forme réelle mesurée en prod :
+ * {code:400, error_code:"invalid_credentials", msg:…}, pas la forme OAuth2
+ * {error, error_description} supposée avant) et l'absence de code partagent
+ * le même message générique "vérifiez vos identifiants". Pour tout autre code
+ * (renvoyé par le serveur mais non mappé ici), on affiche son message plutôt
+ * que d'accuser un mot de passe qui n'est peut-être pas en cause – jamais le
+ * générique par défaut pour un code qu'on ne reconnaît pas.
  */
 export function managedAuthErrorMessage(
   code: string | undefined,
@@ -127,6 +129,9 @@ export function managedAuthErrorMessage(
       return t("settings.ai.managedAuthUserExists");
     case "over_email_send_rate_limit":
       return t("settings.ai.managedAuthRateLimited");
+    case "email_not_confirmed":
+      return t("settings.ai.managedAuthEmailNotConfirmed");
+    case "invalid_credentials":
     case undefined:
       return t("settings.ai.managedAuthFailed");
     default:

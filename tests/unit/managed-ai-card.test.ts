@@ -164,6 +164,23 @@ describe("managedAuthErrorMessage", () => {
       .toBe(en.settings.ai.managedAuthFailed);
   });
 
+  // Régression : GoTrue renvoie {code:400, error_code:"invalid_credentials",
+  // msg:"Invalid login credentials"} pour un mauvais mot de passe (mesuré en
+  // prod) – pas la forme OAuth2 {error, error_description} supposée avant.
+  // Sans ce cas, le `default:` renvoyait le message serveur brut en anglais.
+  it("maps invalid_credentials (bad password, real GoTrue shape) to the generic credentials message", () => {
+    expect(managedAuthErrorMessage("invalid_credentials", "Invalid login credentials", t))
+      .toBe(en.settings.ai.managedAuthFailed);
+  });
+
+  // GoTrue renvoie ce code quand la connexion est tentée avant que le compte
+  // ne soit confirmé – le cas le plus probable produit par le bouton "Je me
+  // suis confirmé – me connecter" cliqué trop tôt.
+  it("maps email_not_confirmed to its own localized message", () => {
+    expect(managedAuthErrorMessage("email_not_confirmed", "Email not confirmed", t))
+      .toBe(en.settings.ai.managedAuthEmailNotConfirmed);
+  });
+
   // Régression centrale du correctif : un code renvoyé par le serveur mais
   // non mappé ne doit jamais afficher "vérifiez votre mot de passe" – ce
   // n'est probablement pas le problème. Le message serveur est la meilleure

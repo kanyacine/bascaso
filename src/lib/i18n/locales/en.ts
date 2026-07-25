@@ -130,6 +130,7 @@ export const en = {
       managedAuthFailed: "Sign-in failed – check your email and password.",
       managedAuthUserExists: "This address is already registered – sign in instead.",
       managedAuthRateLimited: "Too many emails sent – wait a few minutes, then try again.",
+      managedAuthEmailNotConfirmed: "Your email isn't confirmed yet – open the confirmation email first.",
       managedRefresh: "Refresh balance",
       managedConfirmHint: "We sent a confirmation email to {email}. Open it, confirm, then sign in below.",
       managedConfirmSignIn: "I've confirmed – sign in",
