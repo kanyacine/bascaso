@@ -35,7 +35,12 @@ export function StorefrontPicker({ value, onChange }: StorefrontPickerProps) {
     .sort((a, b) => STOREFRONTS[a].name.localeCompare(STOREFRONTS[b].name));
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    // `modal` : dans un Dialog, le verrou react-remove-scroll de Radix ne
+    // couvre que le contenu du Dialog, et le contenu du Popover est porté dans
+    // <body> – ses événements wheel étaient donc annulés et la liste ne
+    // scrollait plus. Un Popover modal installe son propre verrou, dont le
+    // conteneur est sa liste.
+    <Popover open={open} onOpenChange={setOpen} modal>
       <PopoverTrigger asChild>
         <Button
           variant="outline"

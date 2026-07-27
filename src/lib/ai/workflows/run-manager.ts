@@ -164,7 +164,11 @@ async function driveRun(
   } catch (err) {
     if (err instanceof WorkflowStepError) {
       // La vraie erreur (ex. rejet du proxy managé) est `err.cause` – `err.message`
-      // n'est que "workflow_step_failed:<step>", jamais classifiable.
+      // n'est que "workflow_step_failed:<step>", jamais classifiable. La colonne
+      // `error` ne garde que le code : sans cette trace, une cause non classifiée
+      // (bug interne, rejet inattendu du proxy) n'était visible nulle part et le
+      // run échouait en silence côté support.
+      console.error(`[workflow] ${runId} failed at ${err.step}:`, err.cause);
       db.update(workflowRuns)
         .set({
           status: "failed",

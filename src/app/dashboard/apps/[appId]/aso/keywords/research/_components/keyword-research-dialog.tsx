@@ -453,7 +453,12 @@ export function KeywordResearchDialog({
                 onOpenHistory={openHistory}
                 onDeleteHistory={deleteHistory}
                 launching={launching}
-                onLaunch={launch}
+                // Wrappé : `launch` prend un actionId optionnel en 1er
+                // argument, et le passer nu à un onClick lui refilait
+                // l'événement React – JSON.stringify du body explosait alors
+                // sur la structure circulaire, capté par le catch générique
+                // qui affichait « Erreur réseau » sans qu'aucun fetch parte.
+                onLaunch={() => launch()}
                 onCancel={() => onOpenChange(false)}
               />
             )}
