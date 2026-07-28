@@ -19,7 +19,7 @@ describe("logger", () => {
   it("initLogger creates log directory and sets paths", () => {
     initLogger(mockLogDir);
     expect(getLogDir()).toBe(mockLogDir);
-    expect(getLogPath()).toBe(path.join(mockLogDir, "itsyconnect.log"));
+    expect(getLogPath()).toBe(path.join(mockLogDir, "bascaso.log"));
     const content = fs.readFileSync(getLogPath(), "utf-8");
     expect(content).toContain("--- App starting");
   });

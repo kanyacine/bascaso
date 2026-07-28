@@ -7,7 +7,7 @@ import {
   type SectionName,
 } from "@/lib/section-locales-context";
 
-const STORAGE_KEY = "itsyconnect:selected-locale";
+const STORAGE_KEY = "bascaso:selected-locale";
 
 function getPersistedLocale(): string {
   try {

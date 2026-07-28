@@ -34,10 +34,10 @@ describe("env", () => {
   it("parses valid env with all optional vars", async () => {
     const mod = await loadEnv({
       ENCRYPTION_MASTER_KEY: VALID_KEY,
-      DATABASE_PATH: "/data/itsyconnect.db",
+      DATABASE_PATH: "/data/bascaso.db",
       PORT: "8080",
     });
-    expect(mod.env.DATABASE_PATH).toBe("/data/itsyconnect.db");
+    expect(mod.env.DATABASE_PATH).toBe("/data/bascaso.db");
     expect(mod.env.PORT).toBe(8080);
   });
 

@@ -8,6 +8,7 @@ import { pathToFileURL } from "node:url";
 import http from "node:http";
 import { initLogger, getLogPath, getLogDir } from "./logger";
 import { startAfmSidecar, stopAfmSidecar } from "./afm-sidecar";
+import { DB_FILE_NAME, migrateLegacyUserData } from "./migrate-user-data";
 
 // Duplicated from src/lib/brand.ts on purpose: the main process compiles under
 // its own tsconfig and cannot import from src/. Keep both in step.
@@ -79,7 +80,7 @@ function ensureMasterKey(): void {
 // --- Database path ---
 
 function setDatabasePath(): void {
-  process.env.DATABASE_PATH = path.join(app.getPath("userData"), "itsyconnect.db");
+  process.env.DATABASE_PATH = path.join(app.getPath("userData"), DB_FILE_NAME);
 }
 
 // --- AFM sidecar state file ---
@@ -549,6 +550,9 @@ if (!gotLock) {
     initLogger();
     installProcessErrorLogging();
     process.env.ELECTRON = "1";
+    // Before ensureMasterKey: that one mints a fresh key when it finds none,
+    // which would strand the previous ciphertext for good.
+    migrateLegacyUserData(app.getPath("userData"));
     ensureMasterKey();
     setDatabasePath();
     app.name = "Bascaso";

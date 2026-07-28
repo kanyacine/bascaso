@@ -17,15 +17,15 @@ RUN npx next build
 FROM base AS runtime
 WORKDIR /app
 
-RUN addgroup -g 1001 -S itsyconnect && \
-    adduser -S itsyconnect -u 1001 -G itsyconnect && \
-    mkdir -p /app/data && chown itsyconnect:itsyconnect /app/data
+RUN addgroup -g 1001 -S bascaso && \
+    adduser -S bascaso -u 1001 -G bascaso && \
+    mkdir -p /app/data && chown bascaso:bascaso /app/data
 
-COPY --from=build --chown=itsyconnect:itsyconnect /app/.next/standalone ./
-COPY --from=build --chown=itsyconnect:itsyconnect /app/.next/static ./.next/static
-COPY --from=build --chown=itsyconnect:itsyconnect /app/public ./public
-COPY --from=build --chown=itsyconnect:itsyconnect /app/drizzle ./drizzle
-COPY --chown=itsyconnect:itsyconnect docker-entrypoint.sh ./
+COPY --from=build --chown=bascaso:bascaso /app/.next/standalone ./
+COPY --from=build --chown=bascaso:bascaso /app/.next/static ./.next/static
+COPY --from=build --chown=bascaso:bascaso /app/public ./public
+COPY --from=build --chown=bascaso:bascaso /app/drizzle ./drizzle
+COPY --chown=bascaso:bascaso docker-entrypoint.sh ./
 
 ENV NODE_ENV=production
 ENV PORT=3000
@@ -34,6 +34,6 @@ ENV HOSTNAME=0.0.0.0
 VOLUME /app/data
 EXPOSE 3000 3100
 
-USER itsyconnect
+USER bascaso
 
 ENTRYPOINT ["sh", "docker-entrypoint.sh"]
