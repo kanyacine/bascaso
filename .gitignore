@@ -19,8 +19,9 @@
 # production
 /build
 
-# env
-.env.local
+# env – everything but the template
+.env*
+!.env.example
 
 # data
 /data
@@ -47,6 +48,10 @@ next-env.d.ts
 /out/
 electron/*.js
 electron/*.js.map
+
+# supabase CLI – linked-project.json carries the project ref and nothing
+# ignored it, so a `git add .` would have committed it
+/supabase/.temp/
 
 # personal/internal working docs – never committed to this public repo
 /docs/superpowers/
