@@ -334,7 +334,7 @@ export const fr: Messages = {
   },
   setup: {
     title: {
-      welcome: "Bienvenue dans Itsyconnect",
+      welcome: "Bienvenue dans Bascaso",
       account: "Compte développeur",
       asc: "App Store Connect",
       ai: "Assistant IA",

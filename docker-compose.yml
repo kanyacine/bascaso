@@ -1,6 +1,6 @@
 services:
-  itsyconnect:
-    image: ghcr.io/nickustinov/itsyconnect:latest
+  bascaso:
+    image: ghcr.io/kanyacine/bascaso:latest
     # build: .  # uncomment to build locally
     ports:
       - "3000:3000"

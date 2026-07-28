@@ -1,11 +1,11 @@
 {
-  "name": "itsyconnect-macos",
+  "name": "bascaso",
   "version": "1.14.0",
   "private": true,
   "license": "AGPL-3.0-only",
   "repository": {
     "type": "git",
-    "url": "https://github.com/nickustinov/itsyconnect-macos"
+    "url": "https://github.com/kanyacine/bascaso"
   },
   "main": "electron/main.js",
   "scripts": {

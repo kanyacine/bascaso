@@ -332,7 +332,7 @@ export const en = {
   },
   setup: {
     title: {
-      welcome: "Welcome to Itsyconnect",
+      welcome: "Welcome to Bascaso",
       account: "Developer account",
       asc: "App Store Connect",
       ai: "AI assistant",
