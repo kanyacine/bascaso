@@ -31,6 +31,14 @@ interface Catalog {
   subscription: { sku: string; amount: number; currency: string; interval: string } | null;
 }
 
+/** Catalogue vide, posé quand la requête elle-même n'aboutit pas.
+ *  `null` veut dire « pas encore demandé » : laisser cet état après un échec
+ *  affichait une section d'achat entièrement muette – ni bouton, ni message, ni
+ *  moyen de savoir que quelque chose avait raté. Le vide est un résultat, pas
+ *  une absence de résultat, et il porte le même message que le catalogue vide
+ *  que renvoie le backend quand Stripe est en panne de son côté. */
+const EMPTY_CATALOG: Catalog = { packs: [], subscription: null };
+
 export default function AccountSettingsPage() {
   const t = useTranslations();
   const { locale } = useLocale();
@@ -82,15 +90,13 @@ export default function AccountSettingsPage() {
     }
   }, []);
 
-  // Le catalogue vit côté Stripe : une panne le laisse simplement absent, et les
-  // boutons d'achat s'affichent alors sans prix plutôt que d'en inventer un.
   const refreshCatalog = useCallback(async () => {
     try {
       const res = await fetch("/api/managed/catalog");
-      if (!mountedRef.current || !res.ok) return;
-      setCatalog((await res.json()) as Catalog);
+      if (!mountedRef.current) return;
+      setCatalog(res.ok ? ((await res.json()) as Catalog) : EMPTY_CATALOG);
     } catch {
-      // Idem : pas de prix affiché, pas d'erreur remontée.
+      if (mountedRef.current) setCatalog(EMPTY_CATALOG);
     }
   }, []);
 
@@ -322,7 +328,16 @@ export default function AccountSettingsPage() {
                 : t("settings.account.balance", { count: info.balance })}
             </p>
             <div className="flex gap-2">
-              <Button variant="ghost" size="sm" onClick={() => void refresh()}>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  void refresh();
+                  // Seul moyen de réessayer un catalogue en échec : l'effet ne
+                  // se redéclenche pas tant que `info` ne change pas.
+                  void refreshCatalog();
+                }}
+              >
                 {t("settings.account.refresh")}
               </Button>
               <Button variant="ghost" size="sm" onClick={() => void handleSignOut()}>
