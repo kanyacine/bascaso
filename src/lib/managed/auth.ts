@@ -146,11 +146,9 @@ export async function verifySignup(email: string, code: string): Promise<Managed
   return session;
 }
 
-/** Access token valide (rafraîchi si < 60 s restantes), ou null si non connecté. */
-export async function getValidAccessToken(): Promise<string | null> {
-  let session: ManagedSession | null;
+function readSessionOrClear(): ManagedSession | null {
   try {
-    session = getManagedSession();
+    return getManagedSession();
   } catch (err) {
     // Session illisible (clé maître changée, ligne corrompue…) : traitée
     // comme déconnectée. Elle ne sera plus jamais exploitable, on la purge
@@ -164,6 +162,21 @@ export async function getValidAccessToken(): Promise<string | null> {
     clearManagedSession();
     return null;
   }
+}
+
+/** Rafraîchissement en cours, partagé par tous les appelants concurrents.
+ *  GoTrue fait tourner le refresh token : le second rafraîchissement d'une
+ *  paire concurrente (un bulk IA en déclenche autant qu'il lance d'appels)
+ *  présente un token déjà révoqué, échoue, et purge la session – l'utilisateur
+ *  se retrouve déconnecté au milieu de son travail. Processus unique (le
+ *  serveur Next embarqué dans Electron), donc une variable de module suffit. */
+let refreshInFlight: Promise<string | null> | null = null;
+
+async function refreshAccessToken(): Promise<string | null> {
+  // Relecture SOUS le verrou : un appelant mis en attente derrière un
+  // rafraîchissement en cours détient un instantané pris avant celui-ci, dont
+  // le refresh token vient justement d'être invalidé.
+  const session = readSessionOrClear();
   if (!session) return null;
   if (session.expiresAt - Math.floor(Date.now() / 1000) > 60) return session.accessToken;
   try {
@@ -181,4 +194,18 @@ export async function getValidAccessToken(): Promise<string | null> {
     clearManagedSession();
     return null;
   }
+}
+
+/** Access token valide (rafraîchi si < 60 s restantes), ou null si non connecté. */
+export async function getValidAccessToken(): Promise<string | null> {
+  const session = readSessionOrClear();
+  if (!session) return null;
+  if (session.expiresAt - Math.floor(Date.now() / 1000) > 60) return session.accessToken;
+  // `??=` n'évalue sa droite que si la gauche est nulle, et rien ne s'exécute
+  // entre le test et l'affectation : deux appelants ne peuvent pas démarrer
+  // deux rafraîchissements.
+  refreshInFlight ??= refreshAccessToken().finally(() => {
+    refreshInFlight = null;
+  });
+  return refreshInFlight;
 }

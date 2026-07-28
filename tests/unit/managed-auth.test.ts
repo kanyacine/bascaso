@@ -246,6 +246,46 @@ describe("managed auth (GoTrue REST)", () => {
     expect(getManagedSession()!.refreshToken).toBe("rt-2");
   });
 
+  // GoTrue fait tourner le refresh token : sans verrou, deux rafraîchissements
+  // concurrents (un bulk IA en déclenche autant qu'il lance d'appels) présentaient
+  // le même token, le second arrivait après révocation, échouait, et purgeait la
+  // session – déconnexion en plein travail.
+  it("shares a single refresh between concurrent callers", async () => {
+    const { saveManagedSession, getManagedSession } = await import("@/lib/managed/account");
+    saveManagedSession({ email: "a@b.c", accessToken: "old", refreshToken: "rt-old", expiresAt: 0 });
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    fetchMock.mockImplementation(async () => {
+      await gate;
+      return tokenResponse({ access_token: "at-2", refresh_token: "rt-2" });
+    });
+
+    const { getValidAccessToken } = await import("@/lib/managed/auth");
+    const both = Promise.all([getValidAccessToken(), getValidAccessToken(), getValidAccessToken()]);
+    release();
+
+    expect(await both).toEqual(["at-2", "at-2", "at-2"]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(getManagedSession()!.refreshToken).toBe("rt-2");
+  });
+
+  it("refreshes again after the shared refresh has settled", async () => {
+    const { saveManagedSession } = await import("@/lib/managed/account");
+    saveManagedSession({ email: "a@b.c", accessToken: "old", refreshToken: "rt-old", expiresAt: 0 });
+    // Le second appel doit repartir sur un rafraîchissement neuf : si le verrou
+    // n'était jamais relâché, la session resterait figée sur le premier résultat.
+    fetchMock
+      .mockResolvedValueOnce(tokenResponse({ access_token: "at-2", refresh_token: "rt-2", expires_at: 0 }))
+      .mockResolvedValueOnce(tokenResponse({ access_token: "at-3", refresh_token: "rt-3", expires_at: 0 }));
+
+    const { getValidAccessToken } = await import("@/lib/managed/auth");
+    expect(await getValidAccessToken()).toBe("at-2");
+    expect(await getValidAccessToken()).toBe("at-3");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it("invalid refresh token clears the session and returns null", async () => {
     const { saveManagedSession, getManagedSession } = await import("@/lib/managed/account");
     saveManagedSession({ email: "a@b.c", accessToken: "old", refreshToken: "rt-dead", expiresAt: 0 });
