@@ -11,13 +11,25 @@ describe("managed account session store", () => {
     process.env.ENCRYPTION_MASTER_KEY = TEST_MASTER_KEY;
   });
 
+  // Les jetons portent un tiret : il n'appartient pas à l'alphabet base64, donc
+  // aucune sortie chiffrée ne peut les contenir par hasard. Les valeurs "at" et
+  // "rt" utilisées auparavant faisaient échouer ce test dans ~2 % des
+  // exécutions – une séquence de deux caractères apparaît fatalement dans 88
+  // caractères de base64 aléatoire, et l'échec n'apprenait rien sur le
+  // chiffrement.
   it("round-trips a session encrypted at rest", async () => {
     const { saveManagedSession, getManagedSession } = await import("@/lib/managed/account");
-    const session = { email: "a@b.c", accessToken: "at", refreshToken: "rt", expiresAt: 123 };
+    const session = {
+      email: "a@b.c",
+      accessToken: "access-token-plaintext-marker",
+      refreshToken: "refresh-token-plaintext-marker",
+      expiresAt: 123,
+    };
     saveManagedSession(session);
     expect(getManagedSession()).toEqual(session);
     const row = testDb.$client.prepare("SELECT encrypted_session FROM managed_account").get() as { encrypted_session: string };
-    expect(row.encrypted_session).not.toContain("at");
+    expect(row.encrypted_session).not.toContain(session.accessToken);
+    expect(row.encrypted_session).not.toContain(session.refreshToken);
   });
 
   it("returns null when empty, clears on demand, keeps a single row", async () => {
