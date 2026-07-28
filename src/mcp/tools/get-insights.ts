@@ -8,6 +8,7 @@ import { listFeedback } from "@/lib/asc/testflight/feedback";
 import { listBuilds } from "@/lib/asc/testflight/builds";
 import { listDiagnosticSignatures } from "@/lib/asc/testflight/diagnostics";
 import { resolveApp, isError } from "@/mcp/resolve";
+import { BRAND_NAME } from "@/lib/brand";
 
 type Topic = "overview" | "reviews" | "analytics" | "stability";
 type Period = "week" | "month" | "quarter";
@@ -357,7 +358,7 @@ export function registerGetInsights(server: McpServer): void {
       if (!hasCredentials()) {
         return {
           isError: true,
-          content: [{ type: "text", text: "No App Store Connect credentials configured. Set them up in Itsyconnect first." }],
+          content: [{ type: "text", text: `No App Store Connect credentials configured. Set them up in ${BRAND_NAME} first.` }],
         };
       }
 

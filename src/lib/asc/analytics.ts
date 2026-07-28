@@ -66,7 +66,7 @@ function accumulateAndCache(cacheKey: string, fresh: AnalyticsData, ttlMs: numbe
 
 /**
  * Returns the timestamp (ms) when we created report requests for this app,
- * or null if reports were already set up before Itsyconnect.
+ * or null if reports were already set up before Bascaso.
  */
 export function getReportInitiatedAt(appId: string): number | null {
   return cacheGet<number>(`report-initiated:${appId}`, true);

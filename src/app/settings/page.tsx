@@ -9,6 +9,7 @@ import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/component
 import { CheckCircle, XCircle, Copy, Check, CaretRight } from "@phosphor-icons/react";
 import { Spinner } from "@/components/ui/spinner";
 import { useTranslations } from "@/lib/i18n/locale-context";
+import { BRAND_REPO_URL, MCP_SERVER_NAME } from "@/lib/brand";
 
 type UpdateState = "idle" | "checking" | "up-to-date" | "available" | "downloaded" | "error";
 
@@ -204,28 +205,28 @@ const MCP_CLIENTS: McpClientConfig[] = [
     key: "claude-code",
     descriptionKey: "settings.general.runInTerminal",
     snippet: (port) =>
-      `claude mcp add --transport http itsyconnect http://127.0.0.1:${port}/mcp`,
+      `claude mcp add --transport http ${MCP_SERVER_NAME} http://127.0.0.1:${port}/mcp`,
   },
   {
     name: "Codex",
     key: "codex",
     descriptionKey: "settings.general.addToCodex",
     snippet: (port) =>
-      `[mcp.itsyconnect]\ntype = "remote"\nurl = "http://127.0.0.1:${port}/mcp"`,
+      `[mcp.${MCP_SERVER_NAME}]\ntype = "remote"\nurl = "http://127.0.0.1:${port}/mcp"`,
   },
   {
     name: "Cursor",
     key: "cursor",
     descriptionKey: "settings.general.addToCursor",
     snippet: (port) =>
-      JSON.stringify({ mcpServers: { itsyconnect: { url: `http://127.0.0.1:${port}/mcp` } } }, null, 2),
+      JSON.stringify({ mcpServers: { [MCP_SERVER_NAME]: { url: `http://127.0.0.1:${port}/mcp` } } }, null, 2),
   },
   {
     name: "OpenCode",
     key: "opencode",
     descriptionKey: "settings.general.addToOpencode",
     snippet: (port) =>
-      JSON.stringify({ itsyconnect: { type: "remote", url: `http://127.0.0.1:${port}/mcp` } }, null, 2),
+      JSON.stringify({ [MCP_SERVER_NAME]: { type: "remote", url: `http://127.0.0.1:${port}/mcp` } }, null, 2),
   },
 ];
 
@@ -262,7 +263,7 @@ function McpSection({
         {" "}
         <button
           type="button"
-          onClick={() => window.open("https://github.com/nickustinov/itsyconnect-macos/blob/main/docs/MCP.md", "_blank")}
+          onClick={() => window.open(`${BRAND_REPO_URL}/blob/main/docs/MCP.md`, "_blank")}
           className="underline underline-offset-4 hover:text-foreground"
         >
           {t("settings.general.learnMore")}

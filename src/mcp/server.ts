@@ -1,5 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { APP_VERSION } from "@/lib/version";
+import { MCP_SERVER_NAME } from "@/lib/brand";
 import { registerGetApp } from "./tools/get-app";
 import { registerUpdateApp } from "./tools/update-app";
 import { registerTranslate } from "./tools/translate";
@@ -8,7 +9,7 @@ import { registerGetInsights } from "./tools/get-insights";
 
 export function createMcpServer(): McpServer {
   const server = new McpServer({
-    name: "itsyconnect",
+    name: MCP_SERVER_NAME,
     version: APP_VERSION,
   });
 
