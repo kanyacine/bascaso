@@ -56,20 +56,25 @@ wired by hand against Electron's own `autoUpdater`.
 | `gh` CLI, authenticated | The script checks `gh auth status` unless `--no-release` |
 | An Apple Developer account | For the signing identity and the notarisation credentials |
 
-The signing identity itself is not configured anywhere in the repository: `osxSign: {}`
-leaves the choice of certificate to the signing tool's own discovery. Wiring an explicit
-identity and the entitlements file is part of the outstanding work above.
+The signing **identity** is still not named anywhere in the repository. `osxSign` sets
+`optionsForFile` (entitlements) but no `identity`, so @electron/osx-sign picks the
+certificate itself: for a non-MAS build it looks for a `Developer ID Application: *` in the
+`login` keychain. Install exactly one such certificate, or pin `identity` explicitly if you
+carry several.
 
 ## Environment variables
 
 All three are validated by the script, which exits with `ERROR: <VAR> is not set` if any is
 missing.
 
-| Variable | Used by | Purpose |
+All three gate signing **and** notarisation together: set all of them, or none. Setting some
+fails the build rather than quietly producing an unsigned artifact.
+
+| Variable | Purpose | Where to get it |
 |---|---|---|
-| `APPLE_ID` | `osxNotarize` | Apple ID email; also the gate that enables notarisation |
-| `APPLE_ID_PASSWORD` | `osxNotarize` | App-specific password for that Apple ID |
-| `APPLE_TEAM_ID` | `osxSign`, `osxNotarize` | Developer team id; also the gate that enables signing |
+| `APPLE_ID` | Apple ID email of the Developer account | – |
+| `APPLE_ID_PASSWORD` | App-specific password, **not** the account password | appleid.apple.com → Sign-In and Security → App-Specific Passwords |
+| `APPLE_TEAM_ID` | Developer team id, 10 characters | developer.apple.com → Membership details |
 
 ## Before you build
 
@@ -134,9 +139,9 @@ in `prepare-electron.sh` – but it only takes effect for a universal build. Run
 npm run electron:make:dmg
 ```
 
-Compiles, builds Next.js, prepares the bundle and runs the DMG maker only. No clean, no
-ZIP, no environment validation and no release. Convenient for a local check – and the exact
-path on which the signing gate mismatch described above goes unnoticed.
+Compiles, builds Next.js, prepares the bundle and runs the DMG maker only. No clean, no ZIP
+and no release. It reads the same environment as the script, so the same all-or-nothing gate
+applies: with no credentials it builds unsigned and says so, with a partial set it fails.
 
 ## What the build produces
 
@@ -151,6 +156,29 @@ The script prints the size of both and the SHA-256 of the DMG. If either artifac
 missing it exits rather than publishing half a release; it looks first for files matching
 the current version and only then falls back to any `.dmg` / `.zip`, which is why step 1
 wipes `out/`.
+
+## Verifying a signed build
+
+The build succeeding is not evidence that it is signed – check the artifact, not the log.
+
+```bash
+# The app is signed, and by whom
+codesign -dv --verbose=4 "out/Bascaso-darwin-*/Bascaso.app" 2>&1 | grep -E "Authority|Identifier|flags"
+
+# Gatekeeper accepts it as a downloaded app
+spctl -a -vvv -t install "out/Bascaso-darwin-*/Bascaso.app"
+
+# The notarisation ticket is stapled to the app
+xcrun stapler validate "out/Bascaso-darwin-*/Bascaso.app"
+```
+
+`flags` should include `runtime` – that is the hardened runtime, without which notarisation
+is refused. `spctl` should say `accepted` with `source=Notarized Developer ID`.
+
+Note that `osxNotarize` notarises and staples the **app**, and the DMG is built from it
+afterwards, so the DMG itself is neither signed nor stapled. Verify on a machine that has
+never seen the app – ideally one that did not build it – that mounting the DMG and launching
+the app raises no Gatekeeper prompt. If it does, the DMG needs notarising in its own right.
 
 ## Publishing
 
