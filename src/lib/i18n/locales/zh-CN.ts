@@ -173,6 +173,7 @@ export const zhCN: Messages = {
         local: "本地",
         byok: "BYOK",
         managed: "托管",
+        managedRequiresAccount: "登录 bascaso 云账户后才能将任务路由到托管层级。",
         resetDefault: "恢复全部默认",
         fallback: "本地不可用时回退到 BYOK",
         fallbackHint: "默认关闭 – 失败保持可见，而非静默切换。",

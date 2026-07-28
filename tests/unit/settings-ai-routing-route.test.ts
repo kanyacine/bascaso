@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createTestDb } from "../helpers/test-db";
+import { createTestDb, seedManagedAccount } from "../helpers/test-db";
 
 let testDb: ReturnType<typeof createTestDb>;
 
@@ -34,7 +34,8 @@ describe("PUT /api/settings/ai/routing", () => {
     expect(settings.routing.groups.metadata).toEqual({ tier: "local", explicit: true });
   });
 
-  it("accepts the managed tier for a routed group", async () => {
+  it("accepts the managed tier once a cloud account is linked", async () => {
+    seedManagedAccount(testDb);
     const { PUT } = await import("@/app/api/settings/ai/routing/route");
     const { GET } = await import("@/app/api/settings/ai/route");
 
@@ -43,6 +44,29 @@ describe("PUT /api/settings/ai/routing", () => {
 
     const settings = await (await GET()).json();
     expect(settings.routing.groups.metadata).toEqual({ tier: "managed", explicit: true });
+  });
+
+  // Sans compte, ce tier n'est routable par rien : accepté puis stocké, il ne se
+  // manifestait qu'à la première action IA, loin du réglage fautif.
+  it("rejects the managed tier when no cloud account is linked", async () => {
+    const { PUT } = await import("@/app/api/settings/ai/routing/route");
+    const { GET } = await import("@/app/api/settings/ai/route");
+
+    const response = await PUT(putRoutingRequest({ group: "metadata", tier: "managed" }));
+
+    expect(response.status).toBe(422);
+    expect(await response.json()).toEqual({ error: "managed_account_required" });
+    const settings = await (await GET()).json();
+    expect(settings.routing.groups.metadata).toEqual({ tier: "byok", explicit: false });
+  });
+
+  it("reports whether the managed tier is selectable", async () => {
+    const { GET } = await import("@/app/api/settings/ai/route");
+
+    expect((await (await GET()).json()).routing.managedAvailable).toBe(false);
+
+    seedManagedAccount(testDb);
+    expect((await (await GET()).json()).routing.managedAvailable).toBe(true);
   });
 
   it("resets a group to its shipped default when tier is null", async () => {
@@ -71,6 +95,23 @@ describe("PUT /api/settings/ai/routing", () => {
     expect(settings.routing.groups.redaction).toEqual({ tier: "local", explicit: false });
     expect(settings.routing.groups.insights).toEqual({ tier: "byok", explicit: false });
     expect(settings.routing.groups.workflows).toEqual({ tier: "byok", explicit: false });
+  });
+
+  // Le bug d'origine : « Réinitialiser » efface les préférences explicites, et le
+  // défaut figé les renvoyait sur byok – un routage managé disparaissait en silence
+  // et le client repartait sur sa clé BYOK sans rien voir.
+  it("restores the managed default on reset when a cloud account is linked", async () => {
+    seedManagedAccount(testDb);
+    const { PUT } = await import("@/app/api/settings/ai/routing/route");
+    const { GET } = await import("@/app/api/settings/ai/route");
+
+    await PUT(putRoutingRequest({ group: "metadata", tier: "local" }));
+    await PUT(putRoutingRequest({ reset: true }));
+
+    const settings = await (await GET()).json();
+    for (const group of ["redaction", "metadata", "insights", "workflows"]) {
+      expect(settings.routing.groups[group]).toEqual({ tier: "managed", explicit: false });
+    }
   });
 
   it("persists the fallback toggle", async () => {

@@ -176,6 +176,7 @@ export const fr: Messages = {
         local: "Local",
         byok: "BYOK",
         managed: "Managé",
+        managedRequiresAccount: "Connectez-vous à un compte bascaso cloud pour router des tâches vers le tier managé.",
         resetDefault: "Restaurer les défauts",
         fallback: "Basculer sur BYOK si le local est indisponible",
         fallbackHint: "Désactivé par défaut – les échecs restent visibles au lieu de basculer en silence.",

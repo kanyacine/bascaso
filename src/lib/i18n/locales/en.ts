@@ -174,6 +174,7 @@ export const en = {
         local: "Local",
         byok: "BYOK",
         managed: "Managed",
+        managedRequiresAccount: "Sign in to a bascaso cloud account to route tasks to the managed tier.",
         resetDefault: "Restore defaults",
         fallback: "Fall back to BYOK when local is unavailable",
         fallbackHint: "Off by default – failures stay visible instead of silently switching.",

@@ -217,6 +217,7 @@ const EMPTY_ROUTING: RoutingState = {
   groups: {},
   fallback: false,
   allowUnsupportedLanguages: false,
+  managedAvailable: false,
 };
 
 export default function AISettingsPage() {
@@ -671,6 +672,10 @@ export default function AISettingsPage() {
       setManagedCode("");
       invalidateAIStatus();
       void refreshManaged();
+      // Le routage dépend désormais de la présence d'un compte : sans ce
+      // rafraîchissement, l'onglet continue d'afficher les défauts hors ligne
+      // (et « Managé » grisé) alors que la connexion vient d'aboutir.
+      void refetchRouting();
     });
   }
 
@@ -690,6 +695,10 @@ export default function AISettingsPage() {
       setManagedCode("");
       invalidateAIStatus();
       void refreshManaged();
+      // Le routage dépend désormais de la présence d'un compte : sans ce
+      // rafraîchissement, l'onglet continue d'afficher les défauts hors ligne
+      // (et « Managé » grisé) alors que la connexion vient d'aboutir.
+      void refetchRouting();
     });
   }
 
@@ -712,6 +721,7 @@ export default function AISettingsPage() {
     setManagedShowCodeInput(false);
     setManagedCode("");
     invalidateAIStatus();
+    void refetchRouting();
   }
 
   // Un échec de checkout/portal n'est pas forcément réseau : le cas le plus courant est une
