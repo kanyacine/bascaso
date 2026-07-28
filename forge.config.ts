@@ -4,6 +4,35 @@ import { MakerZIP } from "@electron-forge/maker-zip";
 import { APP_VERSION, BUILD_NUMBER } from "./src/lib/version";
 import { APP_BUNDLE_ID, BRAND_NAME } from "./src/lib/brand";
 
+/** All three are needed to produce a signed, notarized build. Apple ties them
+ *  together: notarisation only accepts a hardened, signed app, and signing
+ *  without notarising still trips Gatekeeper on a downloaded DMG. */
+const SIGNING_ENV = ["APPLE_ID", "APPLE_ID_PASSWORD", "APPLE_TEAM_ID"] as const;
+const providedSigningEnv = SIGNING_ENV.filter((name) => process.env[name]);
+const signingConfigured = providedSigningEnv.length === SIGNING_ENV.length;
+
+// A half-filled environment used to gate osxSign on APPLE_TEAM_ID and osxNotarize
+// on APPLE_ID independently, so setting one and forgetting the other produced an
+// unsigned or un-notarized DMG with no warning – the sort of artefact you only
+// discover after handing it to someone, when Gatekeeper refuses it on their Mac.
+// Fail the build instead: an unsigned build is fine when it is what you asked for,
+// and never fine when it is an accident.
+if (providedSigningEnv.length > 0 && !signingConfigured) {
+  const missing = SIGNING_ENV.filter((name) => !process.env[name]);
+  throw new Error(
+    `Code signing is half-configured: ${providedSigningEnv.join(", ")} set, ` +
+      `${missing.join(", ")} missing. Set all three to produce a signed build, ` +
+      `or none to produce an unsigned local one.`,
+  );
+}
+
+if (!signingConfigured) {
+  console.warn(
+    "[forge] No Apple credentials in the environment – building UNSIGNED. " +
+      "Gatekeeper will refuse this build on any Mac but the one that produced it.",
+  );
+}
+
 const makers = [
   new MakerDMG({
     format: "ULFO",
@@ -23,10 +52,17 @@ const config: ForgeConfig = {
     icon: "public/icon",
     asar: false,
     extraResource: ["native/afm-server/.build/release/afm-server"],
-    osxSign: process.env.APPLE_TEAM_ID ? {} : undefined,
-    osxNotarize: process.env.APPLE_ID
+    // entitlements.plist was in the repo but never wired up: the JIT and
+    // unsigned-executable-memory entitlements it grants are what keep Chromium's
+    // renderer from being killed under the hardened runtime, which notarisation
+    // requires. Signing without them produces a build that passes notarisation
+    // and then crashes on launch.
+    osxSign: signingConfigured
+      ? { optionsForFile: () => ({ entitlements: "entitlements.plist" }) }
+      : undefined,
+    osxNotarize: signingConfigured
       ? {
-          appleId: process.env.APPLE_ID,
+          appleId: process.env.APPLE_ID!,
           appleIdPassword: process.env.APPLE_ID_PASSWORD!,
           teamId: process.env.APPLE_TEAM_ID!,
         }
