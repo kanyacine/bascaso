@@ -95,12 +95,17 @@ export function getRoutingDefaultTier(group: AIGroupId): AITier {
   return hasManagedAccount() ? "managed" : AI_GROUP_DEFAULT_TIER[group];
 }
 
-/** Resolved tier for a group – explicit preference, else the effective default. */
+/** Resolved tier for a group – explicit preference, else the effective default.
+ *
+ *  A stored `managed` with no linked account is treated as unset: signing out
+ *  otherwise left the group pointing at a tier that can only throw
+ *  `ai_tier_not_configured`, behind a greyed-out toggle. The preference is kept
+ *  in storage, so it applies again as soon as they sign back in. */
 export function getRoutingTier(group: AIGroupId): AITier {
   const value = readPreference(routingKey(group));
-  return value === "local" || value === "byok" || value === "managed"
-    ? value
-    : getRoutingDefaultTier(group);
+  if (value === "local" || value === "byok") return value;
+  if (value === "managed" && hasManagedAccount()) return "managed";
+  return getRoutingDefaultTier(group);
 }
 
 export function isRoutingTierExplicit(group: AIGroupId): boolean {

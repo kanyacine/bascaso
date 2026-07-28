@@ -63,8 +63,25 @@ describe("routing preferences", () => {
   });
 
   it("persists and reads the managed tier", () => {
+    seedManagedAccount(testDb);
     setRoutingTier("metadata", "managed");
     expect(getRoutingTier("metadata")).toBe("managed");
+  });
+
+  // Signing out used to leave an explicitly-managed group routing to managed:
+  // the first AI action threw ai_tier_not_configured, behind a greyed-out toggle.
+  it("treats an explicit managed tier as unset while signed out", () => {
+    setRoutingTier("metadata", "managed");
+    expect(getRoutingTier("metadata")).toBe("byok"); // shipped default
+    expect(getRoutingTier("redaction")).toBe("local");
+  });
+
+  it("keeps the managed preference across a sign-out and back in", () => {
+    setRoutingTier("redaction", "managed");
+    expect(getRoutingTier("redaction")).toBe("local");
+    expect(isRoutingTierExplicit("redaction")).toBe(true); // preference survives
+    seedManagedAccount(testDb);
+    expect(getRoutingTier("redaction")).toBe("managed");
   });
 
   it("fallback toggle defaults to off", () => {
