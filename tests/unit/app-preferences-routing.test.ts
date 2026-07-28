@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, vi } from "vitest";
-import { createTestDb } from "../helpers/test-db";
+import { createTestDb, seedManagedAccount } from "../helpers/test-db";
 
 let testDb: ReturnType<typeof createTestDb>;
 
@@ -10,6 +10,7 @@ vi.mock("@/db", () => ({
 }));
 
 import {
+  getRoutingDefaultTier,
   getRoutingTier,
   setRoutingTier,
   isRoutingTierExplicit,
@@ -28,6 +29,29 @@ describe("routing preferences", () => {
     expect(getRoutingTier("redaction")).toBe("local");
     expect(getRoutingTier("metadata")).toBe("byok");
     expect(isRoutingTierExplicit("redaction")).toBe(false);
+  });
+
+  // Le tier payant n'était le défaut de rien : un client pouvait créer un compte,
+  // acheter des jetons, et rien ne les consommait tant qu'il n'avait pas basculé
+  // les quatre groupes à la main.
+  it("moves every unset group to managed once a cloud account is linked", () => {
+    seedManagedAccount(testDb);
+    expect(getRoutingTier("redaction")).toBe("managed");
+    expect(getRoutingTier("metadata")).toBe("managed");
+    expect(getRoutingTier("insights")).toBe("managed");
+    expect(getRoutingTier("workflows")).toBe("managed");
+    expect(isRoutingTierExplicit("metadata")).toBe(false);
+  });
+
+  it("keeps an explicit tier over the managed default", () => {
+    seedManagedAccount(testDb);
+    setRoutingTier("metadata", "byok");
+    expect(getRoutingTier("metadata")).toBe("byok");
+  });
+
+  it("returns to the shipped defaults with no cloud account", () => {
+    expect(getRoutingDefaultTier("redaction")).toBe("local");
+    expect(getRoutingDefaultTier("metadata")).toBe("byok");
   });
 
   it("stores and clears explicit tiers", () => {

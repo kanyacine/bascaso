@@ -2,6 +2,7 @@ import { db } from "@/db";
 import { appPreferences } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { AI_GROUP_DEFAULT_TIER, type AIGroupId, type AITier } from "@/lib/ai/tasks";
+import { hasManagedAccount } from "@/lib/managed/account";
 
 const REVIEW_BEFORE_SAVING_KEY = "review_before_saving";
 const ROUTING_FALLBACK_KEY = "ai_routing_fallback";
@@ -80,12 +81,26 @@ function readPreference(key: string): string | null {
   }
 }
 
-/** Resolved tier for a group – explicit preference, else the shipped default. */
+/** The default a group falls back to when no explicit preference is stored.
+ *
+ *  A linked cloud account moves every unset group to `managed`. Without this,
+ *  no shipped default ever pointed at the paid tier: a customer could create an
+ *  account, buy credits, and have nothing use them until they flipped all four
+ *  toggles by hand. It also fixes "Restore defaults", which cleared the explicit
+ *  preferences and so silently undid a managed setup – it now lands here.
+ *
+ *  Explicit preferences still win, and signing out restores the shipped
+ *  defaults, so a local/BYOK-only user sees no change. */
+export function getRoutingDefaultTier(group: AIGroupId): AITier {
+  return hasManagedAccount() ? "managed" : AI_GROUP_DEFAULT_TIER[group];
+}
+
+/** Resolved tier for a group – explicit preference, else the effective default. */
 export function getRoutingTier(group: AIGroupId): AITier {
   const value = readPreference(routingKey(group));
   return value === "local" || value === "byok" || value === "managed"
     ? value
-    : AI_GROUP_DEFAULT_TIER[group];
+    : getRoutingDefaultTier(group);
 }
 
 export function isRoutingTierExplicit(group: AIGroupId): boolean {
