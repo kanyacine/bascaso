@@ -9,50 +9,42 @@ not operational yet.
 
 Read this section before trusting a build.
 
-**Signing and notarisation are not wired up.** `forge.config.ts` has the two hooks, but
-neither is complete:
+**Signing and notarisation are wired up, but never yet exercised.** `forge.config.ts` gates
+both on the same three variables – `APPLE_ID`, `APPLE_ID_PASSWORD`, `APPLE_TEAM_ID` – and
+`osxSign` now points at `entitlements.plist`, whose `allow-jit` and
+`allow-unsigned-executable-memory` entitlements are what keep Chromium's renderer alive
+under the hardened runtime that notarisation requires.
 
-```ts
-osxSign: process.env.APPLE_TEAM_ID ? {} : undefined,
-osxNotarize: process.env.APPLE_ID
-  ? { appleId: …, appleIdPassword: process.env.APPLE_ID_PASSWORD!, teamId: process.env.APPLE_TEAM_ID! }
-  : undefined,
-```
+Set all three and you get a signed, notarized build. Set none and you get an unsigned local
+build, with a warning saying so. Set **some**, and the build now fails with a message naming
+the missing ones. That last case used to be the dangerous one: signing was gated on
+`APPLE_TEAM_ID` and notarisation on `APPLE_ID`, so a half-filled environment produced an
+unsigned or un-notarized DMG that built cleanly and looked exactly like a release – the sort
+of artefact you only discover after handing it to someone, when Gatekeeper refuses it.
 
-Three distinct problems:
+No signed build has actually been produced yet. The configuration is correct as far as it
+can be verified without an Apple Developer account; the first real run is the test.
 
-1. **`osxSign` is an empty object.** No identity, no `optionsForFile`. `entitlements.plist`
-   sits in the repository root and is referenced by nothing – grep the tree and it appears
-   only in itself. The two entitlements it declares (`allow-jit`,
-   `allow-unsigned-executable-memory`) are therefore never applied to anything.
-2. **The two hooks read different variables.** Signing turns on with `APPLE_TEAM_ID`;
-   notarisation turns on with `APPLE_ID`. A partly filled environment silently gets one
-   without the other:
+**Auto-update is enabled, and will report an error until three prerequisites exist.**
+`setupAutoUpdater()` is called again and the feed points at this repository. But
+`update.electronjs.org` requires all of:
 
-   | Environment | Result |
-   |---|---|
-   | `APPLE_TEAM_ID` only | Signing attempted, notarisation skipped without a word |
-   | `APPLE_ID` only | Signing skipped, notarisation attempted on an unsigned app, with `teamId` undefined despite the `!` |
-   | Neither | An unsigned, un-notarised DMG that builds cleanly and looks exactly like a release |
+| Prerequisite | State |
+|---|---|
+| A **public** repository | Not met – the repo is private |
+| At least one **published** release | Not met – there are none |
+| A **signed and notarized** build | Not met – see above |
 
-3. **Only the script guards against this.** `build-release.sh` refuses to start unless all
-   three variables are set, so going through it never hits the mismatch. `npm run
-   electron:make:dmg` and a bare `npx electron-forge make` have no such check – that is
-   where a silently unsigned DMG comes from.
+Until then the feed answers with an error, which the UI now shows. That is deliberate: the
+entry points used to call `autoUpdater?.…` on a null updater, so "Check for updates…" in the
+menu, the button in `Settings → General` and "Install" all did nothing at all – no error, no
+status change, nothing to act on. An error a user can read beats a button that lies.
 
-**Auto-update is a no-op.** `setupAutoUpdater()` is never called: the call site in
-`electron/main.ts` is commented out because the feed URL still points at
-`update.electronjs.org/nickustinov/itsyconnect-macos/…`, the upstream project this one
-forked from. The module-level `autoUpdater` therefore stays `null`, and every entry point
-into it – the "Check for updates…" menu item, the `check-for-updates` IPC handler behind
-the button in `Settings → General`, and `install-update` – calls `autoUpdater?.…` on
-nothing. Nothing throws and nothing happens; the status listener never fires, so the UI
-does not report a failure either. `update-electron-app` is listed in `dependencies` but
-imported nowhere.
+In a dev build there is no updater at all, and those entry points now say so explicitly
+rather than going quiet.
 
-Both are scheduled for a later step of the launch work. Until then, a build produced from
-this repository is an unsigned artifact that will not update itself, and no release has
-been published yet.
+`update-electron-app` is still listed in `dependencies` and imported nowhere; the updater is
+wired by hand against Electron's own `autoUpdater`.
 
 ## Prerequisites
 
@@ -178,10 +170,9 @@ self-hosting image.
 
 | Gap | Where |
 |---|---|
-| `osxSign` carries no identity and no entitlements | `forge.config.ts` |
-| `entitlements.plist` is referenced by nothing | repository root |
-| Signing and notarisation are gated on different variables | `forge.config.ts` |
-| `setupAutoUpdater()` is commented out; the feed URL points at the upstream repository | `electron/main.ts` |
-| "Check for updates…" in the menu and in `Settings → General` silently does nothing | `electron/main.ts` |
+| The repository is private, so `update.electronjs.org` refuses it | GitHub settings |
+| No release has been published | GitHub releases |
+| No signed build has ever been produced – the configuration is untested | Apple Developer account |
+| The full update cycle (install N, publish N+1, verify) has never been run | – |
 | `update-electron-app` is a dependency with no import | `package.json` |
 | Universal builds are configured but never requested | `forge.config.ts`, `scripts/build-release.sh` |
