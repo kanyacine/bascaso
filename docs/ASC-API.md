@@ -1,6 +1,6 @@
 # App Store Connect API reference
 
-How Itsyconnect fetches and uses ASC API data. Based on real API exploration (see `scripts/explore-app-data.ts`).
+How Bascaso fetches and uses ASC API data. Based on real API exploration (see `scripts/explore-app-data.ts`).
 
 Base URL: `https://api.appstoreconnect.apple.com`
 

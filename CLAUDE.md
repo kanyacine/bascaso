@@ -1,6 +1,7 @@
-# Itsyconnect – LLM build guide
+# Bascaso – LLM build guide
 
-Self-hosted App Store Connect dashboard. Next.js 16, TypeScript, Tailwind v4, shadcn/ui, SQLite.
+Self-hosted App Store Connect dashboard with an ASO layer and a tiered AI backend.
+Electron 40, Next.js 16, TypeScript, Tailwind v4, shadcn/ui, SQLite.
 
 ## Required reading
 
@@ -51,7 +52,9 @@ Before writing any code, read these docs:
 
 ## Git
 
-1. **No autonomous commits** – never commit or push without explicit user instruction.
-2. **No co-authorship** – never add Co-Authored-By lines to commits.
-3. **No git reverts without permission** – never revert files using git checkout, git restore, or any git command without explicit user approval. Debug and fix issues instead.
-4. **No specs, plans, or personal docs in the repo** – this repo is public. Never commit or push implementation plans, design specs, feasibility studies, or other internal/personal working documents (e.g. `docs/superpowers/`, `.claude/`). Keep them local and gitignored.
+1. **English only** – code, comments, commit messages, documentation. This repo is
+   public; a reader who does not speak French must be able to follow every line of it.
+2. **No autonomous commits** – never commit or push without explicit user instruction.
+3. **No co-authorship** – never add Co-Authored-By lines to commits.
+4. **No git reverts without permission** – never revert files using git checkout, git restore, or any git command without explicit user approval. Debug and fix issues instead.
+5. **No specs, plans, or personal docs in the repo** – this repo is public. Never commit or push implementation plans, design specs, feasibility studies, or other internal/personal working documents (e.g. `docs/superpowers/`, `.claude/`). Keep them local and gitignored.

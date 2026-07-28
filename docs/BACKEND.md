@@ -1,6 +1,6 @@
 # Backend conventions
 
-This document defines the backend architecture, security model, and data strategy for Itsyconnect. All server-side code must follow these conventions.
+This document defines the backend architecture, security model, and data strategy for Bascaso. All server-side code must follow these conventions.
 
 ## Architecture
 
@@ -13,7 +13,7 @@ Next.js process
 ├── /lib/ai/*         → Vercel AI SDK integration
 ├── /lib/db/*         → Drizzle schema, queries, migrations
 ├── /lib/sync/*       → Background data sync worker
-└── /data/itsyconnect.db → SQLite database
+└── /data/bascaso.db → SQLite database
 ```
 
 ## Database
