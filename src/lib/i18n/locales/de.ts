@@ -26,7 +26,6 @@ export const de: Messages = {
       creditsSection: "Guthaben",
       creditsHint: "Ein Guthaben pro KI-Aktion. Guthaben verfällt nicht.",
       buyPack: "{count} Guthaben – {price}",
-      buyPackNoPrice: "{count} Guthaben",
       catalogUnavailable: "Preise sind derzeit nicht verfügbar – versuchen Sie es gleich erneut.",
       subscriptionSection: "Abonnement",
       subscriptionHint: "Unbegrenzte Aktionen statt vorausbezahltem Guthaben.",

@@ -26,7 +26,6 @@ export const ru: Messages = {
       creditsSection: "Токены",
       creditsHint: "Один токен за одно действие ИИ. Токены не сгорают.",
       buyPack: "{count} токенов – {price}",
-      buyPackNoPrice: "{count} токенов",
       catalogUnavailable: "Цены сейчас недоступны – попробуйте через мгновение.",
       subscriptionSection: "Подписка",
       subscriptionHint: "Безлимитные действия вместо предоплаченных токенов.",

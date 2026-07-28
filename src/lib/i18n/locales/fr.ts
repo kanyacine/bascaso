@@ -26,7 +26,6 @@ export const fr: Messages = {
       creditsSection: "Jetons",
       creditsHint: "Un jeton par action IA. Les jetons n’expirent pas.",
       buyPack: "{count} jetons – {price}",
-      buyPackNoPrice: "{count} jetons",
       catalogUnavailable: "Les prix sont indisponibles pour le moment – réessayez dans un instant.",
       subscriptionSection: "Abonnement",
       subscriptionHint: "Actions illimitées au lieu de jetons prépayés.",

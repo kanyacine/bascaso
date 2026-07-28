@@ -19,7 +19,9 @@ import { invalidateAIStatus } from "@/lib/hooks/use-ai-status";
 interface Pack {
   sku: string;
   credits: number;
-  /** Minor units, as Stripe returns them – formatted here, never stored. */
+  /** Minor units, as Stripe returns them – formatted here, never stored.
+   *  Always present: the backend omits a pack whose price it cannot resolve
+   *  rather than serving it without one. */
   amount: number;
   currency: string;
 }
@@ -235,15 +237,6 @@ export default function AccountSettingsPage() {
     }
   }
 
-  function packLabel(pack: Pack): string {
-    return pack.amount == null
-      ? t("settings.account.buyPackNoPrice", { count: pack.credits })
-      : t("settings.account.buyPack", {
-          count: pack.credits,
-          price: formatPrice(pack.amount, pack.currency, locale),
-        });
-  }
-
   return (
     <div className="max-w-2xl space-y-8 pb-16">
       <section className="space-y-4">
@@ -351,7 +344,10 @@ export default function AccountSettingsPage() {
               <div className="flex flex-wrap gap-2">
                 {(catalog?.packs ?? []).map((pack) => (
                   <Button key={pack.sku} variant="outline" onClick={() => void handleCheckout(pack.sku)}>
-                    {packLabel(pack)}
+                    {t("settings.account.buyPack", {
+                      count: pack.credits,
+                      price: formatPrice(pack.amount, pack.currency, locale),
+                    })}
                   </Button>
                 ))}
               </div>

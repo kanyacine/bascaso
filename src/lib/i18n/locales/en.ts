@@ -24,7 +24,6 @@ export const en = {
       creditsSection: "Credits",
       creditsHint: "One credit per AI action. Credits never expire.",
       buyPack: "{count} credits – {price}",
-      buyPackNoPrice: "{count} credits",
       catalogUnavailable: "Prices are unavailable right now – try again in a moment.",
       subscriptionSection: "Subscription",
       subscriptionHint: "Unlimited actions instead of prepaid credits.",

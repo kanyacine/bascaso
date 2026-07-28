@@ -26,7 +26,6 @@ export const zhCN: Messages = {
       creditsSection: "点数",
       creditsHint: "每次 AI 操作消耗一个点数。点数永不过期。",
       buyPack: "{count} 点数 – {price}",
-      buyPackNoPrice: "{count} 点数",
       catalogUnavailable: "暂时无法获取价格 – 请稍后重试。",
       subscriptionSection: "订阅",
       subscriptionHint: "无限次操作，无需预付点数。",
