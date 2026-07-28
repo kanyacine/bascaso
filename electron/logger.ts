@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 const MAX_LOG_SIZE = 10 * 1024 * 1024; // 10 MB
-const LOG_FILE_NAME = "itsyconnect.log";
+const LOG_FILE_NAME = "bascaso.log";
 
 let logPath = "";
 

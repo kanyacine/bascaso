@@ -12,13 +12,13 @@ type DeepStringMap<T> = {
 /** Message tree shape – leaf values are translated strings. */
 export type Messages = DeepStringMap<typeof en>;
 
-export const LOCALE_STORAGE_KEY = "itsyconnect-locale";
+export const LOCALE_STORAGE_KEY = "bascaso-locale";
 
 /** Resolved locale stored for SSR. */
-export const LOCALE_COOKIE_KEY = "itsyconnect-locale-resolved";
+export const LOCALE_COOKIE_KEY = "bascaso-locale-resolved";
 
 /** Stored preference ("system" or a supported locale). */
-export const LOCALE_PREF_COOKIE_KEY = "itsyconnect-locale-pref";
+export const LOCALE_PREF_COOKIE_KEY = "bascaso-locale-pref";
 
 export const SUPPORTED_LOCALES: readonly SupportedLocale[] = [
   "en",

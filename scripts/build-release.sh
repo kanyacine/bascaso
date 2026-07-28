@@ -46,7 +46,7 @@ if [ "$SKIP_RELEASE" = false ] && ! gh auth status &>/dev/null; then
 fi
 
 VERSION=$(node -p "require('./package.json').version")
-echo "==> Building Itsyconnect v$VERSION"
+echo "==> Building Bascaso v$VERSION"
 echo ""
 
 step_start() { STEP_START=$SECONDS; echo "==> $1..."; }
@@ -72,7 +72,7 @@ step_start "Making DMG + ZIP (signing + notarizing)"
 npx electron-forge make
 step_done
 
-# Find outputs and rename DMG to stable filename for /releases/latest/download/Itsyconnect.dmg
+# Find outputs and rename DMG to stable filename for /releases/latest/download/Bascaso.dmg
 # Prefer artifacts matching the current version to avoid picking stale files from previous builds.
 ORIG_DMG=$(find out/make -name "*${VERSION}*.dmg" -type f | head -1)
 ZIP_PATH=$(find out/make -name "*-${VERSION}.zip" -type f | head -1)
@@ -94,7 +94,7 @@ if [ -z "$ZIP_PATH" ]; then
   exit 1
 fi
 
-DMG_PATH="$(dirname "$ORIG_DMG")/Itsyconnect.dmg"
+DMG_PATH="$(dirname "$ORIG_DMG")/Bascaso.dmg"
 mv "$ORIG_DMG" "$DMG_PATH"
 
 DMG_SHA=$(shasum -a 256 "$DMG_PATH" | cut -d' ' -f1)
@@ -126,7 +126,7 @@ fi
 TOTAL=$(( SECONDS ))
 echo "==> All done in $(( TOTAL / 60 ))m $(( TOTAL % 60 ))s"
 if [ "$SKIP_RELEASE" = false ]; then
-  echo "    https://github.com/nickustinov/itsyconnect-macos/releases"
+  echo "    https://github.com/kanyacine/bascaso/releases"
 else
   echo "    GitHub release skipped (--no-release)."
 fi

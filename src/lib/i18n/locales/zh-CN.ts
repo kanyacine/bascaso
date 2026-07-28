@@ -344,7 +344,7 @@ export const zhCN: Messages = {
   },
   setup: {
     title: {
-      welcome: "欢迎使用 Itsyconnect",
+      welcome: "欢迎使用 Bascaso",
       account: "开发者账户",
       asc: "App Store Connect",
       ai: "AI 助手",

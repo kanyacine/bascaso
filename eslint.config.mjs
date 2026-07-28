@@ -18,6 +18,9 @@ const eslintConfig = defineConfig([
     "electron/**",
     "scripts/**",
     "coverage/**",
+    // Local-only working area – gitignored, but eslint still walked into the
+    // worktrees under it and reported their copies of the source as errors.
+    ".claude/**",
   ]),
 ]);
 

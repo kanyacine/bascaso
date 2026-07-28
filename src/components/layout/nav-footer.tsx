@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/sidebar";
 import { AddAccountDialog } from "./add-account-dialog";
 import { useTranslations } from "@/lib/i18n/locale-context";
+import { BRAND_ISSUES_URL } from "@/lib/brand";
 
 interface Account {
   id: string;
@@ -154,7 +155,7 @@ export function NavFooter() {
               <DropdownMenuItem
                 onClick={() =>
                   window.open(
-                    "https://github.com/nickustinov/itsyconnect-macos/issues/new",
+                    BRAND_ISSUES_URL,
                     "_blank",
                   )
                 }

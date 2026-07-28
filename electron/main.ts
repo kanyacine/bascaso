@@ -8,6 +8,14 @@ import { pathToFileURL } from "node:url";
 import http from "node:http";
 import { initLogger, getLogPath, getLogDir } from "./logger";
 import { startAfmSidecar, stopAfmSidecar } from "./afm-sidecar";
+import { DB_FILE_NAME, migrateLegacyUserData } from "./migrate-user-data";
+
+// Duplicated from src/lib/brand.ts on purpose: the main process compiles under
+// its own tsconfig and cannot import from src/. Keep both in step.
+const BRAND_REPO_URL = "https://github.com/kanyacine/bascaso";
+// The production window's origin. localStorage is keyed on it, so renaming it
+// discards every preference stored there – done now, while there are no users.
+const APP_ORIGIN_HOST = "bascaso";
 
 const isDev = !app.isPackaged;
 let nextProcess: ChildProcess | null = null;
@@ -72,7 +80,7 @@ function ensureMasterKey(): void {
 // --- Database path ---
 
 function setDatabasePath(): void {
-  process.env.DATABASE_PATH = path.join(app.getPath("userData"), "itsyconnect.db");
+  process.env.DATABASE_PATH = path.join(app.getPath("userData"), DB_FILE_NAME);
 }
 
 // --- AFM sidecar state file ---
@@ -401,7 +409,7 @@ function setupMenu(): void {
             }
 
             const diagnostics = [
-              "## Itsyconnect diagnostics",
+              "## Bascaso diagnostics",
               "",
               `- **App version:** ${app.getVersion()}`,
               `- **macOS:** ${process.getSystemVersion()}`,
@@ -432,7 +440,7 @@ function setupMenu(): void {
           label: "Report an issue",
           icon: sfIcon("exclamationmark.bubble"),
           click: () => {
-            shell.openExternal("https://github.com/nickustinov/itsyconnect-macos/issues/new");
+            shell.openExternal(`${BRAND_REPO_URL}/issues/new`);
           },
         },
       ],
@@ -492,7 +500,7 @@ function createWindow(port: number): void {
 
   // In production, use app:// for stable origin so localStorage persists with random ports.
   // In dev, port 3000 is fixed so load directly.
-  const origin = isDev ? `http://127.0.0.1:${port}` : "app://itsyconnect";
+  const origin = isDev ? `http://127.0.0.1:${port}` : `app://${APP_ORIGIN_HOST}`;
   mainWindow.loadURL(`${origin}/`);
 
   let shown = false;
@@ -548,6 +556,9 @@ if (!gotLock) {
     initLogger();
     installProcessErrorLogging();
     process.env.ELECTRON = "1";
+    // Before ensureMasterKey: that one mints a fresh key when it finds none,
+    // which would strand the previous ciphertext for good.
+    migrateLegacyUserData(app.getPath("userData"));
     ensureMasterKey();
     setDatabasePath();
     app.name = "Bascaso";

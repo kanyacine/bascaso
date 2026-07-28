@@ -5,6 +5,6 @@ export default defineConfig({
   out: "./drizzle",
   dialect: "sqlite",
   dbCredentials: {
-    url: process.env.DATABASE_PATH ?? `${process.env.HOME}/Library/Application Support/Itsyconnect/itsyconnect.db`,
+    url: process.env.DATABASE_PATH ?? `${process.env.HOME}/Library/Application Support/bascaso/bascaso.db`,
   },
 });

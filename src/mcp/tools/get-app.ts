@@ -8,6 +8,7 @@ import { listAppInfos, listAppInfoLocalizations } from "@/lib/asc/app-info";
 import { pickAppInfo } from "@/lib/asc/app-info-utils";
 import { TEXT_EDITABLE_STATES } from "@/lib/asc/version-types";
 import { resolveApp, resolveVersion, visibleApps, isError } from "@/mcp/resolve";
+import { BRAND_NAME } from "@/lib/brand";
 
 export function registerGetApp(server: McpServer): void {
   server.registerTool(
@@ -16,12 +17,12 @@ export function registerGetApp(server: McpServer): void {
       title: "Get app data",
       description:
         "Get comprehensive app data: versions, locales, and field values. " +
-        "Pass an app name (e.g. 'Itsyconnect') and optionally a version string (e.g. '1.7.0'). " +
+        `Pass an app name (e.g. '${BRAND_NAME}') and optionally a version string (e.g. '1.7.0'). ` +
         "If no version specified, returns the editable version. " +
         "If no app specified, lists all apps. " +
         "Pass a locale to see all field values for that locale.",
       inputSchema: z.object({
-        app: z.string().optional().describe("App name (e.g. 'Itsyconnect'). Omit to list all apps."),
+        app: z.string().optional().describe(`App name (e.g. '${BRAND_NAME}'). Omit to list all apps.`),
         version: z.string().optional().describe("Version string (e.g. '1.7.0'). Omit for the editable version."),
         locale: z.string().optional().describe("Locale code (e.g. 'en-US'). Omit for overview with all locales listed."),
       }),
@@ -30,7 +31,7 @@ export function registerGetApp(server: McpServer): void {
       if (!hasCredentials()) {
         return {
           isError: true,
-          content: [{ type: "text", text: "No App Store Connect credentials configured. Set them up in Itsyconnect first." }],
+          content: [{ type: "text", text: `No App Store Connect credentials configured. Set them up in ${BRAND_NAME} first.` }],
         };
       }
 

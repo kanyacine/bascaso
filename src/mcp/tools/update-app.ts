@@ -21,6 +21,7 @@ import { resolveApp, resolveVersion, isError, categorizeField, ALL_WRITABLE_FIEL
 import { emitChange } from "@/mcp/events";
 import { getReviewBeforeSaving } from "@/lib/app-preferences";
 import { getSectionChange, upsertSectionChange } from "@/lib/change-buffer";
+import { BRAND_NAME } from "@/lib/brand";
 
 export function registerUpdateApp(server: McpServer): void {
   server.registerTool(
@@ -35,7 +36,7 @@ export function registerUpdateApp(server: McpServer): void {
         "demoAccountName, demoAccountPassword, demoAccountRequired. " +
         "Locale is required for listing and details fields, not used for review fields.",
       inputSchema: z.object({
-        app: z.string().describe("App name (e.g. 'Itsyconnect')"),
+        app: z.string().describe(`App name (e.g. '${BRAND_NAME}')`),
         version: z.string().optional().describe("Version string (e.g. '1.7.0'). Omit for the editable version."),
         field: z.string().describe("Field name to update"),
         locale: z.string().optional().describe("Locale code (e.g. 'en-US'). Required for listing/details fields."),

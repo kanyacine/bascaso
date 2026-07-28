@@ -17,6 +17,7 @@ import { EDITABLE_STATES } from "@/lib/asc/version-types";
 import { cacheSet } from "@/lib/cache";
 import { resolveApp, resolveVersion, isError } from "@/mcp/resolve";
 import { emitChange } from "@/mcp/events";
+import { BRAND_NAME } from "@/lib/brand";
 
 export function registerManageLocales(server: McpServer): void {
   server.registerTool(
@@ -30,7 +31,7 @@ export function registerManageLocales(server: McpServer): void {
         "Action 'remove': DESTRUCTIVE – permanently deletes all content for that locale. " +
         "Requires confirm='true' for remove.",
       inputSchema: z.object({
-        app: z.string().describe("App name (e.g. 'Itsyconnect')"),
+        app: z.string().describe(`App name (e.g. '${BRAND_NAME}')`),
         version: z.string().optional().describe("Version string (e.g. '1.7.0'). Omit for the editable version."),
         action: z.string().describe("'add' or 'remove'"),
         locale: z.string().describe("Locale code (e.g. 'de-DE', 'fr-FR', 'ja')"),

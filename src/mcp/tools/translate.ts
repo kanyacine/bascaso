@@ -15,6 +15,7 @@ import { resolveApp, resolveVersion, isError, ALL_TRANSLATABLE_FIELDS } from "@/
 import { emitChange } from "@/mcp/events";
 import { getReviewBeforeSaving } from "@/lib/app-preferences";
 import { getSectionChange, upsertSectionChange } from "@/lib/change-buffer";
+import { BRAND_NAME } from "@/lib/brand";
 
 const LISTING_FIELDS = new Set(["whatsNew", "description", "keywords", "promotionalText"]);
 const DETAIL_FIELDS = new Set(["name", "subtitle"]);
@@ -29,7 +30,7 @@ async function aiRequest(body: Record<string, unknown>): Promise<string> {
     const data = await res.json().catch(() => ({}));
     const errorMsg = (data as { error?: string }).error;
     if (errorMsg === "ai_not_configured" || errorMsg === "ai_tier_not_configured") {
-      throw new Error("No AI provider configured. Set up an API key in Itsyconnect Settings > AI first.");
+      throw new Error(`No AI provider configured. Set up an API key in ${BRAND_NAME} Settings > AI first.`);
     }
     throw new Error(errorMsg ?? `AI request failed (${res.status})`);
   }
@@ -55,7 +56,7 @@ export function registerTranslate(server: McpServer): void {
         "Translatable fields: whatsNew, description, keywords, promotionalText, name, subtitle. " +
         "If targetLocales is omitted, translates to all existing locales.",
       inputSchema: z.object({
-        app: z.string().describe("App name (e.g. 'Itsyconnect')"),
+        app: z.string().describe(`App name (e.g. '${BRAND_NAME}')`),
         version: z.string().optional().describe("Version string (e.g. '1.7.0'). Omit for the editable version."),
         fields: z.string().describe("Comma-separated fields (e.g. 'whatsNew,description,name,subtitle')"),
         sourceLocale: z.string().describe("Source locale code (e.g. 'en-US')"),

@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { APP_VERSION } from "@/lib/version";
+import { BRAND_ISSUES_URL, BRAND_NAME, SUPPORT_EMAIL } from "@/lib/brand";
 import { sanitisePath, sanitiseText } from "@/lib/sanitise-error";
 import { useTranslations } from "@/lib/i18n/locale-context";
 import type { AscErrorEntry } from "@/lib/asc/errors";
@@ -104,7 +105,7 @@ function buildGithubUrl(details: string, title: string): string {
     "<!-- Describe what you were doing when this error occurred -->",
     "",
     "---",
-    "_Reported via Itsyconnect error dialog_",
+    `_Reported via ${BRAND_NAME} error dialog_`,
   ].join("\n");
 
   // URL limit is ~8000 chars after encoding; truncate body to stay safe
@@ -119,7 +120,7 @@ function buildGithubUrl(details: string, title: string): string {
     labels: "bug",
   });
 
-  return `https://github.com/nickustinov/itsyconnect-macos/issues/new?${params}`;
+  return `${BRAND_ISSUES_URL}?${params}`;
 }
 
 function buildReportText(details: string, title: string): string {
@@ -135,8 +136,6 @@ function buildReportText(details: string, title: string): string {
     "(describe what you were doing when this error occurred)",
   ].join("\n");
 }
-
-const SUPPORT_EMAIL = "support@itsyconnect.com";
 
 export function ErrorReportDialog({ data, onClose }: ErrorReportDialogProps) {
   const t = useTranslations();

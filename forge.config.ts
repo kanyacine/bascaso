@@ -2,11 +2,12 @@ import type { ForgeConfig } from "@electron-forge/shared-types";
 import { MakerDMG } from "@electron-forge/maker-dmg";
 import { MakerZIP } from "@electron-forge/maker-zip";
 import { APP_VERSION, BUILD_NUMBER } from "./src/lib/version";
+import { APP_BUNDLE_ID, BRAND_NAME } from "./src/lib/brand";
 
 const makers = [
   new MakerDMG({
     format: "ULFO",
-    name: "Bascaso",
+    name: BRAND_NAME,
     icon: "public/icon.icns",
     overwrite: true,
   }),
@@ -15,8 +16,8 @@ const makers = [
 
 const config: ForgeConfig = {
   packagerConfig: {
-    appBundleId: "com.itsyconnect.app",
-    name: "Bascaso",
+    appBundleId: APP_BUNDLE_ID,
+    name: BRAND_NAME,
     appVersion: APP_VERSION,
     buildVersion: BUILD_NUMBER,
     icon: "public/icon",

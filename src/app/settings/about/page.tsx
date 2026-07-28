@@ -4,6 +4,7 @@ import Image from "next/image";
 import { GithubLogo } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { APP_VERSION, BUILD_NUMBER } from "@/lib/version";
+import { BRAND_ISSUES_URL, BRAND_NAME, BRAND_SITE_URL } from "@/lib/brand";
 import { useTranslations } from "@/lib/i18n/locale-context";
 
 export default function AboutPage() {
@@ -13,20 +14,20 @@ export default function AboutPage() {
     <div className="max-w-2xl space-y-6">
       <Image
         src="/icon.png"
-        alt="Bascaso"
+        alt={BRAND_NAME}
         width={64}
         height={64}
         className="rounded-xl"
       />
       <div className="space-y-1">
-        <h2 className="text-lg font-semibold">Bascaso</h2>
+        <h2 className="text-lg font-semibold">{BRAND_NAME}</h2>
         <a
-          href="https://itsyconnect.com"
+          href={BRAND_SITE_URL}
           target="_blank"
           rel="noopener noreferrer"
           className="text-sm text-muted-foreground hover:underline underline-offset-4"
         >
-          https://itsyconnect.com
+          {BRAND_SITE_URL}
         </a>
       </div>
 
@@ -43,7 +44,7 @@ export default function AboutPage() {
 
       <Button variant="outline" size="sm" asChild>
         <a
-          href="https://github.com/nickustinov/itsyconnect-macos/issues/new"
+          href={BRAND_ISSUES_URL}
           target="_blank"
           rel="noopener noreferrer"
         >
