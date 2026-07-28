@@ -5,7 +5,7 @@ import {
   managedAuthErrorMessage,
   runWithBusyFlag,
   verifyManagedSignup,
-} from "@/app/settings/ai/page";
+} from "@/lib/managed/client";
 import { en } from "@/lib/i18n/locales/en";
 import { getMessages, translate } from "@/lib/i18n/messages";
 
@@ -69,7 +69,7 @@ describe("authenticateManaged", () => {
   });
 
   // Coeur du correctif : le body du 401 porte déjà le vrai message serveur
-  // (route.ts) – il ne doit plus être jeté, sinon settings.ai.managedAuthFailed
+  // (route.ts) – il ne doit plus être jeté, sinon settings.account.authFailed
   // ("vérifiez votre mot de passe") s'affiche même quand ce n'est pas un
   // problème de mot de passe (compte déjà inscrit, quota d'emails dépassé).
   it("surfaces the server's error code and message on a 401", async () => {
@@ -170,19 +170,19 @@ describe("managedAuthErrorMessage", () => {
   // l'un ni l'autre n'est un problème d'identifiants.
   it("maps user_already_exists to its own localized message", () => {
     expect(managedAuthErrorMessage("user_already_exists", "User already registered", t))
-      .toBe(en.settings.ai.managedAuthUserExists);
+      .toBe(en.settings.account.authUserExists);
   });
 
   it("maps over_email_send_rate_limit to its own localized message", () => {
     expect(managedAuthErrorMessage("over_email_send_rate_limit", "Email rate limit exceeded", t))
-      .toBe(en.settings.ai.managedAuthRateLimited);
+      .toBe(en.settings.account.authRateLimited);
   });
 
   // Le grant OAuth2 du login (mauvais mot de passe) ne porte pas de code :
   // c'est le seul cas où "vérifiez identifiants" reste le bon message.
   it("falls back to the generic credentials message when no code is present", () => {
     expect(managedAuthErrorMessage(undefined, "Invalid login credentials", t))
-      .toBe(en.settings.ai.managedAuthFailed);
+      .toBe(en.settings.account.authFailed);
   });
 
   // Régression : GoTrue renvoie {code:400, error_code:"invalid_credentials",
@@ -191,7 +191,7 @@ describe("managedAuthErrorMessage", () => {
   // Sans ce cas, le `default:` renvoyait le message serveur brut en anglais.
   it("maps invalid_credentials (bad password, real GoTrue shape) to the generic credentials message", () => {
     expect(managedAuthErrorMessage("invalid_credentials", "Invalid login credentials", t))
-      .toBe(en.settings.ai.managedAuthFailed);
+      .toBe(en.settings.account.authFailed);
   });
 
   // GoTrue renvoie ce code quand la connexion est tentée avant que le compte
@@ -199,7 +199,7 @@ describe("managedAuthErrorMessage", () => {
   // suis confirmé – me connecter" cliqué trop tôt.
   it("maps email_not_confirmed to its own localized message", () => {
     expect(managedAuthErrorMessage("email_not_confirmed", "Email not confirmed", t))
-      .toBe(en.settings.ai.managedAuthEmailNotConfirmed);
+      .toBe(en.settings.account.authEmailNotConfirmed);
   });
 
   // Régression centrale du correctif : un code renvoyé par le serveur mais
@@ -213,7 +213,7 @@ describe("managedAuthErrorMessage", () => {
 
   it("falls back to the generic message when a coded failure has no message", () => {
     expect(managedAuthErrorMessage("some_future_code", undefined, t))
-      .toBe(en.settings.ai.managedAuthFailed);
+      .toBe(en.settings.account.authFailed);
   });
 });
 
