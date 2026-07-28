@@ -116,3 +116,18 @@ export function createTestDb() {
   `);
   return drizzle(sqlite, { schema });
 }
+
+/** Seed a linked cloud account. The routing default and the managed-tier guards
+ *  only ask whether the row exists, so the ciphertext columns can hold anything –
+ *  nothing here ever decrypts them. */
+export function seedManagedAccount(db: ReturnType<typeof createTestDb>): void {
+  db.insert(schema.managedAccount)
+    .values({
+      email: "customer@example.test",
+      encryptedSession: "ciphertext",
+      iv: "iv",
+      authTag: "tag",
+      encryptedDek: "dek",
+    })
+    .run();
+}

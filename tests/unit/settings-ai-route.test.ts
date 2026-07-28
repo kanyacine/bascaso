@@ -433,6 +433,7 @@ describe("PUT/GET/DELETE /api/settings/ai (per-tier)", () => {
         },
         fallback: false,
         allowUnsupportedLanguages: false,
+        managedAvailable: false,
       },
     });
   });

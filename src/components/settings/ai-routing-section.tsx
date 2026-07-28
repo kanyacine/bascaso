@@ -15,6 +15,8 @@ export interface RoutingState {
   fallback: boolean;
   /** Whether the built-in Apple model may generate in unsupported languages. */
   allowUnsupportedLanguages: boolean;
+  /** A cloud account is linked, so the managed tier can actually route. */
+  managedAvailable: boolean;
 }
 
 interface Props {
@@ -54,6 +56,11 @@ export function AiRoutingSection({ routing, onChanged }: Props) {
         </Button>
       </div>
       <p className="text-sm text-muted-foreground">{t("settings.ai.routing.hint")}</p>
+      {!routing.managedAvailable && (
+        <p className="text-sm text-muted-foreground">
+          {t("settings.ai.routing.managedRequiresAccount")}
+        </p>
+      )}
       <div className="divide-y">
         {AI_ROUTED_GROUPS.map((group) => {
           const state = routing.groups[group];
@@ -77,7 +84,9 @@ export function AiRoutingSection({ routing, onChanged }: Props) {
               >
                 <ToggleGroupItem value="local">{t("settings.ai.routing.local")}</ToggleGroupItem>
                 <ToggleGroupItem value="byok">{t("settings.ai.routing.byok")}</ToggleGroupItem>
-                <ToggleGroupItem value="managed">{t("settings.ai.routing.managed")}</ToggleGroupItem>
+                <ToggleGroupItem value="managed" disabled={!routing.managedAvailable}>
+                  {t("settings.ai.routing.managed")}
+                </ToggleGroupItem>
               </ToggleGroup>
             </div>
           );

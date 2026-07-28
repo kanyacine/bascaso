@@ -23,6 +23,7 @@ import {
   setAppleFmAllowUnsupportedLanguages,
 } from "@/lib/app-preferences";
 import { AI_ROUTED_GROUPS, type AIGroupId, type AITier } from "@/lib/ai/tasks";
+import { hasManagedAccount } from "@/lib/managed/account";
 
 function projectTier(tier: AITier) {
   const row = db
@@ -54,6 +55,10 @@ export async function GET() {
       groups,
       fallback: getRoutingFallbackEnabled(),
       allowUnsupportedLanguages: getAppleFmAllowUnsupportedLanguages(),
+      // The routing UI greys out "Managed" without it. Picking that tier with no
+      // cloud account used to be accepted silently, and only surfaced as a hard
+      // failure on the first AI action.
+      managedAvailable: hasManagedAccount(),
     },
   });
 }

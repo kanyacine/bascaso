@@ -38,3 +38,10 @@ export function getManagedSession(): ManagedSession | null {
 export function clearManagedSession(): void {
   db.delete(managedAccount).run();
 }
+
+/** Un compte cloud est-il lié ? Ne déchiffre pas la session : la présence de la
+ *  ligne suffit, et cette question est posée à chaque résolution de tier – y
+ *  compris quand la clé maître a changé et que le déchiffrement lèverait. */
+export function hasManagedAccount(): boolean {
+  return db.select({ email: managedAccount.email }).from(managedAccount).get() != null;
+}

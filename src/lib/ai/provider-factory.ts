@@ -124,6 +124,12 @@ async function resolveTier(
   if (tier === "managed") {
     const token = await getValidAccessToken();
     if (!token) {
+      // Same fallback contract as the local tier. `getValidAccessToken` returns
+      // null both when signed out and when the refresh token no longer works,
+      // so an expired cloud session used to be a hard failure even with the
+      // fallback switch on and a BYOK key configured.
+      const fallback = await tryByokFallback(allowFallback, taskId, context);
+      if (fallback) return fallback;
       throw new AIRoutingError("ai_tier_not_configured", "Not signed in to bascaso cloud");
     }
     const managed = createOpenAI({

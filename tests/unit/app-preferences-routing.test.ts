@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, vi } from "vitest";
-import { createTestDb } from "../helpers/test-db";
+import { createTestDb, seedManagedAccount } from "../helpers/test-db";
 
 let testDb: ReturnType<typeof createTestDb>;
 
@@ -10,6 +10,7 @@ vi.mock("@/db", () => ({
 }));
 
 import {
+  getRoutingDefaultTier,
   getRoutingTier,
   setRoutingTier,
   isRoutingTierExplicit,
@@ -30,6 +31,29 @@ describe("routing preferences", () => {
     expect(isRoutingTierExplicit("redaction")).toBe(false);
   });
 
+  // Le tier payant n'était le défaut de rien : un client pouvait créer un compte,
+  // acheter des jetons, et rien ne les consommait tant qu'il n'avait pas basculé
+  // les quatre groupes à la main.
+  it("moves every unset group to managed once a cloud account is linked", () => {
+    seedManagedAccount(testDb);
+    expect(getRoutingTier("redaction")).toBe("managed");
+    expect(getRoutingTier("metadata")).toBe("managed");
+    expect(getRoutingTier("insights")).toBe("managed");
+    expect(getRoutingTier("workflows")).toBe("managed");
+    expect(isRoutingTierExplicit("metadata")).toBe(false);
+  });
+
+  it("keeps an explicit tier over the managed default", () => {
+    seedManagedAccount(testDb);
+    setRoutingTier("metadata", "byok");
+    expect(getRoutingTier("metadata")).toBe("byok");
+  });
+
+  it("returns to the shipped defaults with no cloud account", () => {
+    expect(getRoutingDefaultTier("redaction")).toBe("local");
+    expect(getRoutingDefaultTier("metadata")).toBe("byok");
+  });
+
   it("stores and clears explicit tiers", () => {
     setRoutingTier("redaction", "byok");
     expect(getRoutingTier("redaction")).toBe("byok");
@@ -39,8 +63,25 @@ describe("routing preferences", () => {
   });
 
   it("persists and reads the managed tier", () => {
+    seedManagedAccount(testDb);
     setRoutingTier("metadata", "managed");
     expect(getRoutingTier("metadata")).toBe("managed");
+  });
+
+  // Signing out used to leave an explicitly-managed group routing to managed:
+  // the first AI action threw ai_tier_not_configured, behind a greyed-out toggle.
+  it("treats an explicit managed tier as unset while signed out", () => {
+    setRoutingTier("metadata", "managed");
+    expect(getRoutingTier("metadata")).toBe("byok"); // shipped default
+    expect(getRoutingTier("redaction")).toBe("local");
+  });
+
+  it("keeps the managed preference across a sign-out and back in", () => {
+    setRoutingTier("redaction", "managed");
+    expect(getRoutingTier("redaction")).toBe("local");
+    expect(isRoutingTierExplicit("redaction")).toBe(true); // preference survives
+    seedManagedAccount(testDb);
+    expect(getRoutingTier("redaction")).toBe("managed");
   });
 
   it("fallback toggle defaults to off", () => {

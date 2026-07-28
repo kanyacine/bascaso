@@ -7,6 +7,7 @@ import {
   setRoutingTier,
 } from "@/lib/app-preferences";
 import { AI_ROUTED_GROUPS, type AIGroupId } from "@/lib/ai/tasks";
+import { hasManagedAccount } from "@/lib/managed/account";
 
 const groupSchema = z.object({
   group: z.enum(AI_ROUTED_GROUPS as [AIGroupId, ...AIGroupId[]]),
@@ -34,6 +35,12 @@ export async function PUT(request: Request) {
   if ("reset" in parsed) {
     for (const group of AI_ROUTED_GROUPS) setRoutingTier(group, null);
   } else if ("group" in parsed) {
+    // The UI greys the option out, but a stored `managed` with no cloud account
+    // is unroutable: it would only fail at the first AI action, far from the
+    // setting that caused it.
+    if (parsed.tier === "managed" && !hasManagedAccount()) {
+      return NextResponse.json({ error: "managed_account_required" }, { status: 422 });
+    }
     setRoutingTier(parsed.group, parsed.tier);
   } else if ("allowUnsupportedLanguages" in parsed) {
     setAppleFmAllowUnsupportedLanguages(parsed.allowUnsupportedLanguages);

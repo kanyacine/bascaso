@@ -3,11 +3,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mockGetValidAccessToken = vi.fn();
 vi.mock("@/lib/managed/auth", () => ({ getValidAccessToken: mockGetValidAccessToken }));
 const mockGetRoutingTier = vi.fn();
+const mockGetRoutingFallbackEnabled = vi.fn(() => false);
 vi.mock("@/lib/app-preferences", () => ({
   getRoutingTier: mockGetRoutingTier,
-  getRoutingFallbackEnabled: () => false,
+  getRoutingFallbackEnabled: () => mockGetRoutingFallbackEnabled(),
 }));
-vi.mock("@/lib/ai/settings", () => ({ getTierSettings: vi.fn() }));
+const mockGetTierSettings = vi.fn();
+vi.mock("@/lib/ai/settings", () => ({ getTierSettings: mockGetTierSettings }));
 
 // Capture the config createOpenAI is built with – it's the only place the
 // x-action-id header (the managed tier's billing unit) is set. Without this
@@ -22,7 +24,10 @@ const mockCreateOpenAI = vi.fn((_config: Record<string, unknown>) => {
 vi.mock("@ai-sdk/openai", () => ({ createOpenAI: mockCreateOpenAI }));
 
 describe("managed tier resolution", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetRoutingFallbackEnabled.mockReturnValue(false);
+  });
 
   it("resolves a managed model carrying the task id", async () => {
     mockGetRoutingTier.mockReturnValue("managed");
@@ -77,6 +82,46 @@ describe("managed tier resolution", () => {
   it("throws ai_tier_not_configured when signed out", async () => {
     mockGetRoutingTier.mockReturnValue("managed");
     mockGetValidAccessToken.mockResolvedValue(null);
+    const { getLanguageModelForTask, AIRoutingError } = await import("@/lib/ai/provider-factory");
+    await expect(getLanguageModelForTask("translate")).rejects.toThrow(AIRoutingError);
+  });
+
+  // getValidAccessToken renvoie null aussi bien pour « jamais connecté » que pour
+  // « refresh token périmé ». Ce second cas était un échec dur alors même que le
+  // repli était activé et qu'une clé BYOK était configurée – le tier local, lui,
+  // repliait déjà.
+  it("falls back to BYOK when the cloud session is gone and fallback is on", async () => {
+    mockGetRoutingTier.mockReturnValue("managed");
+    mockGetValidAccessToken.mockResolvedValue(null);
+    mockGetRoutingFallbackEnabled.mockReturnValue(true);
+    mockGetTierSettings.mockResolvedValue({
+      provider: "openai", modelId: "gpt-4o-mini", apiKey: "sk-test", baseUrl: null,
+    });
+
+    const { getLanguageModelForTask } = await import("@/lib/ai/provider-factory");
+    const resolved = await getLanguageModelForTask("translate");
+
+    expect(resolved.tier).toBe("byok");
+    expect(resolved.providerId).toBe("openai");
+  });
+
+  it("still throws when the cloud session is gone and no BYOK tier is configured", async () => {
+    mockGetRoutingTier.mockReturnValue("managed");
+    mockGetValidAccessToken.mockResolvedValue(null);
+    mockGetRoutingFallbackEnabled.mockReturnValue(true);
+    mockGetTierSettings.mockResolvedValue(null);
+
+    const { getLanguageModelForTask, AIRoutingError } = await import("@/lib/ai/provider-factory");
+    await expect(getLanguageModelForTask("translate")).rejects.toThrow(AIRoutingError);
+  });
+
+  it("does not fall back when the fallback switch is off", async () => {
+    mockGetRoutingTier.mockReturnValue("managed");
+    mockGetValidAccessToken.mockResolvedValue(null);
+    mockGetTierSettings.mockResolvedValue({
+      provider: "openai", modelId: "gpt-4o-mini", apiKey: "sk-test", baseUrl: null,
+    });
+
     const { getLanguageModelForTask, AIRoutingError } = await import("@/lib/ai/provider-factory");
     await expect(getLanguageModelForTask("translate")).rejects.toThrow(AIRoutingError);
   });
