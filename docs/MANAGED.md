@@ -272,7 +272,7 @@ Every number above is calibrated against a real failure, not chosen for symmetry
 | Cap 10 (`single`) | `20260725040405_debit_action_caps.sql` | One call plus the route's internal shorten-retries |
 | 90-minute window (`workflow`) | `20260725044312_debit_action_workflow_ttl_headroom.sql` | Raised from 15 to 60 in `…_debit_action_workflow_ttl.sql`, then to 90: a keyword-research run paces its iTunes calls between LLM steps and a throttled run approaches 45-50 minutes. The cap, not the window, is what bounds abuse |
 | Classes and the class guard | `20260725052000_debit_action_task_guard.sql` | Introduced `action_class()` and froze the class per action |
-| Authorise/settle split | `20260728093000_settle_action_on_response.sql` | Moved the debit after the response; `debit_action` dropped in `20260728104500_drop_debit_action.sql` |
+| Authorise/settle split | `20260727222443_settle_action_on_response.sql` | Moved the debit after the response; `debit_action` dropped in `20260727224021_drop_debit_action.sql` |
 
 The window is measured from `actions.created_at` – when the action was first opened – not
 from the last call, so a long chain of replays cannot walk the deadline forward.
