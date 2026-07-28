@@ -1,6 +1,6 @@
 # UI conventions
 
-This document defines the UI patterns for Itsyconnect. Every page and component must follow these conventions to ensure visual consistency. Custom styles are defined in `src/app/globals.css` under `@layer components` – use them instead of ad-hoc Tailwind classes.
+This document defines the UI patterns for Bascaso. Every page and component must follow these conventions to ensure visual consistency. Custom styles are defined in `src/app/globals.css` under `@layer components` – use them instead of ad-hoc Tailwind classes.
 
 ## Typography
 

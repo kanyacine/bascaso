@@ -1,24 +1,34 @@
-<h1>Itsyconnect</h1>
+<h1>Bascaso</h1>
 
 <p>
-  Better App Store Connect.
+  App Store Connect, with ASO built in.
 </p>
 
 <p>
-  <a href="https://github.com/nickustinov/itsyconnect-macos/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-AGPL--v3-blue.svg" alt="License" /></a>
-  <a href="https://github.com/nickustinov/itsyconnect-macos/actions"><img src="https://img.shields.io/github/actions/workflow/status/nickustinov/itsyconnect-macos/ci.yml?branch=main" alt="CI" /></a>
+  <a href="https://github.com/kanyacine/bascaso/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-AGPL--v3-blue.svg" alt="License" /></a>
+  <a href="https://github.com/kanyacine/bascaso/actions"><img src="https://img.shields.io/github/actions/workflow/status/kanyacine/bascaso/ci.yml?branch=main" alt="CI" /></a>
   <img src="https://img.shields.io/badge/electron-40-9feaf9" alt="Electron" />
   <img src="https://img.shields.io/badge/next.js-16-black" alt="Next.js 16" />
   <img src="https://img.shields.io/badge/sqlite-WAL-green" alt="SQLite" />
   <img src="https://img.shields.io/badge/macOS-11%2B-999" alt="macOS 11+" />
-  <a href="https://github.com/nickustinov/itsyconnect-macos/releases"><img src="https://img.shields.io/github/downloads/nickustinov/itsyconnect-macos/total" alt="Downloads" /></a>
 </p>
 
 ---
 
-A desktop app and self-hosted web dashboard that replaces Apple's App Store Connect. Edit metadata across all locales at once, manage TestFlight builds and testers, review analytics, respond to customer reviews, and submit nominations – all from a single desktop window. AI translates your descriptions, keywords, review replies, and even screenshots into every language with one click.
+A desktop app and self-hosted web dashboard that replaces Apple's App Store Connect. Edit metadata across all locales at once, manage TestFlight builds and testers, review analytics, respond to customer reviews, and submit nominations – all from a single desktop window.
 
-Everything runs locally. One SQLite database, no cloud, no accounts, no telemetry. Credentials are encrypted with AES-256-GCM and the master key lives in the macOS Keychain.
+Two things set it apart from a plain App Store Connect client:
+
+- **An ASO layer.** Keyword scoring, competitor research and download estimates, built on public App Store data. What the numbers mean and how they are computed is written down in [docs/ASO.md](docs/ASO.md) – including which of them are estimates rather than measurements.
+- **A choice of AI backends.** Run models on-device, bring your own API key, or use the managed tier and pay per action. Which one handles which task is yours to set, per group of tasks.
+
+## Where your data goes
+
+Bascaso is local-first. Your App Store Connect credentials, your app data and your settings live in one SQLite file on your Mac, encrypted with AES-256-GCM under a master key held in the macOS Keychain. Nothing is uploaded, and there is no analytics or telemetry SDK in the app.
+
+There is one exception, and it is opt-in: **the managed AI tier**. If you create a Bascaso cloud account and route tasks to it, the text those tasks need – the metadata, review or prompt in question – is sent to our backend, which forwards it to a model provider. That path involves an account, a server and a payment processor. Everything else in the app keeps working without ever creating one.
+
+See [docs/MANAGED.md](docs/MANAGED.md) for what the managed tier sends, what it charges and what it stores.
 
 <table>
   <tr>
@@ -37,15 +47,17 @@ Everything runs locally. One SQLite database, no cloud, no accounts, no telemetr
 
 ## Features
 
+**ASO and keyword optimisation** – score a listing, track keyword character budgets per locale and storefront, and detect duplicates between name, subtitle and keyword fields within a locale and across locales. Research keywords against real App Store data, with competitor lookups and download estimates. One-click fix suggestions help maximise coverage across every market. Methodology and limits: [docs/ASO.md](docs/ASO.md).
+
 **Release management** – edit descriptions, keywords, what's new, promotional text, names, and subtitles for every locale. Pick builds, choose release method (manual, automatic, or scheduled), toggle phased rollout. Save everything in one click.
 
-**AI-powered localisation** – translate any field or all fields to one locale or every locale simultaneously. Generate optimised keywords. Draft professional review replies. Translate foreign reviews. Generate appeal text for unfair ratings. Bring your own API key from Anthropic, OpenAI, Google, xAI, Mistral, or DeepSeek.
+**AI-powered localisation** – translate any field or all fields to one locale or every locale simultaneously. Generate optimised keywords. Draft professional review replies. Translate foreign reviews. Generate appeal text for unfair ratings.
+
+**Three AI tiers** – the on-device Apple model (free, offline), your own API key from Anthropic, OpenAI, Google, xAI, Mistral or DeepSeek, or the managed tier billed per action. Routing is per group of tasks, so drafting can stay on-device while translation goes to a stronger model.
 
 **TestFlight** – manage builds, beta groups, and testers in one interface. Add or remove builds from groups in bulk. Track installs, sessions, and crashes per build. Review tester feedback with device details and screenshots. Mark feedback as done.
 
 **Analytics** – impressions, downloads, proceeds, first-time downloads, sessions, crashes, and conversion funnel. Compare periods, break down by territory, track version adoption. Acquisition sources, usage patterns, and crash reports across separate tabs.
-
-**Keyword optimisation** – track keyword character budgets per locale and storefront. Detect duplicates between name, subtitle, and keyword fields within a locale and across locales. One-click fix suggestions help maximise coverage and ranking across every market.
 
 **Customer reviews** – filter by rating, territory, or response status. Translate foreign-language reviews with one click. Draft replies with AI, automatically matching the reviewer's language. Edit and delete existing responses.
 
@@ -53,47 +65,41 @@ Everything runs locally. One SQLite database, no cloud, no accounts, no telemetr
 
 **Nominations** – browse, edit, and submit App Store nominations. AI-powered fill generates nomination answers from your app metadata with one click.
 
-**Dark mode** – full light and dark theme support, follows your system appearance or can be set manually.
-
-**Self-hosted Docker** – run Itsyconnect as a web app on your local network or server. One command to start, auto-generated encryption key, persistent SQLite volume. See [self-hosting with Docker](#self-hosting-with-docker).
-
 **Diff mode** – opt-in setting that accumulates store listing, app details, app review, and keyword changes locally instead of saving to App Store Connect immediately. Review a full before/after diff across all sections and locales, discard individual fields, then push everything in one go.
 
 **MCP server** – optional [Model Context Protocol](https://modelcontextprotocol.io) server lets AI coding tools (Claude Code, Codex, Cursor, OpenCode) manage your app listings directly. Update release notes, translate fields, add locales – all from your terminal. Respects diff mode when enabled. See [docs/MCP.md](docs/MCP.md).
 
-**Privacy and security** – local-first architecture. All data stays on your Mac in a single SQLite file. Credentials encrypted with AES-256-GCM envelope encryption, master key stored in the macOS Keychain. No cloud, no accounts, no telemetry.
+**Self-hosted Docker** – run Bascaso as a web app on your local network or server. One command to start, auto-generated encryption key, persistent SQLite volume. See [self-hosting with Docker](#self-hosting-with-docker).
 
-## Free and open source
+**Dark mode** – full light and dark theme support, follows your system appearance or can be set manually.
 
-Itsyconnect is completely free, with no limits – manage as many apps and developer accounts as you like. Every feature is available to everyone, distributed as a direct DMG download. Licensed under [AGPL-3.0](LICENSE).
+## What it costs
 
-## Download
+The app itself is free and open source under [AGPL-3.0](LICENSE), with no feature gates and no limit on how many apps or developer accounts you manage. The on-device and bring-your-own-key AI tiers cost nothing beyond what your own provider charges you.
 
-Most people just want the app. Download the latest release, open the DMG, and drag Itsyconnect into your Applications folder:
+The managed AI tier is the only paid part: prepaid credits, one credit per action. It is entirely optional – the app never requires an account.
 
-**[⬇ Download Itsyconnect](https://github.com/nickustinov/itsyconnect-macos/releases/latest/download/Itsyconnect.dmg)** – macOS 11 or later
+## Install
 
-The build is signed and notarized by Apple, so it opens without Gatekeeper warnings, and updates itself automatically from then on. On first launch the setup wizard guides you through connecting your App Store Connect credentials. Older builds are on the [releases page](https://github.com/nickustinov/itsyconnect-macos/releases).
+> **Status: not yet released.** There is no published build and no download link yet. Signing, notarisation and auto-update are not wired up (see [docs/RELEASE.md](docs/RELEASE.md) for the current state). Until the first release lands, build from source.
 
 ## Build from source
 
-Prefer to compile and run it yourself? Clone the repo and start the dev build:
-
 ```bash
-git clone https://github.com/nickustinov/itsyconnect-macos.git
-cd itsyconnect-macos
+git clone https://github.com/kanyacine/bascaso.git
+cd bascaso
 npm install
 npm run electron:dev
 ```
 
-The setup wizard will guide you through connecting your App Store Connect credentials. See [Development](#development) below for building your own signed DMG.
+Node 24 is expected – see `.nvmrc`. The setup wizard guides you through connecting your App Store Connect credentials on first launch.
 
 ## Self-hosting with Docker
 
-Run Itsyconnect as a web app on your local network or server.
+Run Bascaso as a web app on your local network or server.
 
 ```bash
-docker run -d -p 3000:3000 -v itsyconnect-data:/app/data ghcr.io/nickustinov/itsyconnect:latest
+docker run -d -p 3000:3000 -v bascaso-data:/app/data ghcr.io/kanyacine/bascaso:latest
 ```
 
 Or with docker compose:
@@ -103,6 +109,7 @@ docker compose up -d
 ```
 
 The app will be available at `http://localhost:3000`. A master encryption key is auto-generated and saved to the data volume on first run.
+
 ### Reverse proxy with authentication
 
 The Docker container has no built-in authentication. If you expose it beyond your local machine, put it behind a reverse proxy with basic auth.
@@ -110,7 +117,7 @@ The Docker container has no built-in authentication. If you expose it beyond you
 **Caddy** (recommended – automatic HTTPS):
 
 ```
-itsyconnect.example.com {
+bascaso.example.com {
     basicauth {
         admin $2a$14$... # caddy hash-password
     }
@@ -125,9 +132,9 @@ Generate a password hash with `caddy hash-password`, then paste it into the Cadd
 ```nginx
 server {
     listen 443 ssl;
-    server_name itsyconnect.example.com;
+    server_name bascaso.example.com;
 
-    auth_basic "Itsyconnect";
+    auth_basic "Bascaso";
     auth_basic_user_file /etc/nginx/.htpasswd;
 
     location / {
@@ -150,7 +157,7 @@ All data (SQLite database, master key) is stored in the `/app/data` volume. Back
 
 ```bash
 npm run electron:dev          # Launch Electron with hot reload
-npm run electron:make:dmg     # Build signed DMG
+npm run electron:make:dmg     # Build a DMG
 npm run test                  # Run tests
 npm run test:watch            # Watch mode
 npm run test:coverage         # Coverage report
@@ -158,6 +165,8 @@ npm run db:generate           # Generate Drizzle migration
 npm run db:studio             # Drizzle Studio
 npm run lint                  # ESLint
 ```
+
+Conventions are in [CONTRIBUTING.md](CONTRIBUTING.md); [docs/UI.md](docs/UI.md), [docs/BACKEND.md](docs/BACKEND.md) and [docs/DB.md](docs/DB.md) are required reading before changing UI, server code or the schema.
 
 ## Architecture
 
@@ -168,10 +177,12 @@ Electron app
 ├── src/proxy.ts          → request interception (replaces middleware.ts)
 ├── src/app/api/*         → REST API routes (Next.js 16)
 ├── src/lib/asc/*         → App Store Connect API client
-├── src/lib/ai/*          → AI prompt templates and streaming
+├── src/lib/aso/*         → scoring, keyword research, estimates
+├── src/lib/ai/*          → tier routing, prompt templates, streaming
+├── src/lib/managed/*     → Bascaso cloud account and session
 ├── src/db/*              → Drizzle ORM + SQLite (WAL mode)
-└── ~/Library/Application Support/Itsyconnect/
-    ├── itsyconnect.db    → SQLite database
+└── ~/Library/Application Support/bascaso/
+    ├── bascaso.db        → SQLite database
     └── master-key.enc    → Keychain-encrypted master key
 ```
 
@@ -179,23 +190,15 @@ Electron app
 
 ## Releasing a new version
 
-The app auto-updates via [update.electronjs.org](https://update.electronjs.org), which reads from public GitHub Releases.
-
-1. Bump `APP_VERSION` and `BUILD_NUMBER` in `src/lib/version.ts`, and `"version"` in `package.json`
-2. Commit and push
-3. Run the release script (builds, signs, notarizes, creates a draft GitHub release):
-   ```bash
-   APPLE_ID=you@example.com APPLE_ID_PASSWORD=xxxx-xxxx-xxxx-xxxx APPLE_TEAM_ID=XXXXXXXXXX \
-     ./scripts/build-release.sh
-   ```
-4. Review the draft release on GitHub, edit release notes, then click **Publish**
-5. `update.electronjs.org` picks up the new release – existing users are prompted to restart and update
-
-Users can also check manually via **Itsyconnect > Check for updates…** in the menu bar.
+See [docs/RELEASE.md](docs/RELEASE.md). Signing, notarisation and auto-update are not operational yet, and that document says exactly which parts are missing rather than describing an intended end state.
 
 ## Contributing
 
-Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for the development setup, project conventions, and how to submit a pull request. For features, open an issue to discuss the idea first; bug reports and small fixes can go straight in.
+Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) for the development setup, project conventions, and how to submit a pull request. For features, open an issue to discuss the idea first; bug reports and small fixes can go straight in.
+
+## Credits
+
+Bascaso is a fork of [itsyconnect-macos](https://github.com/nickustinov/itsyconnect-macos) by Nick Ustinov, which provides the App Store Connect client this is built on. The ASO layer, the tiered AI routing and the managed tier are additions made here.
 
 ## License
 

@@ -1,6 +1,6 @@
 # MCP server
 
-Itsyconnect includes an optional [MCP](https://modelcontextprotocol.io) server that lets AI coding assistants interact with your App Store Connect data.
+Bascaso includes an optional [MCP](https://modelcontextprotocol.io) server that lets AI coding assistants interact with your App Store Connect data.
 
 ## Setup
 
@@ -10,7 +10,7 @@ Itsyconnect includes an optional [MCP](https://modelcontextprotocol.io) server t
 <details><summary>Claude Code</summary>
 
 ```bash
-claude mcp add --transport http itsyconnect http://127.0.0.1:3100/mcp
+claude mcp add --transport http bascaso http://127.0.0.1:3100/mcp
 ```
 </details>
 
@@ -18,7 +18,7 @@ claude mcp add --transport http itsyconnect http://127.0.0.1:3100/mcp
 
 Add to `~/.codex/config.toml`:
 ```toml
-[mcp.itsyconnect]
+[mcp.bascaso]
 type = "remote"
 url = "http://127.0.0.1:3100/mcp"
 ```
@@ -30,7 +30,7 @@ Add to `~/.cursor/mcp.json`:
 ```json
 {
   "mcpServers": {
-    "itsyconnect": {
+    "bascaso": {
       "url": "http://127.0.0.1:3100/mcp"
     }
   }
@@ -43,7 +43,7 @@ Add to `~/.cursor/mcp.json`:
 Add to `opencode.json` under `mcp`:
 ```json
 {
-  "itsyconnect": {
+  "bascaso": {
     "type": "remote",
     "url": "http://127.0.0.1:3100/mcp"
   }
@@ -55,7 +55,7 @@ Add to `opencode.json` under `mcp`:
 
 ## Tools
 
-All tools accept **app names** (e.g. "Itsyconnect"), not numeric IDs. Version strings (e.g. "1.7.0") are optional – omit to use the editable version.
+All tools accept **app names** (e.g. "Bascaso"), not numeric IDs. Version strings (e.g. "1.7.0") are optional – omit to use the editable version.
 
 | Tool | Description |
 |------|-------------|
@@ -99,7 +99,7 @@ All tools accept **app names** (e.g. "Itsyconnect"), not numeric IDs. Version st
 </details>
 
 **Example prompts:**
-- *Show me Itsyconnect's current store listing in English*
+- *Show me Bascaso's current store listing in English*
 - *Update the what's new and translate to all languages*
 - *Add German and French locales and translate everything*
 - *Write a promotional text based on the what's new*

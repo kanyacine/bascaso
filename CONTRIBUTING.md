@@ -1,6 +1,6 @@
-# Contributing to Itsyconnect
+# Contributing to Bascaso
 
-Thanks for your interest in contributing! Itsyconnect is a self-hosted App Store Connect dashboard built with Electron, Next.js 16, TypeScript, Tailwind v4, shadcn/ui, and SQLite.
+Thanks for your interest in contributing! Bascaso is a self-hosted App Store Connect dashboard with an ASO layer and a tiered AI backend, built with Electron, Next.js 16, TypeScript, Tailwind v4, shadcn/ui, and SQLite.
 
 ## Before you start
 
@@ -11,8 +11,8 @@ Thanks for your interest in contributing! Itsyconnect is a self-hosted App Store
 ## Development setup
 
 ```bash
-git clone https://github.com/nickustinov/itsyconnect-macos.git
-cd itsyconnect-macos
+git clone https://github.com/kanyacine/bascaso.git
+cd bascaso
 npm install
 npm run electron:dev    # desktop app with hot reload
 # or
@@ -28,6 +28,8 @@ Read these before writing code – PRs that don't follow them will be asked to c
 - **[docs/UI.md](docs/UI.md)** – typography, icons, component patterns, layout rules
 - **[docs/BACKEND.md](docs/BACKEND.md)** – architecture, security model, caching, API conventions
 - **[docs/DB.md](docs/DB.md)** – required reading before any schema change
+- **[docs/ASO.md](docs/ASO.md)** – scoring methodology, data sources and their limits
+- **[docs/MANAGED.md](docs/MANAGED.md)** – the managed tier's billing and error contract
 
 The short version:
 
@@ -41,6 +43,13 @@ The short version:
 
 ## Style
 
+- **English only** – code, comments, commit messages, documentation, issues and pull
+  requests. This is a public repo; contributors who do not speak French must be able
+  to follow every line of it.
+- **Conventional commits** – `feat:`, `fix:`, `ci:`, `build:`, `chore:`, `docs:`,
+  `refactor:`, `test:`. Say what changed and why in the body; a message that only
+  restates the diff is not worth writing.
+- **No `Co-Authored-By` trailers**, and no mention of whatever tool wrote the code.
 - Sentence case for titles and headings ("Release management", not "Release Management").
 - En dashes (–), not em dashes (—).
 - Match the surrounding code's naming and idiom.
@@ -55,4 +64,6 @@ The short version:
 
 ## Licensing
 
-Itsyconnect is licensed under [AGPL-3.0](LICENSE). By submitting a contribution you agree that it will be distributed under the same license.
+Bascaso is licensed under [AGPL-3.0](LICENSE). By submitting a contribution you agree that it will be distributed under the same license.
+
+Bascaso is a fork of [itsyconnect-macos](https://github.com/nickustinov/itsyconnect-macos) by Nick Ustinov.
