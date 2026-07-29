@@ -104,6 +104,8 @@ export const en = {
       version: "Version",
       build: "Build",
       reportIssue: "Report an issue",
+      privacy: "Privacy",
+      terms: "Terms of sale",
     },
     teams: {
       active: "Active",

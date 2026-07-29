@@ -106,6 +106,8 @@ export const ru: Messages = {
       version: "Версия",
       build: "Сборка",
       reportIssue: "Сообщить о проблеме",
+      privacy: "Конфиденциальность",
+      terms: "Условия продажи",
     },
     teams: {
       active: "Активна",

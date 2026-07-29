@@ -106,6 +106,8 @@ export const de: Messages = {
       version: "Version",
       build: "Build",
       reportIssue: "Problem melden",
+      privacy: "Datenschutz",
+      terms: "Verkaufsbedingungen",
     },
     teams: {
       active: "Aktiv",
