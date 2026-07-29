@@ -234,6 +234,11 @@ function waitForServer(port: number, timeout = 30_000): Promise<void> {
 
 // --- Auto-updater ---
 
+/** Shown wherever an update action is taken while no updater exists – dev builds,
+ *  and any packaged build where setup failed. Naming the reason keeps the user
+ *  from retrying a button that can never work in this build. */
+const UPDATER_UNAVAILABLE = "Updates are only available in a packaged build.";
+
 let checkSource: "menu" | "settings" | "auto" = "auto";
 let updateInterval: ReturnType<typeof setInterval> | null = null;
 let autoUpdater: Electron.AutoUpdater | null = null;
@@ -338,7 +343,11 @@ function setupMenu(): void {
           icon: sfIcon("arrow.triangle.2.circlepath"),
           click: () => {
             checkSource = "menu";
-            autoUpdater?.checkForUpdates();
+            if (!autoUpdater) {
+              dialog.showMessageBox({ message: "Updates unavailable", detail: UPDATER_UNAVAILABLE });
+              return;
+            }
+            autoUpdater.checkForUpdates();
           },
         },
         {
@@ -568,9 +577,11 @@ if (!gotLock) {
     createWindow(port);
     setupMenu();
     startAfmSidecar(afmStateFile);
-    // Disabled: feed URL points at the upstream itsyconnect-macos repo, which
-    // this fork has diverged from. Re-enable once Bascaso has its own releases.
-    // setupAutoUpdater();
+    // Re-enabled now the feed points at this repo. update.electronjs.org still
+    // needs a public repo, a published release and a signed build (see
+    // docs/RELEASE.md) – until those exist it answers with an error, which the
+    // UI now shows. An error the user can read beats a button that does nothing.
+    setupAutoUpdater();
     console.log(`[main] App started on port ${port} (${isDev ? "dev" : "prod"})`);
 
     ipcMain.handle("get-system-locale", () => app.getLocale());
@@ -579,7 +590,14 @@ if (!gotLock) {
 
     ipcMain.on("check-for-updates", () => {
       checkSource = "settings";
-      autoUpdater?.checkForUpdates();
+      // `autoUpdater?.` swallowed the whole thing whenever the updater was not
+      // set up – in dev, or while it was commented out – leaving the settings
+      // button spinning on nothing. Say so instead.
+      if (!autoUpdater) {
+        sendUpdateStatus({ state: "error", message: UPDATER_UNAVAILABLE });
+        return;
+      }
+      autoUpdater.checkForUpdates();
     });
 
     ipcMain.handle("get-auto-check-updates", () => {
@@ -587,7 +605,11 @@ if (!gotLock) {
     });
 
     ipcMain.on("install-update", () => {
-      autoUpdater?.quitAndInstall();
+      if (!autoUpdater) {
+        sendUpdateStatus({ state: "error", message: UPDATER_UNAVAILABLE });
+        return;
+      }
+      autoUpdater.quitAndInstall();
     });
 
     ipcMain.on("set-auto-check-updates", (_, enabled: boolean) => {

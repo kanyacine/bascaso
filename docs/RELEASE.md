@@ -9,50 +9,42 @@ not operational yet.
 
 Read this section before trusting a build.
 
-**Signing and notarisation are not wired up.** `forge.config.ts` has the two hooks, but
-neither is complete:
+**Signing and notarisation are wired up, but never yet exercised.** `forge.config.ts` gates
+both on the same three variables – `APPLE_ID`, `APPLE_ID_PASSWORD`, `APPLE_TEAM_ID` – and
+`osxSign` now points at `entitlements.plist`, whose `allow-jit` and
+`allow-unsigned-executable-memory` entitlements are what keep Chromium's renderer alive
+under the hardened runtime that notarisation requires.
 
-```ts
-osxSign: process.env.APPLE_TEAM_ID ? {} : undefined,
-osxNotarize: process.env.APPLE_ID
-  ? { appleId: …, appleIdPassword: process.env.APPLE_ID_PASSWORD!, teamId: process.env.APPLE_TEAM_ID! }
-  : undefined,
-```
+Set all three and you get a signed, notarized build. Set none and you get an unsigned local
+build, with a warning saying so. Set **some**, and the build now fails with a message naming
+the missing ones. That last case used to be the dangerous one: signing was gated on
+`APPLE_TEAM_ID` and notarisation on `APPLE_ID`, so a half-filled environment produced an
+unsigned or un-notarized DMG that built cleanly and looked exactly like a release – the sort
+of artefact you only discover after handing it to someone, when Gatekeeper refuses it.
 
-Three distinct problems:
+No signed build has actually been produced yet. The configuration is correct as far as it
+can be verified without an Apple Developer account; the first real run is the test.
 
-1. **`osxSign` is an empty object.** No identity, no `optionsForFile`. `entitlements.plist`
-   sits in the repository root and is referenced by nothing – grep the tree and it appears
-   only in itself. The two entitlements it declares (`allow-jit`,
-   `allow-unsigned-executable-memory`) are therefore never applied to anything.
-2. **The two hooks read different variables.** Signing turns on with `APPLE_TEAM_ID`;
-   notarisation turns on with `APPLE_ID`. A partly filled environment silently gets one
-   without the other:
+**Auto-update is enabled, and will report an error until three prerequisites exist.**
+`setupAutoUpdater()` is called again and the feed points at this repository. But
+`update.electronjs.org` requires all of:
 
-   | Environment | Result |
-   |---|---|
-   | `APPLE_TEAM_ID` only | Signing attempted, notarisation skipped without a word |
-   | `APPLE_ID` only | Signing skipped, notarisation attempted on an unsigned app, with `teamId` undefined despite the `!` |
-   | Neither | An unsigned, un-notarised DMG that builds cleanly and looks exactly like a release |
+| Prerequisite | State |
+|---|---|
+| A **public** repository | Not met – the repo is private |
+| At least one **published** release | Not met – there are none |
+| A **signed and notarized** build | Not met – see above |
 
-3. **Only the script guards against this.** `build-release.sh` refuses to start unless all
-   three variables are set, so going through it never hits the mismatch. `npm run
-   electron:make:dmg` and a bare `npx electron-forge make` have no such check – that is
-   where a silently unsigned DMG comes from.
+Until then the feed answers with an error, which the UI now shows. That is deliberate: the
+entry points used to call `autoUpdater?.…` on a null updater, so "Check for updates…" in the
+menu, the button in `Settings → General` and "Install" all did nothing at all – no error, no
+status change, nothing to act on. An error a user can read beats a button that lies.
 
-**Auto-update is a no-op.** `setupAutoUpdater()` is never called: the call site in
-`electron/main.ts` is commented out because the feed URL still points at
-`update.electronjs.org/nickustinov/itsyconnect-macos/…`, the upstream project this one
-forked from. The module-level `autoUpdater` therefore stays `null`, and every entry point
-into it – the "Check for updates…" menu item, the `check-for-updates` IPC handler behind
-the button in `Settings → General`, and `install-update` – calls `autoUpdater?.…` on
-nothing. Nothing throws and nothing happens; the status listener never fires, so the UI
-does not report a failure either. `update-electron-app` is listed in `dependencies` but
-imported nowhere.
+In a dev build there is no updater at all, and those entry points now say so explicitly
+rather than going quiet.
 
-Both are scheduled for a later step of the launch work. Until then, a build produced from
-this repository is an unsigned artifact that will not update itself, and no release has
-been published yet.
+`update-electron-app` is still listed in `dependencies` and imported nowhere; the updater is
+wired by hand against Electron's own `autoUpdater`.
 
 ## Prerequisites
 
@@ -64,20 +56,44 @@ been published yet.
 | `gh` CLI, authenticated | The script checks `gh auth status` unless `--no-release` |
 | An Apple Developer account | For the signing identity and the notarisation credentials |
 
-The signing identity itself is not configured anywhere in the repository: `osxSign: {}`
-leaves the choice of certificate to the signing tool's own discovery. Wiring an explicit
-identity and the entitlements file is part of the outstanding work above.
+The signing **identity** is still not named anywhere in the repository. `osxSign` sets
+`optionsForFile` (entitlements) but no `identity`, so @electron/osx-sign picks the
+certificate itself: for a non-MAS build it looks for a `Developer ID Application: *` in the
+`login` keychain. Install exactly one such certificate, or pin `identity` explicitly if you
+carry several.
 
 ## Environment variables
 
 All three are validated by the script, which exits with `ERROR: <VAR> is not set` if any is
 missing.
 
-| Variable | Used by | Purpose |
+Two strategies, and exactly one must be complete. Both `forge.config.ts` and
+`build-release.sh` read the same environment and apply the same rule.
+
+### Keychain profile – prefer this
+
+```bash
+xcrun notarytool store-credentials bascaso \
+  --apple-id you@example.com --team-id XXXXXXXXXX --password xxxx-xxxx-xxxx-xxxx
+```
+
+Then build with `APPLE_KEYCHAIN_PROFILE=bascaso` and nothing else. The secret stays in the
+login keychain.
+
+### Password variables – the fallback
+
+| Variable | Purpose | Where to get it |
 |---|---|---|
-| `APPLE_ID` | `osxNotarize` | Apple ID email; also the gate that enables notarisation |
-| `APPLE_ID_PASSWORD` | `osxNotarize` | App-specific password for that Apple ID |
-| `APPLE_TEAM_ID` | `osxSign`, `osxNotarize` | Developer team id; also the gate that enables signing |
+| `APPLE_ID` | Apple ID email of the Developer account | – |
+| `APPLE_ID_PASSWORD` | App-specific password, **not** the account password | appleid.apple.com → Sign-In and Security → App-Specific Passwords |
+| `APPLE_TEAM_ID` | Developer team id, 10 characters | developer.apple.com → Membership details |
+
+This path makes `@electron/notarize` spawn `notarytool --password <secret>`, which puts the
+app-specific password in the **process arguments**. Any process on the machine can read it
+with a plain `ps` for as long as the submission runs, and it lands in your shell history if
+you prefix the command with it. Both the config and the script warn when this path is taken.
+Set all three, or none – setting some fails the build rather than quietly producing an
+unsigned artifact.
 
 ## Before you build
 
@@ -130,11 +146,11 @@ Step 5 uses `forge.config.ts`: bundle id `app.zavyn.bascaso`, `asar: false`, the
 `package.json`, `electron/`, `.next/standalone`, `drizzle/` and `public/`, and two makers –
 `MakerDMG` (ULFO format, `public/icon.icns`, overwrite) and `MakerZIP`.
 
-One thing to verify on the output rather than assume: nothing in the repository passes
-`--arch`, so a plain `electron-forge make` targets the machine you build on. The universal
-wiring is present – `osxUniversal.x64ArchFiles` in the config, the `lipo`'d SQLite binary
-in `prepare-electron.sh` – but it only takes effect for a universal build. Run `file` or
-`lipo -archs` on the packaged binary before publishing if you intend to ship universal.
+Nothing passes `--arch`, so the build targets the machine it runs on – measured on an Apple
+Silicon Mac, `lipo -archs` on the packaged binary reports `arm64`. **Intel Macs cannot run
+these builds**, and that is a deliberate product decision, not an oversight. The universal
+wiring is present should it be reversed – `osxUniversal.x64ArchFiles` in the config, the
+`lipo`'d SQLite binary in `prepare-electron.sh` – it is simply never requested.
 
 ### Building without the release step
 
@@ -142,9 +158,9 @@ in `prepare-electron.sh` – but it only takes effect for a universal build. Run
 npm run electron:make:dmg
 ```
 
-Compiles, builds Next.js, prepares the bundle and runs the DMG maker only. No clean, no
-ZIP, no environment validation and no release. Convenient for a local check – and the exact
-path on which the signing gate mismatch described above goes unnoticed.
+Compiles, builds Next.js, prepares the bundle and runs the DMG maker only. No clean, no ZIP
+and no release. It reads the same environment as the script, so the same all-or-nothing gate
+applies: with no credentials it builds unsigned and says so, with a partial set it fails.
 
 ## What the build produces
 
@@ -159,6 +175,40 @@ The script prints the size of both and the SHA-256 of the DMG. If either artifac
 missing it exits rather than publishing half a release; it looks first for files matching
 the current version and only then falls back to any `.dmg` / `.zip`, which is why step 1
 wipes `out/`.
+
+## Verifying a signed build
+
+The build succeeding is not evidence that it is signed – check the artifact, not the log.
+
+```bash
+# The app is signed, and by whom
+codesign -dv --verbose=4 "out/Bascaso-darwin-*/Bascaso.app" 2>&1 | grep -E "Authority|Identifier|flags"
+
+# Gatekeeper accepts it as a downloaded app
+spctl -a -vvv -t install "out/Bascaso-darwin-*/Bascaso.app"
+
+# The notarisation ticket is stapled to the app
+xcrun stapler validate "out/Bascaso-darwin-*/Bascaso.app"
+```
+
+`flags` should include `runtime` – that is the hardened runtime, without which notarisation
+is refused. `spctl` should say `accepted` with `source=Notarized Developer ID`.
+
+`osxNotarize` notarises and staples the **app**; the DMG is built from it afterwards, so
+forge leaves the container itself unsigned. Measured on a real build, that is not a cosmetic
+gap – `spctl` rejects such a DMG outright:
+
+```
+stapler validate Bascaso.dmg  → does not have a ticket stapled to it
+spctl -a -t open Bascaso.dmg  → rejected — source=no usable signature
+```
+
+`build-release.sh` therefore signs, notarises and staples the DMG as its own step, with the
+identity read back from the packaged app rather than hardcoded – if the two ever diverge,
+that is worth failing on. It then re-runs both checks above and stops if either fails.
+
+A build made with `npm run electron:make:dmg` skips all of that: the app inside is notarized,
+the DMG around it is not. Fine for a local check, not for anything you hand to someone.
 
 ## Publishing
 
@@ -178,10 +228,10 @@ self-hosting image.
 
 | Gap | Where |
 |---|---|
-| `osxSign` carries no identity and no entitlements | `forge.config.ts` |
-| `entitlements.plist` is referenced by nothing | repository root |
-| Signing and notarisation are gated on different variables | `forge.config.ts` |
-| `setupAutoUpdater()` is commented out; the feed URL points at the upstream repository | `electron/main.ts` |
-| "Check for updates…" in the menu and in `Settings → General` silently does nothing | `electron/main.ts` |
+| The repository is private, so `update.electronjs.org` refuses it | GitHub settings |
+| No release has been published | GitHub releases |
+| No signed build has ever been produced – the configuration is untested | Apple Developer account |
+| The full update cycle (install N, publish N+1, verify) has never been run | – |
+| Builds are single-architecture – `arm64` on an Apple Silicon Mac. Intel Macs cannot run them. Deliberate: the universal wiring exists but is not requested | `scripts/build-release.sh` |
 | `update-electron-app` is a dependency with no import | `package.json` |
 | Universal builds are configured but never requested | `forge.config.ts`, `scripts/build-release.sh` |
