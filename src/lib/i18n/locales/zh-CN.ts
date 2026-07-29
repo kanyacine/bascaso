@@ -103,6 +103,8 @@ export const zhCN: Messages = {
       version: "版本",
       build: "构建",
       reportIssue: "报告问题",
+      privacy: "隐私",
+      terms: "销售条款",
     },
     teams: {
       active: "当前",

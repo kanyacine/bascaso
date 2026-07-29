@@ -28,7 +28,9 @@ Bascaso is local-first. Your App Store Connect credentials, your app data and yo
 
 There is one exception, and it is opt-in: **the managed AI tier**. If you create a Bascaso cloud account and route tasks to it, the text those tasks need – the metadata, review or prompt in question – is sent to our backend, which forwards it to a model provider. That path involves an account, a server and a payment processor. Everything else in the app keeps working without ever creating one.
 
-See [docs/MANAGED.md](docs/MANAGED.md) for what the managed tier sends, what it charges and what it stores.
+See [docs/PRIVACY.md](docs/PRIVACY.md) for exactly what leaves your machine, in which case,
+and who else processes it — including the parts that are still open. [docs/MANAGED.md](docs/MANAGED.md)
+covers what the managed tier charges and why; [docs/TERMS.md](docs/TERMS.md) covers the sale itself.
 
 <table>
   <tr>

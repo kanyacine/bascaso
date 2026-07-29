@@ -24,3 +24,10 @@ export const SUPPORT_EMAIL = "bascaso-support@zavyn.app";
 /** MCP server id – what the user types in their client config, and the key the
  *  copyable snippets are built around. */
 export const MCP_SERVER_NAME = "bascaso";
+
+/** Politique de confidentialité et conditions de vente. Ils vivent dans le dépôt tant
+ *  qu'aucun domaine n'est en place : un lien mort vaut moins qu'un lien vers la source,
+ *  et celle-ci est de toute façon la version qui fait foi. À repointer sur le site le
+ *  jour où il existe. */
+export const PRIVACY_URL = `${BRAND_REPO_URL}/blob/main/docs/PRIVACY.md`;
+export const TERMS_URL = `${BRAND_REPO_URL}/blob/main/docs/TERMS.md`;

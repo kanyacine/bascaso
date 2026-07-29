@@ -106,6 +106,8 @@ export const fr: Messages = {
       version: "Version",
       build: "Build",
       reportIssue: "Signaler un problème",
+      privacy: "Confidentialité",
+      terms: "Conditions de vente",
     },
     teams: {
       active: "Active",
