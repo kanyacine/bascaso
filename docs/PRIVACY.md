@@ -100,6 +100,12 @@ local or BYOK use, because nothing is charged there.
 and cascades on deletion: profile, wallet, ledger, subscription, actions, per-call records.
 Nothing survives keyed to you.
 
+That sentence was not true when this document was first written: `llm_calls` — the per-call
+records — had no foreign key, so deleting an account left its rows behind, still carrying the
+deleted user id. It was caught reviewing this file against the database rather than against
+the code, and fixed by the migration that added the missing constraint. The cascade is
+verified, not assumed: deleting a user with a per-call record removes it.
+
 Two things sit outside that:
 
 - **Stripe** keeps payment records under its own legal obligations. Accounting law requires
