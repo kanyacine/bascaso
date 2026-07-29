@@ -67,14 +67,33 @@ carry several.
 All three are validated by the script, which exits with `ERROR: <VAR> is not set` if any is
 missing.
 
-All three gate signing **and** notarisation together: set all of them, or none. Setting some
-fails the build rather than quietly producing an unsigned artifact.
+Two strategies, and exactly one must be complete. Both `forge.config.ts` and
+`build-release.sh` read the same environment and apply the same rule.
+
+### Keychain profile – prefer this
+
+```bash
+xcrun notarytool store-credentials bascaso \
+  --apple-id you@example.com --team-id XXXXXXXXXX --password xxxx-xxxx-xxxx-xxxx
+```
+
+Then build with `APPLE_KEYCHAIN_PROFILE=bascaso` and nothing else. The secret stays in the
+login keychain.
+
+### Password variables – the fallback
 
 | Variable | Purpose | Where to get it |
 |---|---|---|
 | `APPLE_ID` | Apple ID email of the Developer account | – |
 | `APPLE_ID_PASSWORD` | App-specific password, **not** the account password | appleid.apple.com → Sign-In and Security → App-Specific Passwords |
 | `APPLE_TEAM_ID` | Developer team id, 10 characters | developer.apple.com → Membership details |
+
+This path makes `@electron/notarize` spawn `notarytool --password <secret>`, which puts the
+app-specific password in the **process arguments**. Any process on the machine can read it
+with a plain `ps` for as long as the submission runs, and it lands in your shell history if
+you prefix the command with it. Both the config and the script warn when this path is taken.
+Set all three, or none – setting some fails the build rather than quietly producing an
+unsigned artifact.
 
 ## Before you build
 
@@ -127,11 +146,11 @@ Step 5 uses `forge.config.ts`: bundle id `app.zavyn.bascaso`, `asar: false`, the
 `package.json`, `electron/`, `.next/standalone`, `drizzle/` and `public/`, and two makers –
 `MakerDMG` (ULFO format, `public/icon.icns`, overwrite) and `MakerZIP`.
 
-One thing to verify on the output rather than assume: nothing in the repository passes
-`--arch`, so a plain `electron-forge make` targets the machine you build on. The universal
-wiring is present – `osxUniversal.x64ArchFiles` in the config, the `lipo`'d SQLite binary
-in `prepare-electron.sh` – but it only takes effect for a universal build. Run `file` or
-`lipo -archs` on the packaged binary before publishing if you intend to ship universal.
+Nothing passes `--arch`, so the build targets the machine it runs on – measured on an Apple
+Silicon Mac, `lipo -archs` on the packaged binary reports `arm64`. **Intel Macs cannot run
+these builds**, and that is a deliberate product decision, not an oversight. The universal
+wiring is present should it be reversed – `osxUniversal.x64ArchFiles` in the config, the
+`lipo`'d SQLite binary in `prepare-electron.sh` – it is simply never requested.
 
 ### Building without the release step
 
@@ -175,10 +194,21 @@ xcrun stapler validate "out/Bascaso-darwin-*/Bascaso.app"
 `flags` should include `runtime` – that is the hardened runtime, without which notarisation
 is refused. `spctl` should say `accepted` with `source=Notarized Developer ID`.
 
-Note that `osxNotarize` notarises and staples the **app**, and the DMG is built from it
-afterwards, so the DMG itself is neither signed nor stapled. Verify on a machine that has
-never seen the app – ideally one that did not build it – that mounting the DMG and launching
-the app raises no Gatekeeper prompt. If it does, the DMG needs notarising in its own right.
+`osxNotarize` notarises and staples the **app**; the DMG is built from it afterwards, so
+forge leaves the container itself unsigned. Measured on a real build, that is not a cosmetic
+gap – `spctl` rejects such a DMG outright:
+
+```
+stapler validate Bascaso.dmg  → does not have a ticket stapled to it
+spctl -a -t open Bascaso.dmg  → rejected — source=no usable signature
+```
+
+`build-release.sh` therefore signs, notarises and staples the DMG as its own step, with the
+identity read back from the packaged app rather than hardcoded – if the two ever diverge,
+that is worth failing on. It then re-runs both checks above and stops if either fails.
+
+A build made with `npm run electron:make:dmg` skips all of that: the app inside is notarized,
+the DMG around it is not. Fine for a local check, not for anything you hand to someone.
 
 ## Publishing
 
@@ -202,5 +232,6 @@ self-hosting image.
 | No release has been published | GitHub releases |
 | No signed build has ever been produced – the configuration is untested | Apple Developer account |
 | The full update cycle (install N, publish N+1, verify) has never been run | – |
+| Builds are single-architecture – `arm64` on an Apple Silicon Mac. Intel Macs cannot run them. Deliberate: the universal wiring exists but is not requested | `scripts/build-release.sh` |
 | `update-electron-app` is a dependency with no import | `package.json` |
 | Universal builds are configured but never requested | `forge.config.ts`, `scripts/build-release.sh` |

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const SIGNING_ENV = ["APPLE_ID", "APPLE_ID_PASSWORD", "APPLE_TEAM_ID"] as const;
+const SIGNING_ENV = ["APPLE_ID", "APPLE_ID_PASSWORD", "APPLE_TEAM_ID", "APPLE_KEYCHAIN_PROFILE"] as const;
 let saved: Record<string, string | undefined>;
 
 async function loadConfig() {
@@ -43,6 +43,33 @@ describe("forge signing configuration", () => {
     expect(error).toBeInstanceOf(Error);
     expect((error as Error).message).toContain("APPLE_ID_PASSWORD");
     expect((error as Error).message).toContain("APPLE_TEAM_ID");
+  });
+
+  // Le mode à préférer : notarytool lit le secret dans le trousseau, il ne
+  // transite donc jamais par argv – où n'importe quel `ps` le lit pendant toute
+  // la durée de la soumission.
+  it("notarises from the keychain profile alone, with no password in the environment", async () => {
+    process.env.APPLE_KEYCHAIN_PROFILE = "bascaso";
+    const config = await loadConfig();
+    expect(config.packagerConfig?.osxNotarize).toEqual({ keychainProfile: "bascaso" });
+    expect(config.packagerConfig?.osxSign).toBeDefined();
+  });
+
+  it("prefers the keychain profile over a password set alongside it", async () => {
+    process.env.APPLE_KEYCHAIN_PROFILE = "bascaso";
+    process.env.APPLE_ID = "you@example.com";
+    process.env.APPLE_ID_PASSWORD = "abcd-efgh-ijkl-mnop";
+    process.env.APPLE_TEAM_ID = "TEAM123456";
+    const config = await loadConfig();
+    expect(config.packagerConfig?.osxNotarize).toEqual({ keychainProfile: "bascaso" });
+  });
+
+  // Un profil suffit à lui seul : le compléter à moitié avec des variables de
+  // mot de passe ne doit pas faire échouer un build par ailleurs valide.
+  it("does not fail on a partial password set when a keychain profile is present", async () => {
+    process.env.APPLE_KEYCHAIN_PROFILE = "bascaso";
+    process.env.APPLE_ID = "you@example.com";
+    await expect(loadConfig()).resolves.toBeDefined();
   });
 
   it("builds unsigned, and says so, when no credential is set", async () => {
