@@ -15,6 +15,7 @@ const mockResolveLocalApiKey = vi.fn();
 const mockEnsureLocalModelLoaded = vi.fn();
 const mockGenerateAscJwt = vi.fn();
 const mockErrorJson = vi.fn();
+const mockGetAppleFmStatus = vi.fn();
 
 vi.mock("@/db", () => ({
   get db() {
@@ -36,6 +37,12 @@ vi.mock("@/lib/ai/local-provider", () => ({
   isLocalOpenAIProvider: (...args: unknown[]) => mockIsLocalOpenAIProvider(...args),
   normalizeOpenAICompatibleBaseUrl: (...args: unknown[]) => mockNormalizeBaseUrl(...args),
   resolveLocalOpenAIApiKey: (...args: unknown[]) => mockResolveLocalApiKey(...args),
+}));
+
+vi.mock("@/lib/ai/apple-fm", () => ({
+  APPLE_FM_PROVIDER_ID: "apple-fm",
+  APPLE_FM_MODEL_ID: "apple-fm",
+  getAppleFmStatus: (...args: unknown[]) => mockGetAppleFmStatus(...args),
 }));
 
 vi.mock("@/lib/asc/jwt", () => ({
@@ -68,6 +75,8 @@ describe("setup routes", () => {
     mockResolveLocalApiKey.mockImplementation((value) => value ?? "local-key");
     mockEnsureLocalModelLoaded.mockReset();
     mockEnsureLocalModelLoaded.mockResolvedValue(null);
+    mockGetAppleFmStatus.mockReset();
+    mockGetAppleFmStatus.mockResolvedValue({ available: true, reason: null });
     mockGenerateAscJwt.mockReset();
     mockGenerateAscJwt.mockReturnValue("jwt-token");
     mockErrorJson.mockReset();
@@ -143,10 +152,9 @@ describe("setup routes", () => {
     expect(mockStartSyncWorker).toHaveBeenCalled();
   });
 
-  it("POST /api/setup validates local provider configuration before saving", async () => {
+  it("POST /api/setup validates local server configuration before saving", async () => {
     const { POST } = await import("@/app/api/setup/route");
 
-    mockIsLocalOpenAIProvider.mockReturnValue(true);
     mockNormalizeBaseUrl.mockReturnValue("http://localhost:1234/v1");
     mockEnsureLocalModelLoaded.mockResolvedValue("model not loaded");
 
@@ -158,9 +166,7 @@ describe("setup routes", () => {
           issuerId: "issuer-1",
           keyId: "key-1",
           privateKey: "private-key",
-          aiProvider: "local-openai",
-          aiModelId: "qwen",
-          aiBaseUrl: "http://localhost:1234",
+          local: { provider: "local-openai", modelId: "qwen", baseUrl: "http://localhost:1234" },
         }),
       }),
     );
@@ -171,10 +177,9 @@ describe("setup routes", () => {
     expect(testDb.select().from(schema.ascCredentials).all()).toHaveLength(0);
   });
 
-  it("POST /api/setup rejects invalid local AI base URL", async () => {
+  it("POST /api/setup rejects invalid local server base URL", async () => {
     const { POST } = await import("@/app/api/setup/route");
 
-    mockIsLocalOpenAIProvider.mockReturnValue(true);
     mockNormalizeBaseUrl.mockReturnValue(null);
 
     const response = await POST(
@@ -185,9 +190,7 @@ describe("setup routes", () => {
           issuerId: "issuer-1",
           keyId: "key-1",
           privateKey: "private-key",
-          aiProvider: "local-openai",
-          aiModelId: "qwen",
-          aiBaseUrl: "bad-url",
+          local: { provider: "local-openai", modelId: "qwen", baseUrl: "bad-url" },
         }),
       }),
     );
@@ -199,8 +202,6 @@ describe("setup routes", () => {
   it("POST /api/setup uses default local base URL when none provided", async () => {
     const { POST } = await import("@/app/api/setup/route");
 
-    mockIsLocalOpenAIProvider.mockReturnValue(true);
-
     const response = await POST(
       new Request("http://localhost", {
         method: "POST",
@@ -209,8 +210,7 @@ describe("setup routes", () => {
           issuerId: "issuer-1",
           keyId: "key-1",
           privateKey: "private-key",
-          aiProvider: "local-openai",
-          aiModelId: "qwen",
+          local: { provider: "local-openai", modelId: "qwen" },
         }),
       }),
     );
@@ -222,6 +222,81 @@ describe("setup routes", () => {
       "http://127.0.0.1:1234/v1",
       "local-key",
     );
+  });
+
+  it("POST /api/setup stores the local server under the local tier", async () => {
+    const { POST } = await import("@/app/api/setup/route");
+
+    mockNormalizeBaseUrl.mockReturnValue("http://localhost:1234/v1");
+
+    const response = await POST(
+      new Request("http://localhost", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          issuerId: "issuer-1",
+          keyId: "key-1",
+          privateKey: "private-key",
+          local: { provider: "local-openai", modelId: "qwen", baseUrl: "http://localhost:1234" },
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    const rows = testDb.select().from(schema.aiSettings).all();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].tier).toBe("local");
+    expect(rows[0].provider).toBe("local-openai");
+    expect(rows[0].modelId).toBe("qwen");
+    expect(rows[0].baseUrl).toBe("http://localhost:1234/v1");
+  });
+
+  it("POST /api/setup stores Apple Intelligence as the local tier when available", async () => {
+    const { POST } = await import("@/app/api/setup/route");
+
+    const response = await POST(
+      new Request("http://localhost", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          issuerId: "issuer-1",
+          keyId: "key-1",
+          privateKey: "private-key",
+          local: { provider: "apple-fm" },
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    const rows = testDb.select().from(schema.aiSettings).all();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].tier).toBe("local");
+    expect(rows[0].provider).toBe("apple-fm");
+    expect(rows[0].modelId).toBe("apple-fm");
+    expect(rows[0].baseUrl).toBeNull();
+  });
+
+  it("POST /api/setup rejects Apple Intelligence when unavailable", async () => {
+    const { POST } = await import("@/app/api/setup/route");
+
+    mockGetAppleFmStatus.mockResolvedValue({ available: false, reason: "sidecar_missing" });
+
+    const response = await POST(
+      new Request("http://localhost", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          issuerId: "issuer-1",
+          keyId: "key-1",
+          privateKey: "private-key",
+          local: { provider: "apple-fm" },
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(422);
+    expect(await response.json()).toEqual({ error: "apple_fm_unavailable" });
+    expect(testDb.select().from(schema.ascCredentials).all()).toHaveLength(0);
   });
 
   it("POST /api/setup returns AI validation error when validateApiKey fails", async () => {
@@ -237,9 +312,7 @@ describe("setup routes", () => {
           issuerId: "issuer-1",
           keyId: "key-1",
           privateKey: "private-key",
-          aiProvider: "openai",
-          aiModelId: "gpt-4.1",
-          aiApiKey: "bad-key",
+          byok: { provider: "openai", modelId: "gpt-4.1", apiKey: "bad-key" },
         }),
       }),
     );
@@ -250,7 +323,29 @@ describe("setup routes", () => {
     expect(testDb.select().from(schema.ascCredentials).all()).toHaveLength(0);
   });
 
-  it("POST /api/setup stores AI settings alongside credentials", async () => {
+  it("POST /api/setup rejects a local provider in the byok block", async () => {
+    const { POST } = await import("@/app/api/setup/route");
+
+    mockIsLocalOpenAIProvider.mockReturnValue(true);
+
+    const response = await POST(
+      new Request("http://localhost", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          issuerId: "issuer-1",
+          keyId: "key-1",
+          privateKey: "private-key",
+          byok: { provider: "local-openai", modelId: "qwen", apiKey: "k" },
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "BYOK requires a cloud provider" });
+  });
+
+  it("POST /api/setup stores byok settings alongside credentials", async () => {
     const { POST } = await import("@/app/api/setup/route");
 
     const response = await POST(
@@ -261,9 +356,7 @@ describe("setup routes", () => {
           issuerId: "issuer-1",
           keyId: "key-1",
           privateKey: "private-key",
-          aiProvider: "openai",
-          aiModelId: "gpt-4.1",
-          aiApiKey: "sk-test",
+          byok: { provider: "openai", modelId: "gpt-4.1", apiKey: "sk-test" },
         }),
       }),
     );
@@ -271,10 +364,33 @@ describe("setup routes", () => {
 
     expect(data).toEqual({ ok: true });
     expect(testDb.select().from(schema.ascCredentials).all()).toHaveLength(1);
-    expect(testDb.select().from(schema.aiSettings).all()).toHaveLength(1);
-    const ai = testDb.select().from(schema.aiSettings).all()[0];
-    expect(ai.provider).toBe("openai");
-    expect(ai.modelId).toBe("gpt-4.1");
+    const rows = testDb.select().from(schema.aiSettings).all();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].tier).toBe("byok");
+    expect(rows[0].provider).toBe("openai");
+    expect(rows[0].modelId).toBe("gpt-4.1");
+  });
+
+  it("POST /api/setup stores local and byok blocks side by side", async () => {
+    const { POST } = await import("@/app/api/setup/route");
+
+    const response = await POST(
+      new Request("http://localhost", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          issuerId: "issuer-1",
+          keyId: "key-1",
+          privateKey: "private-key",
+          local: { provider: "apple-fm" },
+          byok: { provider: "openai", modelId: "gpt-4.1", apiKey: "sk-test" },
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    const tiers = testDb.select().from(schema.aiSettings).all().map((r) => r.tier).sort();
+    expect(tiers).toEqual(["byok", "local"]);
   });
 
   it("POST /api/setup/test-connection returns 403 for non-admin keys", async () => {

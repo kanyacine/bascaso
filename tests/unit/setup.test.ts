@@ -191,4 +191,40 @@ describe("setup flow", () => {
       encryptedDek: ai[0].encryptedDek,
     })).toBe("sk-test-key");
   });
+
+  it("stores local and byok tiers side by side", () => {
+    const localEncrypted = encrypt("lm-studio");
+    db.insert(schema.aiSettings)
+      .values({
+        id: ulid(),
+        tier: "local",
+        provider: "local-openai",
+        modelId: "qwen2.5-7b-instruct",
+        baseUrl: "http://127.0.0.1:1234/v1",
+        encryptedApiKey: localEncrypted.ciphertext,
+        iv: localEncrypted.iv,
+        authTag: localEncrypted.authTag,
+        encryptedDek: localEncrypted.encryptedDek,
+      })
+      .run();
+
+    const byokEncrypted = encrypt("sk-test");
+    db.insert(schema.aiSettings)
+      .values({
+        id: ulid(),
+        tier: "byok",
+        provider: "anthropic",
+        modelId: "claude-sonnet-5",
+        encryptedApiKey: byokEncrypted.ciphertext,
+        iv: byokEncrypted.iv,
+        authTag: byokEncrypted.authTag,
+        encryptedDek: byokEncrypted.encryptedDek,
+      })
+      .run();
+
+    const local = db.select().from(schema.aiSettings).where(eq(schema.aiSettings.tier, "local")).get();
+    const byok = db.select().from(schema.aiSettings).where(eq(schema.aiSettings.tier, "byok")).get();
+    expect(local!.provider).toBe("local-openai");
+    expect(byok!.provider).toBe("anthropic");
+  });
 });
