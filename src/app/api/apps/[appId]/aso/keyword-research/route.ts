@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { parseBody } from "@/lib/api-helpers";
+import { getRoutingTier } from "@/lib/app-preferences";
 import {
   RESEARCH_STRATEGIES,
   type ResearchStrategy,
@@ -53,7 +54,10 @@ export async function POST(
       { status: 409 },
     );
   }
-  return NextResponse.json({ runId: result.runId });
+  // The tier this run will route to, so the client knows whether finishing it cost a
+  // credit. Read from the routing preference rather than from the run: models resolve
+  // per step inside driveRun, well after this response.
+  return NextResponse.json({ runId: result.runId, tier: getRoutingTier("workflows") });
 }
 
 export async function GET(

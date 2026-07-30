@@ -3,10 +3,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const toastInfo = vi.fn();
 vi.mock("sonner", () => ({ toast: { info: toastInfo } }));
 const invalidate = vi.fn();
-vi.mock("@/lib/hooks/use-managed-account", () => ({ invalidateManagedAccount: invalidate }));
+const fetchAccount = vi.fn();
+vi.mock("@/lib/hooks/use-managed-account", () => ({
+  invalidateManagedAccount: invalidate,
+  fetchManagedAccount: fetchAccount,
+}));
 
-const fetchMock = vi.fn();
-vi.stubGlobal("fetch", fetchMock);
 const t = (key: string, params?: Record<string, string | number>) => `${key}:${params?.count ?? ""}`;
 
 describe("notifyManagedDebit", () => {
@@ -16,11 +18,12 @@ describe("notifyManagedDebit", () => {
     const { notifyManagedDebit } = await import("@/lib/ai/debit-toast");
     await notifyManagedDebit("byok", t as never);
     expect(invalidate).not.toHaveBeenCalled();
+    expect(fetchAccount).not.toHaveBeenCalled();
     expect(toastInfo).not.toHaveBeenCalled();
   });
 
   it("invalidates and toasts the fresh balance for pay-per-use", async () => {
-    fetchMock.mockResolvedValue(new Response(JSON.stringify({ email: "a@b.c", balance: 239, subscription: null })));
+    fetchAccount.mockResolvedValue({ email: "a@b.c", username: null, balance: 239, subscribed: false });
     const { notifyManagedDebit } = await import("@/lib/ai/debit-toast");
     await notifyManagedDebit("managed", t as never);
     expect(invalidate).toHaveBeenCalled();
@@ -28,9 +31,16 @@ describe("notifyManagedDebit", () => {
   });
 
   it("stays silent for subscribers – nothing was debited", async () => {
-    fetchMock.mockResolvedValue(new Response(JSON.stringify({
-      email: "a@b.c", balance: 0, subscription: { status: "active", currentPeriodEnd: null },
-    })));
+    fetchAccount.mockResolvedValue({ email: "a@b.c", username: null, balance: 0, subscribed: true });
+    const { notifyManagedDebit } = await import("@/lib/ai/debit-toast");
+    await notifyManagedDebit("managed", t as never);
+    expect(toastInfo).not.toHaveBeenCalled();
+  });
+
+  // The balance read is cosmetic; a signed-out or unreachable account must not turn a
+  // successful generation into a toast about nothing.
+  it("stays silent when the account read comes back empty", async () => {
+    fetchAccount.mockResolvedValue(null);
     const { notifyManagedDebit } = await import("@/lib/ai/debit-toast");
     await notifyManagedDebit("managed", t as never);
     expect(toastInfo).not.toHaveBeenCalled();

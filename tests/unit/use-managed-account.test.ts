@@ -1,5 +1,9 @@
-import { describe, expect, it } from "vitest";
-import { parseManagedAccount } from "@/lib/hooks/use-managed-account";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  fetchManagedAccount,
+  invalidateManagedAccount,
+  parseManagedAccount,
+} from "@/lib/hooks/use-managed-account";
 import { accountDisplayName } from "@/lib/managed/client";
 
 // The store itself is a React hook, but everything that can be wrong about it is in the
@@ -22,6 +26,62 @@ describe("parseManagedAccount", () => {
       subscription: { status: "active", currentPeriodEnd: "2020-01-01T00:00:00Z" },
     });
     expect(parsed).toEqual({ email: "a@b.c", username: null, balance: 0, subscribed: false });
+  });
+});
+
+describe("fetchManagedAccount coalescing", () => {
+  const fetchMock = vi.fn();
+  vi.stubGlobal("fetch", fetchMock);
+
+  function body(balance: number) {
+    return new Response(JSON.stringify({ email: "a@b.c", username: null, balance, subscription: null }));
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    invalidateManagedAccount();
+  });
+
+  it("serves concurrent callers from one request", async () => {
+    fetchMock.mockResolvedValue(body(42));
+    const [a, b, c] = await Promise.all([
+      fetchManagedAccount(), fetchManagedAccount(), fetchManagedAccount(),
+    ]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(a).toEqual(b);
+    expect(b).toEqual(c);
+    expect(a?.balance).toBe(42);
+  });
+
+  it("refetches after an invalidation instead of replaying the settled request", async () => {
+    fetchMock.mockResolvedValueOnce(body(42)).mockResolvedValueOnce(body(41));
+    expect((await fetchManagedAccount())?.balance).toBe(42);
+    invalidateManagedAccount();
+    expect((await fetchManagedAccount())?.balance).toBe(41);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  // The debit path invalidates then immediately reads. If a request already in flight
+  // could still write back, that stale balance would land in the cache after the
+  // refresh that was meant to replace it – and the footer would show the pre-debit
+  // figure until something else invalidated.
+  it("discards a response that lands after an invalidation", async () => {
+    let release: (r: Response) => void = () => {};
+    fetchMock.mockReturnValueOnce(new Promise<Response>((r) => { release = r; }));
+    const stale = fetchManagedAccount();
+    invalidateManagedAccount();
+    release(body(99));
+    await stale;
+
+    fetchMock.mockResolvedValueOnce(body(7));
+    expect((await fetchManagedAccount())?.balance).toBe(7);
+  });
+
+  it("does not cache a network failure", async () => {
+    fetchMock.mockRejectedValueOnce(new TypeError("offline"));
+    expect(await fetchManagedAccount()).toBeNull();
+    fetchMock.mockResolvedValueOnce(body(5));
+    expect((await fetchManagedAccount())?.balance).toBe(5);
   });
 });
 

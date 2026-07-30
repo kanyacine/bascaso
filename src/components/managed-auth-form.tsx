@@ -13,6 +13,7 @@ import {
   verifyManagedSignup,
 } from "@/lib/managed/client";
 import { invalidateAIStatus } from "@/lib/hooks/use-ai-status";
+import { invalidateAIRouting } from "@/lib/hooks/use-ai-routing";
 
 interface ManagedAuthFormProps {
   /** Called after a successful sign-in, sign-up or code verification. */
@@ -77,6 +78,7 @@ export function ManagedAuthForm({ onAuthenticated, fill }: ManagedAuthFormProps)
         return;
       }
       invalidateAIStatus();
+      invalidateAIRouting();
       onAuthenticated();
     });
   }
@@ -91,6 +93,7 @@ export function ManagedAuthForm({ onAuthenticated, fill }: ManagedAuthFormProps)
         return;
       }
       invalidateAIStatus();
+      invalidateAIRouting();
       onAuthenticated();
     });
   }

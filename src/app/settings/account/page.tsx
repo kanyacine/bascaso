@@ -9,6 +9,7 @@ import { ManagedAuthForm } from "@/components/managed-auth-form";
 import { useTranslations } from "@/lib/i18n/locale-context";
 import { accountDisplayName } from "@/lib/managed/client";
 import { invalidateAIStatus } from "@/lib/hooks/use-ai-status";
+import { invalidateAIRouting } from "@/lib/hooks/use-ai-routing";
 import { invalidateManagedAccount, useManagedAccount } from "@/lib/hooks/use-managed-account";
 
 /** Administrative view of the cloud account: who you are, and how the subscription is
@@ -37,6 +38,10 @@ export default function AccountSettingsPage() {
     }
     invalidateManagedAccount();
     invalidateAIStatus();
+    // Signing out moves every unset group back off the managed tier
+    // (getRoutingDefaultTier), so the cost badges must stop claiming a credit for
+    // actions that now run free.
+    invalidateAIRouting();
   }
 
   async function handleSaveUsername() {
