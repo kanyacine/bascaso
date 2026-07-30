@@ -365,6 +365,68 @@ describe("managed auth (GoTrue REST)", () => {
     expect(session.expiresAt).toBeLessThanOrEqual(after + 3600);
   });
 
+  it("signOut revokes globally and drops the local session", async () => {
+    fetchMock.mockResolvedValueOnce(tokenResponse());
+    const { signIn, signOut } = await import("@/lib/managed/auth");
+    const { getManagedSession } = await import("@/lib/managed/account");
+    await signIn("a@b.c", "password123");
+    fetchMock.mockResolvedValueOnce({ ok: true, status: 200, json: () => Promise.resolve({}) });
+    await expect(signOut()).resolves.toEqual({ revoked: true });
+    expect(getManagedSession()).toBeNull();
+    const [url] = fetchMock.mock.calls[1];
+    // Le correctif : sans /logout le refresh token reste utilisable côté GoTrue.
+    expect(String(url)).toContain("/auth/v1/logout?scope=global");
+  });
+
+  it("signOut still clears locally when the revocation fails, and says so", async () => {
+    fetchMock.mockResolvedValueOnce(tokenResponse());
+    const { signIn, signOut } = await import("@/lib/managed/auth");
+    const { getManagedSession } = await import("@/lib/managed/account");
+    await signIn("a@b.c", "password123");
+    fetchMock.mockRejectedValueOnce(new TypeError("offline"));
+    // Une session qu'on ne peut pas révoquer reste une session qu'il faut cesser
+    // d'utiliser – mais l'appelant doit pouvoir le dire à l'utilisateur.
+    await expect(signOut()).resolves.toEqual({ revoked: false });
+    expect(getManagedSession()).toBeNull();
+  });
+
+  it("resetPassword exchanges the recovery code, writes the password, and signs in", async () => {
+    fetchMock
+      .mockResolvedValueOnce(tokenResponse())
+      .mockResolvedValueOnce({ ok: true, status: 200, json: () => Promise.resolve({}) });
+    const { resetPassword } = await import("@/lib/managed/auth");
+    const { getManagedSession } = await import("@/lib/managed/account");
+    await resetPassword("a@b.c", "123456", "newpassword");
+    expect(String(fetchMock.mock.calls[0][0])).toContain("/auth/v1/verify");
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+      type: "recovery", email: "a@b.c", token: "123456",
+    });
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ password: "newpassword" });
+    expect(getManagedSession()!.accessToken).toBe("at-1");
+  });
+
+  it("resetPassword on an expired code writes nothing", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: false, status: 403,
+      json: () => Promise.resolve({ error_code: "otp_expired", msg: "Token has expired" }),
+    });
+    const { resetPassword, ManagedAuthError } = await import("@/lib/managed/auth");
+    await expect(resetPassword("a@b.c", "000000", "newpassword")).rejects.toBeInstanceOf(ManagedAuthError);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("deleteAccount keeps the session when the cloud refuses", async () => {
+    fetchMock.mockResolvedValueOnce(tokenResponse());
+    const { signIn, deleteAccount } = await import("@/lib/managed/auth");
+    const { getManagedSession } = await import("@/lib/managed/account");
+    await signIn("a@b.c", "password123");
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 500, json: () => Promise.resolve({}) });
+    await expect(deleteAccount()).rejects.toThrow();
+    // Un écran déconnecté au-dessus d'un compte toujours actif (et toujours facturé)
+    // serait pire que l'erreur.
+    expect(getManagedSession()).not.toBeNull();
+  });
+
   it("treats an undecryptable stored session as signed out instead of throwing", async () => {
     const { saveManagedSession, getManagedSession } = await import("@/lib/managed/account");
     saveManagedSession({

@@ -3,6 +3,7 @@ import {
   fetchManagedAccount,
   invalidateManagedAccount,
   parseManagedAccount,
+  takeSessionExpired,
 } from "@/lib/hooks/use-managed-account";
 import { accountDisplayName } from "@/lib/managed/client";
 
@@ -46,10 +47,13 @@ describe("parseManagedAccount", () => {
   });
 });
 
-describe("fetchManagedAccount coalescing", () => {
-  const fetchMock = vi.fn();
-  vi.stubGlobal("fetch", fetchMock);
+// Un seul stub pour tout le fichier : deux `vi.stubGlobal("fetch", …)` au niveau module
+// s'écrasent l'un l'autre (le dernier gagne), et le premier describe se retrouvait à
+// piloter un mock que personne ne configurait.
+const fetchMock = vi.fn();
+vi.stubGlobal("fetch", fetchMock);
 
+describe("fetchManagedAccount coalescing", () => {
   function body(balance: number) {
     return new Response(JSON.stringify({ email: "a@b.c", username: null, balance, subscription: null }));
   }
@@ -99,6 +103,51 @@ describe("fetchManagedAccount coalescing", () => {
     expect(await fetchManagedAccount()).toBeNull();
     fetchMock.mockResolvedValueOnce(body(5));
     expect((await fetchManagedAccount())?.balance).toBe(5);
+  });
+});
+
+// Une session qui expire faisait basculer l'app en « déconnecté » sans un mot : le solde
+// disparaît, l'IA managée refuse, et rien ne dit pourquoi. Le drapeau ci-dessous est ce
+// qui permet au hook d'afficher un toast une fois – et une seule.
+describe("session expiry detection", () => {
+  function signedIn() {
+    return new Response(JSON.stringify({ email: "a@b.c", username: null, balance: 1, subscription: null }));
+  }
+  const unauthorized = () => new Response(JSON.stringify({ error: "not_logged_in" }), { status: 401 });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    invalidateManagedAccount();
+    takeSessionExpired();
+  });
+
+  it("flags a 401 that follows a signed-in read, exactly once", async () => {
+    fetchMock.mockResolvedValueOnce(signedIn());
+    await fetchManagedAccount();
+    invalidateManagedAccount();
+    fetchMock.mockResolvedValueOnce(unauthorized());
+    await fetchManagedAccount();
+    expect(takeSessionExpired()).toBe(true);
+    // Consommé : un seul toast par expiration, quel que soit le nombre de consommateurs
+    // montés qui posent la question.
+    expect(takeSessionExpired()).toBe(false);
+  });
+
+  it("stays quiet for a user who was never signed in", async () => {
+    fetchMock.mockResolvedValue(unauthorized());
+    await fetchManagedAccount();
+    invalidateManagedAccount();
+    await fetchManagedAccount();
+    expect(takeSessionExpired()).toBe(false);
+  });
+
+  it("stays quiet on a network failure – offline is not expired", async () => {
+    fetchMock.mockResolvedValueOnce(signedIn());
+    await fetchManagedAccount();
+    invalidateManagedAccount();
+    fetchMock.mockRejectedValueOnce(new TypeError("offline"));
+    await fetchManagedAccount();
+    expect(takeSessionExpired()).toBe(false);
   });
 });
 

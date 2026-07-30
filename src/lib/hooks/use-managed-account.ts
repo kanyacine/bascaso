@@ -1,4 +1,6 @@
 import { useState, useEffect, useSyncExternalStore } from "react";
+import { toast } from "sonner";
+import { useTranslations } from "@/lib/i18n/locale-context";
 import { isManagedSubscriptionActive } from "@/lib/managed/client";
 
 export interface ManagedAccountInfo {
@@ -44,6 +46,21 @@ let cachedAccount: ManagedAccountInfo | null | undefined = undefined;
 let version = 0;
 const listeners = new Set<() => void>();
 
+// Whether the last read saw an account, and whether the one after it lost the session.
+// Module state because `cachedAccount` is wiped to `undefined` by every invalidation –
+// including the one that precedes the refetch – so it cannot answer "was there an
+// account before this response?". Exported through takeSessionExpired below, which
+// clears the flag so one expiry produces one toast.
+let wasSignedIn = false;
+let sessionExpired = false;
+
+/** True exactly once per expiry, for whichever consumer asks first. */
+export function takeSessionExpired(): boolean {
+  if (!sessionExpired) return false;
+  sessionExpired = false;
+  return true;
+}
+
 /** The read in flight, shared by everyone who wants the account right now. Without it
  *  the module cache only dedupes AFTER a response lands: every mounted consumer (the
  *  footer always is) fires its own request on each invalidation, and every managed AI
@@ -63,6 +80,12 @@ export function fetchManagedAccount(): Promise<ManagedAccountInfo | null> {
   const promise = fetch("/api/managed/me")
     .then(async (res) => {
       const account = parseManagedAccount(res.ok, await res.json().catch(() => null));
+      // A 401 for an account we were holding a second ago is a session that expired or
+      // was revoked – not a user who signed out. The app used to fall silently back to
+      // the signed-out UI, which reads as data loss: the balance vanishes, the AI
+      // starts refusing, and nothing says why or what to do.
+      if (res.status === 401 && wasSignedIn) sessionExpired = true;
+      wasSignedIn = account !== null;
       // Only write back if nothing invalidated meanwhile: a response describing the
       // state we just invalidated would undo the refresh it was meant to trigger.
       if (version === startedAt) cachedAccount = account;
@@ -93,6 +116,7 @@ function getVersion() { return version; }
  *  surfaces cost one `/api/managed/me` per invalidation between them, not one each.
  *  Same shape as use-ai-status. */
 export function useManagedAccount(): { account: ManagedAccountInfo | null; loading: boolean } {
+  const t = useTranslations();
   const v = useSyncExternalStore(subscribe, getVersion, getVersion);
 
   const [fetchResult, setFetchResult] = useState<{
@@ -111,12 +135,15 @@ export function useManagedAccount(): { account: ManagedAccountInfo | null; loadi
 
     let cancelled = false;
     void fetchManagedAccount().then((account) => {
+      // Announced even if this consumer unmounted meanwhile: the flag is one-shot, and
+      // swallowing it here would lose the only notice the user gets.
+      if (takeSessionExpired()) toast.error(t("settings.account.sessionExpired"));
       if (cancelled) return;
       setFetchResult({ account, forVersion: v });
     });
 
     return () => { cancelled = true; };
-  }, [v]);
+  }, [v, t]);
 
   return { account, loading };
 }

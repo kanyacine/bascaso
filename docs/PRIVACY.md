@@ -100,6 +100,12 @@ local or BYOK use, because nothing is charged there.
 and cascades on deletion: profile, wallet, ledger, subscription, actions, per-call records.
 Nothing survives keyed to you.
 
+**How to do it:** Settings → Account → Delete my account, in the app. It asks once, then
+does it immediately — there is no waiting period and no way back. A running subscription is
+cancelled at Stripe first, so nothing keeps billing a card for an account that no longer
+exists. Credits left on the balance are not refunded. Nothing on your Mac is touched; see
+below.
+
 That sentence was not true when this document was first written: `llm_calls` — the per-call
 records — had no foreign key, so deleting an account left its rows behind, still carrying the
 deleted user id. It was caught reviewing this file against the database rather than against
@@ -111,6 +117,18 @@ Two things sit outside that:
 - **Stripe** keeps payment records under its own legal obligations. Accounting law requires
   it; we cannot delete them on request.
 - **Your local data** never left your Mac. Deleting the app's folder removes it.
+
+### Exercising your other rights
+
+Erasure has a button. For the rest — access, a copy of your data, correction, objection,
+restriction — write to **bascaso-support@zavyn.app**. We answer within one month, as the
+GDPR requires.
+
+There is no self-service export yet. Everything we hold about you is listed in the table
+above and is small enough to be assembled by hand on request; a real endpoint is easy to
+add later, because the row-level security policies already restrict every table to its own
+user. If we ever get that wrong, you can complain to your national supervisory authority —
+in France, the [CNIL](https://www.cnil.fr).
 
 ## What is still missing
 
@@ -124,8 +142,10 @@ and shipping it as one would be a mistake. Before the first paying customer:
   need to be stated per category.
 - **Supabase's region has to be confirmed** and written into the processor table above,
   because it determines whether data leaves the EU.
-- **Data subject requests need a route** — an address that is monitored, and someone who
-  answers within the legal deadline.
+- **The support address has to be monitored** — `bascaso-support@zavyn.app` is published above
+  as the data subject request route, which makes it a commitment with a one-month deadline
+  attached rather than a placeholder. The mailbox must exist and be read before the first
+  account is created.
 
 Related: [TERMS.md](TERMS.md) · [MANAGED.md](MANAGED.md) (what the managed tier charges and
 why) · [ASO.md](ASO.md) (what the ASO layer queries).

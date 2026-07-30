@@ -584,14 +584,22 @@ export default function SetupPage() {
             {/* Step 3 – Bascaso account */}
             {step === 3 && (
               <div className="space-y-4">
-                <div className="space-y-1.5 rounded-lg bg-muted/50 px-3 py-2.5">
-                  <p className="text-xs text-muted-foreground">{t("setup.cloudPitch")}</p>
-                  <p className="text-xs text-muted-foreground">{t("setup.cloudOptionalNote")}</p>
-                </div>
+                {/* The pitch is for someone who has no account – it disappears the moment
+                    they have one, rather than telling a signed-in user to sign up. */}
+                {!account && (
+                  <div className="space-y-1.5 rounded-lg bg-muted/50 px-3 py-2.5">
+                    <p className="text-xs text-muted-foreground">{t("setup.cloudPitch")}</p>
+                    <p className="text-xs text-muted-foreground">{t("setup.cloudOptionalNote")}</p>
+                  </div>
+                )}
                 {account ? (
                   <ManagedAccountCard />
                 ) : (
-                  <ManagedAuthForm fill onAuthenticated={() => invalidateManagedAccount()} />
+                  <ManagedAuthForm
+                    fill
+                    defaultTab="signup"
+                    onAuthenticated={() => invalidateManagedAccount()}
+                  />
                 )}
               </div>
             )}
@@ -682,7 +690,11 @@ export default function SetupPage() {
                       {account ? (
                         <ManagedAccountCard />
                       ) : (
-                        <ManagedAuthForm fill onAuthenticated={() => invalidateManagedAccount()} />
+                        <ManagedAuthForm
+                          fill
+                          defaultTab="signup"
+                          onAuthenticated={() => invalidateManagedAccount()}
+                        />
                       )}
                     </TabsContent>
                     <TabsContent value="byok" className="space-y-4 pt-2">

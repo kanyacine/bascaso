@@ -76,6 +76,25 @@ async function goTrue(path: string, body: Record<string, string>): Promise<GoTru
   return json;
 }
 
+/** PUT /auth/v1/user – GoTrue's own store for the account itself (email, password,
+ *  user_metadata). Everything mutable about the account goes through here with the
+ *  user's own token; none of it lives in a table of ours. */
+async function putUser(accessToken: string, body: Record<string, unknown>): Promise<void> {
+  const res = await fetch(`${BASCASO_CLOUD_URL}/auth/v1/user`, {
+    method: "PUT",
+    headers: {
+      apikey: BASCASO_CLOUD_PUBLISHABLE_KEY,
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const json = (await res.json().catch(() => ({}))) as GoTrueResponse;
+    throw new ManagedAuthError(json.msg ?? "Update failed", json.error_code);
+  }
+}
+
 function toSession(json: GoTrueResponse, email: string): ManagedSession {
   return {
     email: json.user?.email ?? email,
@@ -214,4 +233,115 @@ export async function getValidAccessToken(): Promise<string | null> {
     refreshInFlight = null;
   });
   return refreshInFlight;
+}
+
+/** Sign out, both ends.
+ *
+ *  Deleting our row is the easy half and used to be the only half: GoTrue keeps a
+ *  refresh token valid until something revokes it, so a "signed out" machine still
+ *  held a credential that could mint access tokens for the account. `scope=global`
+ *  kills every session of this user, which is what a user asking to sign out of a
+ *  desktop app they may be giving away actually means.
+ *
+ *  The local session is cleared whichever way the revocation goes – one we cannot
+ *  revoke is still one we must stop using – and the return value says whether the
+ *  server side landed, so the caller can say so rather than swallow it. */
+export async function signOut(): Promise<{ revoked: boolean }> {
+  // Refreshed first: an expired access token is rejected by /logout, and this is
+  // exactly the state a machine left alone overnight is in.
+  const token = await getValidAccessToken();
+  clearManagedSession();
+  if (!token) return { revoked: true }; // nothing on the server to revoke
+  try {
+    const res = await fetch(`${BASCASO_CLOUD_URL}/auth/v1/logout?scope=global`, {
+      method: "POST",
+      headers: { apikey: BASCASO_CLOUD_PUBLISHABLE_KEY, Authorization: `Bearer ${token}` },
+    });
+    return { revoked: res.ok };
+  } catch {
+    return { revoked: false };
+  }
+}
+
+/** Send the password-reset email. Never says whether the address exists: GoTrue
+ *  answers 200 either way, and so do we – the alternative is an oracle telling
+ *  anyone which emails have an account here. */
+export async function requestPasswordReset(email: string): Promise<void> {
+  const { res, json } = await postGoTrue("recover", { email });
+  if (!res.ok) throw new ManagedAuthError(json.msg ?? "Reset failed", json.error_code);
+}
+
+/**
+ * Second half of the reset: the six-digit code from the email, plus the new password.
+ *
+ * A code and not the link the email also carries – the link goes to a website, and
+ * this is a desktop app with no browser callback to land on. `type: "recovery"`
+ * exchanges the code for a session, and that session is the only thing GoTrue accepts
+ * as authority to set a password without knowing the old one. The user ends up signed
+ * in, which is what they wanted in the first place.
+ */
+export async function resetPassword(email: string, code: string, password: string): Promise<ManagedSession> {
+  const { res, json } = await postGoTrue("verify", { type: "recovery", email, token: code });
+  if (!res.ok || !json.access_token) {
+    throw new ManagedAuthError(json.msg ?? "Verification failed", json.error_code);
+  }
+  await putUser(json.access_token, { password });
+  const session = toSession(json, email);
+  saveManagedSession(session);
+  return session;
+}
+
+/** Rename the account (GoTrue user_metadata – no table of ours holds it). */
+export async function updateUsername(username: string): Promise<void> {
+  const token = await requireAccessToken();
+  await putUser(token, { data: { username } });
+}
+
+/**
+ * Change the account's email. `double_confirm_changes` is on, so GoTrue mails both
+ * the old and the new address and nothing moves until both are confirmed – which is
+ * also why the session keeps working meanwhile and the local row is left alone.
+ */
+export async function changeEmail(email: string): Promise<void> {
+  const token = await requireAccessToken();
+  await putUser(token, { email });
+}
+
+/**
+ * Change the password, current one required.
+ *
+ * GoTrue does not ask for it (`secure_password_change` is off on this project), so
+ * without the re-authentication below anyone at an unlocked Mac could take the
+ * account over – lock the owner out of a balance they paid for, and out of the
+ * address the receipts go to. The grant doubles as the source of the session we
+ * keep: GoTrue invalidates the other sessions of an account whose password changed.
+ */
+export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+  const session = readSessionOrClear();
+  if (!session) throw new ManagedAuthError("Not signed in");
+  const fresh = await signIn(session.email, currentPassword);
+  await putUser(fresh.accessToken, { password: newPassword });
+}
+
+/**
+ * Delete the account and everything the cloud holds about it. The edge function does
+ * the work with the service role (cancelling any live Stripe subscription first);
+ * this side only proves who is asking and drops the local session once it is gone.
+ */
+export async function deleteAccount(): Promise<void> {
+  const token = await requireAccessToken();
+  const res = await fetch(`${BASCASO_CLOUD_URL}/functions/v1/delete-account`, {
+    method: "DELETE",
+    headers: { apikey: BASCASO_CLOUD_PUBLISHABLE_KEY, Authorization: `Bearer ${token}` },
+  });
+  // The local session is kept on failure, on purpose: clearing it would show a
+  // signed-out app while the account and its subscription are still very much alive.
+  if (!res.ok) throw new ManagedAuthError("Account deletion failed");
+  clearManagedSession();
+}
+
+async function requireAccessToken(): Promise<string> {
+  const token = await getValidAccessToken();
+  if (!token) throw new ManagedAuthError("Not signed in");
+  return token;
 }
