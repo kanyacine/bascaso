@@ -1,12 +1,10 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import {
   Select,
@@ -15,15 +13,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CaretRight, CheckCircle, Eye, EyeSlash } from "@phosphor-icons/react";
+import { CaretRight, CheckCircle } from "@phosphor-icons/react";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { AI_PROVIDERS } from "@/lib/ai-providers";
 import { invalidateAIStatus } from "@/lib/hooks/use-ai-status";
 import { LocalServerFields } from "@/components/local-server-fields";
+import { ApiKeyInput } from "@/components/api-key-input";
+import { AppleFmOption, type AppleFmStatus } from "@/components/apple-fm-option";
 import { AiRoutingSection, type RoutingState } from "@/components/settings/ai-routing-section";
 import { useLocale, useTranslations } from "@/lib/i18n/locale-context";
-import type { MessageKey } from "@/lib/i18n/messages";
 import {
   DEFAULT_LOCAL_OPENAI_BASE_URL,
   isLocalOpenAIProvider,
@@ -36,12 +35,6 @@ const APPLE_FM_PROVIDER_ID = "apple-fm";
 const APPLE_FM_MODEL_ID = "apple-fm";
 
 type LocalEngine = "apple-fm" | "local-server";
-
-interface AppleFmStatus {
-  available: boolean;
-  reason: string | null;
-  languages?: string[];
-}
 
 /** Cloud providers only – the local server is configured in its own section. */
 const BYOK_PROVIDERS = AI_PROVIDERS.filter((p) => !isLocalOpenAIProvider(p.id));
@@ -72,7 +65,6 @@ export default function AISettingsPage() {
   const [localBaseUrl, setLocalBaseUrl] = useState("");
   const [localModelId, setLocalModelId] = useState("");
   const [localApiKey, setLocalApiKey] = useState("");
-  const [showLocalKey, setShowLocalKey] = useState(false);
   const [localExists, setLocalExists] = useState(false);
   const [localStoredModel, setLocalStoredModel] = useState("");
   const [localStoredBaseUrl, setLocalStoredBaseUrl] = useState("");
@@ -102,7 +94,6 @@ export default function AISettingsPage() {
   const [byokProviderId, setByokProviderId] = useState(DEFAULT_BYOK_PROVIDER.id);
   const [byokModelId, setByokModelId] = useState(DEFAULT_BYOK_PROVIDER.models[0].id);
   const [byokApiKey, setByokApiKey] = useState("");
-  const [showByokKey, setShowByokKey] = useState(false);
   const [byokExists, setByokExists] = useState(false);
   const [byokStoredProvider, setByokStoredProvider] = useState("");
   const [byokStoredModel, setByokStoredModel] = useState("");
@@ -118,7 +109,6 @@ export default function AISettingsPage() {
   const [geminiKeyAvailable, setGeminiKeyAvailable] = useState(false);
   const [geminiKeyFromMain, setGeminiKeyFromMain] = useState(false);
   const [geminiKey, setGeminiKey] = useState("");
-  const [showGeminiKey, setShowGeminiKey] = useState(false);
   const [savingGeminiKey, setSavingGeminiKey] = useState(false);
   const [removingGeminiKey, setRemovingGeminiKey] = useState(false);
 
@@ -278,7 +268,6 @@ export default function AISettingsPage() {
         setLocalStoredModel(localModelId.trim());
         setLocalStoredBaseUrl(effectiveLocalBaseUrl);
         setLocalApiKey("");
-        setShowLocalKey(false);
         invalidateAIStatus();
       } else {
         const data = await res.json().catch(() => ({}));
@@ -302,7 +291,6 @@ export default function AISettingsPage() {
         setLocalStoredModel("");
         setLocalStoredBaseUrl("");
         setLocalApiKey("");
-        setShowLocalKey(false);
         // Deselect both engines – the tier stays unusable until an explicit
         // re-selection. The server side also restored the language default.
         setLocalEngine("");
@@ -357,7 +345,6 @@ export default function AISettingsPage() {
     const next = BYOK_PROVIDERS.find((p) => p.id === id) ?? DEFAULT_BYOK_PROVIDER;
     setByokModelId(next.models[0].id);
     setByokApiKey("");
-    setShowByokKey(false);
   }
 
   const byokProviderChanged = byokExists && byokProviderId !== byokStoredProvider;
@@ -392,7 +379,6 @@ export default function AISettingsPage() {
         setByokStoredProvider(byokProviderId);
         setByokStoredModel(byokModelId.trim());
         setByokApiKey("");
-        setShowByokKey(false);
         invalidateAIStatus();
         refreshGeminiKeyStatus();
       } else {
@@ -417,7 +403,6 @@ export default function AISettingsPage() {
         setByokStoredProvider("");
         setByokStoredModel("");
         setByokApiKey("");
-        setShowByokKey(false);
         invalidateAIStatus();
         refreshGeminiKeyStatus();
       } else {
@@ -442,7 +427,6 @@ export default function AISettingsPage() {
       if (res.ok) {
         toast.success(t("settings.ai.geminiKeySaved"));
         setGeminiKey("");
-        setShowGeminiKey(false);
         refreshGeminiKeyStatus();
       } else {
         const data = await res.json().catch(() => ({}));
@@ -485,76 +469,51 @@ export default function AISettingsPage() {
           onValueChange={(v) => setLocalEngine(v as LocalEngine)}
           className="max-w-md"
         >
-          <div className="flex items-start gap-2">
-            <RadioGroupItem value="apple-fm" id="local-engine-apple-fm" className="mt-0.5" />
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <Label htmlFor="local-engine-apple-fm" className="text-sm font-normal">
-                  {t("settings.ai.local.appleFm")}
-                </Label>
-                {appleFmStatus && (
-                  <Badge
-                    variant="outline"
-                    className={
-                      appleFmStatus.available
-                        ? "border-green-500/50 text-green-600 dark:text-green-400"
-                        : "text-muted-foreground"
-                    }
-                  >
-                    {appleFmStatus.available
-                      ? t("settings.ai.local.status.available")
-                      : t(`settings.ai.local.status.${appleFmStatus.reason}` as MessageKey)}
-                  </Badge>
+          <AppleFmOption id="local-engine-apple-fm" status={appleFmStatus}>
+            {localEngine === "apple-fm" && appleFmLanguages && (
+              <div className="space-y-1 pt-2 max-w-md">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="apple-fm-allow-unsupported" className="text-xs font-medium">
+                      {t("settings.ai.local.allowUnsupported")}
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      {t("settings.ai.local.allowUnsupportedHint")}
+                    </p>
+                  </div>
+                  <Switch
+                    id="apple-fm-allow-unsupported"
+                    checked={routing.allowUnsupportedLanguages}
+                    onCheckedChange={async (checked) => {
+                      const res = await fetch("/api/settings/ai/routing", {
+                        method: "PUT",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ allowUnsupportedLanguages: checked }),
+                      });
+                      if (res.ok) refetchRouting();
+                      else toast.error(t("common.saveFailed"));
+                    }}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowLanguages((v) => !v)}
+                  className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                  aria-expanded={showLanguages}
+                >
+                  <CaretRight
+                    className={showLanguages ? "rotate-90 transition-transform" : "transition-transform"}
+                  />
+                  {t("settings.ai.local.languagesShow")}
+                </button>
+                {showLanguages && (
+                  <p className="text-xs text-muted-foreground">
+                    {appleFmLanguages.join(", ")}
+                  </p>
                 )}
               </div>
-              <p className="text-xs text-muted-foreground">
-                {t("settings.ai.local.appleFmHint")}
-              </p>
-              {localEngine === "apple-fm" && appleFmLanguages && (
-                <div className="space-y-1 pt-2 max-w-md">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="space-y-0.5">
-                      <Label htmlFor="apple-fm-allow-unsupported" className="text-xs font-medium">
-                        {t("settings.ai.local.allowUnsupported")}
-                      </Label>
-                      <p className="text-xs text-muted-foreground">
-                        {t("settings.ai.local.allowUnsupportedHint")}
-                      </p>
-                    </div>
-                    <Switch
-                      id="apple-fm-allow-unsupported"
-                      checked={routing.allowUnsupportedLanguages}
-                      onCheckedChange={async (checked) => {
-                        const res = await fetch("/api/settings/ai/routing", {
-                          method: "PUT",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ allowUnsupportedLanguages: checked }),
-                        });
-                        if (res.ok) refetchRouting();
-                        else toast.error(t("common.saveFailed"));
-                      }}
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowLanguages((v) => !v)}
-                    className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-                    aria-expanded={showLanguages}
-                  >
-                    <CaretRight
-                      className={showLanguages ? "rotate-90 transition-transform" : "transition-transform"}
-                    />
-                    {t("settings.ai.local.languagesShow")}
-                  </button>
-                  {showLanguages && (
-                    <p className="text-xs text-muted-foreground">
-                      {appleFmLanguages.join(", ")}
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
+            )}
+          </AppleFmOption>
 
           <div className="flex items-center gap-2">
             <RadioGroupItem value="local-server" id="local-engine-server" />
@@ -598,23 +557,11 @@ export default function AISettingsPage() {
 
             <section className="space-y-2 max-w-md">
               <h3 className="section-title">{t("settings.ai.apiKey")}</h3>
-              <div className="flex items-center gap-2">
-                <Input
-                  type={showLocalKey ? "text" : "password"}
-                  value={localApiKey}
-                  onChange={(e) => setLocalApiKey(e.target.value)}
-                  placeholder={t("settings.ai.apiKeyPlaceholderLocal")}
-                  className="font-mono text-sm"
-                />
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="shrink-0"
-                  onClick={() => setShowLocalKey(!showLocalKey)}
-                >
-                  {showLocalKey ? <EyeSlash size={16} /> : <Eye size={16} />}
-                </Button>
-              </div>
+              <ApiKeyInput
+                value={localApiKey}
+                onChange={setLocalApiKey}
+                placeholder={t("settings.ai.apiKeyPlaceholderLocal")}
+              />
             </section>
 
             <div className="flex items-center gap-3">
@@ -714,23 +661,11 @@ export default function AISettingsPage() {
                   {t("settings.ai.switchProviderHint", { provider: byokProvider.name })}
                 </p>
               )}
-              <div className="flex items-center gap-2">
-                <Input
-                  type={showByokKey ? "text" : "password"}
-                  value={byokApiKey}
-                  onChange={(e) => setByokApiKey(e.target.value)}
-                  placeholder={t("settings.ai.apiKeyPlaceholder")}
-                  className="font-mono text-sm"
-                />
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="shrink-0"
-                  onClick={() => setShowByokKey(!showByokKey)}
-                >
-                  {showByokKey ? <EyeSlash size={16} /> : <Eye size={16} />}
-                </Button>
-              </div>
+              <ApiKeyInput
+                value={byokApiKey}
+                onChange={setByokApiKey}
+                placeholder={t("settings.ai.apiKeyPlaceholder")}
+              />
             </div>
           )}
         </section>
@@ -785,32 +720,20 @@ export default function AISettingsPage() {
             )}
           </div>
         ) : (
-          <div className="flex items-center gap-2 max-w-md">
-            <Input
-              type={showGeminiKey ? "text" : "password"}
-              value={geminiKey}
-              onChange={(e) => setGeminiKey(e.target.value)}
-              placeholder={t("settings.ai.geminiKeyPlaceholder")}
-              className="font-mono text-sm"
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleSaveGeminiKey();
-              }}
-            />
-            <Button
-              variant="ghost"
-              size="icon"
-              className="shrink-0"
-              onClick={() => setShowGeminiKey(!showGeminiKey)}
-            >
-              {showGeminiKey ? <EyeSlash size={16} /> : <Eye size={16} />}
-            </Button>
+          <ApiKeyInput
+            value={geminiKey}
+            onChange={setGeminiKey}
+            placeholder={t("settings.ai.geminiKeyPlaceholder")}
+            onEnter={handleSaveGeminiKey}
+            className="max-w-md"
+          >
             <Button
               onClick={handleSaveGeminiKey}
               disabled={savingGeminiKey || !geminiKey.trim()}
             >
               {savingGeminiKey ? <Spinner className="size-4" /> : t("settings.ai.save")}
             </Button>
-          </div>
+          </ApiKeyInput>
         )}
       </section>
     </div>

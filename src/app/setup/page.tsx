@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -18,8 +17,6 @@ import {
 import {
   AppStoreLogoIcon,
   CheckCircle,
-  Eye,
-  EyeSlash,
   IdentificationBadge,
   Info,
   Lock,
@@ -33,22 +30,18 @@ import { AI_PROVIDERS } from "@/lib/ai-providers";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LocalServerFields } from "@/components/local-server-fields";
 import { ManagedAuthForm } from "@/components/managed-auth-form";
+import { ApiKeyInput } from "@/components/api-key-input";
+import { AppleFmOption, type AppleFmStatus } from "@/components/apple-fm-option";
 import { clearNavigation } from "@/lib/nav-state";
 import { isLocalOpenAIProvider } from "@/lib/ai/local-provider";
 import { useTranslations } from "@/lib/i18n/locale-context";
-import type { MessageKey } from "@/lib/i18n/messages";
 
 const WIZARD_STEPS = 3;
 
-// Step 3 – AI. The "apple-fm" ids are kept as local literals (not imported
-// from `@/lib/ai/apple-fm`) – that module reads a Node state file and must
-// never end up in the client bundle.
+// Step 3 – AI. The "apple-fm" id is kept as a local literal (not imported from
+// `@/lib/ai/apple-fm`) – that module reads a Node state file and must never end
+// up in the client bundle.
 type LocalEngine = "apple-fm" | "local-server";
-interface AppleFmStatus {
-  available: boolean;
-  reason: string | null;
-  languages?: string[];
-}
 const BYOK_PROVIDERS = AI_PROVIDERS.filter((p) => !isLocalOpenAIProvider(p.id));
 const DEFAULT_BYOK_PROVIDER = BYOK_PROVIDERS[0];
 
@@ -97,7 +90,6 @@ export default function SetupPage() {
   const [localBaseUrl, setLocalBaseUrl] = useState("");
   const [localModelId, setLocalModelId] = useState("");
   const [localApiKey, setLocalApiKey] = useState("");
-  const [showLocalKey, setShowLocalKey] = useState(false);
   const [appleFmStatus, setAppleFmStatus] = useState<AppleFmStatus | null>(null);
 
   // Step 3 – cloud
@@ -106,7 +98,6 @@ export default function SetupPage() {
   const [byokProviderId, setByokProviderId] = useState(DEFAULT_BYOK_PROVIDER.id);
   const [byokModelId, setByokModelId] = useState(DEFAULT_BYOK_PROVIDER.models[0].id);
   const [byokApiKey, setByokApiKey] = useState("");
-  const [showByokKey, setShowByokKey] = useState(false);
 
   const byokProvider = useMemo(
     () => BYOK_PROVIDERS.find((p) => p.id === byokProviderId) ?? DEFAULT_BYOK_PROVIDER,
@@ -118,7 +109,6 @@ export default function SetupPage() {
     const p = BYOK_PROVIDERS.find((p) => p.id === id) ?? DEFAULT_BYOK_PROVIDER;
     setByokModelId(p.models[0].id);
     setByokApiKey("");
-    setShowByokKey(false);
   }
 
   // useCallback so the mount effect can list it as a dependency (same pattern
@@ -588,45 +578,18 @@ export default function SetupPage() {
                 value={localEngine}
                 onValueChange={(v) => setLocalEngine(v as LocalEngine)}
               >
-                <div className="flex items-start gap-2">
-                  {/* Clicking the already-selected engine deselects it: radix does not
-                      fire onValueChange for the checked item, and on a fresh click the
-                      closure still holds the pre-change value, so the two handlers
-                      never fight. */}
-                  <RadioGroupItem
-                    value="apple-fm"
-                    id="setup-engine-apple-fm"
-                    className="mt-0.5"
-                    disabled={!appleFmStatus?.available}
-                    onClick={() => {
-                      if (localEngine === "apple-fm") setLocalEngine("");
-                    }}
-                  />
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <Label htmlFor="setup-engine-apple-fm" className="text-sm font-normal">
-                        {t("settings.ai.local.appleFm")}
-                      </Label>
-                      {appleFmStatus && (
-                        <Badge
-                          variant="outline"
-                          className={
-                            appleFmStatus.available
-                              ? "border-green-500/50 text-green-600 dark:text-green-400"
-                              : "text-muted-foreground"
-                          }
-                        >
-                          {appleFmStatus.available
-                            ? t("settings.ai.local.status.available")
-                            : t(`settings.ai.local.status.${appleFmStatus.reason}` as MessageKey)}
-                        </Badge>
-                      )}
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      {t("settings.ai.local.appleFmHint")}
-                    </p>
-                  </div>
-                </div>
+                {/* Clicking the already-selected engine deselects it: radix does not
+                    fire onValueChange for the checked item, and on a fresh click the
+                    closure still holds the pre-change value, so the two handlers
+                    never fight. */}
+                <AppleFmOption
+                  id="setup-engine-apple-fm"
+                  status={appleFmStatus}
+                  disabled={!appleFmStatus?.available}
+                  onClick={() => {
+                    if (localEngine === "apple-fm") setLocalEngine("");
+                  }}
+                />
                 <div className="flex items-center gap-2">
                   <RadioGroupItem
                     value="local-server"
@@ -655,23 +618,11 @@ export default function SetupPage() {
                       {t("setup.apiKey")}{" "}
                       <span className="text-xs text-muted-foreground/60">{t("common.optional")}</span>
                     </label>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type={showLocalKey ? "text" : "password"}
-                        value={localApiKey}
-                        onChange={(e) => setLocalApiKey(e.target.value)}
-                        placeholder={t("setup.apiKeyPlaceholderLocal")}
-                        className="font-mono text-sm"
-                      />
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="shrink-0"
-                        onClick={() => setShowLocalKey(!showLocalKey)}
-                      >
-                        {showLocalKey ? <EyeSlash size={16} /> : <Eye size={16} />}
-                      </Button>
-                    </div>
+                    <ApiKeyInput
+                      value={localApiKey}
+                      onChange={setLocalApiKey}
+                      placeholder={t("setup.apiKeyPlaceholderLocal")}
+                    />
                   </div>
                 </>
               )}
@@ -742,23 +693,11 @@ export default function SetupPage() {
                       {t("setup.apiKey")}{" "}
                       <span className="text-xs text-muted-foreground/60">{t("common.optional")}</span>
                     </label>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type={showByokKey ? "text" : "password"}
-                        value={byokApiKey}
-                        onChange={(e) => setByokApiKey(e.target.value)}
-                        placeholder={t("setup.apiKeyPlaceholder")}
-                        className="font-mono text-sm"
-                      />
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="shrink-0"
-                        onClick={() => setShowByokKey(!showByokKey)}
-                      >
-                        {showByokKey ? <EyeSlash size={16} /> : <Eye size={16} />}
-                      </Button>
-                    </div>
+                    <ApiKeyInput
+                      value={byokApiKey}
+                      onChange={setByokApiKey}
+                      placeholder={t("setup.apiKeyPlaceholder")}
+                    />
                   </div>
                 </TabsContent>
               </Tabs>
