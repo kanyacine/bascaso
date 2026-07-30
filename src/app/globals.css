@@ -80,6 +80,10 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+  /* The managed account card's accent – the app's single colourful surface.
+     Anchored on the app-icon chip blue (see UI.md "Accent blue gradient") and
+     stretched to violet; referenced by the card border, chip, CTA and badge. */
+  --account-gradient: linear-gradient(135deg, var(--color-blue-500), var(--color-violet-600));
 }
 
 .dark {
@@ -145,6 +149,69 @@
   }
   .error-banner {
     @apply rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive;
+  }
+
+  /* Managed account card – balance, packs and subscribe in one surface. */
+  .account-card {
+    @apply relative rounded-xl bg-card p-4;
+    background-image: radial-gradient(
+      120% 90% at 100% 0%,
+      color-mix(in oklab, var(--color-violet-500) 7%, transparent),
+      transparent 55%
+    );
+  }
+  /* Gradient hairline: a masked overlay instead of border-image, so the border
+     follows the radius and needs no stacking-context tricks. */
+  .account-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: var(--account-gradient);
+    opacity: 0.45;
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+  .dark .account-card {
+    background-image: radial-gradient(
+      120% 90% at 100% 0%,
+      color-mix(in oklab, var(--color-violet-500) 12%, transparent),
+      transparent 55%
+    );
+  }
+  /* background-image, not the background shorthand: Button and Badge set their
+     background-color through bg-primary in the utilities layer, which is declared
+     after @layer components and would win a shorthand fight. The opaque gradient
+     image simply paints over whatever colour the variant sets. */
+  .account-card-chip {
+    @apply flex size-9 shrink-0 items-center justify-center rounded-lg text-white;
+    background-image: var(--account-gradient);
+  }
+  .account-cta {
+    @apply w-full border-0 text-white;
+    background-image: var(--account-gradient);
+  }
+  .account-cta:hover {
+    filter: brightness(1.08);
+  }
+  /* Positioning and accent only. The tile's box (h-auto, flex-col, gap, padding)
+     stays on the Button's own className: Button sets h-9/gap-2/py-2 as utilities,
+     and @layer utilities is declared after @layer components, so it wins here
+     whatever the specificity. Passed through className it goes through
+     tailwind-merge instead, which resolves the conflict in our favour. */
+  .account-pack {
+    @apply relative;
+  }
+  .account-pack:hover {
+    border-color: color-mix(in oklab, var(--color-violet-500) 45%, var(--color-border));
+  }
+  .account-best {
+    @apply absolute -top-2 left-1/2 -translate-x-1/2 border-0 text-white;
+    background-image: var(--account-gradient);
   }
 }
 

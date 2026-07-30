@@ -6,6 +6,7 @@ import { LOCALE_BOOTSTRAP_SCRIPT } from "@/lib/i18n/locale-cookies";
 import { resolveServerLocale } from "@/lib/i18n/resolve-server-locale";
 import { Toaster } from "@/components/ui/sonner";
 import { ElectronNavigationListener } from "@/components/electron-navigation-listener";
+import { ManagedTopUpDialog } from "@/components/managed-topup-dialog";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -53,6 +54,7 @@ export default async function RootLayout({
             <ElectronNavigationListener />
             {children}
             <Toaster />
+            <ManagedTopUpDialog />
           </LocaleProvider>
         </ThemeProvider>
       </body>

@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { toast } from "sonner";
 import { useTranslations } from "@/lib/i18n/locale-context";
-import { aiErrorMessage } from "@/lib/ai/ai-error";
+import { toastAIError } from "@/lib/ai/ai-error-toast";
 import { notifyManagedDebit } from "@/lib/ai/debit-toast";
 
 export interface BulkField {
@@ -79,7 +78,7 @@ export function useBulkAI({
   function reportRunFailure(runId: number, errorCode: string | undefined) {
     if (toastShownForRunRef.current === runId) return;
     toastShownForRunRef.current = runId;
-    toast.error(aiErrorMessage(errorCode, t) ?? t("errors.aiRequestFailed"));
+    toastAIError(errorCode, t);
   }
 
   function reportRunDebit(runId: number, tier: string | undefined) {

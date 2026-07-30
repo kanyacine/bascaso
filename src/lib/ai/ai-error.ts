@@ -1,7 +1,7 @@
 import type { MessageKey } from "@/lib/i18n/messages";
 import type { AIErrorCategory } from "@/lib/ai/provider-factory";
 
-type Translate = (key: MessageKey, params?: Record<string, string | number>) => string;
+export type Translate = (key: MessageKey, params?: Record<string, string | number>) => string;
 
 /**
  * Map a failed `/api/ai` response's error code to a localized, user-facing
