@@ -32,6 +32,7 @@ import { LocalServerFields } from "@/components/local-server-fields";
 import { ManagedAuthForm } from "@/components/managed-auth-form";
 import { ApiKeyInput } from "@/components/api-key-input";
 import { AppleFmOption, type AppleFmStatus } from "@/components/apple-fm-option";
+import { AppleFmLanguageOptions } from "@/components/apple-fm-language-options";
 import { clearNavigation } from "@/lib/nav-state";
 import { isLocalOpenAIProvider } from "@/lib/ai/local-provider";
 import { useTranslations } from "@/lib/i18n/locale-context";
@@ -91,6 +92,9 @@ export default function SetupPage() {
   const [localModelId, setLocalModelId] = useState("");
   const [localApiKey, setLocalApiKey] = useState("");
   const [appleFmStatus, setAppleFmStatus] = useState<AppleFmStatus | null>(null);
+  // Stored in app preferences, not in the setup payload: the switch writes
+  // through immediately, exactly as it does in Settings > AI.
+  const [allowUnsupportedLanguages, setAllowUnsupportedLanguages] = useState(false);
 
   // Step 3 – cloud
   const [cloudTab, setCloudTab] = useState<"account" | "byok">("account");
@@ -134,14 +138,25 @@ export default function SetupPage() {
     setManagedEmail(null);
   }
 
+  // Read on arrival rather than at mount: the built-in model's sidecar boots
+  // alongside the app, so a status fetched from the welcome screen can still say
+  // "not found" by the time this step renders – leaving the option disabled with
+  // no way back. Nothing here is needed before step 3 anyway.
   useEffect(() => {
+    if (step !== 3) return;
     fetch("/api/settings/ai/apple-fm-status")
       .then((res) => res.json())
       .then(setAppleFmStatus)
       .catch(() => setAppleFmStatus({ available: false, reason: "sidecar_unreachable" }));
-    // A managed account can already exist if setup restarts mid-flight.
+    // Both of these can already carry a value if setup restarts mid-flight.
     void refreshManagedEmail();
-  }, [refreshManagedEmail]);
+    fetch("/api/settings/ai")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.routing) setAllowUnsupportedLanguages(data.routing.allowUnsupportedLanguages);
+      })
+      .catch(() => {});
+  }, [step, refreshManagedEmail]);
 
   function resetConnectionTest() {
     setTestStatus("idle");
@@ -325,428 +340,456 @@ export default function SetupPage() {
   const isWelcome = step === 0;
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4">
+    <div className="flex h-screen flex-col items-center justify-center bg-background px-4">
       <div className="drag fixed inset-x-0 top-0 h-16" />
       <div className="no-drag fixed top-4 right-4">
         <ThemeToggle />
       </div>
-      <div className="w-full max-w-md space-y-8">
-        {/* Logo */}
-        <div className="flex flex-col items-center gap-3">
-          <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-            {step === 0 && <Package size={32} weight="fill" />}
-            {step === 1 && <IdentificationBadge size={32} weight="fill" />}
-            {step === 2 && <AppStoreLogoIcon size={32} weight="fill" />}
-            {step === 3 && <MagicWand size={32} weight="fill" />}
+      {/* Three fixed bands: header, scrolling body, footer. The header carries
+          the step's identity, so nothing that appears or disappears below is
+          allowed to move it – the body absorbs every growth instead. The height
+          cap keeps the wizard a centred card on a tall display rather than a
+          column of whitespace. */}
+      <div className="flex h-full max-h-[46rem] w-full max-w-md flex-col">
+        <div className="shrink-0 space-y-8 pt-16 pb-6">
+          {/* Logo */}
+          <div className="flex flex-col items-center gap-3">
+            <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+              {step === 0 && <Package size={32} weight="fill" />}
+              {step === 1 && <IdentificationBadge size={32} weight="fill" />}
+              {step === 2 && <AppStoreLogoIcon size={32} weight="fill" />}
+              {step === 3 && <MagicWand size={32} weight="fill" />}
+            </div>
+            <h1 className="text-2xl font-bold tracking-tight">
+              {step === 0 && t("setup.title.welcome")}
+              {step === 1 && t("setup.title.account")}
+              {step === 2 && t("setup.title.asc")}
+              {step === 3 && t("setup.title.ai")}
+            </h1>
+            <p className="text-sm text-muted-foreground text-center">
+              {step === 0 && t("setup.subtitle.welcome")}
+              {step === 1 && t("setup.subtitle.account")}
+              {step === 2 && t("setup.subtitle.asc")}
+              {step === 3 && t("setup.subtitle.ai")}
+            </p>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight">
-            {step === 0 && t("setup.title.welcome")}
-            {step === 1 && t("setup.title.account")}
-            {step === 2 && t("setup.title.asc")}
-            {step === 3 && t("setup.title.ai")}
-          </h1>
-          <p className="text-sm text-muted-foreground text-center">
-            {step === 0 && t("setup.subtitle.welcome")}
-            {step === 1 && t("setup.subtitle.account")}
-            {step === 2 && t("setup.subtitle.asc")}
-            {step === 3 && t("setup.subtitle.ai")}
-          </p>
+
+          {/* Step indicator (only for wizard steps 1–3) */}
+          {!isWelcome && (
+            <div className="flex items-center justify-center gap-2">
+              {Array.from({ length: WIZARD_STEPS }, (_, i) => (
+                <div
+                  key={i}
+                  className={`h-1.5 rounded-full transition-all ${
+                    i + 1 === step
+                      ? "w-8 bg-primary"
+                      : i + 1 < step
+                        ? "w-4 bg-primary/40"
+                        : "w-4 bg-muted"
+                  }`}
+                />
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* Step indicator (only for wizard steps 1–3) */}
-        {!isWelcome && (
-          <div className="flex items-center justify-center gap-2">
-            {Array.from({ length: WIZARD_STEPS }, (_, i) => (
-              <div
-                key={i}
-                className={`h-1.5 rounded-full transition-all ${
-                  i + 1 === step
-                    ? "w-8 bg-primary"
-                    : i + 1 < step
-                      ? "w-4 bg-primary/40"
-                      : "w-4 bg-muted"
-                }`}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* Welcome */}
-        {step === 0 && (
-          <div className="space-y-4">
-            <ul className="flex flex-col items-start gap-3 text-sm text-muted-foreground w-fit mx-auto">
-              <li className="flex items-start gap-2">
-                <CheckCircle size={16} weight="fill" className="mt-0.5 shrink-0 text-green-600" />
-                {t("setup.features.manage")}
-              </li>
-              <li className="flex items-start gap-2">
-                <CheckCircle size={16} weight="fill" className="mt-0.5 shrink-0 text-green-600" />
-                {t("setup.features.testflight")}
-              </li>
-              <li className="flex items-start gap-2">
-                <CheckCircle size={16} weight="fill" className="mt-0.5 shrink-0 text-green-600" />
-                {t("setup.features.ai")}
-              </li>
-              <li className="flex items-start gap-2">
-                <Lock size={16} weight="fill" className="mt-0.5 shrink-0 text-green-600" />
-                {t("setup.features.privacy")}
-              </li>
-            </ul>
-          </div>
-        )}
-
-        {/* Step 1 – Team name */}
-        {step === 1 && (
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm text-muted-foreground">{t("setup.teamName")}</label>
-              <Input
-                value={teamName}
-                onChange={(e) => setTeamName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && canAdvance()) handleNext();
-                }}
-                placeholder={t("nav.myTeam")}
-                className="text-sm"
-                autoFocus
-              />
-              <p className="text-xs text-muted-foreground">
-                {t("setup.teamNameHint")}
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Step 2 – ASC credentials */}
-        {step === 2 && (
-          <div className="space-y-4">
-            <div className="space-y-2 rounded-lg bg-muted/50 px-3 py-2.5">
-              <div className="flex items-start gap-2">
-                <Info size={14} className="mt-0.5 shrink-0 text-muted-foreground" />
-                <p className="text-xs text-muted-foreground">
-                  {t("setup.ascHintPrefix")}{" "}
-                  <a
-                    href="https://appstoreconnect.apple.com/access/integrations/api"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-primary underline-offset-4 hover:underline"
-                  >
-                    {t("setup.ascHintLink")}
-                  </a>
-                  {" "}{t("setup.ascHintSuffix")}
-                </p>
+        {/* Scrolling body – the horizontal padding gives focus rings room the
+            scroll container would otherwise clip. */}
+        <div className="min-h-0 flex-1 overflow-y-auto px-1 -mx-1">
+          <div className="flex min-h-full flex-col justify-center gap-8 py-1">
+            {/* Welcome */}
+            {step === 0 && (
+              <div className="space-y-4">
+                <ul className="flex flex-col items-start gap-3 text-sm text-muted-foreground w-fit mx-auto">
+                  <li className="flex items-start gap-2">
+                    <CheckCircle size={16} weight="fill" className="mt-0.5 shrink-0 text-green-600" />
+                    {t("setup.features.manage")}
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <CheckCircle size={16} weight="fill" className="mt-0.5 shrink-0 text-green-600" />
+                    {t("setup.features.testflight")}
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <CheckCircle size={16} weight="fill" className="mt-0.5 shrink-0 text-green-600" />
+                    {t("setup.features.ai")}
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Lock size={16} weight="fill" className="mt-0.5 shrink-0 text-green-600" />
+                    {t("setup.features.privacy")}
+                  </li>
+                </ul>
               </div>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm text-muted-foreground">{t("setup.issuerId")}</label>
-              <Input
-                value={issuerId}
-                onChange={(e) => {
-                  setIssuerId(e.target.value);
-                  resetConnectionTest();
-                }}
-                placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                className="font-mono text-sm"
-                autoFocus
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm text-muted-foreground">
-                {t("setup.privateKey")}
-              </label>
-              <Input
-                type="file"
-                accept=".p8"
-                onChange={handleFileUpload}
-                className="text-sm"
-              />
-              {keyError && (
-                <p className="flex items-center gap-1.5 text-xs text-destructive">
-                  <XCircle size={14} weight="fill" />
-                  {keyError}
-                </p>
-              )}
-              {privateKey && !keyError && keyIdFromFile && (
-                <>
-                  {testStatus === "testing" && (
-                    <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <Spinner className="size-3.5" />
-                      {t("common.testingConnection")}
+            )}
+
+            {/* Step 1 – Team name */}
+            {step === 1 && (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm text-muted-foreground">{t("setup.teamName")}</label>
+                  <Input
+                    value={teamName}
+                    onChange={(e) => setTeamName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && canAdvance()) handleNext();
+                    }}
+                    placeholder={t("nav.myTeam")}
+                    className="text-sm"
+                    autoFocus
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {t("setup.teamNameHint")}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Step 2 – ASC credentials */}
+            {step === 2 && (
+              <div className="space-y-4">
+                <div className="space-y-2 rounded-lg bg-muted/50 px-3 py-2.5">
+                  <div className="flex items-start gap-2">
+                    <Info size={14} className="mt-0.5 shrink-0 text-muted-foreground" />
+                    <p className="text-xs text-muted-foreground">
+                      {t("setup.ascHintPrefix")}{" "}
+                      <a
+                        href="https://appstoreconnect.apple.com/access/integrations/api"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary underline-offset-4 hover:underline"
+                      >
+                        {t("setup.ascHintLink")}
+                      </a>
+                      {" "}{t("setup.ascHintSuffix")}
                     </p>
-                  )}
-                  {testStatus === "ok" && (
-                    <p className="flex items-center gap-1.5 text-xs text-green-600">
-                      <CheckCircle size={14} weight="fill" />
-                      {t("common.connectedKeyId")}{" "}
-                      <span className="font-mono">{keyId}</span>
-                    </p>
-                  )}
-                  {testStatus === "error" && (
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm text-muted-foreground">{t("setup.issuerId")}</label>
+                  <Input
+                    value={issuerId}
+                    onChange={(e) => {
+                      setIssuerId(e.target.value);
+                      resetConnectionTest();
+                    }}
+                    placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                    className="font-mono text-sm"
+                    autoFocus
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm text-muted-foreground">
+                    {t("setup.privateKey")}
+                  </label>
+                  <Input
+                    type="file"
+                    accept=".p8"
+                    onChange={handleFileUpload}
+                    className="text-sm"
+                  />
+                  {keyError && (
                     <p className="flex items-center gap-1.5 text-xs text-destructive">
                       <XCircle size={14} weight="fill" />
-                      {testError || t("common.connectionFailedCheck")}
+                      {keyError}
                     </p>
                   )}
-                  {testStatus === "error" &&
-                    keyId.trim() &&
-                    issuerId.trim() && (
-                      <button
-                        type="button"
-                        className="text-xs text-primary underline-offset-4 hover:underline"
-                        onClick={() =>
-                          testConnection(
-                            issuerId.trim(),
-                            keyId.trim(),
-                            privateKey,
-                          )
-                        }
-                      >
-                        {t("common.testAgain")}
-                      </button>
-                    )}
-                </>
-              )}
-              {privateKey && !keyError && !keyIdFromFile && (
-                <p className="text-xs text-muted-foreground">
-                  {t("common.keyLoadedEnterId")}
-                </p>
-              )}
-            </div>
-            {/* Show key ID input only if not extracted from filename */}
-            {privateKey && !keyIdFromFile && !keyError && (
-              <div className="space-y-2">
-                <label className="text-sm text-muted-foreground">{t("setup.keyId")}</label>
-                <Input
-                  value={keyId}
-                  onChange={(e) => {
-                    setKeyId(e.target.value);
-                    resetConnectionTest();
-                  }}
-                  placeholder="XXXXXXXXXX"
-                  className="font-mono text-sm"
-                />
-                {testStatus === "testing" && (
-                  <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <Spinner className="size-3.5" />
-                    {t("common.testingConnection")}
-                  </p>
-                )}
-                {testStatus === "ok" && (
-                  <p className="flex items-center gap-1.5 text-xs text-green-600">
-                    <CheckCircle size={14} weight="fill" />
-                    {t("common.connectedKeyId")}{" "}
-                    <span className="font-mono">{keyId}</span>
-                  </p>
-                )}
-                {testStatus === "error" && (
-                  <p className="flex items-center gap-1.5 text-xs text-destructive">
-                    <XCircle size={14} weight="fill" />
-                    {testError || t("common.connectionFailedCheck")}
-                  </p>
-                )}
-                {(testStatus === "idle" || testStatus === "error") &&
-                  keyId.trim() &&
-                  issuerId.trim() && (
-                    <button
-                      type="button"
-                      className="text-xs text-primary underline-offset-4 hover:underline"
-                      onClick={() =>
-                        testConnection(
-                          issuerId.trim(),
-                          keyId.trim(),
-                          privateKey,
-                        )
-                      }
-                    >
-                      {testStatus === "error"
-                        ? t("common.testAgain")
-                        : t("settings.teams.testConnection")}
-                    </button>
+                  {privateKey && !keyError && keyIdFromFile && (
+                    <>
+                      {testStatus === "testing" && (
+                        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <Spinner className="size-3.5" />
+                          {t("common.testingConnection")}
+                        </p>
+                      )}
+                      {testStatus === "ok" && (
+                        <p className="flex items-center gap-1.5 text-xs text-green-600">
+                          <CheckCircle size={14} weight="fill" />
+                          {t("common.connectedKeyId")}{" "}
+                          <span className="font-mono">{keyId}</span>
+                        </p>
+                      )}
+                      {testStatus === "error" && (
+                        <p className="flex items-center gap-1.5 text-xs text-destructive">
+                          <XCircle size={14} weight="fill" />
+                          {testError || t("common.connectionFailedCheck")}
+                        </p>
+                      )}
+                      {testStatus === "error" &&
+                        keyId.trim() &&
+                        issuerId.trim() && (
+                          <button
+                            type="button"
+                            className="text-xs text-primary underline-offset-4 hover:underline"
+                            onClick={() =>
+                              testConnection(
+                                issuerId.trim(),
+                                keyId.trim(),
+                                privateKey,
+                              )
+                            }
+                          >
+                            {t("common.testAgain")}
+                          </button>
+                        )}
+                    </>
                   )}
+                  {privateKey && !keyError && !keyIdFromFile && (
+                    <p className="text-xs text-muted-foreground">
+                      {t("common.keyLoadedEnterId")}
+                    </p>
+                  )}
+                </div>
+                {/* Show key ID input only if not extracted from filename */}
+                {privateKey && !keyIdFromFile && !keyError && (
+                  <div className="space-y-2">
+                    <label className="text-sm text-muted-foreground">{t("setup.keyId")}</label>
+                    <Input
+                      value={keyId}
+                      onChange={(e) => {
+                        setKeyId(e.target.value);
+                        resetConnectionTest();
+                      }}
+                      placeholder="XXXXXXXXXX"
+                      className="font-mono text-sm"
+                    />
+                    {testStatus === "testing" && (
+                      <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <Spinner className="size-3.5" />
+                        {t("common.testingConnection")}
+                      </p>
+                    )}
+                    {testStatus === "ok" && (
+                      <p className="flex items-center gap-1.5 text-xs text-green-600">
+                        <CheckCircle size={14} weight="fill" />
+                        {t("common.connectedKeyId")}{" "}
+                        <span className="font-mono">{keyId}</span>
+                      </p>
+                    )}
+                    {testStatus === "error" && (
+                      <p className="flex items-center gap-1.5 text-xs text-destructive">
+                        <XCircle size={14} weight="fill" />
+                        {testError || t("common.connectionFailedCheck")}
+                      </p>
+                    )}
+                    {(testStatus === "idle" || testStatus === "error") &&
+                      keyId.trim() &&
+                      issuerId.trim() && (
+                        <button
+                          type="button"
+                          className="text-xs text-primary underline-offset-4 hover:underline"
+                          onClick={() =>
+                            testConnection(
+                              issuerId.trim(),
+                              keyId.trim(),
+                              privateKey,
+                            )
+                          }
+                        >
+                          {testStatus === "error"
+                            ? t("common.testAgain")
+                            : t("settings.teams.testConnection")}
+                        </button>
+                      )}
+                  </div>
+                )}
               </div>
             )}
-          </div>
-        )}
 
-        {/* Step 3 – AI */}
-        {step === 3 && (
-          <div className="space-y-6">
-            {/* Local model */}
-            <section className="space-y-3">
-              <h3 className="section-title">{t("setup.localTitle")}</h3>
-              <RadioGroup
-                value={localEngine}
-                onValueChange={(v) => setLocalEngine(v as LocalEngine)}
-              >
-                {/* Clicking the already-selected engine deselects it: radix does not
-                    fire onValueChange for the checked item, and on a fresh click the
-                    closure still holds the pre-change value, so the two handlers
-                    never fight. */}
-                <AppleFmOption
-                  id="setup-engine-apple-fm"
-                  status={appleFmStatus}
-                  disabled={!appleFmStatus?.available}
-                  onClick={() => {
-                    if (localEngine === "apple-fm") setLocalEngine("");
-                  }}
-                />
-                <div className="flex items-center gap-2">
-                  <RadioGroupItem
-                    value="local-server"
-                    id="setup-engine-server"
-                    onClick={() => {
-                      if (localEngine === "local-server") setLocalEngine("");
-                    }}
-                  />
-                  <Label htmlFor="setup-engine-server" className="text-sm font-normal">
-                    {t("settings.ai.local.server")}
-                  </Label>
-                </div>
-              </RadioGroup>
-              {localEngine === "local-server" && (
-                <>
-                  <LocalServerFields
-                    baseUrl={localBaseUrl}
-                    onBaseUrlChange={setLocalBaseUrl}
-                    modelId={localModelId}
-                    onModelIdChange={setLocalModelId}
-                    apiKey={localApiKey}
-                    compact
-                  />
-                  <div className="space-y-2">
-                    <label className="text-sm text-muted-foreground">
-                      {t("setup.apiKey")}{" "}
-                      <span className="text-xs text-muted-foreground/60">{t("common.optional")}</span>
-                    </label>
-                    <ApiKeyInput
-                      value={localApiKey}
-                      onChange={setLocalApiKey}
-                      placeholder={t("setup.apiKeyPlaceholderLocal")}
-                    />
-                  </div>
-                </>
-              )}
-            </section>
-
-            {/* Cloud */}
-            <section className="space-y-3">
-              <h3 className="section-title">{t("setup.cloudTitle")}</h3>
-              <Tabs value={cloudTab} onValueChange={(v) => setCloudTab(v as "account" | "byok")}>
-                <TabsList className="w-full">
-                  <TabsTrigger value="account" className="flex-1">
-                    {t("setup.tabAccount")}
-                  </TabsTrigger>
-                  <TabsTrigger value="byok" className="flex-1">
-                    {t("setup.tabByok")}
-                  </TabsTrigger>
-                </TabsList>
-                <TabsContent value="account" className="pt-2">
-                  {managedEmail ? (
-                    <div className="space-y-2">
-                      <p className="text-sm">
-                        {t("settings.account.signedInAs", { email: managedEmail })}
-                      </p>
-                      <Button variant="ghost" size="sm" onClick={() => void handleManagedSignOut()}>
-                        {t("settings.account.signOut")}
-                      </Button>
+            {/* Step 3 – AI */}
+            {step === 3 && (
+              <div className="space-y-6">
+                {/* Local model */}
+                <section className="space-y-3">
+                  <h3 className="section-title">{t("setup.localTitle")}</h3>
+                  <RadioGroup
+                    value={localEngine}
+                    onValueChange={(v) => setLocalEngine(v as LocalEngine)}
+                  >
+                    {/* Clicking the already-selected engine deselects it: radix does not
+                        fire onValueChange for the checked item, and on a fresh click the
+                        closure still holds the pre-change value, so the two handlers
+                        never fight. */}
+                    <AppleFmOption
+                      id="setup-engine-apple-fm"
+                      status={appleFmStatus}
+                      disabled={!appleFmStatus?.available}
+                      onClick={() => {
+                        if (localEngine === "apple-fm") setLocalEngine("");
+                      }}
+                    >
+                      {localEngine === "apple-fm" && appleFmStatus?.available && (
+                        <AppleFmLanguageOptions
+                          codes={appleFmStatus.languages}
+                          allowUnsupported={allowUnsupportedLanguages}
+                          onAllowUnsupportedChange={setAllowUnsupportedLanguages}
+                        />
+                      )}
+                    </AppleFmOption>
+                    <div className="flex items-center gap-2">
+                      <RadioGroupItem
+                        value="local-server"
+                        id="setup-engine-server"
+                        onClick={() => {
+                          if (localEngine === "local-server") setLocalEngine("");
+                        }}
+                      />
+                      <Label htmlFor="setup-engine-server" className="text-sm font-normal">
+                        {t("settings.ai.local.server")}
+                      </Label>
                     </div>
-                  ) : (
-                    <ManagedAuthForm onAuthenticated={() => void refreshManagedEmail()} />
+                  </RadioGroup>
+                  {localEngine === "local-server" && (
+                    <>
+                      <LocalServerFields
+                        baseUrl={localBaseUrl}
+                        onBaseUrlChange={setLocalBaseUrl}
+                        modelId={localModelId}
+                        onModelIdChange={setLocalModelId}
+                        apiKey={localApiKey}
+                        compact
+                      />
+                      <div className="space-y-2">
+                        <label className="text-sm text-muted-foreground">
+                          {t("setup.apiKey")}{" "}
+                          <span className="text-xs text-muted-foreground/60">{t("common.optional")}</span>
+                        </label>
+                        <ApiKeyInput
+                          value={localApiKey}
+                          onChange={setLocalApiKey}
+                          placeholder={t("setup.apiKeyPlaceholderLocal")}
+                        />
+                      </div>
+                    </>
                   )}
-                </TabsContent>
-                <TabsContent value="byok" className="space-y-4 pt-2">
-                  <div className="space-y-2">
-                    <label className="text-sm text-muted-foreground">{t("setup.provider")}</label>
-                    <Select value={byokProviderId} onValueChange={handleByokProviderChange}>
-                      <SelectTrigger className="w-full text-sm">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {BYOK_PROVIDERS.map((p) => (
-                          <SelectItem key={p.id} value={p.id}>
-                            {p.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm text-muted-foreground">{t("setup.model")}</label>
-                    <Select value={byokModelId} onValueChange={setByokModelId}>
-                      <SelectTrigger className="w-full text-sm">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {byokProvider.models.map((m) => (
-                          <SelectItem key={m.id} value={m.id}>
-                            {m.name}
-                            <span className="ml-2 font-mono text-xs text-muted-foreground">
-                              {m.id}
-                            </span>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm text-muted-foreground">
-                      {t("setup.apiKey")}{" "}
-                      <span className="text-xs text-muted-foreground/60">{t("common.optional")}</span>
-                    </label>
-                    <ApiKeyInput
-                      value={byokApiKey}
-                      onChange={setByokApiKey}
-                      placeholder={t("setup.apiKeyPlaceholder")}
-                    />
-                  </div>
-                </TabsContent>
-              </Tabs>
-            </section>
-          </div>
-        )}
+                </section>
 
-        {/* Navigation */}
-        <div className={`flex items-center gap-2 ${isWelcome ? "justify-center" : "justify-end"}`}>
-          {step > 1 && (
-            <Button
-              variant="ghost"
-              onClick={() => setStep(step - 1)}
-              disabled={submitting}
-            >
-              {t("common.back")}
-            </Button>
-          )}
-          <Button
-            onClick={handleNext}
-            disabled={!canAdvance() || submitting}
-          >
-            {submitting ? (
-              <>
-                <Spinner />
-                {t("setup.settingUp")}
-              </>
-            ) : step === WIZARD_STEPS ? (
-              t("common.finish")
-            ) : step === 0 ? (
-              t("setup.getStarted")
-            ) : (
-              t("common.continue")
+                {/* Cloud */}
+                <section className="space-y-3">
+                  <h3 className="section-title">{t("setup.cloudTitle")}</h3>
+                  <Tabs value={cloudTab} onValueChange={(v) => setCloudTab(v as "account" | "byok")}>
+                    <TabsList className="w-full">
+                      <TabsTrigger value="account" className="flex-1">
+                        {t("setup.tabAccount")}
+                      </TabsTrigger>
+                      <TabsTrigger value="byok" className="flex-1">
+                        {t("setup.tabByok")}
+                      </TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="account" className="pt-2">
+                      {managedEmail ? (
+                        <div className="space-y-2">
+                          <p className="text-sm">
+                            {t("settings.account.signedInAs", { email: managedEmail })}
+                          </p>
+                          <Button
+                            variant="outline"
+                            className="w-full"
+                            onClick={() => void handleManagedSignOut()}
+                          >
+                            {t("settings.account.signOut")}
+                          </Button>
+                        </div>
+                      ) : (
+                        <ManagedAuthForm fill onAuthenticated={() => void refreshManagedEmail()} />
+                      )}
+                    </TabsContent>
+                    <TabsContent value="byok" className="space-y-4 pt-2">
+                      <div className="space-y-2">
+                        <label className="text-sm text-muted-foreground">{t("setup.provider")}</label>
+                        <Select value={byokProviderId} onValueChange={handleByokProviderChange}>
+                          <SelectTrigger className="w-full text-sm">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {BYOK_PROVIDERS.map((p) => (
+                              <SelectItem key={p.id} value={p.id}>
+                                {p.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm text-muted-foreground">{t("setup.model")}</label>
+                        <Select value={byokModelId} onValueChange={setByokModelId}>
+                          <SelectTrigger className="w-full text-sm">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {byokProvider.models.map((m) => (
+                              <SelectItem key={m.id} value={m.id}>
+                                {m.name}
+                                <span className="ml-2 font-mono text-xs text-muted-foreground">
+                                  {m.id}
+                                </span>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm text-muted-foreground">
+                          {t("setup.apiKey")}{" "}
+                          <span className="text-xs text-muted-foreground/60">{t("common.optional")}</span>
+                        </label>
+                        <ApiKeyInput
+                          value={byokApiKey}
+                          onChange={setByokApiKey}
+                          placeholder={t("setup.apiKeyPlaceholder")}
+                        />
+                      </div>
+                    </TabsContent>
+                  </Tabs>
+                </section>
+              </div>
             )}
-          </Button>
+
+          </div>
         </div>
 
-        {isWelcome && (
-          <div className="flex justify-center">
-            <button
-              type="button"
-              className="text-sm text-muted-foreground underline-offset-4 hover:underline disabled:opacity-50"
-              disabled={enteringDemo}
-              onClick={handleEnterDemo}
+        <div className="shrink-0 space-y-4 pt-6 pb-8">
+          {/* Navigation */}
+          <div className={`flex items-center gap-2 ${isWelcome ? "justify-center" : "justify-end"}`}>
+            {step > 1 && (
+              <Button
+                variant="ghost"
+                onClick={() => setStep(step - 1)}
+                disabled={submitting}
+              >
+                {t("common.back")}
+              </Button>
+            )}
+            <Button
+              onClick={handleNext}
+              disabled={!canAdvance() || submitting}
             >
-              {enteringDemo ? t("common.loading") : t("setup.exploreSampleData")}
-            </button>
+              {submitting ? (
+                <>
+                  <Spinner />
+                  {t("setup.settingUp")}
+                </>
+              ) : step === WIZARD_STEPS ? (
+                t("common.finish")
+              ) : step === 0 ? (
+                t("setup.getStarted")
+              ) : (
+                t("common.continue")
+              )}
+            </Button>
           </div>
-        )}
+
+          {isWelcome && (
+            <div className="flex justify-center">
+              <button
+                type="button"
+                className="text-sm text-muted-foreground underline-offset-4 hover:underline disabled:opacity-50"
+                disabled={enteringDemo}
+                onClick={handleEnterDemo}
+              >
+                {enteringDemo ? t("common.loading") : t("setup.exploreSampleData")}
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

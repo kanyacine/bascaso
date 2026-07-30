@@ -5,7 +5,6 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -13,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CaretRight, CheckCircle } from "@phosphor-icons/react";
+import { CheckCircle } from "@phosphor-icons/react";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { AI_PROVIDERS } from "@/lib/ai-providers";
@@ -21,8 +20,9 @@ import { invalidateAIStatus } from "@/lib/hooks/use-ai-status";
 import { LocalServerFields } from "@/components/local-server-fields";
 import { ApiKeyInput } from "@/components/api-key-input";
 import { AppleFmOption, type AppleFmStatus } from "@/components/apple-fm-option";
+import { AppleFmLanguageOptions } from "@/components/apple-fm-language-options";
 import { AiRoutingSection, type RoutingState } from "@/components/settings/ai-routing-section";
-import { useLocale, useTranslations } from "@/lib/i18n/locale-context";
+import { useTranslations } from "@/lib/i18n/locale-context";
 import {
   DEFAULT_LOCAL_OPENAI_BASE_URL,
   isLocalOpenAIProvider,
@@ -57,7 +57,6 @@ const EMPTY_ROUTING: RoutingState = {
 
 export default function AISettingsPage() {
   const t = useTranslations();
-  const { locale } = useLocale();
 
   // Local tier – "" means no engine selected: the tier is unusable until the
   // user explicitly picks one of the two options again.
@@ -72,23 +71,6 @@ export default function AISettingsPage() {
   const [removingLocal, setRemovingLocal] = useState(false);
   const [savingAppleFm, setSavingAppleFm] = useState(false);
   const [appleFmStatus, setAppleFmStatus] = useState<AppleFmStatus | null>(null);
-  const [showLanguages, setShowLanguages] = useState(false);
-  // Human-readable, locale-sorted names for the languages the built-in model
-  // reports (via the sidecar). Null when unavailable or none reported.
-  const appleFmLanguages = useMemo<string[] | null>(() => {
-    if (!appleFmStatus?.available) return null;
-    const codes = appleFmStatus.languages;
-    if (!codes || codes.length === 0) return null;
-    let display: Intl.DisplayNames | null = null;
-    try {
-      display = new Intl.DisplayNames([locale], { type: "language" });
-    } catch {
-      display = null;
-    }
-    return codes
-      .map((c: string) => display?.of(c) ?? c)
-      .sort((a: string, b: string) => a.localeCompare(b, locale));
-  }, [appleFmStatus, locale]);
 
   // BYOK tier
   const [byokProviderId, setByokProviderId] = useState(DEFAULT_BYOK_PROVIDER.id);
@@ -470,48 +452,12 @@ export default function AISettingsPage() {
           className="max-w-md"
         >
           <AppleFmOption id="local-engine-apple-fm" status={appleFmStatus}>
-            {localEngine === "apple-fm" && appleFmLanguages && (
-              <div className="space-y-1 pt-2 max-w-md">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="space-y-0.5">
-                    <Label htmlFor="apple-fm-allow-unsupported" className="text-xs font-medium">
-                      {t("settings.ai.local.allowUnsupported")}
-                    </Label>
-                    <p className="text-xs text-muted-foreground">
-                      {t("settings.ai.local.allowUnsupportedHint")}
-                    </p>
-                  </div>
-                  <Switch
-                    id="apple-fm-allow-unsupported"
-                    checked={routing.allowUnsupportedLanguages}
-                    onCheckedChange={async (checked) => {
-                      const res = await fetch("/api/settings/ai/routing", {
-                        method: "PUT",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ allowUnsupportedLanguages: checked }),
-                      });
-                      if (res.ok) refetchRouting();
-                      else toast.error(t("common.saveFailed"));
-                    }}
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowLanguages((v) => !v)}
-                  className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-                  aria-expanded={showLanguages}
-                >
-                  <CaretRight
-                    className={showLanguages ? "rotate-90 transition-transform" : "transition-transform"}
-                  />
-                  {t("settings.ai.local.languagesShow")}
-                </button>
-                {showLanguages && (
-                  <p className="text-xs text-muted-foreground">
-                    {appleFmLanguages.join(", ")}
-                  </p>
-                )}
-              </div>
+            {localEngine === "apple-fm" && appleFmStatus?.available && (
+              <AppleFmLanguageOptions
+                codes={appleFmStatus.languages}
+                allowUnsupported={routing.allowUnsupportedLanguages}
+                onAllowUnsupportedChange={() => refetchRouting()}
+              />
             )}
           </AppleFmOption>
 
