@@ -99,9 +99,11 @@ export async function POST(
   let providerId = "";
   let modelId = "";
   let maxInputChars: number | undefined;
+  // Returned to the client so it knows whether this gesture cost a credit.
+  let tier;
   try {
     const resolved = await getLanguageModelForTask("analytics-insights");
-    ({ model, providerId, modelId, maxInputChars } = resolved);
+    ({ model, providerId, modelId, maxInputChars, tier } = resolved);
   } catch (err) {
     return routingErrorResponse(err);
   }
@@ -142,6 +144,7 @@ export async function POST(
       insights,
       dataHash: currentHash,
       cached: false,
+      tier,
     });
   } catch (err) {
     console.warn(`[ai] Analytics insights generation failed for ${appId}:`, err);
@@ -162,6 +165,9 @@ export async function POST(
     }
     if (category === "action_exhausted") {
       return NextResponse.json({ error: "ai_action_exhausted" }, { status: 429 });
+    }
+    if (category === "device_conflict") {
+      return NextResponse.json({ error: "ai_device_conflict" }, { status: 409 });
     }
     if (category === "auth" || category === "permission") {
       return NextResponse.json({ error: "ai_auth_error" }, { status: 401 });

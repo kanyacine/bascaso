@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { useTranslations } from "@/lib/i18n/locale-context";
 import type { MessageKey } from "@/lib/i18n/messages";
 import { AI_ROUTED_GROUPS, type AIGroupId, type AITier } from "@/lib/ai/tasks";
+import { invalidateAIRouting } from "@/lib/hooks/use-ai-routing";
 
 export interface RoutingState {
   // keyed by the entries of AI_ROUTED_GROUPS
@@ -30,6 +31,10 @@ async function putRouting(body: unknown): Promise<boolean> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
+  // Invalidated here rather than at each of the three call sites: routing decides
+  // whether the cost hints across the app render at all, and a stale cache would
+  // leave them contradicting the toggle the user just moved.
+  if (res.ok) invalidateAIRouting();
   return res.ok;
 }
 

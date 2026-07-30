@@ -20,6 +20,7 @@ import { Stars } from "./review-summary";
 import { NON_ENGLISH_TERRITORIES } from "./territory-helpers";
 import type { Review } from "./territory-helpers";
 import { useTranslations } from "@/lib/i18n/locale-context";
+import { TokenCostHint } from "@/components/token-cost-hint";
 
 const MAX_RESPONSE_LENGTH = 5970;
 
@@ -173,6 +174,7 @@ export function ReplyDialog({
             {t("reviews.helpMeWrite")}
           </Button>
           <div className="flex items-center gap-2">
+            <TokenCostHint group="redaction" />
             <Button
               variant="outline"
               size="sm"

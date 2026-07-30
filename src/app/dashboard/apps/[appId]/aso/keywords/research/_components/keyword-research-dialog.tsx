@@ -55,6 +55,7 @@ import { FIELD_LIMITS, localeName } from "@/lib/asc/locale-names";
 import { storefrontCountryCode } from "@/lib/aso/storefront-country";
 import { storefrontLocales } from "@/lib/asc/storefronts";
 import { useTranslations } from "@/lib/i18n/locale-context";
+import { TokenCostHint } from "@/components/token-cost-hint";
 import type { MessageKey } from "@/lib/i18n/messages";
 import { aiErrorMessage, MANAGED_WORKFLOW_ERROR_CODES } from "@/lib/ai/ai-error";
 import { cn } from "@/lib/utils";
@@ -615,6 +616,7 @@ function FormView({
       )}
 
       <div className="flex items-center justify-end gap-2 pt-2">
+        <TokenCostHint group="workflows" />
         <Button variant="outline" onClick={onCancel}>
           {t("common.cancel")}
         </Button>

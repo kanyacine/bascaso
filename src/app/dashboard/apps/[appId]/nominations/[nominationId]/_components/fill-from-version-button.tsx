@@ -28,6 +28,8 @@ import type { AscLocalization } from "@/lib/asc/localizations";
 import type { NominationType } from "@/lib/asc/nominations";
 import { LIMITS, type NominationFormData } from "./nomination-constants";
 import { useTranslations } from "@/lib/i18n/locale-context";
+import { TokenCostHint } from "@/components/token-cost-hint";
+import { notifyManagedDebit } from "@/lib/ai/debit-toast";
 import { useAscLabels } from "@/lib/i18n/use-asc-labels";
 
 // ── Platform -> device family mapping ─────────────────────────────────
@@ -139,6 +141,7 @@ export function FillFromVersionButton({
 
       if (aiRes.ok) {
         const aiData = await aiRes.json();
+        void notifyManagedDebit(aiData.tier, t);
         const result = (aiData.result as string) ?? "";
         const newlineIdx = result.indexOf("\n");
         if (newlineIdx > 0) {
@@ -203,6 +206,9 @@ export function FillFromVersionButton({
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-72 p-0" align="start">
+          {/* Picking a version here is what fires the AI, so the cost belongs on the
+              popover rather than on the button that merely opens it. */}
+          <TokenCostHint group="metadata" className="mx-2 mt-2" />
           <Command>
             <CommandEmpty>{t("nominations.noVersionsFound")}</CommandEmpty>
             <CommandList>

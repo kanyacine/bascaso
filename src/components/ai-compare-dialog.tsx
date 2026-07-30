@@ -14,7 +14,9 @@ import {
 } from "@/components/ui/dialog";
 import { CharCount } from "@/components/char-count";
 import { useTranslations } from "@/lib/i18n/locale-context";
+import { TokenCostHint } from "@/components/token-cost-hint";
 import { aiErrorMessage } from "@/lib/ai/ai-error";
+import { notifyManagedDebit } from "@/lib/ai/debit-toast";
 
 interface AICompareDialogProps {
   open: boolean;
@@ -90,6 +92,7 @@ export function AICompareDialog({
             forKey: fetchKey,
           });
         } else {
+          void notifyManagedDebit(data.tier, t);
           setFetchResult({ proposed: data.result, error: null, forKey: fetchKey });
         }
       })
@@ -143,7 +146,8 @@ export function AICompareDialog({
             )}
           </div>
         </div>
-        <DialogFooter>
+        <DialogFooter className="sm:justify-between">
+          <TokenCostHint group="metadata" />
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t("ai.keepCurrent")}
           </Button>

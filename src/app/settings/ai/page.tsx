@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useMemo, useEffect, useCallback } from "react";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -22,6 +21,7 @@ import { ApiKeyInput } from "@/components/api-key-input";
 import { AppleFmOption, type AppleFmStatus } from "@/components/apple-fm-option";
 import { AppleFmLanguageOptions } from "@/components/apple-fm-language-options";
 import { AiRoutingSection, type RoutingState } from "@/components/settings/ai-routing-section";
+import { ManagedTierSection } from "@/components/settings/managed-tier-section";
 import { useTranslations } from "@/lib/i18n/locale-context";
 import {
   DEFAULT_LOCAL_OPENAI_BASE_URL,
@@ -534,6 +534,10 @@ export default function AISettingsPage() {
         )}
       </section>
 
+      {/* Managed AI – bascaso cloud. Between local and BYOK, in ascending order of
+          what the user has to set up themselves: nothing, an account, their own key. */}
+      <ManagedTierSection />
+
       {/* Cloud provider – bring your own key */}
       <section className="space-y-4">
         <h3 className="section-title">{t("settings.ai.byokSection")}</h3>
@@ -622,18 +626,6 @@ export default function AISettingsPage() {
           ) : (
             t("settings.ai.save")
           )}
-        </Button>
-      </section>
-
-      {/* IA managée – compte cloud bascaso */}
-      {/* Le compte cloud, le solde, les achats et l'abonnement vivaient ici, coincés
-          entre la config BYOK et le routage : un client ne trouvait pas où gérer son
-          abonnement. Ils ont leur propre onglet ; il ne reste que le renvoi. */}
-      <section className="space-y-2">
-        <h3 className="section-title">{t("settings.ai.managedSection")}</h3>
-        <p className="text-sm text-muted-foreground">{t("settings.ai.managedMovedHint")}</p>
-        <Button variant="outline" size="sm" asChild>
-          <Link href="/settings/account">{t("settings.ai.managedGoToAccount")}</Link>
         </Button>
       </section>
 

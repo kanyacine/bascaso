@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { toast } from "sonner";
 import { useTranslations } from "@/lib/i18n/locale-context";
 import { aiErrorMessage } from "@/lib/ai/ai-error";
+import { notifyManagedDebit } from "@/lib/ai/debit-toast";
 
 export interface BulkField {
   key: string;
@@ -70,11 +71,21 @@ export function useBulkAI({
   // instead of once per failing field.
   const runIdRef = useRef(0);
   const toastShownForRunRef = useRef<number | null>(null);
+  // Same reasoning as the failure toast, for the same reason: one run is ONE managed
+  // action (one actionId, one credit), however many locales and fields it translates.
+  // A per-response toast would announce N debits for a single one.
+  const debitNotifiedForRunRef = useRef<number | null>(null);
 
   function reportRunFailure(runId: number, errorCode: string | undefined) {
     if (toastShownForRunRef.current === runId) return;
     toastShownForRunRef.current = runId;
     toast.error(aiErrorMessage(errorCode, t) ?? t("errors.aiRequestFailed"));
+  }
+
+  function reportRunDebit(runId: number, tier: string | undefined) {
+    if (debitNotifiedForRunRef.current === runId) return;
+    debitNotifiedForRunRef.current = runId;
+    void notifyManagedDebit(tier, t);
   }
 
   function runCopy() {
@@ -145,6 +156,8 @@ export function useBulkAI({
         }
         if (!res.ok) {
           reportRunFailure(runId, data.error);
+        } else {
+          reportRunDebit(runId, data.tier);
         }
         setResults((prev) => ({
           ...prev,

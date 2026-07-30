@@ -32,6 +32,8 @@ export function aiErrorMessage(errorCode: string | undefined, t: Translate): str
       return t("errors.aiRateLimited");
     case "ai_action_exhausted":
       return t("errors.aiActionExhausted");
+    case "ai_device_conflict":
+      return t("errors.aiDeviceConflict");
     case "itunes_unavailable":
       return t("errors.itunesUnavailable");
     case "no_proposal":
@@ -51,6 +53,7 @@ export const MANAGED_ERROR_CODE_BY_CATEGORY: Partial<Record<AIErrorCategory, str
   credits: "ai_credits_exhausted",
   rate_limited: "ai_rate_limited",
   action_exhausted: "ai_action_exhausted",
+  device_conflict: "ai_device_conflict",
   auth: "ai_auth_error",
   permission: "ai_auth_error",
 };
