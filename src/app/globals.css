@@ -152,8 +152,12 @@
   }
 
   /* Managed account card – balance, packs and subscribe in one surface. */
+  /* Capped, not fluid: the AI settings page has no column of its own, so a
+     full-width card stretched to the window and dwarfed every field under it.
+     max-w-md matches that page's other fields and the top-up dialog, so the card
+     is the same object on all five surfaces. */
   .account-card {
-    @apply relative rounded-xl bg-card p-4;
+    @apply relative w-full max-w-md rounded-xl bg-card p-4;
     background-image: radial-gradient(
       120% 90% at 100% 0%,
       color-mix(in oklab, var(--color-violet-500) 7%, transparent),

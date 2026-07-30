@@ -65,4 +65,19 @@ describe("purchaseLanded", () => {
   it("does not land when the balance drops (a debit is not a purchase)", () => {
     expect(purchaseLanded({ balance: 5, subscribed: true }, { balance: 4, subscribed: true })).toBe(false);
   });
+
+  it("lands when a cancelled subscription goes back to renewing – the resubscribe case", () => {
+    const before = { balance: 5, subscribed: true, endsAt: "2026-08-29T00:00:00Z" };
+    expect(purchaseLanded(before, { balance: 5, subscribed: true, endsAt: null })).toBe(true);
+  });
+
+  it("does not land while the cancelled subscription still carries its end date", () => {
+    const before = { balance: 5, subscribed: true, endsAt: "2026-08-29T00:00:00Z" };
+    expect(purchaseLanded(before, { balance: 5, subscribed: true, endsAt: "2026-08-29T00:00:00Z" })).toBe(false);
+  });
+
+  it("does not read a subscription that simply expired as a resubscribe", () => {
+    const before = { balance: 5, subscribed: true, endsAt: "2026-08-29T00:00:00Z" };
+    expect(purchaseLanded(before, { balance: 5, subscribed: false, endsAt: null })).toBe(false);
+  });
 });

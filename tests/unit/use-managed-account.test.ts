@@ -14,7 +14,7 @@ describe("parseManagedAccount", () => {
     expect(parseManagedAccount(true, {
       email: "a@b.c", username: "Yacine", balance: 42,
       subscription: { status: "active", currentPeriodEnd: null },
-    })).toEqual({ email: "a@b.c", username: "Yacine", balance: 42, subscribed: true });
+    })).toEqual({ email: "a@b.c", username: "Yacine", balance: 42, subscribed: true, endsAt: null });
   });
   it("is null when signed out and defensively on odd bodies", () => {
     expect(parseManagedAccount(false, { error: "not_logged_in" })).toBeNull();
@@ -25,7 +25,24 @@ describe("parseManagedAccount", () => {
       email: "a@b.c", username: null,
       subscription: { status: "active", currentPeriodEnd: "2020-01-01T00:00:00Z" },
     });
-    expect(parsed).toEqual({ email: "a@b.c", username: null, balance: 0, subscribed: false });
+    expect(parsed).toEqual({ email: "a@b.c", username: null, balance: 0, subscribed: false, endsAt: null });
+  });
+  it("a cancelled but unexpired subscription stays subscribed and carries its end date", () => {
+    const parsed = parseManagedAccount(true, {
+      email: "a@b.c", username: null, balance: 0,
+      subscription: { status: "active", currentPeriodEnd: "2099-01-01T00:00:00Z", cancelAtPeriodEnd: true },
+    });
+    expect(parsed).toEqual({
+      email: "a@b.c", username: null, balance: 0, subscribed: true, endsAt: "2099-01-01T00:00:00Z",
+    });
+  });
+  it("ignores cancelAtPeriodEnd without a date – nothing to warn about", () => {
+    const parsed = parseManagedAccount(true, {
+      email: "a@b.c", username: null, balance: 0,
+      subscription: { status: "active", currentPeriodEnd: null, cancelAtPeriodEnd: true },
+    });
+    expect(parsed?.endsAt).toBeNull();
+    expect(parsed?.subscribed).toBe(true);
   });
 });
 

@@ -9,16 +9,18 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { useLocale, useTranslations } from "@/lib/i18n/locale-context";
+import { formatDate } from "@/lib/format";
 import { formatPrice } from "@/lib/managed/client";
 import {
   bestValueSku,
   EMPTY_CATALOG,
   perCreditAmount,
-  purchaseLanded,
   type Catalog,
   type PurchaseSnapshot,
 } from "@/lib/managed/catalog";
 import { invalidateManagedAccount, useManagedAccount } from "@/lib/hooks/use-managed-account";
+import { startPurchasePoll } from "@/lib/managed/purchase-poll";
+import { usePurchasePending } from "@/lib/hooks/use-purchase-pending";
 
 /** The one place the account is bought from: balance or subscription state on top,
  *  pack tiles and the subscribe CTA inline below – no intermediate dialog. Rendered
@@ -30,10 +32,13 @@ export function ManagedAccountCard() {
   const { locale } = useLocale();
   const { account } = useManagedAccount();
   const [catalog, setCatalog] = useState<Catalog | null>(null);
-  const [pending, setPending] = useState<PurchaseSnapshot | null>(null);
-
-  // One balance poller at a time (double purchase), stopped on unmount.
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Which checkout is being opened. Creating the Stripe session is a round trip of
+  // about a second, during which the old card did nothing at all – so the click read
+  // as ignored and got repeated.
+  const [openingSku, setOpeningSku] = useState<string | null>(null);
+  // Whether a purchase is waiting to land. Module state, not this component's: see
+  // purchase-poll.ts – the payment usually completes after this card is gone.
+  const pending = usePurchasePending();
   const mountedRef = useRef(true);
 
   // Fetched on mount: unlike the old dialog (mounted closed on signed-out pages),
@@ -51,29 +56,14 @@ export function ManagedAccountCard() {
     })();
     return () => {
       mountedRef.current = false;
-      if (pollRef.current) {
-        clearInterval(pollRef.current);
-        pollRef.current = null;
-      }
     };
   }, []);
-
-  // The post-purchase feedback the dialog never had: the poller refreshes the
-  // account, and the moment the purchase shows up the pending banner turns into
-  // a success toast.
-  useEffect(() => {
-    if (!pending || !account || !purchaseLanded(pending, account)) return;
-    setPending(null);
-    if (pollRef.current) {
-      clearInterval(pollRef.current);
-      pollRef.current = null;
-    }
-    toast.success(t("settings.account.purchaseLanded"));
-  }, [pending, account, t]);
 
   if (!account) return null;
 
   async function handleCheckout(sku: string, snapshot: PurchaseSnapshot) {
+    if (openingSku) return; // one checkout at a time – a double click opened two tabs
+    setOpeningSku(sku);
     try {
       const res = await fetch("/api/managed/checkout", {
         method: "POST",
@@ -89,23 +79,11 @@ export function ManagedAccountCard() {
       }
       const { url } = await res.json();
       window.open(url, "_blank"); // Electron routes _blank to the browser (setWindowOpenHandler)
-
-      setPending(snapshot);
-      // A second purchase before the first finishes replaces the running poller
-      // rather than stacking another one.
-      if (pollRef.current) clearInterval(pollRef.current);
-      let ticks = 0; // poll the balance for ~1 min after checkout opens
-      pollRef.current = setInterval(() => {
-        invalidateManagedAccount();
-        if (++ticks >= 6 && pollRef.current) {
-          clearInterval(pollRef.current);
-          pollRef.current = null;
-          // Poller gave up – back to idle without claiming success or failure.
-          setPending(null);
-        }
-      }, 10_000);
+      startPurchasePoll(snapshot, t);
     } catch {
       toast.error(t("common.networkError"));
+    } finally {
+      if (mountedRef.current) setOpeningSku(null);
     }
   }
 
@@ -124,8 +102,23 @@ export function ManagedAccountCard() {
     }
   }
 
-  const snapshot: PurchaseSnapshot = { balance: account.balance, subscribed: account.subscribed };
+  const snapshot: PurchaseSnapshot = {
+    balance: account.balance,
+    subscribed: account.subscribed,
+    endsAt: account.endsAt,
+  };
   const best = bestValueSku(catalog?.packs ?? []);
+  const opening = openingSku !== null;
+  /** Label of the subscribe / resubscribe CTA, including its in-flight state. */
+  const subscribeLabel = opening
+    ? t("settings.account.openingCheckout")
+    : account.endsAt
+      ? t("settings.account.resubscribe")
+      : catalog?.subscription
+        ? t("settings.account.subscribeWithPrice", {
+            price: formatPrice(catalog.subscription.amount, catalog.subscription.currency, locale),
+          })
+        : t("settings.account.subscribe");
 
   return (
     <div className="account-card">
@@ -143,7 +136,11 @@ export function ManagedAccountCard() {
           {account.subscribed ? (
             <>
               <InfinityIcon size={28} weight="bold" className="ml-auto" />
-              <p className="text-xs text-muted-foreground">{t("settings.account.unlimited")}</p>
+              <p className="text-xs text-muted-foreground">
+                {account.endsAt
+                  ? t("settings.account.endsOn", { date: formatDate(account.endsAt) })
+                  : t("settings.account.unlimited")}
+              </p>
             </>
           ) : (
             <>
@@ -154,7 +151,24 @@ export function ManagedAccountCard() {
         </div>
       </div>
 
-      {account.subscribed ? (
+      {account.subscribed && account.endsAt ? (
+        // Still honoured to the day it ends – so the card leads with getting the
+        // renewal back, and keeps the portal as the secondary action.
+        <div className="mt-4 space-y-2">
+          <p className="text-xs text-muted-foreground">{t("settings.account.renewalCancelled")}</p>
+          <Button
+            className="account-cta"
+            disabled={!catalog?.subscription || opening}
+            onClick={() => catalog?.subscription && void handleCheckout(catalog.subscription.sku, snapshot)}
+          >
+            {opening && <Spinner className="size-4" />}
+            {subscribeLabel}
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => void handlePortal()}>
+            {t("settings.account.manageSubscription")}
+          </Button>
+        </div>
+      ) : account.subscribed ? (
         <div className="mt-4 flex items-center justify-between gap-3">
           <p className="text-xs text-muted-foreground">{t("settings.account.subscriptionManagedHint")}</p>
           <Button variant="outline" size="sm" className="shrink-0" onClick={() => void handlePortal()}>
@@ -183,9 +197,14 @@ export function ManagedAccountCard() {
                 key={pack.sku}
                 variant="outline"
                 className="account-pack h-auto flex-col gap-1 py-3"
+                disabled={opening}
                 onClick={() => void handleCheckout(pack.sku, snapshot)}
               >
-                <span className="font-mono text-xl font-semibold tabular-nums">{pack.credits}</span>
+                {openingSku === pack.sku ? (
+                  <Spinner className="size-5" />
+                ) : (
+                  <span className="font-mono text-xl font-semibold tabular-nums">{pack.credits}</span>
+                )}
                 <span className="text-sm font-medium">{formatPrice(pack.amount, pack.currency, locale)}</span>
                 <span className="text-[11px] text-muted-foreground">
                   {t("settings.account.perCredit", {
@@ -203,14 +222,11 @@ export function ManagedAccountCard() {
           </div>
           <Button
             className="account-cta"
-            disabled={!catalog.subscription}
+            disabled={!catalog.subscription || opening}
             onClick={() => catalog.subscription && void handleCheckout(catalog.subscription.sku, snapshot)}
           >
-            {catalog.subscription
-              ? t("settings.account.subscribeWithPrice", {
-                  price: formatPrice(catalog.subscription.amount, catalog.subscription.currency, locale),
-                })
-              : t("settings.account.subscribe")}
+            {opening && <Spinner className="size-4" />}
+            {subscribeLabel}
           </Button>
           <p className="mt-2 text-xs text-muted-foreground">{t("settings.account.subscriptionHint")}</p>
         </>

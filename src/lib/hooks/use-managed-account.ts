@@ -6,12 +6,18 @@ export interface ManagedAccountInfo {
   username: string | null;
   balance: number;
   subscribed: boolean;
+  /** Set only for a subscription that is still active but will not renew: the date
+   *  it stops. Cancelling in the Stripe portal does not end the subscription, it
+   *  clears the renewal – so the app keeps honouring it until this date and says
+   *  when it runs out, rather than dropping the user to credits on the spot. */
+  endsAt: string | null;
 }
 
 /** Pure mapping from the /api/managed/me response – exported for tests. */
 export function parseManagedAccount(ok: boolean, body: unknown): ManagedAccountInfo | null {
   if (!ok || body === null || typeof body !== "object") return null;
   const b = body as { email?: unknown; username?: unknown; balance?: unknown; subscription?: unknown };
+  const sub = (b.subscription ?? null) as { cancelAtPeriodEnd?: unknown; currentPeriodEnd?: unknown } | null;
   // No email means no account to show, whatever else the body carries: a 200 without one
   // is a shape we do not recognise, and inventing a blank label for it would put an empty
   // row in the sidebar footer.
@@ -23,6 +29,12 @@ export function parseManagedAccount(ok: boolean, body: unknown): ManagedAccountI
     subscribed: isManagedSubscriptionActive(
       b.subscription as Parameters<typeof isManagedSubscriptionActive>[0],
     ),
+    // Only meaningful alongside an end date: "will not renew" with no date to show
+    // is a warning the UI cannot phrase, so it stays null and nothing is claimed.
+    endsAt:
+      sub?.cancelAtPeriodEnd === true && typeof sub.currentPeriodEnd === "string"
+        ? sub.currentPeriodEnd
+        : null,
   };
 }
 

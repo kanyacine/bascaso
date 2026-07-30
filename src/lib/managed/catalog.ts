@@ -46,11 +46,18 @@ export function perCreditAmount(pack: Pack): number {
 export interface PurchaseSnapshot {
   balance: number;
   subscribed: boolean;
+  /** End date of a subscription that will not renew, null when it renews normally.
+   *  Part of the snapshot because resubscribing is the one purchase that changes
+   *  neither the balance nor `subscribed` – it only clears this date. */
+  endsAt?: string | null;
 }
 
 /** Whether the purchase started at `before` has visibly landed: the balance rose
- *  (pack) or the subscription switched on. A dropping balance is a debit from a
- *  concurrent AI action, not a failed purchase. */
+ *  (pack), the subscription switched on, or a cancelled one went back to renewing
+ *  (resubscribe). A dropping balance is a debit from a concurrent AI action, not a
+ *  failed purchase. */
 export function purchaseLanded(before: PurchaseSnapshot, after: PurchaseSnapshot): boolean {
-  return after.balance > before.balance || (!before.subscribed && after.subscribed);
+  if (after.balance > before.balance) return true;
+  if (!before.subscribed && after.subscribed) return true;
+  return before.endsAt != null && after.endsAt == null && after.subscribed;
 }

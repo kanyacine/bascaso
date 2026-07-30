@@ -74,7 +74,9 @@ export function NavFooter() {
   // Same badge on the button and in the menu header – one expression, so the two can
   // never disagree about what the account is entitled to.
   const balanceBadge = account && (
-    <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">
+    // shrink-0: the row it sits in truncates, and without this the badge is what
+    // gives way – "55 jetons" rendered as a clipped "55 jeto".
+    <Badge variant="secondary" className="shrink-0 px-1.5 py-0 text-[10px]">
       {account.subscribed ? t("nav.subscribed") : t("nav.credits", { count: account.balance })}
     </Badge>
   );
@@ -125,8 +127,8 @@ export function NavFooter() {
                 <div className="grid flex-1 leading-tight">
                   <span className="truncate font-medium text-sm">{displayName}</span>
                   {!isDemo && account && (
-                    <span className="flex items-center gap-1.5 truncate text-xs text-muted-foreground">
-                      {accountDisplayName(account)}
+                    <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <span className="truncate">{accountDisplayName(account)}</span>
                       {balanceBadge}
                     </span>
                   )}
@@ -147,8 +149,8 @@ export function NavFooter() {
                 <>
                   <DropdownMenuLabel className="flex flex-col gap-0.5 font-normal">
                     <span className="truncate text-sm font-medium">{accountDisplayName(account)}</span>
-                    <span className="flex items-center gap-1.5 truncate text-xs text-muted-foreground">
-                      {account.email}
+                    <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <span className="truncate">{account.email}</span>
                       {balanceBadge}
                     </span>
                   </DropdownMenuLabel>
