@@ -4,7 +4,10 @@ import { errorJson, parseBody } from "@/lib/api-helpers";
 import { BASCASO_CLOUD_PUBLISHABLE_KEY, BASCASO_CLOUD_URL } from "@/lib/managed/config";
 import { getValidAccessToken } from "@/lib/managed/auth";
 
-const schema = z.object({ sku: z.enum(["pack_10", "pack_50", "pack_100", "sub_monthly"]) });
+// Format only, mirroring the CHECK on the cloud's skus table: the catalog of sellable
+// SKUs lives in that table, and hardcoding its keys here made every new pack wait for a
+// desktop release. The cloud answers unknown_sku for a well-formed sku it does not sell.
+const schema = z.object({ sku: z.string().regex(/^[a-z0-9_]{1,40}$/) });
 
 export async function POST(request: Request) {
   const token = await getValidAccessToken();

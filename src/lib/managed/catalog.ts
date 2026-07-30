@@ -10,11 +10,25 @@ export interface Pack {
    *  rather than serving it without one. */
   amount: number;
   currency: string;
+  /** Marketing badge ("−20 %") typed into the skus table – display only, never
+   *  arithmetic. Null when the pack carries no badge. */
+  discountPercent: number | null;
 }
 
+export interface Subscription {
+  sku: string;
+  amount: number;
+  currency: string;
+  /** Stripe recurring interval ("month", "year") – drives the price suffix. */
+  interval: string;
+}
+
+/** A list, not a single offer: the backend serves whatever subscription rows the
+ *  skus table holds (monthly/yearly, future tiers). One row renders exactly like
+ *  the old single-subscription card. */
 export interface Catalog {
   packs: Pack[];
-  subscription: { sku: string; amount: number; currency: string; interval: string } | null;
+  subscriptions: Subscription[];
 }
 
 /** Empty catalog, set when the request itself does not land.
@@ -23,7 +37,7 @@ export interface Catalog {
  *  anything had gone wrong. Empty is a result, not the absence of one, and it
  *  carries the same message as the empty catalog the backend returns when Stripe
  *  is down on its side. */
-export const EMPTY_CATALOG: Catalog = { packs: [], subscription: null };
+export const EMPTY_CATALOG: Catalog = { packs: [], subscriptions: [] };
 
 /** SKU of the pack with the lowest per-credit price – the one the card tags as
  *  best value. Null when there is nothing to compare (fewer than two priced

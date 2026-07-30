@@ -12,6 +12,7 @@ const pack = (sku: string, credits: number, amount: number): Pack => ({
   credits,
   amount,
   currency: "eur",
+  discountPercent: null,
 });
 
 describe("bestValueSku", () => {

@@ -17,6 +17,7 @@ import {
   perCreditAmount,
   type Catalog,
   type PurchaseSnapshot,
+  type Subscription,
 } from "@/lib/managed/catalog";
 import { invalidateManagedAccount, useManagedAccount } from "@/lib/hooks/use-managed-account";
 import { startPurchasePoll } from "@/lib/managed/purchase-poll";
@@ -115,17 +116,32 @@ export function ManagedAccountCard() {
   // Read outside subscribeLabel: a function body does not keep the non-null narrowing
   // the early return above gives `account`.
   const endsAt = account.endsAt;
-  /** Label of the subscribe / resubscribe CTA, including its own in-flight state. */
-  function subscribeLabel(subscription: Catalog["subscription"]): string {
+  const subscriptions = catalog?.subscriptions ?? [];
+  // The offer a resubscribe goes back to. First row wins: the table orders
+  // subscriptions by sort_order, so the primary offer is a data decision.
+  const primarySubscription: Subscription | undefined = subscriptions[0];
+
+  /** "/month" – "/year" suffix from the Stripe interval. An interval the locale
+   *  files do not know renders as the bare price rather than a broken key. */
+  function intervalSuffix(interval: string): string {
+    if (interval === "month") return t("settings.account.intervalMonth");
+    if (interval === "year") return t("settings.account.intervalYear");
+    return "";
+  }
+
+  /** Label of one subscribe CTA, including its own in-flight and resubscribe states.
+   *  Scoped to the button's sku: on the blanket `opening` a single click relabelled
+   *  every subscribe button in the list at once. */
+  function subscribeLabel(subscription: Subscription | undefined): string {
     if (subscription && openingSku === subscription.sku) {
       return t("settings.account.openingCheckout");
     }
     if (endsAt) return t("settings.account.resubscribe");
-    return subscription
-      ? t("settings.account.subscribeWithPrice", {
-          price: formatPrice(subscription.amount, subscription.currency, locale),
-        })
-      : t("settings.account.subscribe");
+    if (!subscription) return t("settings.account.subscribe");
+    return t("settings.account.subscribeWithPrice", {
+      price: formatPrice(subscription.amount, subscription.currency, locale),
+      interval: intervalSuffix(subscription.interval),
+    });
   }
 
   return (
@@ -166,11 +182,11 @@ export function ManagedAccountCard() {
           <p className="text-xs text-muted-foreground">{t("settings.account.renewalCancelled")}</p>
           <Button
             className="account-cta"
-            disabled={!catalog?.subscription || opening}
-            onClick={() => catalog?.subscription && void handleCheckout(catalog.subscription.sku, snapshot)}
+            disabled={!primarySubscription || opening}
+            onClick={() => primarySubscription && void handleCheckout(primarySubscription.sku, snapshot)}
           >
-            {openingSku === catalog?.subscription?.sku && <Spinner className="size-4" />}
-            {subscribeLabel(catalog?.subscription ?? null)}
+            {openingSku === primarySubscription?.sku && <Spinner className="size-4" />}
+            {subscribeLabel(primarySubscription)}
           </Button>
           <Button variant="outline" size="sm" onClick={() => void handlePortal()}>
             {t("settings.account.manageSubscription")}
@@ -189,7 +205,7 @@ export function ManagedAccountCard() {
           <p className="text-sm text-muted-foreground">{t("settings.account.pendingCheckout")}</p>
         </div>
       ) : catalog === null ? (
-        <div className="mt-4 grid grid-cols-3 gap-2">
+        <div className="account-pack-grid mt-4">
           <Skeleton className="h-20" />
           <Skeleton className="h-20" />
           <Skeleton className="h-20" />
@@ -199,7 +215,7 @@ export function ManagedAccountCard() {
       ) : (
         <>
           <p className="mt-3 text-xs text-muted-foreground">{t("settings.account.creditsHint")}</p>
-          <div className="mt-3 grid grid-cols-3 gap-2">
+          <div className="account-pack-grid mt-3">
             {catalog.packs.map((pack) => (
               <Button
                 key={pack.sku}
@@ -220,6 +236,11 @@ export function ManagedAccountCard() {
                   })}
                 </span>
                 {pack.sku === best && <Badge className="account-best">{t("settings.account.bestValue")}</Badge>}
+                {pack.discountPercent != null && (
+                  <Badge className="account-discount">
+                    {t("settings.account.discountBadge", { percent: pack.discountPercent })}
+                  </Badge>
+                )}
               </Button>
             ))}
           </div>
@@ -228,14 +249,25 @@ export function ManagedAccountCard() {
             <span className="text-xs text-muted-foreground">{t("settings.account.orDivider")}</span>
             <Separator className="flex-1" />
           </div>
-          <Button
-            className="account-cta"
-            disabled={!catalog.subscription || opening}
-            onClick={() => catalog.subscription && void handleCheckout(catalog.subscription.sku, snapshot)}
-          >
-            {openingSku === catalog.subscription?.sku && <Spinner className="size-4" />}
-            {subscribeLabel(catalog.subscription)}
-          </Button>
+          <div className="space-y-2">
+            {subscriptions.length === 0 ? (
+              <Button className="account-cta" disabled>
+                {subscribeLabel(undefined)}
+              </Button>
+            ) : (
+              subscriptions.map((subscription) => (
+                <Button
+                  key={subscription.sku}
+                  className="account-cta"
+                  disabled={opening}
+                  onClick={() => void handleCheckout(subscription.sku, snapshot)}
+                >
+                  {openingSku === subscription.sku && <Spinner className="size-4" />}
+                  {subscribeLabel(subscription)}
+                </Button>
+              ))
+            )}
+          </div>
           <p className="mt-2 text-xs text-muted-foreground">{t("settings.account.subscriptionHint")}</p>
         </>
       )}
