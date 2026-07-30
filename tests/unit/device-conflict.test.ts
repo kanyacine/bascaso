@@ -10,7 +10,11 @@ const t = (key: Parameters<typeof translate>[1], params?: Record<string, string 
 // files. Each hop is a place a code can be dropped silently, so each hop is pinned.
 describe("device_conflict plumbing", () => {
   it("classifies the proxy message by its verbatim code", () => {
-    expect(classifyAIError(new Error("device_conflict: compte abonné déjà utilisé"))).toBe("device_conflict");
+    // Verbatim message from ai-proxy's ERROR_PROSE, captured against a live stack.
+    // The classifier greps the code out of this string – error.code is never read.
+    expect(classifyAIError(new Error(
+      "device_conflict: compte abonné déjà en cours d'utilisation sur un autre appareil",
+    ))).toBe("device_conflict");
   });
   it("maps category → client code → localized message", () => {
     expect(MANAGED_ERROR_CODE_BY_CATEGORY.device_conflict).toBe("ai_device_conflict");
