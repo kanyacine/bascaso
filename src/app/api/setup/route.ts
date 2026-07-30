@@ -14,6 +14,11 @@ import {
   normalizeOpenAICompatibleBaseUrl,
   resolveLocalOpenAIApiKey,
 } from "@/lib/ai/local-provider";
+import {
+  APPLE_FM_MODEL_ID,
+  APPLE_FM_PROVIDER_ID,
+  getAppleFmStatus,
+} from "@/lib/ai/apple-fm";
 
 const setupSchema = z.object({
   // ASC credentials – required
@@ -21,12 +26,49 @@ const setupSchema = z.object({
   issuerId: z.string().min(1, "Issuer ID is required").trim(),
   keyId: z.string().min(1, "Key ID is required").trim(),
   privateKey: z.string().min(1, "Private key is required"),
-  // AI settings – optional
-  aiProvider: z.string().optional(),
-  aiModelId: z.string().optional(),
-  aiBaseUrl: z.string().optional(),
-  aiApiKey: z.string().optional(),
+  // AI settings – both optional, independently configurable
+  local: z
+    .discriminatedUnion("provider", [
+      z.object({ provider: z.literal("apple-fm") }),
+      z.object({
+        provider: z.literal("local-openai"),
+        modelId: z.string().trim().min(1),
+        baseUrl: z.string().trim().optional(),
+        apiKey: z.string().trim().optional(),
+      }),
+    ])
+    .optional(),
+  byok: z
+    .object({
+      provider: z.string().trim().min(1),
+      modelId: z.string().trim().min(1),
+      apiKey: z.string().trim().min(1),
+    })
+    .optional(),
 });
+
+function insertAiSettings(
+  tier: "local" | "byok",
+  provider: string,
+  modelId: string,
+  baseUrl: string | null,
+  apiKey: string,
+) {
+  const encrypted = encrypt(apiKey);
+  db.insert(aiSettings)
+    .values({
+      id: ulid(),
+      tier,
+      provider,
+      modelId,
+      baseUrl,
+      encryptedApiKey: encrypted.ciphertext,
+      iv: encrypted.iv,
+      authTag: encrypted.authTag,
+      encryptedDek: encrypted.encryptedDek,
+    })
+    .run();
+}
 
 export async function POST(request: Request) {
   // Check no active credentials exist (setup already done)
@@ -43,63 +85,64 @@ export async function POST(request: Request) {
     );
   }
 
-  // Validate input
   const parsed = await parseBody(request, setupSchema);
   if (parsed instanceof Response) return parsed;
-
   const data = parsed;
-  const aiProvider = data.aiProvider?.trim();
-  const aiModelId = data.aiModelId?.trim();
-  const aiApiKey = data.aiApiKey?.trim();
-  const aiBaseUrl = data.aiBaseUrl?.trim();
-  const isLocalProvider = aiProvider ? isLocalOpenAIProvider(aiProvider) : false;
 
-  let normalizedAiBaseUrl: string | null = null;
-  if (isLocalProvider) {
-    if (aiBaseUrl) {
-      normalizedAiBaseUrl = normalizeOpenAICompatibleBaseUrl(aiBaseUrl);
-      if (!normalizedAiBaseUrl) {
-        return NextResponse.json(
-          { error: "Invalid local server URL" },
-          { status: 400 },
-        );
-      }
-    } else {
-      normalizedAiBaseUrl = DEFAULT_LOCAL_OPENAI_BASE_URL;
+  // Validate everything before storing anything.
+  let normalizedLocalBaseUrl: string | null = null;
+  let resolvedLocalApiKey = "";
+  if (data.local?.provider === "local-openai") {
+    normalizedLocalBaseUrl = data.local.baseUrl
+      ? normalizeOpenAICompatibleBaseUrl(data.local.baseUrl)
+      : DEFAULT_LOCAL_OPENAI_BASE_URL;
+    if (!normalizedLocalBaseUrl) {
+      return NextResponse.json(
+        { error: "Invalid local server URL" },
+        { status: 400 },
+      );
+    }
+    resolvedLocalApiKey = resolveLocalOpenAIApiKey(data.local.apiKey);
+    const loadError = await ensureLocalModelLoaded(
+      data.local.modelId,
+      normalizedLocalBaseUrl,
+      resolvedLocalApiKey,
+    );
+    if (loadError) {
+      return NextResponse.json({ error: loadError }, { status: 422 });
+    }
+    const keyError = await validateApiKey(
+      data.local.provider,
+      data.local.modelId,
+      resolvedLocalApiKey,
+      normalizedLocalBaseUrl,
+    );
+    if (keyError) {
+      return NextResponse.json({ error: keyError }, { status: 422 });
+    }
+  } else if (data.local?.provider === "apple-fm") {
+    const status = await getAppleFmStatus();
+    if (!status.available) {
+      return NextResponse.json({ error: "apple_fm_unavailable" }, { status: 422 });
     }
   }
-
-  const resolvedAiApiKey =
-    isLocalProvider
-      ? resolveLocalOpenAIApiKey(aiApiKey)
-      : aiApiKey;
-
-  const hasAIConfig =
-    !!aiProvider &&
-    !!aiModelId &&
-    (!!resolvedAiApiKey || isLocalProvider);
-
-  // Validate AI key before saving anything
-  if (hasAIConfig) {
-    if (isLocalProvider) {
-      const loadError = await ensureLocalModelLoaded(
-        aiModelId!,
-        normalizedAiBaseUrl ?? undefined,
-        resolvedAiApiKey!,
+  if (data.byok) {
+    if (
+      isLocalOpenAIProvider(data.byok.provider) ||
+      data.byok.provider === APPLE_FM_PROVIDER_ID
+    ) {
+      return NextResponse.json(
+        { error: "BYOK requires a cloud provider" },
+        { status: 400 },
       );
-      if (loadError) {
-        return NextResponse.json({ error: loadError }, { status: 422 });
-      }
     }
-
-    const aiValidationError = await validateApiKey(
-      aiProvider!,
-      aiModelId!,
-      resolvedAiApiKey!,
-      normalizedAiBaseUrl ?? undefined,
+    const keyError = await validateApiKey(
+      data.byok.provider,
+      data.byok.modelId,
+      data.byok.apiKey,
     );
-    if (aiValidationError) {
-      return NextResponse.json({ error: aiValidationError }, { status: 422 });
+    if (keyError) {
+      return NextResponse.json({ error: keyError }, { status: 422 });
     }
   }
 
@@ -119,20 +162,21 @@ export async function POST(request: Request) {
     .run();
 
   // Store AI settings (already validated above)
-  if (hasAIConfig) {
-    const aiEncrypted = encrypt(resolvedAiApiKey!);
-    db.insert(aiSettings)
-      .values({
-        id: ulid(),
-        provider: aiProvider!,
-        modelId: aiModelId!,
-        baseUrl: normalizedAiBaseUrl,
-        encryptedApiKey: aiEncrypted.ciphertext,
-        iv: aiEncrypted.iv,
-        authTag: aiEncrypted.authTag,
-        encryptedDek: aiEncrypted.encryptedDek,
-      })
-      .run();
+  if (data.local?.provider === "apple-fm") {
+    // Same placeholder key as the settings route: AFM needs no key, but the
+    // row schema requires one.
+    insertAiSettings("local", APPLE_FM_PROVIDER_ID, APPLE_FM_MODEL_ID, null, "afm");
+  } else if (data.local?.provider === "local-openai") {
+    insertAiSettings(
+      "local",
+      data.local.provider,
+      data.local.modelId,
+      normalizedLocalBaseUrl,
+      resolvedLocalApiKey,
+    );
+  }
+  if (data.byok) {
+    insertAiSettings("byok", data.byok.provider, data.byok.modelId, null, data.byok.apiKey);
   }
 
   // Start background sync now that credentials are stored

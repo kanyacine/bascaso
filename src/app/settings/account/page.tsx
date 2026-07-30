@@ -2,17 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { CaretRight } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { ManagedAuthForm } from "@/components/managed-auth-form";
 import { useLocale, useTranslations } from "@/lib/i18n/locale-context";
 import {
-  authenticateManaged,
   formatPrice,
   isManagedSubscriptionActive,
-  managedAuthErrorMessage,
-  runWithBusyFlag,
-  verifyManagedSignup,
 } from "@/lib/managed/client";
 import { invalidateAIStatus } from "@/lib/hooks/use-ai-status";
 
@@ -45,23 +40,6 @@ export default function AccountSettingsPage() {
 
   const [info, setInfo] = useState<{ email: string; balance: number; subscribed: boolean } | null>(null);
   const [catalog, setCatalog] = useState<Catalog | null>(null);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [busy, setBusy] = useState(false);
-  // Message affiché sous le formulaire (déjà localisé) plutôt qu'un simple
-  // booléen – le message dépend du code d'erreur serveur, voir managedAuthErrorMessage.
-  const [error, setError] = useState<string | null>(null);
-  // Un signup accepté mais en attente de confirmation email bascule sur un
-  // 3e état de la carte : ni le formulaire de connexion, ni "connecté". Le
-  // modèle d'email en place n'a qu'un lien de confirmation (pas de code – le
-  // SMTP personnalisé qui portera {{ .Token }} arrive plus tard) : le chemin
-  // principal est donc "confirmez puis reconnectez-vous", et le code reste
-  // une alternative repliée, prête pour quand le modèle changera.
-  const [pendingConfirmation, setPendingConfirmation] = useState(false);
-  const [showCodeInput, setShowCodeInput] = useState(false);
-  const [code, setCode] = useState("");
-  const [verifyBusy, setVerifyBusy] = useState(false);
-  const [verifyError, setVerifyError] = useState(false);
 
   // Un seul poller de solde actif à la fois (double achat), coupé si la page est quittée.
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -117,54 +95,6 @@ export default function AccountSettingsPage() {
     if (info && !catalog) void refreshCatalog();
   }, [info, catalog, refreshCatalog]);
 
-  async function handleAuth(mode: "login" | "signup") {
-    setError(null);
-    await runWithBusyFlag(setBusy, async () => {
-      const result = await authenticateManaged(mode, email, password);
-      if (!result.ok) {
-        // 401 : message inline dédié au code serveur (compte déjà inscrit,
-        // quota d'emails dépassé, ou identifiants invalides – voir
-        // managedAuthErrorMessage). Échec réseau : toast générique, sinon
-        // l'utilisateur cherche une faute de frappe qui n'existe pas.
-        if (result.reason === "auth") setError(managedAuthErrorMessage(result.code, result.message, t));
-        else toast.error(t("common.networkError"));
-        return;
-      }
-      if (result.confirmationRequired) {
-        // On garde email/mot de passe en état : c'est ce qui permet au bouton
-        // "Je me suis confirmé" de retenter signIn sans les redemander.
-        setPendingConfirmation(true);
-        return;
-      }
-      signedOutRef.current = false;
-      setPendingConfirmation(false);
-      setShowCodeInput(false);
-      setPassword("");
-      setCode("");
-      invalidateAIStatus();
-      void refresh();
-    });
-  }
-
-  async function handleVerify() {
-    setVerifyError(false);
-    await runWithBusyFlag(setVerifyBusy, async () => {
-      const result = await verifyManagedSignup(email, code.trim());
-      if (!result.ok) {
-        if (result.reason === "auth") setVerifyError(true);
-        else toast.error(t("common.networkError"));
-        return;
-      }
-      signedOutRef.current = false;
-      setPendingConfirmation(false);
-      setShowCodeInput(false);
-      setPassword("");
-      setCode("");
-      invalidateAIStatus();
-      void refresh();
-    });
-  }
-
   async function handleSignOut() {
     // Empêche un tick de poll déjà en vol de repeupler info après coup.
     signedOutRef.current = true;
@@ -181,9 +111,6 @@ export default function AccountSettingsPage() {
     }
     setInfo(null);
     setCatalog(null);
-    setPendingConfirmation(false);
-    setShowCodeInput(false);
-    setCode("");
     invalidateAIStatus();
   }
 
@@ -250,75 +177,12 @@ export default function AccountSettingsPage() {
         <p className="text-sm text-muted-foreground">{t("settings.account.hint")}</p>
 
         {info === null ? (
-          pendingConfirmation ? (
-            <div className="max-w-[320px] space-y-3">
-              <p className="text-sm text-muted-foreground">
-                {t("settings.account.confirmHint", { email })}
-              </p>
-              {error && <p className="text-sm text-destructive">{error}</p>}
-              <Button disabled={busy} onClick={() => void handleAuth("login")}>
-                {t("settings.account.confirmSignIn")}
-              </Button>
-
-              <div>
-                <button
-                  type="button"
-                  onClick={() => setShowCodeInput((v) => !v)}
-                  className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-                  aria-expanded={showCodeInput}
-                >
-                  <CaretRight
-                    className={showCodeInput ? "rotate-90 transition-transform" : "transition-transform"}
-                  />
-                  {t("settings.account.confirmCodeToggle")}
-                </button>
-                {showCodeInput && (
-                  <div className="space-y-2 pt-2">
-                    <Input
-                      type="text"
-                      placeholder={t("settings.account.confirmCode")}
-                      value={code}
-                      onChange={(e) => setCode(e.target.value)}
-                    />
-                    {verifyError && (
-                      <p className="text-sm text-destructive">{t("settings.account.confirmFailed")}</p>
-                    )}
-                    <Button
-                      variant="outline"
-                      disabled={verifyBusy || !code.trim()}
-                      onClick={() => void handleVerify()}
-                    >
-                      {t("settings.account.confirmSubmit")}
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className="max-w-[320px] space-y-2">
-              <Input
-                type="email"
-                placeholder={t("settings.account.email")}
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-              <Input
-                type="password"
-                placeholder={t("settings.account.password")}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-              {error && <p className="text-sm text-destructive">{error}</p>}
-              <div className="flex gap-2">
-                <Button disabled={busy} onClick={() => void handleAuth("login")}>
-                  {t("settings.account.signIn")}
-                </Button>
-                <Button variant="outline" disabled={busy} onClick={() => void handleAuth("signup")}>
-                  {t("settings.account.signUp")}
-                </Button>
-              </div>
-            </div>
-          )
+          <ManagedAuthForm
+            onAuthenticated={() => {
+              signedOutRef.current = false;
+              void refresh();
+            }}
+          />
         ) : (
           <div className="space-y-3">
             <p className="text-sm">{t("settings.account.signedInAs", { email: info.email })}</p>

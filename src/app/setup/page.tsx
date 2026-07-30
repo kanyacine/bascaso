@@ -1,9 +1,12 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -14,8 +17,6 @@ import {
 import {
   AppStoreLogoIcon,
   CheckCircle,
-  Eye,
-  EyeSlash,
   IdentificationBadge,
   Info,
   Lock,
@@ -28,14 +29,21 @@ import { Spinner } from "@/components/ui/spinner";
 import { AI_PROVIDERS } from "@/lib/ai-providers";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LocalServerFields } from "@/components/local-server-fields";
+import { ManagedAuthForm } from "@/components/managed-auth-form";
+import { ApiKeyInput } from "@/components/api-key-input";
+import { AppleFmOption, type AppleFmStatus } from "@/components/apple-fm-option";
 import { clearNavigation } from "@/lib/nav-state";
-import {
-  DEFAULT_LOCAL_OPENAI_BASE_URL,
-  isLocalOpenAIProvider,
-} from "@/lib/ai/local-provider";
+import { isLocalOpenAIProvider } from "@/lib/ai/local-provider";
 import { useTranslations } from "@/lib/i18n/locale-context";
 
 const WIZARD_STEPS = 3;
+
+// Step 3 – AI. The "apple-fm" id is kept as a local literal (not imported from
+// `@/lib/ai/apple-fm`) – that module reads a Node state file and must never end
+// up in the client bundle.
+type LocalEngine = "apple-fm" | "local-server";
+const BYOK_PROVIDERS = AI_PROVIDERS.filter((p) => !isLocalOpenAIProvider(p.id));
+const DEFAULT_BYOK_PROVIDER = BYOK_PROVIDERS[0];
 
 export default function SetupPage() {
   const router = useRouter();
@@ -77,25 +85,63 @@ export default function SetupPage() {
   >("idle");
   const [testError, setTestError] = useState("");
 
-  // Step 3 – AI
-  const [providerId, setProviderId] = useState("anthropic");
-  const [modelId, setModelId] = useState("claude-sonnet-5");
-  const [baseUrl, setBaseUrl] = useState("");
-  const [apiKey, setApiKey] = useState("");
-  const [showKey, setShowKey] = useState(false);
+  // Step 3 – local model
+  const [localEngine, setLocalEngine] = useState<LocalEngine | "">("");
+  const [localBaseUrl, setLocalBaseUrl] = useState("");
+  const [localModelId, setLocalModelId] = useState("");
+  const [localApiKey, setLocalApiKey] = useState("");
+  const [appleFmStatus, setAppleFmStatus] = useState<AppleFmStatus | null>(null);
 
-  const provider = useMemo(
-    () => AI_PROVIDERS.find((p) => p.id === providerId)!,
-    [providerId],
+  // Step 3 – cloud
+  const [cloudTab, setCloudTab] = useState<"account" | "byok">("account");
+  const [managedEmail, setManagedEmail] = useState<string | null>(null);
+  const [byokProviderId, setByokProviderId] = useState(DEFAULT_BYOK_PROVIDER.id);
+  const [byokModelId, setByokModelId] = useState(DEFAULT_BYOK_PROVIDER.models[0].id);
+  const [byokApiKey, setByokApiKey] = useState("");
+
+  const byokProvider = useMemo(
+    () => BYOK_PROVIDERS.find((p) => p.id === byokProviderId) ?? DEFAULT_BYOK_PROVIDER,
+    [byokProviderId],
   );
 
-  function handleProviderChange(id: string) {
-    setProviderId(id);
-    const p = AI_PROVIDERS.find((p) => p.id === id)!;
-    setModelId(p.models[0].id);
-    setApiKey("");
-    setShowKey(false);
+  function handleByokProviderChange(id: string) {
+    setByokProviderId(id);
+    const p = BYOK_PROVIDERS.find((p) => p.id === id) ?? DEFAULT_BYOK_PROVIDER;
+    setByokModelId(p.models[0].id);
+    setByokApiKey("");
   }
+
+  // useCallback so the mount effect can list it as a dependency (same pattern
+  // as `refresh` in settings/account/page.tsx – keeps eslint exhaustive-deps happy).
+  const refreshManagedEmail = useCallback(
+    () =>
+      fetch("/api/managed/me")
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data) setManagedEmail(data.email);
+        })
+        // Cloud unreachable – the form stays visible, signing in will surface it.
+        .catch(() => {}),
+    [],
+  );
+
+  async function handleManagedSignOut() {
+    try {
+      await fetch("/api/managed/auth", { method: "DELETE" });
+    } catch {
+      // Local state resets regardless; a reload reflects the real server state.
+    }
+    setManagedEmail(null);
+  }
+
+  useEffect(() => {
+    fetch("/api/settings/ai/apple-fm-status")
+      .then((res) => res.json())
+      .then(setAppleFmStatus)
+      .catch(() => setAppleFmStatus({ available: false, reason: "sidecar_unreachable" }));
+    // A managed account can already exist if setup restarts mid-flight.
+    void refreshManagedEmail();
+  }, [refreshManagedEmail]);
 
   function resetConnectionTest() {
     setTestStatus("idle");
@@ -191,7 +237,7 @@ export default function SetupPage() {
     setSubmitting(true);
 
     try {
-      const body: Record<string, string> = {};
+      const body: Record<string, unknown> = {};
 
       // Include ASC credentials
       if (issuerId.trim() && keyId.trim() && privateKey.trim()) {
@@ -202,15 +248,23 @@ export default function SetupPage() {
       }
 
       // Include AI settings if provided
-      if (isLocalOpenAIProvider(providerId) && modelId.trim()) {
-        body.aiProvider = providerId;
-        body.aiModelId = modelId.trim();
-        body.aiBaseUrl = baseUrl.trim() || DEFAULT_LOCAL_OPENAI_BASE_URL;
-        if (apiKey.trim()) body.aiApiKey = apiKey.trim();
-      } else if (apiKey.trim()) {
-        body.aiProvider = providerId;
-        body.aiModelId = modelId;
-        body.aiApiKey = apiKey.trim();
+      if (localEngine === "apple-fm") {
+        body.local = { provider: "apple-fm" };
+      } else if (localEngine === "local-server" && localModelId.trim()) {
+        const local: Record<string, string> = {
+          provider: "local-openai",
+          modelId: localModelId.trim(),
+        };
+        if (localBaseUrl.trim()) local.baseUrl = localBaseUrl.trim();
+        if (localApiKey.trim()) local.apiKey = localApiKey.trim();
+        body.local = local;
+      }
+      if (byokApiKey.trim()) {
+        body.byok = {
+          provider: byokProviderId,
+          modelId: byokModelId,
+          apiKey: byokApiKey.trim(),
+        };
       }
 
       const res = await fetch("/api/setup", {
@@ -221,7 +275,11 @@ export default function SetupPage() {
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        toast.error(data.error || t("setup.setupFailed"));
+        if (data.error === "apple_fm_unavailable") {
+          toast.error(t("errors.appleFmUnavailable"));
+        } else {
+          toast.error(data.error || t("setup.setupFailed"));
+        }
         setSubmitting(false);
         return;
       }
@@ -512,77 +570,138 @@ export default function SetupPage() {
 
         {/* Step 3 – AI */}
         {step === 3 && (
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm text-muted-foreground">{t("setup.provider")}</label>
-              <Select value={providerId} onValueChange={handleProviderChange}>
-                <SelectTrigger className="w-full text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {AI_PROVIDERS.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            {isLocalOpenAIProvider(providerId) && (
-              <LocalServerFields
-                baseUrl={baseUrl}
-                onBaseUrlChange={setBaseUrl}
-                modelId={modelId}
-                onModelIdChange={setModelId}
-                apiKey={apiKey}
-                compact
-              />
-            )}
-            {!isLocalOpenAIProvider(providerId) && (
-              <div className="space-y-2">
-                <label className="text-sm text-muted-foreground">{t("setup.model")}</label>
-                <Select value={modelId} onValueChange={setModelId}>
-                  <SelectTrigger className="w-full text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {provider.models.map((m) => (
-                      <SelectItem key={m.id} value={m.id}>
-                        {m.name}
-                        <span className="ml-2 font-mono text-xs text-muted-foreground">
-                          {m.id}
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-            <div className="space-y-2">
-              <label className="text-sm text-muted-foreground">
-                {t("setup.apiKey")}{" "}
-                <span className="text-xs text-muted-foreground/60">{t("common.optional")}</span>
-              </label>
-              <div className="flex items-center gap-2">
-                <Input
-                  type={showKey ? "text" : "password"}
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  placeholder={isLocalOpenAIProvider(providerId)
-                    ? t("setup.apiKeyPlaceholderLocal")
-                    : t("setup.apiKeyPlaceholder")}
-                  className="font-mono text-sm"
+          <div className="space-y-6">
+            {/* Local model */}
+            <section className="space-y-3">
+              <h3 className="section-title">{t("setup.localTitle")}</h3>
+              <RadioGroup
+                value={localEngine}
+                onValueChange={(v) => setLocalEngine(v as LocalEngine)}
+              >
+                {/* Clicking the already-selected engine deselects it: radix does not
+                    fire onValueChange for the checked item, and on a fresh click the
+                    closure still holds the pre-change value, so the two handlers
+                    never fight. */}
+                <AppleFmOption
+                  id="setup-engine-apple-fm"
+                  status={appleFmStatus}
+                  disabled={!appleFmStatus?.available}
+                  onClick={() => {
+                    if (localEngine === "apple-fm") setLocalEngine("");
+                  }}
                 />
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="shrink-0"
-                  onClick={() => setShowKey(!showKey)}
-                >
-                  {showKey ? <EyeSlash size={16} /> : <Eye size={16} />}
-                </Button>
-              </div>
-            </div>
+                <div className="flex items-center gap-2">
+                  <RadioGroupItem
+                    value="local-server"
+                    id="setup-engine-server"
+                    onClick={() => {
+                      if (localEngine === "local-server") setLocalEngine("");
+                    }}
+                  />
+                  <Label htmlFor="setup-engine-server" className="text-sm font-normal">
+                    {t("settings.ai.local.server")}
+                  </Label>
+                </div>
+              </RadioGroup>
+              {localEngine === "local-server" && (
+                <>
+                  <LocalServerFields
+                    baseUrl={localBaseUrl}
+                    onBaseUrlChange={setLocalBaseUrl}
+                    modelId={localModelId}
+                    onModelIdChange={setLocalModelId}
+                    apiKey={localApiKey}
+                    compact
+                  />
+                  <div className="space-y-2">
+                    <label className="text-sm text-muted-foreground">
+                      {t("setup.apiKey")}{" "}
+                      <span className="text-xs text-muted-foreground/60">{t("common.optional")}</span>
+                    </label>
+                    <ApiKeyInput
+                      value={localApiKey}
+                      onChange={setLocalApiKey}
+                      placeholder={t("setup.apiKeyPlaceholderLocal")}
+                    />
+                  </div>
+                </>
+              )}
+            </section>
+
+            {/* Cloud */}
+            <section className="space-y-3">
+              <h3 className="section-title">{t("setup.cloudTitle")}</h3>
+              <Tabs value={cloudTab} onValueChange={(v) => setCloudTab(v as "account" | "byok")}>
+                <TabsList className="w-full">
+                  <TabsTrigger value="account" className="flex-1">
+                    {t("setup.tabAccount")}
+                  </TabsTrigger>
+                  <TabsTrigger value="byok" className="flex-1">
+                    {t("setup.tabByok")}
+                  </TabsTrigger>
+                </TabsList>
+                <TabsContent value="account" className="pt-2">
+                  {managedEmail ? (
+                    <div className="space-y-2">
+                      <p className="text-sm">
+                        {t("settings.account.signedInAs", { email: managedEmail })}
+                      </p>
+                      <Button variant="ghost" size="sm" onClick={() => void handleManagedSignOut()}>
+                        {t("settings.account.signOut")}
+                      </Button>
+                    </div>
+                  ) : (
+                    <ManagedAuthForm onAuthenticated={() => void refreshManagedEmail()} />
+                  )}
+                </TabsContent>
+                <TabsContent value="byok" className="space-y-4 pt-2">
+                  <div className="space-y-2">
+                    <label className="text-sm text-muted-foreground">{t("setup.provider")}</label>
+                    <Select value={byokProviderId} onValueChange={handleByokProviderChange}>
+                      <SelectTrigger className="w-full text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {BYOK_PROVIDERS.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm text-muted-foreground">{t("setup.model")}</label>
+                    <Select value={byokModelId} onValueChange={setByokModelId}>
+                      <SelectTrigger className="w-full text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {byokProvider.models.map((m) => (
+                          <SelectItem key={m.id} value={m.id}>
+                            {m.name}
+                            <span className="ml-2 font-mono text-xs text-muted-foreground">
+                              {m.id}
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm text-muted-foreground">
+                      {t("setup.apiKey")}{" "}
+                      <span className="text-xs text-muted-foreground/60">{t("common.optional")}</span>
+                    </label>
+                    <ApiKeyInput
+                      value={byokApiKey}
+                      onChange={setByokApiKey}
+                      placeholder={t("setup.apiKeyPlaceholder")}
+                    />
+                  </div>
+                </TabsContent>
+              </Tabs>
+            </section>
           </div>
         )}
 
