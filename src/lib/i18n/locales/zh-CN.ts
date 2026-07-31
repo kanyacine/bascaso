@@ -1467,6 +1467,7 @@ export const zhCN: Messages = {
     detailSearchesPerDay: "≈ {count} 次搜索/天",
     detailTopRank: "前 {rank} 名",
     detailBelowOne: "所有位置每天均不足一次下载。",
+    detailTruncated: "第 {from} 位及以后：每天不足一次下载。",
     detailPerDay: "{range}/天",
     detailAtRank: "在你的排名 #{rank}：{range}/天",
     detailNoDetails: "暂无详情 – 将在下次评分更新时刷新。",

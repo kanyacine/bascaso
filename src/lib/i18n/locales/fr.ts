@@ -1477,6 +1477,7 @@ export const fr: Messages = {
     detailSearchesPerDay: "≈ {count} recherches/jour",
     detailTopRank: "Top {rank}",
     detailBelowOne: "Moins d’un téléchargement par jour à toutes les positions.",
+    detailTruncated: "Position {from} et au-delà : moins d’un téléchargement par jour.",
     detailPerDay: "{range}/jour",
     detailAtRank: "À votre rang n°{rank} : {range}/jour",
     detailNoDetails: "Aucun détail enregistré pour l’instant – actualisé à la prochaine mise à jour du score.",

@@ -351,10 +351,15 @@ describe("/api/managed/*", () => {
   // ne doit jamais recevoir d'information sur le schéma d'entrée, même avec
   // un sku invalide. Doit rester rouge tant que checkout valide le sku
   // avant de vérifier le token.
+  //
+  // Le sku doit être refusé PAR LE SCHÉMA pour que ce test discrimine : "nope",
+  // écrit ici à l'origine contre un z.enum, est devenu valide le jour où l'enum a
+  // laissé place à la regex du catalogue, et le test passait au vert dans les deux
+  // ordres. "NOPE" (majuscules) échoue bien à la regex.
   it("checkout returns 401 when signed out, even with an invalid sku", async () => {
     auth.getValidAccessToken.mockResolvedValueOnce(null);
     const { POST } = await import("@/app/api/managed/checkout/route");
-    const res = await POST(post({ sku: "nope" }));
+    const res = await POST(post({ sku: "NOPE" }));
     expect(res.status).toBe(401);
     expect(await res.json()).toEqual({ error: "not_logged_in" });
   });

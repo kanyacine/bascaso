@@ -1477,6 +1477,7 @@ export const de: Messages = {
     detailSearchesPerDay: "≈ {count} Suchanfragen/Tag",
     detailTopRank: "Top {rank}",
     detailBelowOne: "Auf jeder Position weniger als ein Download pro Tag.",
+    detailTruncated: "Position {from} und darunter: weniger als ein Download pro Tag.",
     detailPerDay: "{range}/Tag",
     detailAtRank: "Bei Ihrem Rang #{rank}: {range}/Tag",
     detailNoDetails: "Noch keine Details gespeichert – wird bei der nächsten Score-Aktualisierung ergänzt.",

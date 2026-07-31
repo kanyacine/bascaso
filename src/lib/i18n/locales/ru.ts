@@ -1477,6 +1477,7 @@ export const ru: Messages = {
     detailSearchesPerDay: "≈ {count} запросов/день",
     detailTopRank: "Топ {rank}",
     detailBelowOne: "Менее одной загрузки в день на всех позициях.",
+    detailTruncated: "Позиция {from} и ниже: менее одной загрузки в день.",
     detailPerDay: "{range}/день",
     detailAtRank: "На вашем ранге №{rank}: {range}/день",
     detailNoDetails: "Подробностей пока нет – появятся при следующем обновлении оценки.",

@@ -326,45 +326,55 @@ function DownloadChart({
   }
 
   return (
-    <ChartContainer
-      config={DOWNLOAD_CHART_CONFIG}
-      className="aspect-auto min-h-24 w-full flex-1"
-      aria-label={label}
-    >
-      <BarChart data={shown} accessibilityLayer margin={{ top: 4, right: 4 }}>
-        <CartesianGrid vertical={false} />
-        <XAxis dataKey="pos" tickLine={false} axisLine={false} interval={0} tickMargin={4} />
-        <YAxis tickLine={false} axisLine={false} width={32} tickFormatter={fmt} />
-        <ChartTooltip
-          content={
-            <ChartTooltipContent
-              hideIndicator
-              labelFormatter={(_, payload) =>
-                t("keywords.detailTopRank", { rank: payload[0]?.payload.pos })
-              }
-              formatter={(_value, _name, item) => (
-                <span className="tabular-nums text-muted-foreground">
-                  {t("keywords.detailPerDay", {
-                    range: range(item.payload.downloadsLow, item.payload.downloadsHigh),
-                  })}
-                </span>
-              )}
-            />
-          }
-        />
-        <Bar dataKey="downloadsLow" stackId="d" fill="var(--color-downloadsLow)" />
-        {/* tooltipType none: the readout above already names the whole range, and a
-            second row reading "span 14" would mean nothing to the user. */}
-        <Bar
-          dataKey="span"
-          stackId="d"
-          fill="var(--color-span)"
-          radius={[2, 2, 0, 0]}
-          tooltipType="none"
-        />
-        {rank !== null && <ReferenceLine x={rank} stroke="var(--color-own)" strokeWidth={2} />}
-      </BarChart>
-    </ChartContainer>
+    <>
+      <ChartContainer
+        config={DOWNLOAD_CHART_CONFIG}
+        className="aspect-auto min-h-24 w-full flex-1"
+        aria-label={label}
+      >
+        <BarChart data={shown} accessibilityLayer margin={{ top: 4, right: 4 }}>
+          <CartesianGrid vertical={false} />
+          <XAxis dataKey="pos" tickLine={false} axisLine={false} interval={0} tickMargin={4} />
+          <YAxis tickLine={false} axisLine={false} width={32} tickFormatter={fmt} />
+          <ChartTooltip
+            content={
+              <ChartTooltipContent
+                hideIndicator
+                labelFormatter={(_, payload) =>
+                  t("keywords.detailTopRank", { rank: payload[0]?.payload.pos })
+                }
+                formatter={(_value, _name, item) => (
+                  <span className="tabular-nums text-muted-foreground">
+                    {t("keywords.detailPerDay", {
+                      range: range(item.payload.downloadsLow, item.payload.downloadsHigh),
+                    })}
+                  </span>
+                )}
+              />
+            }
+          />
+          <Bar dataKey="downloadsLow" stackId="d" fill="var(--color-downloadsLow)" />
+          {/* tooltipType none: the tooltip already names the whole range, and a second
+              row reading "span 14" would mean nothing to the user. */}
+          <Bar
+            dataKey="span"
+            stackId="d"
+            fill="var(--color-span)"
+            radius={[2, 2, 0, 0]}
+            tooltipType="none"
+          />
+          {rank !== null && <ReferenceLine x={rank} stroke="var(--color-own)" strokeWidth={2} />}
+        </BarChart>
+      </ChartContainer>
+      {/* The dropped positions are said out loud rather than left to be inferred from
+          an axis that stops early – a strip silently ending at 8 reads as "there are
+          only 8 positions", which is not what it means. */}
+      {shown.length < positions.length && (
+        <p className="text-xs text-muted-foreground">
+          {t("keywords.detailTruncated", { from: shown.length + 1 })}
+        </p>
+      )}
+    </>
   );
 }
 

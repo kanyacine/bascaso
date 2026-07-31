@@ -70,7 +70,7 @@ export async function POST(request: Request) {
     if (err instanceof ManagedAuthError) {
       // Code GoTrue (ex. "user_already_exists", "over_email_send_rate_limit")
       // quand disponible – le client s'en sert pour un message spécifique au
-      // cas plutôt que le générique "vérifiez identifiants" (voir authenticateManaged).
+      // cas plutôt que le générique "vérifiez identifiants" (voir postManagedAuth).
       return NextResponse.json({ error: err.message, code: err.code }, { status: 401 });
     }
     // Pas un ManagedAuthError : panne réseau ou bug interne en parlant au cloud

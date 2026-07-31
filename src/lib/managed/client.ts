@@ -159,7 +159,7 @@ type ManagedVerifyResult = { ok: true } | { ok: false; reason: "auth" | "network
 /**
  * Chemin secondaire de la confirmation par email : vérifie un code reçu par
  * l'utilisateur (quand le modèle d'email en contient un, plutôt qu'un simple
- * lien de confirmation). Même distinction auth/réseau qu'authenticateManaged.
+ * lien de confirmation). Même distinction auth/réseau que postManagedAuth.
  */
 export async function verifyManagedSignup(email: string, code: string): Promise<ManagedVerifyResult> {
   try {

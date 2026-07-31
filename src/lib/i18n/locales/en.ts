@@ -1475,6 +1475,7 @@ export const en = {
     detailSearchesPerDay: "≈ {count} searches/day",
     detailTopRank: "Top {rank}",
     detailBelowOne: "Under one download a day at every position.",
+    detailTruncated: "Position {from} and below: under one download a day.",
     detailPerDay: "{range}/day",
     detailAtRank: "At your rank #{rank}: {range}/day",
     detailNoDetails: "No detail stored yet – refreshes with the next score update.",
