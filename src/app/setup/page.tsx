@@ -333,8 +333,10 @@ export default function SetupPage() {
           the step's identity, so nothing that appears or disappears below is
           allowed to move it – the body absorbs every growth instead. The height
           cap keeps the wizard a centred card on a tall display rather than a
-          column of whitespace. */}
-      <div className="flex h-full max-h-[46rem] w-full max-w-md flex-col">
+          column of whitespace; it matches the window's minimum height, so the
+          tallest step (the account form) still shows its submit button without
+          scrolling on the smallest window we allow. */}
+      <div className="flex h-full max-h-[50rem] w-full max-w-md flex-col">
         <div className="shrink-0 space-y-8 pt-16 pb-6">
           {/* Logo */}
           <div className="flex flex-col items-center gap-3">
@@ -587,9 +589,8 @@ export default function SetupPage() {
                 {/* The pitch is for someone who has no account – it disappears the moment
                     they have one, rather than telling a signed-in user to sign up. */}
                 {!account && (
-                  <div className="space-y-1.5 rounded-lg bg-muted/50 px-3 py-2.5">
+                  <div className="rounded-lg bg-muted/50 px-3 py-2.5">
                     <p className="text-xs text-muted-foreground">{t("setup.cloudPitch")}</p>
-                    <p className="text-xs text-muted-foreground">{t("setup.cloudOptionalNote")}</p>
                   </div>
                 )}
                 {account ? (
