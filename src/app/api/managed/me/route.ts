@@ -72,7 +72,8 @@ export async function DELETE() {
     return NextResponse.json({ ok: true });
   } catch (err) {
     if (err instanceof ManagedAuthError) {
-      return NextResponse.json({ error: "delete_failed" }, { status: 502 });
+      // Forwarded, not flattened: cancel_failed leaves a billable subscription alive.
+      return NextResponse.json({ error: err.code ?? "delete_failed" }, { status: 502 });
     }
     return errorJson(err, 500, "Unable to reach bascaso cloud");
   }

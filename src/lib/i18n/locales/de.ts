@@ -89,6 +89,7 @@ export const de: Messages = {
       deleteConfirm: "{email} und alles, was daran hängt, wird endgültig gelöscht und ein laufendes Abonnement gekündigt. Restguthaben wird nicht erstattet. Die Daten auf diesem Mac bleiben erhalten.",
       deleteDone: "Konto gelöscht.",
       deleteFailed: "Löschen fehlgeschlagen – es wurde nichts gelöscht. Versuchen Sie es erneut oder wenden Sie sich an den Support.",
+      deleteCancelFailed: "Löschen fehlgeschlagen: Das Abonnement ist bei Stripe weiterhin aktiv, die Karte kann also weiter belastet werden. Es wurde nichts gelöscht – kündigen Sie es im Abrechnungsportal und versuchen Sie es erneut.",
     },
     aso: {
       downloads: "Download-Schätzungen",

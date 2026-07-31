@@ -87,6 +87,7 @@ export const en = {
       deleteConfirm: "{email} and everything attached to it is deleted for good, and any running subscription is cancelled. Remaining credits are not refunded. The data on this Mac stays where it is.",
       deleteDone: "Account deleted.",
       deleteFailed: "Deletion failed – nothing was deleted. Try again, or contact support.",
+      deleteCancelFailed: "Deletion failed: the subscription is still active on Stripe, so the card can still be charged. Nothing was deleted – cancel it from the billing portal, then try again.",
     },
     aso: {
       downloads: "Download estimates",

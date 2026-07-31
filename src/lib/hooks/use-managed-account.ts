@@ -2,6 +2,8 @@ import { useState, useEffect, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 import { useTranslations } from "@/lib/i18n/locale-context";
 import { isManagedSubscriptionActive } from "@/lib/managed/client";
+import { invalidateAIStatus } from "@/lib/hooks/use-ai-status";
+import { invalidateAIRouting } from "@/lib/hooks/use-ai-routing";
 
 export interface ManagedAccountInfo {
   email: string;
@@ -84,7 +86,15 @@ export function fetchManagedAccount(): Promise<ManagedAccountInfo | null> {
       // was revoked – not a user who signed out. The app used to fall silently back to
       // the signed-out UI, which reads as data loss: the balance vanishes, the AI
       // starts refusing, and nothing says why or what to do.
-      if (res.status === 401 && wasSignedIn) sessionExpired = true;
+      if (res.status === 401 && wasSignedIn) {
+        sessionExpired = true;
+        // Same invalidation an explicit sign-out does: the routing groups that read
+        // `managed` only because an account existed flip back server-side the moment
+        // it stops, so a cost badge left on a stale cache claims a credit for an
+        // action that now fails or reroutes.
+        invalidateAIStatus();
+        invalidateAIRouting();
+      }
       wasSignedIn = account !== null;
       // Only write back if nothing invalidated meanwhile: a response describing the
       // state we just invalidated would undo the refresh it was meant to trigger.

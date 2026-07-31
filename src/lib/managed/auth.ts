@@ -336,7 +336,13 @@ export async function deleteAccount(): Promise<void> {
   });
   // The local session is kept on failure, on purpose: clearing it would show a
   // signed-out app while the account and its subscription are still very much alive.
-  if (!res.ok) throw new ManagedAuthError("Account deletion failed");
+  if (!res.ok) {
+    // The two failures are not the same to the user: "cancel_failed" means the Stripe
+    // subscription is still live and the card can keep being charged, "delete_failed"
+    // is a plain retry. Collapsing them hides the one that costs money.
+    const code = await res.json().then((b) => b?.error).catch(() => undefined);
+    throw new ManagedAuthError("Account deletion failed", typeof code === "string" ? code : undefined);
+  }
   clearManagedSession();
 }
 

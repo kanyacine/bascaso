@@ -89,6 +89,7 @@ export const fr: Messages = {
       deleteConfirm: "{email} et tout ce qui y est rattaché sont supprimés définitivement, et tout abonnement en cours est résilié. Les jetons restants ne sont pas remboursés. Les données de ce Mac restent en place.",
       deleteDone: "Compte supprimé.",
       deleteFailed: "Échec de la suppression – rien n'a été supprimé. Réessayez ou contactez le support.",
+      deleteCancelFailed: "Échec de la suppression : l'abonnement est toujours actif chez Stripe, la carte peut donc continuer d'être débitée. Rien n'a été supprimé – résiliez-le depuis le portail de facturation, puis réessayez.",
     },
     aso: {
       downloads: "Estimations de téléchargements",

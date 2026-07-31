@@ -102,7 +102,14 @@ export default function AccountSettingsPage() {
       if (!res.ok) {
         // Nothing was deleted – the account and any subscription are still live, and
         // saying so beats leaving a signed-out screen over an account that still bills.
-        toast.error(t("settings.account.deleteFailed"));
+        // cancel_failed is the expensive one: Stripe still holds a live subscription,
+        // so the user is told to stop it in the portal rather than to just try again.
+        const code = await res.json().then((b) => b?.error).catch(() => undefined);
+        toast.error(
+          code === "cancel_failed"
+            ? t("settings.account.deleteCancelFailed")
+            : t("settings.account.deleteFailed"),
+        );
         return;
       }
       toast.success(t("settings.account.deleteDone"));

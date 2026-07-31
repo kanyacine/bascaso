@@ -89,6 +89,7 @@ export const zhCN: Messages = {
       deleteConfirm: "{email} 及其全部关联数据将被永久删除，进行中的订阅会被取消。剩余额度不予退款。这台 Mac 上的本地数据不受影响。",
       deleteDone: "账户已删除。",
       deleteFailed: "删除失败 – 未删除任何内容。请重试或联系支持。",
+      deleteCancelFailed: "删除失败：订阅在 Stripe 上仍处于活动状态，银行卡可能继续被扣款。未删除任何内容 – 请在账单门户中取消订阅后重试。",
     },
     aso: {
       downloads: "下载量预估",

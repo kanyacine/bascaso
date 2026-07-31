@@ -427,6 +427,27 @@ describe("managed auth (GoTrue REST)", () => {
     expect(getManagedSession()).not.toBeNull();
   });
 
+  // cancel_failed = l'abonnement Stripe est toujours vivant et la carte peut encore
+  // être débitée ; delete_failed = un simple réessai. Collapser les deux cacherait
+  // celui qui coûte de l'argent, donc le code remonte jusqu'à l'appelant.
+  it("deleteAccount forwards the cloud's failure code", async () => {
+    fetchMock.mockResolvedValueOnce(tokenResponse());
+    const { signIn, deleteAccount, ManagedAuthError } = await import("@/lib/managed/auth");
+    await signIn("a@b.c", "password123");
+    fetchMock.mockResolvedValueOnce({
+      ok: false, status: 500, json: () => Promise.resolve({ error: "cancel_failed" }),
+    });
+    await expect(deleteAccount()).rejects.toMatchObject({ code: "cancel_failed" });
+
+    // Un corps illisible ne doit pas faire échouer la lecture du code.
+    fetchMock.mockResolvedValueOnce({
+      ok: false, status: 500, json: () => Promise.reject(new Error("not json")),
+    });
+    const err = await deleteAccount().catch((e) => e);
+    expect(err).toBeInstanceOf(ManagedAuthError);
+    expect(err.code).toBeUndefined();
+  });
+
   it("treats an undecryptable stored session as signed out instead of throwing", async () => {
     const { saveManagedSession, getManagedSession } = await import("@/lib/managed/account");
     saveManagedSession({
