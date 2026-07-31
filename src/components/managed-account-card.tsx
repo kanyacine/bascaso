@@ -108,17 +108,25 @@ export function ManagedAccountCard() {
     endsAt: account.endsAt,
   };
   const best = bestValueSku(catalog?.packs ?? []);
+  // Every checkout button disables while one is in flight – but only the clicked one
+  // reports it. Keyed on the blanket flag, buying a credit pack flipped the unrelated
+  // subscribe CTA to a spinner and "Opening the payment page…".
   const opening = openingSku !== null;
-  /** Label of the subscribe / resubscribe CTA, including its in-flight state. */
-  const subscribeLabel = opening
-    ? t("settings.account.openingCheckout")
-    : account.endsAt
-      ? t("settings.account.resubscribe")
-      : catalog?.subscription
-        ? t("settings.account.subscribeWithPrice", {
-            price: formatPrice(catalog.subscription.amount, catalog.subscription.currency, locale),
-          })
-        : t("settings.account.subscribe");
+  // Read outside subscribeLabel: a function body does not keep the non-null narrowing
+  // the early return above gives `account`.
+  const endsAt = account.endsAt;
+  /** Label of the subscribe / resubscribe CTA, including its own in-flight state. */
+  function subscribeLabel(subscription: Catalog["subscription"]): string {
+    if (subscription && openingSku === subscription.sku) {
+      return t("settings.account.openingCheckout");
+    }
+    if (endsAt) return t("settings.account.resubscribe");
+    return subscription
+      ? t("settings.account.subscribeWithPrice", {
+          price: formatPrice(subscription.amount, subscription.currency, locale),
+        })
+      : t("settings.account.subscribe");
+  }
 
   return (
     <div className="account-card">
@@ -161,8 +169,8 @@ export function ManagedAccountCard() {
             disabled={!catalog?.subscription || opening}
             onClick={() => catalog?.subscription && void handleCheckout(catalog.subscription.sku, snapshot)}
           >
-            {opening && <Spinner className="size-4" />}
-            {subscribeLabel}
+            {openingSku === catalog?.subscription?.sku && <Spinner className="size-4" />}
+            {subscribeLabel(catalog?.subscription ?? null)}
           </Button>
           <Button variant="outline" size="sm" onClick={() => void handlePortal()}>
             {t("settings.account.manageSubscription")}
@@ -225,8 +233,8 @@ export function ManagedAccountCard() {
             disabled={!catalog.subscription || opening}
             onClick={() => catalog.subscription && void handleCheckout(catalog.subscription.sku, snapshot)}
           >
-            {opening && <Spinner className="size-4" />}
-            {subscribeLabel}
+            {openingSku === catalog.subscription?.sku && <Spinner className="size-4" />}
+            {subscribeLabel(catalog.subscription)}
           </Button>
           <p className="mt-2 text-xs text-muted-foreground">{t("settings.account.subscriptionHint")}</p>
         </>
