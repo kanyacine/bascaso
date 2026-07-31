@@ -1,8 +1,15 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { parseBody } from "@/lib/api-helpers";
-import { clearManagedSession } from "@/lib/managed/account";
-import { ManagedAuthError, signIn, signUp, verifySignup } from "@/lib/managed/auth";
+import {
+  ManagedAuthError,
+  requestPasswordReset,
+  resetPassword,
+  signIn,
+  signOut,
+  signUp,
+  verifySignup,
+} from "@/lib/managed/auth";
 
 // Union discriminée sur "mode" : login/signup exigent un mot de passe, verify
 // exige le code de confirmation reçu par email – des champs différents, donc
@@ -18,6 +25,15 @@ const schema = z.discriminatedUnion("mode", [
     username: z.string().trim().min(1).max(40),
   }),
   z.object({ mode: z.literal("verify"), email: z.string().email(), code: z.string().min(6) }),
+  // Password reset, in two steps: ask for the email, then hand back the code it
+  // carries along with the new password.
+  z.object({ mode: z.literal("recover"), email: z.string().email() }),
+  z.object({
+    mode: z.literal("reset"),
+    email: z.string().email(),
+    code: z.string().min(6),
+    password: z.string().min(8),
+  }),
 ]);
 
 export async function POST(request: Request) {
@@ -30,6 +46,17 @@ export async function POST(request: Request) {
     }
     if (parsed.mode === "verify") {
       const session = await verifySignup(parsed.email, parsed.code);
+      return NextResponse.json({ email: session.email });
+    }
+    if (parsed.mode === "recover") {
+      await requestPasswordReset(parsed.email);
+      // Says nothing about whether the address has an account – GoTrue answers the
+      // same either way, and so does this route: an endpoint that distinguished the
+      // two would tell anyone which emails are registered here.
+      return NextResponse.json({ ok: true });
+    }
+    if (parsed.mode === "reset") {
+      const session = await resetPassword(parsed.email, parsed.code, parsed.password);
       return NextResponse.json({ email: session.email });
     }
     // signup : confirmations désactivées → session directe (comme login) ;
@@ -54,7 +81,10 @@ export async function POST(request: Request) {
   }
 }
 
+/** Sign out. `revoked` reports whether the refresh token was actually killed on the
+ *  server; the local session is gone either way, and the client warns instead of
+ *  claiming a clean sign-out it cannot vouch for. */
 export async function DELETE() {
-  clearManagedSession();
-  return NextResponse.json({ ok: true });
+  const { revoked } = await signOut();
+  return NextResponse.json({ ok: true, revoked });
 }

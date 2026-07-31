@@ -43,11 +43,29 @@ export async function authenticateManaged(
   /** Required by the route for `signup`, ignored for `login`. */
   username?: string,
 ): Promise<ManagedAuthResult> {
+  return postManagedAuth(username ? { mode, email, password, username } : { mode, email, password });
+}
+
+/** Step one of the reset: ask for the email carrying the code. */
+export function requestManagedPasswordReset(email: string): Promise<ManagedAuthResult> {
+  return postManagedAuth({ mode: "recover", email });
+}
+
+/** Step two: the code plus the new password. Succeeds signed in. */
+export function resetManagedPassword(
+  email: string,
+  code: string,
+  password: string,
+): Promise<ManagedAuthResult> {
+  return postManagedAuth({ mode: "reset", email, code, password });
+}
+
+async function postManagedAuth(body: Record<string, string>): Promise<ManagedAuthResult> {
   try {
     const res = await fetch("/api/managed/auth", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(username ? { mode, email, password, username } : { mode, email, password }),
+      body: JSON.stringify(body),
     });
     // Un 5xx est une panne réseau/serveur en parlant au cloud managé (voir
     // route.ts), pas un problème d'identifiants – testé avant de lire le
@@ -96,12 +114,53 @@ export function managedAuthErrorMessage(
     // par IP, ce que produit un clic répété impatient sur « je me suis confirmé ».
     case "over_request_rate_limit":
       return t("settings.account.authTooManyRequests");
+    // Reset and email-change codes. Without them the default arm below would print
+    // GoTrue's raw English at a French user, at the one moment they are least able to
+    // guess what to do next.
+    case "otp_expired":
+      return t("settings.account.confirmFailed");
+    case "email_exists":
+      return t("settings.account.authUserExists");
+    case "weak_password":
+      return t("settings.account.authWeakPassword");
+    case "same_password":
+      return t("settings.account.authSamePassword");
     case "invalid_credentials":
     case undefined:
       return t("settings.account.authFailed");
     default:
       return message || t("settings.account.authFailed");
   }
+}
+
+/** Minimum password length, enforced identically by the zod schemas on both managed
+ *  routes. Exported so the checklist below and the server agree by construction – a
+ *  checklist that ticked green on a password the route rejects is exactly the kind of
+ *  lying validation this replaces. */
+export const MIN_PASSWORD_LENGTH = 8;
+
+export interface PasswordRule {
+  key: MessageKey;
+  ok: boolean;
+}
+
+/**
+ * The live checklist under a new-password field. Deliberately short: it lists what is
+ * actually enforced and nothing else. The old form claimed nothing until the server
+ * refused, then blamed the credentials for a password that was merely too short.
+ *
+ * `confirm` is part of it rather than a separate error line so that the two rules read
+ * as one gate – the button turns on exactly when both are green (see allRulesPass).
+ */
+export function passwordRules(password: string, confirm: string): PasswordRule[] {
+  return [
+    { key: "settings.account.ruleLength", ok: password.length >= MIN_PASSWORD_LENGTH },
+    { key: "settings.account.ruleMatch", ok: password.length > 0 && password === confirm },
+  ];
+}
+
+export function allRulesPass(rules: PasswordRule[]): boolean {
+  return rules.every((r) => r.ok);
 }
 
 type ManagedVerifyResult = { ok: true } | { ok: false; reason: "auth" | "network" };

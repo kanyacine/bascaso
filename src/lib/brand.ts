@@ -19,6 +19,10 @@ export const APP_BUNDLE_ID = "app.zavyn.bascaso";
 export const BRAND_SITE_URL = "https://zavyn.app";
 export const BRAND_REPO_URL = "https://github.com/kanyacine/bascaso";
 export const BRAND_ISSUES_URL = `${BRAND_REPO_URL}/issues/new`;
+/** Also the route for data subject requests – access, portability, erasure, objection –
+ *  published as such by PRIVACY.md. One mailbox rather than two: a second address nobody
+ *  reads is worse than a support queue that already exists, and the legal deadline
+ *  attaches to whichever address is published. */
 export const SUPPORT_EMAIL = "bascaso-support@zavyn.app";
 
 /** MCP server id – what the user types in their client config, and the key the
