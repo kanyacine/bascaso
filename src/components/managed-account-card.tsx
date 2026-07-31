@@ -132,12 +132,9 @@ export function ManagedAccountCard() {
   /** Label of one subscribe CTA, including its own in-flight and resubscribe states.
    *  Scoped to the button's sku: on the blanket `opening` a single click relabelled
    *  every subscribe button in the list at once. */
-  function subscribeLabel(subscription: Subscription | undefined): string {
-    if (subscription && openingSku === subscription.sku) {
-      return t("settings.account.openingCheckout");
-    }
+  function subscribeLabel(subscription: Subscription): string {
+    if (openingSku === subscription.sku) return t("settings.account.openingCheckout");
     if (endsAt) return t("settings.account.resubscribe");
-    if (!subscription) return t("settings.account.subscribe");
     return t("settings.account.subscribeWithPrice", {
       price: formatPrice(subscription.amount, subscription.currency, locale),
       interval: intervalSuffix(subscription.interval),
@@ -180,14 +177,18 @@ export function ManagedAccountCard() {
         // renewal back, and keeps the portal as the secondary action.
         <div className="mt-4 space-y-2">
           <p className="text-xs text-muted-foreground">{t("settings.account.renewalCancelled")}</p>
-          <Button
-            className="account-cta"
-            disabled={!primarySubscription || opening}
-            onClick={() => primarySubscription && void handleCheckout(primarySubscription.sku, snapshot)}
-          >
-            {openingSku === primarySubscription?.sku && <Spinner className="size-4" />}
-            {subscribeLabel(primarySubscription)}
-          </Button>
+          {/* No offer in the catalog, no CTA: with every subscription row inactive there is
+              nothing to resubscribe to, and a permanently disabled button reads as a bug. */}
+          {primarySubscription && (
+            <Button
+              className="account-cta"
+              disabled={opening}
+              onClick={() => void handleCheckout(primarySubscription.sku, snapshot)}
+            >
+              {openingSku === primarySubscription.sku && <Spinner className="size-4" />}
+              {subscribeLabel(primarySubscription)}
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={() => void handlePortal()}>
             {t("settings.account.manageSubscription")}
           </Button>
@@ -244,31 +245,32 @@ export function ManagedAccountCard() {
               </Button>
             ))}
           </div>
-          <div className="my-3 flex items-center gap-3">
-            <Separator className="flex-1" />
-            <span className="text-xs text-muted-foreground">{t("settings.account.orDivider")}</span>
-            <Separator className="flex-1" />
-          </div>
-          <div className="space-y-2">
-            {subscriptions.length === 0 ? (
-              <Button className="account-cta" disabled>
-                {subscribeLabel(undefined)}
-              </Button>
-            ) : (
-              subscriptions.map((subscription) => (
-                <Button
-                  key={subscription.sku}
-                  className="account-cta"
-                  disabled={opening}
-                  onClick={() => void handleCheckout(subscription.sku, snapshot)}
-                >
-                  {openingSku === subscription.sku && <Spinner className="size-4" />}
-                  {subscribeLabel(subscription)}
-                </Button>
-              ))
-            )}
-          </div>
-          <p className="mt-2 text-xs text-muted-foreground">{t("settings.account.subscriptionHint")}</p>
+          {/* The whole subscription block is data-driven: no active subscription row means
+              packs are the only offer, so the divider, the CTAs and the "unlimited actions"
+              hint all go with it rather than framing an empty section. */}
+          {subscriptions.length > 0 && (
+            <>
+              <div className="my-3 flex items-center gap-3">
+                <Separator className="flex-1" />
+                <span className="text-xs text-muted-foreground">{t("settings.account.orDivider")}</span>
+                <Separator className="flex-1" />
+              </div>
+              <div className="space-y-2">
+                {subscriptions.map((subscription) => (
+                  <Button
+                    key={subscription.sku}
+                    className="account-cta"
+                    disabled={opening}
+                    onClick={() => void handleCheckout(subscription.sku, snapshot)}
+                  >
+                    {openingSku === subscription.sku && <Spinner className="size-4" />}
+                    {subscribeLabel(subscription)}
+                  </Button>
+                ))}
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">{t("settings.account.subscriptionHint")}</p>
+            </>
+          )}
         </>
       )}
     </div>
