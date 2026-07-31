@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  authenticateManaged,
+  postManagedAuth,
   isManagedSubscriptionActive,
   managedAuthErrorMessage,
   runWithBusyFlag,
@@ -44,7 +44,7 @@ describe("runWithBusyFlag", () => {
   });
 });
 
-describe("authenticateManaged", () => {
+describe("postManagedAuth", () => {
   const fetchMock = vi.fn();
 
   beforeEach(() => {
@@ -58,13 +58,13 @@ describe("authenticateManaged", () => {
 
   it("returns ok on a successful response", async () => {
     fetchMock.mockResolvedValue({ ok: true, json: () => Promise.resolve({ email: "a@b.c" }) });
-    const result = await authenticateManaged("login", "a@b.co", "password123");
+    const result = await postManagedAuth({ mode: "login", email: "a@b.co", password: "password123" });
     expect(result).toEqual({ ok: true });
   });
 
   it("reports reason 'auth' on a 401 (bad credentials)", async () => {
     fetchMock.mockResolvedValue({ ok: false, status: 401 });
-    const result = await authenticateManaged("login", "a@b.co", "wrong-password");
+    const result = await postManagedAuth({ mode: "login", email: "a@b.co", password: "wrong-password" });
     expect(result).toEqual({ ok: false, reason: "auth" });
   });
 
@@ -78,7 +78,7 @@ describe("authenticateManaged", () => {
       status: 401,
       json: () => Promise.resolve({ error: "User already registered", code: "user_already_exists" }),
     });
-    const result = await authenticateManaged("signup", "a@b.co", "password123");
+    const result = await postManagedAuth({ mode: "signup", email: "a@b.co", password: "password123" });
     expect(result).toEqual({
       ok: false, reason: "auth", code: "user_already_exists", message: "User already registered",
     });
@@ -90,13 +90,13 @@ describe("authenticateManaged", () => {
       status: 401,
       json: () => Promise.reject(new Error("not json")),
     });
-    const result = await authenticateManaged("login", "a@b.co", "wrong-password");
+    const result = await postManagedAuth({ mode: "login", email: "a@b.co", password: "wrong-password" });
     expect(result).toEqual({ ok: false, reason: "auth" });
   });
 
   it("reports reason 'network' when the fetch itself throws", async () => {
     fetchMock.mockRejectedValue(new TypeError("Failed to fetch"));
-    const result = await authenticateManaged("login", "a@b.co", "password123");
+    const result = await postManagedAuth({ mode: "login", email: "a@b.co", password: "password123" });
     expect(result).toEqual({ ok: false, reason: "network" });
   });
 
@@ -110,7 +110,7 @@ describe("authenticateManaged", () => {
       status: 500,
       json: () => Promise.resolve({ error: "Unable to reach bascaso cloud" }),
     });
-    const result = await authenticateManaged("login", "a@b.co", "password123");
+    const result = await postManagedAuth({ mode: "login", email: "a@b.co", password: "password123" });
     expect(result).toEqual({ ok: false, reason: "network" });
   });
 
@@ -119,7 +119,7 @@ describe("authenticateManaged", () => {
   // branche "reason: auth" (ce n'est pas un échec d'identifiants).
   it("reports confirmationRequired when the server signals a pending email confirmation", async () => {
     fetchMock.mockResolvedValue({ ok: true, json: () => Promise.resolve({ confirmationRequired: true }) });
-    const result = await authenticateManaged("signup", "a@b.co", "password123");
+    const result = await postManagedAuth({ mode: "signup", email: "a@b.co", password: "password123" });
     expect(result).toEqual({ ok: true, confirmationRequired: true });
   });
 });
@@ -157,7 +157,7 @@ describe("verifyManagedSignup", () => {
     expect(result).toEqual({ ok: false, reason: "network" });
   });
 
-  // #4 du roll-up (relecture) : même correctif que authenticateManaged.
+  // #4 du roll-up (relecture) : même correctif que postManagedAuth.
   it("reports reason 'network' (not 'auth') on a 500 from the route", async () => {
     fetchMock.mockResolvedValue({ ok: false, status: 500 });
     const result = await verifyManagedSignup("a@b.co", "123456");

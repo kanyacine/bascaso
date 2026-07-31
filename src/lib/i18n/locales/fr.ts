@@ -1476,7 +1476,6 @@ export const fr: Messages = {
     detailDownloads: "Téléchargements estimés",
     detailSearchesPerDay: "≈ {count} recherches/jour",
     detailTopRank: "Top {rank}",
-    detailBarLabel: "Top {rank} : {range} téléchargements par jour",
     detailBelowOne: "Moins d’un téléchargement par jour à toutes les positions.",
     detailPerDay: "{range}/jour",
     detailAtRank: "À votre rang n°{rank} : {range}/jour",

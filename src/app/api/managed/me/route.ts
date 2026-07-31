@@ -1,29 +1,17 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { errorJson, parseBody } from "@/lib/api-helpers";
-import { BASCASO_CLOUD_PUBLISHABLE_KEY, BASCASO_CLOUD_URL } from "@/lib/managed/config";
+import { proxyCloud } from "@/lib/managed/proxy";
 import {
   changeEmail,
   changePassword,
   deleteAccount,
-  getValidAccessToken,
   ManagedAuthError,
   updateUsername,
 } from "@/lib/managed/auth";
 
-export async function GET() {
-  const token = await getValidAccessToken();
-  if (!token) return NextResponse.json({ error: "not_logged_in" }, { status: 401 });
-  try {
-    const res = await fetch(`${BASCASO_CLOUD_URL}/functions/v1/me`, {
-      headers: { Authorization: `Bearer ${token}`, apikey: BASCASO_CLOUD_PUBLISHABLE_KEY },
-    });
-    return NextResponse.json(await res.json(), { status: res.status });
-  } catch (err) {
-    // Panne réseau ou réponse non-JSON du backend managé – forme {error}
-    // du contrat docs/BACKEND.md plutôt que l'erreur Next générique.
-    return errorJson(err, 500, "Unable to reach bascaso cloud");
-  }
+export function GET() {
+  return proxyCloud("me");
 }
 
 // One field per request, discriminated: a username change, an email change and a

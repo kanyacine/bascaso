@@ -1,6 +1,7 @@
 "use client";
 
-import { Fragment, useState, type ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
+import { Bar, BarChart, CartesianGrid, ReferenceLine, XAxis, YAxis } from "recharts";
 import {
   Buildings,
   CaretRight,
@@ -18,6 +19,12 @@ import {
   type Icon,
 } from "@phosphor-icons/react";
 import { Badge } from "@/components/ui/badge";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart";
 import {
   Collapsible,
   CollapsibleContent,
@@ -282,24 +289,21 @@ function OpportunityCard({
   );
 }
 
-/** Downloads-by-position strip, 1–20; the app's own rank is highlighted. */
-// Same hue for both halves of a bar, as in respectaso: the conservative
-// estimate is solid, the optimistic extension above it barely tinted. The
-// user's own rank swaps purple for gold.
-const BAR_COLORS = {
-  low: "bg-purple-500",
-  high: "bg-purple-500/25",
-  ownLow: "bg-amber-400",
-  ownHigh: "bg-amber-400/35",
-} as const;
-
-// The plot grows into whatever height the row's tallest card imposes.
-const CHART_MIN_HEIGHT = 64;
+// Same hue for both halves of a bar, as in respectaso: the conservative estimate is
+// solid, the optimistic extension above it barely tinted. The app's own rank gets a
+// gold marker rather than a colour of its own – the bar keeps meaning one thing.
+// Literal oklch (purple-500 / amber-400) and not the --chart-N palette: those five are
+// spoken for by the analytics charts, and this one is not part of that set.
+const DOWNLOAD_CHART_CONFIG = {
+  downloadsLow: { color: "oklch(0.627 0.265 303.9)" },
+  span: { color: "oklch(0.627 0.265 303.9 / 25%)" },
+  own: { color: "oklch(0.828 0.189 84.429)" },
+} satisfies ChartConfig;
 
 /**
- * Daily downloads per search position: stacked low/high bars, a rank axis and
- * a hover readout. Positions whose optimistic estimate is below one download
- * are collapsed into a trailing "N+" marker instead of invisible bars.
+ * Daily downloads per search position: low/high stacked, the app's own rank marked.
+ * Positions whose optimistic estimate is below one download are dropped rather than
+ * drawn as invisible bars.
  */
 function DownloadChart({
   positions,
@@ -311,139 +315,56 @@ function DownloadChart({
   label: string;
 }) {
   const t = useTranslations();
-  const shown = positions.filter((p) => p.downloadsHigh >= 1);
-  const [hovered, setHovered] = useState<number | null>(null);
-  const top = positions[0];
-  const max = Math.max(top?.downloadsHigh ?? 0, 1);
-
-  // The readout falls back to the app's own rank, else the top position.
-  const readout =
-    positions.find((p) => p.pos === (hovered ?? rank)) ?? shown[0] ?? top;
-
-  // Ticks at the top position's conservative and optimistic estimates plus
-  // their midpoint; deduped so a zero-width range does not stack labels.
-  const mid = (top.downloadsLow + top.downloadsHigh) / 2;
-  const ticks = [...new Set([top.downloadsHigh, mid, top.downloadsLow, 0])];
+  // `span` is the optimistic estimate stacked on top of the conservative one, so the
+  // two segments read as one bar whose height is downloadsHigh.
+  const shown = positions
+    .filter((p) => p.downloadsHigh >= 1)
+    .map((p) => ({ ...p, span: p.downloadsHigh - p.downloadsLow }));
 
   if (shown.length === 0) {
     return <p className="text-xs text-muted-foreground">{t("keywords.detailBelowOne")}</p>;
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-1.5">
-      {/* Grid so the rank axis inherits the plot's column geometry exactly –
-          duplicating the widths by hand drifts by a few pixels. */}
-      <div className="grid min-h-0 flex-1 grid-cols-[auto_1fr] grid-rows-[1fr_auto] gap-x-1.5">
-        {/* Labels sit on their own value, so each lines up with its gridline.
-            The in-flow span only exists to give the column its width. */}
-        <div
-          className="relative text-right text-[10px] tabular-nums text-muted-foreground"
-          aria-hidden
-        >
-          <span className="invisible">{fmt(top.downloadsHigh)}</span>
-          {ticks.map((value) => (
-            <span
-              key={value}
-              className="absolute right-0 translate-y-1/2"
-              style={{ bottom: `${(value / max) * 100}%` }}
-            >
-              {fmt(value)}
-            </span>
-          ))}
-        </div>
-        <div
-          className="relative flex min-h-0 min-w-0 items-end gap-px border-b border-l"
-          style={{ minHeight: CHART_MIN_HEIGHT }}
-          role="group"
-          aria-label={label}
-        >
-          {/* Gridlines for every tick except the 0 baseline, which the
-              container's bottom border already draws. */}
-          {ticks
-            .filter((value) => value > 0)
-            .map((value) => (
-              <span
-                key={value}
-                aria-hidden
-                className="pointer-events-none absolute inset-x-0 border-t border-dashed border-muted-foreground/40"
-                style={{ bottom: `${(value / max) * 100}%` }}
-              />
-            ))}
-          {shown.map((p) => {
-            const own = p.pos === rank;
-            const lowShare = (p.downloadsLow / p.downloadsHigh) * 100;
-            return (
-              // Full-height hit area so the whole column is hoverable, not
-              // just the few pixels of a short bar.
-              <button
-                key={p.pos}
-                type="button"
-                aria-label={t("keywords.detailBarLabel", {
-                  rank: p.pos,
-                  range: range(p.downloadsLow, p.downloadsHigh),
-                })}
-                onMouseEnter={() => setHovered(p.pos)}
-                onMouseLeave={() => setHovered(null)}
-                onFocus={() => setHovered(p.pos)}
-                onBlur={() => setHovered(null)}
-                className={cn(
-                  "flex h-full flex-1 flex-col justify-end outline-none",
-                  hovered === p.pos && "bg-foreground/10",
-                )}
-              >
-                <span
-                  className="flex w-full flex-col justify-end"
-                  style={{ height: `${Math.max(3, (p.downloadsHigh / max) * 100)}%` }}
-                >
-                  <span
-                    className={cn(
-                      "w-full rounded-t-[2px]",
-                      own ? BAR_COLORS.ownHigh : BAR_COLORS.high,
-                    )}
-                    style={{ height: `${100 - lowShare}%` }}
-                  />
-                  <span
-                    className={cn("w-full", own ? BAR_COLORS.ownLow : BAR_COLORS.low)}
-                    style={{ height: `${lowShare}%` }}
-                  />
+    <ChartContainer
+      config={DOWNLOAD_CHART_CONFIG}
+      className="aspect-auto min-h-24 w-full flex-1"
+      aria-label={label}
+    >
+      <BarChart data={shown} accessibilityLayer margin={{ top: 4, right: 4 }}>
+        <CartesianGrid vertical={false} />
+        <XAxis dataKey="pos" tickLine={false} axisLine={false} interval={0} tickMargin={4} />
+        <YAxis tickLine={false} axisLine={false} width={32} tickFormatter={fmt} />
+        <ChartTooltip
+          content={
+            <ChartTooltipContent
+              hideIndicator
+              labelFormatter={(_, payload) =>
+                t("keywords.detailTopRank", { rank: payload[0]?.payload.pos })
+              }
+              formatter={(_value, _name, item) => (
+                <span className="tabular-nums text-muted-foreground">
+                  {t("keywords.detailPerDay", {
+                    range: range(item.payload.downloadsLow, item.payload.downloadsHigh),
+                  })}
                 </span>
-              </button>
-            );
-          })}
-          {shown.length < positions.length && (
-            <span className="shrink-0 self-end pl-1 text-[10px] tabular-nums text-muted-foreground">
-              {shown.length + 1}+
-            </span>
-          )}
-        </div>
-        {/* Rank axis: second grid row, so it shares the plot's column. pl-px
-            offsets the plot's left border. */}
-        <div aria-hidden />
-        <div className="flex min-w-0 gap-px pt-0.5 pl-px text-[10px] tabular-nums text-muted-foreground">
-          {shown.map((p) => (
-            <span key={p.pos} className="flex-1 text-center">
-              {p.pos}
-            </span>
-          ))}
-          {/* Same text as the "N+" marker, so the rank labels stay aligned. */}
-          {shown.length < positions.length && (
-            <span aria-hidden className="pl-1 opacity-0">
-              {shown.length + 1}+
-            </span>
-          )}
-        </div>
-      </div>
-      <p className="flex items-baseline justify-between gap-2 rounded-md bg-muted/60 px-2 py-1 text-xs">
-        <span className="font-medium">
-          {t("keywords.detailTopRank", { rank: readout.pos })}
-        </span>
-        <span className="tabular-nums text-muted-foreground">
-          {t("keywords.detailPerDay", {
-            range: range(readout.downloadsLow, readout.downloadsHigh),
-          })}
-        </span>
-      </p>
-    </div>
+              )}
+            />
+          }
+        />
+        <Bar dataKey="downloadsLow" stackId="d" fill="var(--color-downloadsLow)" />
+        {/* tooltipType none: the readout above already names the whole range, and a
+            second row reading "span 14" would mean nothing to the user. */}
+        <Bar
+          dataKey="span"
+          stackId="d"
+          fill="var(--color-span)"
+          radius={[2, 2, 0, 0]}
+          tooltipType="none"
+        />
+        {rank !== null && <ReferenceLine x={rank} stroke="var(--color-own)" strokeWidth={2} />}
+      </BarChart>
+    </ChartContainer>
   );
 }
 

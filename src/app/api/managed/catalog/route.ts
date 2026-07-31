@@ -1,22 +1,10 @@
-import { NextResponse } from "next/server";
-import { errorJson } from "@/lib/api-helpers";
-import { BASCASO_CLOUD_PUBLISHABLE_KEY, BASCASO_CLOUD_URL } from "@/lib/managed/config";
-import { getValidAccessToken } from "@/lib/managed/auth";
+import { proxyCloud } from "@/lib/managed/proxy";
 
 /** Pack and subscription prices, read from Stripe by the cloud backend.
  *
  *  The client used to carry them as literals marked "indicative, non-definitive",
  *  which meant the price a customer saw on the button and the price Stripe
  *  actually charged were two independent values that nothing kept in step. */
-export async function GET() {
-  const token = await getValidAccessToken();
-  if (!token) return NextResponse.json({ error: "not_logged_in" }, { status: 401 });
-  try {
-    const res = await fetch(`${BASCASO_CLOUD_URL}/functions/v1/catalog`, {
-      headers: { Authorization: `Bearer ${token}`, apikey: BASCASO_CLOUD_PUBLISHABLE_KEY },
-    });
-    return NextResponse.json(await res.json(), { status: res.status });
-  } catch (err) {
-    return errorJson(err, 500, "Unable to reach bascaso cloud");
-  }
+export function GET() {
+  return proxyCloud("catalog");
 }

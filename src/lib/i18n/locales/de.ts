@@ -1476,7 +1476,6 @@ export const de: Messages = {
     detailDownloads: "Geschätzte Downloads",
     detailSearchesPerDay: "≈ {count} Suchanfragen/Tag",
     detailTopRank: "Top {rank}",
-    detailBarLabel: "Top {rank}: {range} Downloads pro Tag",
     detailBelowOne: "Auf jeder Position weniger als ein Download pro Tag.",
     detailPerDay: "{range}/Tag",
     detailAtRank: "Bei Ihrem Rang #{rank}: {range}/Tag",
