@@ -119,6 +119,10 @@ export function ReplyDialog({
                       : translated
                         ? t("reviews.showOriginal")
                         : t("reviews.translate")}
+                    {/* toggling a cached translation is free – only the first call debits */}
+                    {!translations[replyTarget.id] && (
+                      <TokenCostHint group="metadata" variant="mini" />
+                    )}
                   </button>
                 )}
               </div>
@@ -145,6 +149,7 @@ export function ReplyDialog({
                   <Translate size={12} />
                 )}
                 {translatingReply ? t("reviews.translating") : t("reviews.translateReply")}
+                <TokenCostHint group="metadata" variant="mini" />
               </button>
             ) : (
               <span />
@@ -172,9 +177,9 @@ export function ReplyDialog({
               <MagicWand size={14} className="mr-1.5" />
             )}
             {t("reviews.helpMeWrite")}
+            <TokenCostHint group="redaction" variant="button" />
           </Button>
           <div className="flex items-center gap-2">
-            <TokenCostHint group="redaction" />
             <Button
               variant="outline"
               size="sm"

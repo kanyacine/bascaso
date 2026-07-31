@@ -10,6 +10,7 @@ import { AIRequiredDialog } from "@/components/ai-required-dialog";
 import { FixAllDialog } from "./fix-all-dialog";
 import type { StorefrontAnalysis } from "./keyword-analysis";
 import { useTranslations } from "@/lib/i18n/locale-context";
+import { TokenCostHint } from "@/components/token-cost-hint";
 
 interface OverviewCardProps {
   analysis: StorefrontAnalysis;
@@ -125,6 +126,8 @@ export function OverviewCard({
             >
               <MagicWand size={14} className="mr-1.5" />
               {t("keywords.fixAllIssues")}
+              {/* the fix runs as soon as the dialog opens, so the cost belongs here */}
+              <TokenCostHint group="metadata" variant="button" className="ml-1.5" />
             </Button>
           )}
         </CardContent>

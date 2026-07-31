@@ -12,13 +12,14 @@ import {
   ThumbsDown,
   TrendUp,
   Lightbulb,
+  MagicWand,
 } from "@phosphor-icons/react";
 import { toast } from "sonner";
 import { useAIStatus } from "@/lib/hooks/use-ai-status";
 import { useInsightsPanel } from "@/lib/insights-panel-context";
 import { readReviewsPlatform, REVIEWS_PLATFORM_CHANGE } from "@/components/layout/header-version-picker";
 import { useTranslations } from "@/lib/i18n/locale-context";
-import { TokenCostHint } from "@/components/token-cost-hint";
+import { TokenCostHint, willChargeToken } from "@/components/token-cost-hint";
 import { notifyManagedDebit } from "@/lib/ai/debit-toast";
 
 // ── Review insights ─────────────────────────────────────────────────
@@ -40,6 +41,7 @@ function ReviewInsightsContent({
   const { configured: aiConfigured } = useAIStatus();
   const [insights, setInsights] = useState<ReviewInsights | null>(null);
   const [loading, setLoading] = useState(false);
+  const [needsGenerate, setNeedsGenerate] = useState(false);
   const [hasNewReviews, setHasNewReviews] = useState(false);
   const [cachedReviewCount, setCachedReviewCount] = useState<number | null>(null);
   const [currentReviewCount, setCurrentReviewCount] = useState<number | null>(null);
@@ -55,6 +57,7 @@ function ReviewInsightsContent({
 
     setLoading(true);
     onLoading(true);
+    setNeedsGenerate(false);
     setHasNewReviews(false);
     try {
       const pq = platformQuery();
@@ -102,7 +105,14 @@ function ReviewInsightsContent({
       // Cache miss
     }
 
-    if (aiConfigured) generate();
+    if (!aiConfigured) return;
+    // Auto-generate only when the run is free. When it would debit a credit, stop
+    // and ask – opening a panel must never silently spend money.
+    if (await willChargeToken("insights")) {
+      setNeedsGenerate(true);
+      return;
+    }
+    generate();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appId, generate, aiConfigured]);
 
@@ -112,6 +122,7 @@ function ReviewInsightsContent({
       setInsights(null);
       setCachedReviewCount(null);
       setCurrentReviewCount(null);
+      setNeedsGenerate(false);
       setHasNewReviews(false);
       fetchCachedAndAutoGenerate();
     }
@@ -123,6 +134,7 @@ function ReviewInsightsContent({
       setInsights(null);
       setCachedReviewCount(null);
       setCurrentReviewCount(null);
+      setNeedsGenerate(false);
       setHasNewReviews(false);
       fetchedForApp.current = null;
       fetchCachedAndAutoGenerate();
@@ -143,7 +155,12 @@ function ReviewInsightsContent({
     return <LoadingState label={t("insights.analysingReviews")} />;
   }
 
-  if (!insights) return null;
+  if (!insights) {
+    if (needsGenerate) {
+      return <GenerateState context="reviews" onGenerate={() => generate()} />;
+    }
+    return null;
+  }
 
   return (
     <div className="space-y-5">
@@ -151,7 +168,7 @@ function ReviewInsightsContent({
       {hasNewReviews && newReviewCount > 0 && (
         <button
           type="button"
-          className="flex w-full items-center justify-between rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700 transition-colors hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-300 dark:hover:bg-blue-900"
+          className="flex w-full items-center justify-between gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700 transition-colors hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-300 dark:hover:bg-blue-900"
           onClick={() => generate()}
         >
           <span>
@@ -159,7 +176,10 @@ function ReviewInsightsContent({
               ? t("insights.newReviews", { count: newReviewCount })
               : t("insights.newReviewsPlural", { count: newReviewCount })}
           </span>
-          <ArrowsClockwise size={12} />
+          <span className="flex shrink-0 items-center gap-1.5">
+            <TokenCostHint group="insights" variant="mini" />
+            <ArrowsClockwise size={12} />
+          </span>
         </button>
       )}
 
@@ -215,7 +235,6 @@ function ReviewInsightsContent({
 
       {/* Footer */}
       <div className="flex items-center justify-between border-t pt-3">
-        <TokenCostHint group="insights" />
         <p className="text-[11px] text-muted-foreground">
           {cachedReviewCount == null
             ? t("insights.basedOnReviews", { count: "–" })
@@ -223,16 +242,20 @@ function ReviewInsightsContent({
               ? t("insights.basedOnReviews", { count: cachedReviewCount })
               : t("insights.basedOnReviewsPlural", { count: cachedReviewCount })}
         </p>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-6 text-muted-foreground"
-          onClick={() => generate(true)}
-          disabled={loading}
-          title={t("insights.regenerate")}
-        >
-          <ArrowsClockwise size={12} />
-        </Button>
+        {/* Chip beside the refresh button: regenerating is what debits. */}
+        <div className="flex items-center gap-1.5">
+          <TokenCostHint group="insights" variant="mini" />
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-6 text-muted-foreground"
+            onClick={() => generate(true)}
+            disabled={loading}
+            title={t("insights.regenerate")}
+          >
+            <ArrowsClockwise size={12} />
+          </Button>
+        </div>
       </div>
     </div>
   );
@@ -256,6 +279,7 @@ function AnalyticsInsightsContent({
   const { configured: aiConfigured } = useAIStatus();
   const [insights, setInsights] = useState<AnalyticsInsights | null>(null);
   const [loading, setLoading] = useState(false);
+  const [needsGenerate, setNeedsGenerate] = useState(false);
   const fetchedForApp = useRef<string | null>(null);
 
   const generate = useCallback(async (force = false) => {
@@ -263,6 +287,7 @@ function AnalyticsInsightsContent({
 
     setLoading(true);
     onLoading(true);
+    setNeedsGenerate(false);
     try {
       const url = `/api/apps/${appId}/analytics/insights${force ? "?force=1" : ""}`;
       const res = await fetch(url, { method: "POST" });
@@ -297,13 +322,20 @@ function AnalyticsInsightsContent({
       // Cache miss
     }
 
-    if (aiConfigured) generate();
+    if (!aiConfigured) return;
+    // Same consent gate as the reviews panel: never auto-spend a credit.
+    if (await willChargeToken("insights")) {
+      setNeedsGenerate(true);
+      return;
+    }
+    generate();
   }, [appId, generate, aiConfigured]);
 
   useEffect(() => {
     if (fetchedForApp.current !== appId) {
       fetchedForApp.current = appId;
       setInsights(null);
+      setNeedsGenerate(false);
       fetchCachedAndAutoGenerate();
     }
   }, [appId, fetchCachedAndAutoGenerate]);
@@ -316,7 +348,12 @@ function AnalyticsInsightsContent({
     return <LoadingState label={t("insights.analysingData")} />;
   }
 
-  if (!insights) return null;
+  if (!insights) {
+    if (needsGenerate) {
+      return <GenerateState context="analytics" onGenerate={() => generate()} />;
+    }
+    return null;
+  }
 
   return (
     <div className="space-y-5">
@@ -352,9 +389,9 @@ function AnalyticsInsightsContent({
         </ul>
       </section>
 
-      {/* Footer */}
-      <div className="flex items-center justify-between border-t pt-3">
-        <TokenCostHint group="insights" />
+      {/* Footer – chip beside the refresh button: regenerating is what debits. */}
+      <div className="flex items-center justify-end gap-1.5 border-t pt-3">
+        <TokenCostHint group="insights" variant="mini" />
         <Button
           variant="ghost"
           size="icon"
@@ -389,6 +426,34 @@ function NotConfiguredState({ context }: { context: "reviews" | "analytics" }) {
       >
         {t("ai.openSettings")}
       </a>
+    </div>
+  );
+}
+
+/** Shown instead of auto-generating when the run would debit a credit: the user
+ *  spends it with an explicit click, cost printed on the button itself. */
+function GenerateState({
+  context,
+  onGenerate,
+}: {
+  context: "reviews" | "analytics";
+  onGenerate: () => void;
+}) {
+  const t = useTranslations();
+  const contextLabel = context === "reviews"
+    ? t("insights.contextReviews")
+    : t("insights.contextAnalytics");
+
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center gap-3 px-2 text-center">
+      <p className="text-sm text-muted-foreground">
+        {t("insights.generatePrompt", { context: contextLabel })}
+      </p>
+      <Button size="sm" onClick={onGenerate}>
+        <MagicWand size={14} />
+        {t("insights.generate")}
+        <TokenCostHint group="insights" variant="button" />
+      </Button>
     </div>
   );
 }

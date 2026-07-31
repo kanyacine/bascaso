@@ -16,7 +16,6 @@ import { buildForbiddenKeywords } from "@/lib/asc/keyword-utils";
 import { CharCount } from "@/components/char-count";
 import type { LocaleKeywordData, StorefrontAnalysis } from "./keyword-analysis";
 import { useTranslations } from "@/lib/i18n/locale-context";
-import { TokenCostHint } from "@/components/token-cost-hint";
 import { notifyManagedDebit } from "@/lib/ai/debit-toast";
 
 interface FixAllDialogProps {
@@ -368,7 +367,8 @@ export function FixAllDialog({
             <span className="text-sm text-muted-foreground">{t("keywords.selectAll")}</span>
           </label>
           <div className="flex items-center gap-2">
-            <TokenCostHint group="metadata" />
+            {/* No cost chip: the credit was debited when the dialog opened (chip on
+                the "Fix all issues" button) – applying results is free. */}
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               {t("common.cancel")}
             </Button>

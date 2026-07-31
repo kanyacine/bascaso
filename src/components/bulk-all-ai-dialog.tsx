@@ -295,6 +295,8 @@ export function BulkAllAIDialog({
                 </Button>
                 <Button disabled={configCheckedCount === 0 || configFieldCount === 0} onClick={handleStart}>
                   {mode === "translate" ? t("bulkAi.translate") : t("bulkAi.copy")}
+                  {/* copy mode is a local field copy – runCopy() never calls /api/ai. */}
+                  {mode === "translate" && <TokenCostHint group="metadata" variant="button" />}
                 </Button>
               </div>
             </div>
@@ -342,8 +344,10 @@ export function BulkAllAIDialog({
                             onClick={() => retryLocale(loc)}
                             disabled={isLoading}
                             title={t("bulkAi.retranslateLocale")}
-                            className="inline-flex items-center justify-center rounded p-1 text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="inline-flex items-center justify-center gap-1 rounded p-1 text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
                           >
+                            {/* a retry is a managed action of its own – 1 credit */}
+                            <TokenCostHint group="metadata" variant="mini" />
                             <ArrowClockwise size={12} />
                           </button>
                         )}
@@ -411,8 +415,10 @@ export function BulkAllAIDialog({
                           }}
                           disabled={status === "loading"}
                           title={t("bulkAi.retranslateLocale")}
-                          className="inline-flex items-center justify-center rounded p-1 text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="inline-flex items-center justify-center gap-1 rounded p-1 text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
                         >
+                          {/* a retry is a managed action of its own – 1 credit */}
+                          <TokenCostHint group="metadata" variant="mini" />
                           <ArrowClockwise size={12} />
                         </button>
                       )}
@@ -452,8 +458,10 @@ export function BulkAllAIDialog({
                                   onClick={() => retryField(loc, field.key)}
                                   disabled={isLoading}
                                   title={t("bulkAi.retranslateField")}
-                                  className="ml-auto inline-flex items-center justify-center rounded p-1 text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
+                                  className="ml-auto inline-flex items-center justify-center gap-1 rounded p-1 text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
+                                  {/* a retry is a managed action of its own – 1 credit */}
+                                  <TokenCostHint group="metadata" variant="mini" />
                                   <ArrowClockwise size={10} />
                                 </button>
                               )}
@@ -495,8 +503,8 @@ export function BulkAllAIDialog({
             {t("bulkAi.selectedOf", { selected: runCheckedCount, total: runLocales.length })}
           </span>
           <div className="flex items-center gap-2">
-            {/* copy mode is a local field copy – runCopy() never calls /api/ai. */}
-            {mode === "translate" && <TokenCostHint group="metadata" />}
+            {/* No cost chip: the run's credit was debited at start (chip on the
+                Translate button) and applying results is free. */}
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               {t("common.cancel")}
             </Button>

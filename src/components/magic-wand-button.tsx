@@ -318,13 +318,14 @@ export function MagicWandButton({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          {/* On the menu rather than beside the wand icon: the icon sits in dense
-              field rows, and the menu items are the actual AI triggers. */}
-          <TokenCostHint group="metadata" className="mx-2 my-1" />
+          {/* The cost chip trails each item that fires an AI call on click. "Copy"
+              items are free and "translate to all" confirms its cost in its own
+              dialog, so neither carries one. */}
           {hasKeywordActions && (
             <>
               <DropdownMenuItem onSelect={handleFixKeywords}>
                 {hasValue ? t("ai.improve") : t("ai.generate")}
+                <TokenCostHint group="metadata" className="ml-auto" />
               </DropdownMenuItem>
               {keywordsInsightsHref && (
                 <>
@@ -340,6 +341,7 @@ export function MagicWandButton({
             <>
               <DropdownMenuItem onSelect={handleTranslate} disabled={!hasBaseValue}>
                 {t("ai.translateFrom", { source: localeName(baseLocale) })}
+                <TokenCostHint group="metadata" className="ml-auto" />
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={handleCopy} disabled={!hasBaseValue}>
                 {t("ai.copyFrom", { source: localeName(baseLocale) })}
@@ -349,6 +351,7 @@ export function MagicWandButton({
           {hasImproveAction && (
             <DropdownMenuItem onSelect={handleImprove} disabled={!hasValue}>
               {t("ai.improve")}
+              <TokenCostHint group="metadata" className="ml-auto" />
             </DropdownMenuItem>
           )}
           {hasCopyFromVersionAction && (

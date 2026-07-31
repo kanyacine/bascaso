@@ -635,13 +635,13 @@ function FormView({
       )}
 
       <div className="flex items-center justify-end gap-2 pt-2">
-        <TokenCostHint group="workflows" />
         <Button variant="outline" onClick={onCancel}>
           {t("common.cancel")}
         </Button>
         <Button onClick={onLaunch} disabled={launching}>
           {launching && <CircleNotch className="size-4 animate-spin" />}
           {t("aso.research.autoButton")}
+          <TokenCostHint group="workflows" variant="button" />
         </Button>
       </div>
     </div>

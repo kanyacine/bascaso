@@ -14,6 +14,7 @@ import {
   ArrowCounterClockwise,
 } from "@phosphor-icons/react";
 import { Stars } from "./review-summary";
+import { TokenCostHint } from "@/components/token-cost-hint";
 import { territoryName } from "./territory-helpers";
 import type { Review } from "./territory-helpers";
 import { AppIcon } from "@/components/app-icon";
@@ -24,6 +25,8 @@ interface ReviewCardProps {
   review: Review;
   foreign: boolean;
   translated: false | { title: string; body: string };
+  /** A translation is cached: further translate clicks only toggle, for free. */
+  hasTranslation: boolean;
   isTranslating: boolean;
   onTranslate: (review: Review) => void;
   onReply: (review: Review) => void;
@@ -44,6 +47,7 @@ export function ReviewCard({
   review,
   foreign,
   translated,
+  hasTranslation,
   isTranslating,
   onTranslate,
   onReply,
@@ -115,6 +119,7 @@ export function ReviewCard({
               : translated
                 ? t("reviews.showOriginal")
                 : t("reviews.translate")}
+            {!hasTranslation && <TokenCostHint group="metadata" variant="mini" />}
           </button>
         )}
 
@@ -154,6 +159,8 @@ export function ReviewCard({
               >
                 <WarningCircle size={14} className="mr-1.5" />
                 {t("reviews.appealReview")}
+                {/* clicking drafts the appeal immediately – the debit fires here */}
+                <TokenCostHint group="redaction" variant="button" className="ml-1.5" />
               </Button>
             )}
             {!review.response && (

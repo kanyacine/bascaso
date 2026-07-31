@@ -718,7 +718,6 @@ export function AddLocaleDialog({
         </ScrollArea>
 
         <DialogFooter className="border-t pt-4 mt-2">
-          <TokenCostHint group="metadata" />
           <div className="flex-1" />
           {aiConfigured && !loading && !translated && (
             <Button
@@ -760,6 +759,8 @@ export function AddLocaleDialog({
                 <>
                   <MagicWand className="size-4" />
                   {t("addLocale.translateWithAi")}
+                  {/* only the translate click debits – adding the locale is free */}
+                  <TokenCostHint group="metadata" variant="button" />
                 </>
               )}
             </Button>

@@ -203,13 +203,12 @@ export function FillFromVersionButton({
               <MagicWand size={14} />
             )}
             {t("nominations.fillFromVersion")}
+            {/* redaction, not metadata: picking a version fires "draft-nomination".
+                The cost sits on the trigger so it is read before the popover opens. */}
+            <TokenCostHint group="redaction" variant="button" />
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-72 p-0" align="start">
-          {/* Picking a version here is what fires the AI, so the cost belongs on the
-              popover rather than on the button that merely opens it. */}
-          {/* redaction, not metadata: the click fires "draft-nomination". */}
-          <TokenCostHint group="redaction" className="mx-2 mt-2" />
           <Command>
             <CommandEmpty>{t("nominations.noVersionsFound")}</CommandEmpty>
             <CommandList>

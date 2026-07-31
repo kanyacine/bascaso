@@ -14,7 +14,6 @@ import {
 } from "@/components/ui/dialog";
 import { CharCount } from "@/components/char-count";
 import { useTranslations } from "@/lib/i18n/locale-context";
-import { TokenCostHint } from "@/components/token-cost-hint";
 import { aiErrorMessage } from "@/lib/ai/ai-error";
 import { notifyManagedDebit } from "@/lib/ai/debit-toast";
 
@@ -146,8 +145,9 @@ export function AICompareDialog({
             )}
           </div>
         </div>
-        <DialogFooter className="sm:justify-between">
-          <TokenCostHint group="metadata" />
+        {/* No cost chip here: the credit was debited when the dialog opened (the menu
+            item that opened it carries the chip) – applying or discarding is free. */}
+        <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t("ai.keepCurrent")}
           </Button>

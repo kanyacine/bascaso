@@ -249,6 +249,7 @@ export default function ReviewsPage() {
                     review={review}
                     foreign={foreign}
                     translated={translated || false}
+                    hasTranslation={!!actions.translations[review.id]}
                     isTranslating={!!actions.translating[review.id]}
                     onTranslate={actions.onTranslate}
                     onReply={actions.onReply}
