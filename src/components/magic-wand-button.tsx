@@ -23,8 +23,10 @@ import { PLATFORM_LABELS } from "@/lib/asc/version-types";
 import { AIRequiredDialog } from "./ai-required-dialog";
 import { AICompareDialog } from "./ai-compare-dialog";
 import { useTranslations } from "@/lib/i18n/locale-context";
+import { TokenCostHint } from "@/components/token-cost-hint";
 import type { MessageKey } from "@/lib/i18n/messages";
 import { aiErrorMessage } from "@/lib/ai/ai-error";
+import { notifyManagedDebit } from "@/lib/ai/debit-toast";
 
 export interface CopyFromVersion {
   versionId: string;
@@ -154,6 +156,7 @@ export async function fetchTranslation(
       return;
     }
 
+    void notifyManagedDebit(data.tier, t);
     onChange(data.result);
   } catch {
     toast.error(t("errors.aiRequestFailed"));
@@ -315,6 +318,9 @@ export function MagicWandButton({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
+          {/* On the menu rather than beside the wand icon: the icon sits in dense
+              field rows, and the menu items are the actual AI triggers. */}
+          <TokenCostHint group="metadata" className="mx-2 my-1" />
           {hasKeywordActions && (
             <>
               <DropdownMenuItem onSelect={handleFixKeywords}>

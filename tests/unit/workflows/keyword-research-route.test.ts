@@ -6,6 +6,13 @@ const mockGetLatest = vi.fn();
 const mockList = vi.fn();
 const mockDeleteRun = vi.fn();
 
+// The route reads the workflows group's tier to tell the client whether finishing the
+// run costs a credit. Stubbed here so these tests stay free of a real database.
+const mockGetRoutingTier = vi.fn(() => "byok");
+vi.mock("@/lib/app-preferences", () => ({
+  getRoutingTier: (...args: unknown[]) => mockGetRoutingTier(...(args as [])),
+}));
+
 vi.mock("@/lib/ai/workflows/run-manager", () => ({
   startKeywordResearch: (...args: unknown[]) => mockStart(...args),
   cancelRun: (...args: unknown[]) => mockCancel(...args),
@@ -49,7 +56,8 @@ describe("POST /api/apps/[appId]/aso/keyword-research", () => {
     const res = await POST(postRequest(validBody), ctx("app-1"));
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ runId: "run-1" });
+    expect(await res.json()).toEqual({ runId: "run-1", tier: "byok" });
+    expect(mockGetRoutingTier).toHaveBeenCalledWith("workflows");
     expect(mockStart).toHaveBeenCalledWith(
       expect.objectContaining({
         appId: "app-1",

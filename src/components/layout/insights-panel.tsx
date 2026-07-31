@@ -18,6 +18,8 @@ import { useAIStatus } from "@/lib/hooks/use-ai-status";
 import { useInsightsPanel } from "@/lib/insights-panel-context";
 import { readReviewsPlatform, REVIEWS_PLATFORM_CHANGE } from "@/components/layout/header-version-picker";
 import { useTranslations } from "@/lib/i18n/locale-context";
+import { TokenCostHint } from "@/components/token-cost-hint";
+import { notifyManagedDebit } from "@/lib/ai/debit-toast";
 
 // ── Review insights ─────────────────────────────────────────────────
 
@@ -66,6 +68,7 @@ function ReviewInsightsContent({
       }
 
       const data = await res.json();
+      void notifyManagedDebit(data.tier, t);
       setInsights(data.insights);
       setCachedReviewCount(data.reviewCount);
       setCurrentReviewCount(data.currentReviewCount);
@@ -212,6 +215,7 @@ function ReviewInsightsContent({
 
       {/* Footer */}
       <div className="flex items-center justify-between border-t pt-3">
+        <TokenCostHint group="insights" />
         <p className="text-[11px] text-muted-foreground">
           {cachedReviewCount == null
             ? t("insights.basedOnReviews", { count: "–" })
@@ -269,6 +273,7 @@ function AnalyticsInsightsContent({
       }
 
       const data = await res.json();
+      void notifyManagedDebit(data.tier, t);
       setInsights(data.insights);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t("insights.generateFailed"));
@@ -348,7 +353,8 @@ function AnalyticsInsightsContent({
       </section>
 
       {/* Footer */}
-      <div className="flex items-center justify-end border-t pt-3">
+      <div className="flex items-center justify-between border-t pt-3">
+        <TokenCostHint group="insights" />
         <Button
           variant="ghost"
           size="icon"

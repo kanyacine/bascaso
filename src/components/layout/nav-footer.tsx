@@ -8,12 +8,16 @@ import {
   GearSix,
   GithubLogo,
   Plus,
+  SignIn,
+  UserCircle,
 } from "@phosphor-icons/react";
 import { useFormDirty } from "@/lib/form-dirty-context";
+import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -26,6 +30,8 @@ import {
 import { AddAccountDialog } from "./add-account-dialog";
 import { useTranslations } from "@/lib/i18n/locale-context";
 import { BRAND_ISSUES_URL } from "@/lib/brand";
+import { accountDisplayName } from "@/lib/managed/client";
+import { useManagedAccount } from "@/lib/hooks/use-managed-account";
 
 interface Account {
   id: string;
@@ -45,6 +51,7 @@ export function NavFooter() {
   const [switching, setSwitching] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [isDemo, setIsDemo] = useState(false);
+  const { account } = useManagedAccount();
 
   const fetchAccounts = useCallback(async () => {
     const res = await fetch("/api/settings/credentials");
@@ -64,6 +71,13 @@ export function NavFooter() {
 
   const active = accounts.find((a) => a.isActive);
   const displayName = isDemo ? t("nav.sampleData") : (active?.name || t("nav.myTeam"));
+  // Same badge on the button and in the menu header – one expression, so the two can
+  // never disagree about what the account is entitled to.
+  const balanceBadge = account && (
+    <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">
+      {account.subscribed ? t("nav.subscribed") : t("nav.credits", { count: account.balance })}
+    </Badge>
+  );
 
   async function doSwitch(id: string) {
     setSwitching(true);
@@ -105,9 +119,18 @@ export function NavFooter() {
                 size="lg"
                 className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
               >
-                <span className="truncate font-medium text-sm">
-                  {displayName}
-                </span>
+                {/* Two lines when a cloud account is linked: the team above, the
+                    account below. One line otherwise – an empty second row would
+                    just make the button taller for nothing. */}
+                <div className="grid flex-1 leading-tight">
+                  <span className="truncate font-medium text-sm">{displayName}</span>
+                  {!isDemo && account && (
+                    <span className="flex items-center gap-1.5 truncate text-xs text-muted-foreground">
+                      {accountDisplayName(account)}
+                      {balanceBadge}
+                    </span>
+                  )}
+                </div>
                 <CaretUpDown className="ml-auto" size={16} />
               </SidebarMenuButton>
             </DropdownMenuTrigger>
@@ -117,21 +140,48 @@ export function NavFooter() {
               side={isMobile ? "bottom" : "right"}
               sideOffset={4}
             >
-              {!isDemo && accounts.map((account) => (
+              {/* Cloud account first, above the Apple teams: it is what the second
+                  line of the button refers to, and the one thing this menu did not
+                  expose anywhere. Hidden in demo mode, which has no account at all. */}
+              {!isDemo && (account ? (
+                <>
+                  <DropdownMenuLabel className="flex flex-col gap-0.5 font-normal">
+                    <span className="truncate text-sm font-medium">{accountDisplayName(account)}</span>
+                    <span className="flex items-center gap-1.5 truncate text-xs text-muted-foreground">
+                      {account.email}
+                      {balanceBadge}
+                    </span>
+                  </DropdownMenuLabel>
+                  <DropdownMenuItem onClick={() => guardNavigation(() => router.push("/settings/account"))}>
+                    <UserCircle size={16} />
+                    {t("nav.manageAccount")}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              ) : (
+                <>
+                  <DropdownMenuItem onClick={() => guardNavigation(() => router.push("/settings/account"))}>
+                    <SignIn size={16} />
+                    {t("nav.signIn")}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              ))}
+              {!isDemo && accounts.map((appleTeam) => (
                 <DropdownMenuItem
-                  key={account.id}
+                  key={appleTeam.id}
                   disabled={switching}
                   onClick={() => {
-                    if (account.isActive) return;
-                    handleSwitch(account.id);
+                    if (appleTeam.isActive) return;
+                    handleSwitch(appleTeam.id);
                   }}
                 >
-                  {account.isActive ? (
+                  {appleTeam.isActive ? (
                     <Check size={16} weight="bold" />
                   ) : (
                     <span className="w-4" />
                   )}
-                  {account.name || t("nav.myTeam")}
+                  {appleTeam.name || t("nav.myTeam")}
                 </DropdownMenuItem>
               ))}
               {!isDemo && (

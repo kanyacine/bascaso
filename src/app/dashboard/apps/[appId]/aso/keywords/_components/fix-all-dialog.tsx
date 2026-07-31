@@ -16,6 +16,8 @@ import { buildForbiddenKeywords } from "@/lib/asc/keyword-utils";
 import { CharCount } from "@/components/char-count";
 import type { LocaleKeywordData, StorefrontAnalysis } from "./keyword-analysis";
 import { useTranslations } from "@/lib/i18n/locale-context";
+import { TokenCostHint } from "@/components/token-cost-hint";
+import { notifyManagedDebit } from "@/lib/ai/debit-toast";
 
 interface FixAllDialogProps {
   open: boolean;
@@ -126,6 +128,9 @@ export function FixAllDialog({
     const primaryKeywords = new Set(primaryData?.keywords.map((kw) => kw.toLowerCase()) ?? []);
     // Track keywords claimed by already-processed locales to avoid cross-locale dupes
     const claimedKeywords = new Set<string>();
+    // One run is ONE managed action (one actionId above, one credit), however many
+    // locales it fixes – so the balance toast fires once, on the first success.
+    let debitNotified = false;
 
     for (const ld of fixableLocales) {
       if (controller.signal.aborted) break;
@@ -182,6 +187,10 @@ export function FixAllDialog({
         }
 
         if (res.ok) {
+          if (!debitNotified) {
+            debitNotified = true;
+            void notifyManagedDebit(data.tier, t);
+          }
           const resultKeywords = data.result
             .split(",").map((w: string) => w.trim().toLowerCase()).filter(Boolean);
           newKeywordsByLocale[ld.locale] = resultKeywords;
@@ -359,6 +368,7 @@ export function FixAllDialog({
             <span className="text-sm text-muted-foreground">{t("keywords.selectAll")}</span>
           </label>
           <div className="flex items-center gap-2">
+            <TokenCostHint group="metadata" />
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               {t("common.cancel")}
             </Button>

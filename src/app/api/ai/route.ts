@@ -124,9 +124,12 @@ export async function POST(request: Request) {
   let modelId = "";
   let maxInputChars: number | undefined;
   let supportedLanguages: string[] | undefined;
+  // Returned to the client so it knows whether this gesture cost a credit – the only
+  // party that can say so is the side that resolved the routing.
+  let tier;
   try {
     const resolved = await getLanguageModelForTask(action, { actionId });
-    ({ model, providerId, modelId, maxInputChars, supportedLanguages } = resolved);
+    ({ model, providerId, modelId, maxInputChars, supportedLanguages, tier } = resolved);
   } catch (err) {
     return routingErrorResponse(err);
   }
@@ -333,7 +336,7 @@ export async function POST(request: Request) {
 
     console.log("[ai] returning result: action=%s length=%d overLimit=%s total=%dms", action, finalResult.length, overLimit, Date.now() - t0);
 
-    return NextResponse.json({ result: finalResult, length: finalResult.length, overLimit });
+    return NextResponse.json({ result: finalResult, length: finalResult.length, overLimit, tier });
   } catch (err) {
     console.error("[ai] error: action=%s field=%s", action, field, err);
     const category = classifyAIError(err);
@@ -345,6 +348,9 @@ export async function POST(request: Request) {
     }
     if (category === "action_exhausted") {
       return NextResponse.json({ error: "ai_action_exhausted" }, { status: 429 });
+    }
+    if (category === "device_conflict") {
+      return NextResponse.json({ error: "ai_device_conflict" }, { status: 409 });
     }
     if (category === "auth" || category === "permission") {
       return NextResponse.json({ error: "ai_auth_error" }, { status: 401 });

@@ -9,7 +9,14 @@ import { ManagedAuthError, signIn, signUp, verifySignup } from "@/lib/managed/au
 // pas un simple z.object() avec des champs optionnels partagés.
 const schema = z.discriminatedUnion("mode", [
   z.object({ mode: z.literal("login"), email: z.string().email(), password: z.string().min(8) }),
-  z.object({ mode: z.literal("signup"), email: z.string().email(), password: z.string().min(8) }),
+  z.object({
+    mode: z.literal("signup"),
+    email: z.string().email(),
+    password: z.string().min(8),
+    // Required at signup: an account created without one would have no presence label
+    // anywhere and no way to gain one but a later PATCH.
+    username: z.string().trim().min(1).max(40),
+  }),
   z.object({ mode: z.literal("verify"), email: z.string().email(), code: z.string().min(6) }),
 ]);
 
@@ -28,7 +35,7 @@ export async function POST(request: Request) {
     // signup : confirmations désactivées → session directe (comme login) ;
     // activées → pas de session, le client doit basculer sur l'écran de
     // confirmation (voir (a) dans le brief : ceci n'est pas un échec 401).
-    const outcome = await signUp(parsed.email, parsed.password);
+    const outcome = await signUp(parsed.email, parsed.password, parsed.username);
     return outcome.status === "signed_in"
       ? NextResponse.json({ email: outcome.session.email })
       : NextResponse.json({ confirmationRequired: true });

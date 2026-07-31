@@ -7,6 +7,7 @@ import { hasManagedAccount } from "@/lib/managed/account";
 const REVIEW_BEFORE_SAVING_KEY = "review_before_saving";
 const ROUTING_FALLBACK_KEY = "ai_routing_fallback";
 const APPLE_FM_ALLOW_UNSUPPORTED_LANGUAGES_KEY = "ai_apple_fm_allow_unsupported_languages";
+const MANAGED_DEVICE_ID_KEY = "managed_device_id";
 
 /** Distinct guidance buckets – translation tone vs review-reply voice are unrelated. */
 export type GuidanceScope = "translation" | "reviews";
@@ -79,6 +80,23 @@ function readPreference(key: string): string | null {
   } catch {
     return null;
   }
+}
+
+/** Stable random id for this installation – the managed tier's device lock key.
+ *  A plain UUID, never a hardware identifier: it identifies this copy of the app, not
+ *  the machine, and is only ever compared against itself server-side.
+ *
+ *  Re-reads after the insert rather than returning `id` blindly: two concurrent first
+ *  calls both mint a uuid, only one row lands, and both must agree on which one won. */
+export function getManagedDeviceId(): string {
+  const existing = readPreference(MANAGED_DEVICE_ID_KEY);
+  if (existing) return existing;
+  const id = crypto.randomUUID();
+  db.insert(appPreferences)
+    .values({ key: MANAGED_DEVICE_ID_KEY, value: id })
+    .onConflictDoNothing()
+    .run();
+  return readPreference(MANAGED_DEVICE_ID_KEY) ?? id;
 }
 
 /** The default a group falls back to when no explicit preference is stored.

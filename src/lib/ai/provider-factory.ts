@@ -20,7 +20,7 @@ import {
   getAppleFmStatus,
 } from "./apple-fm";
 import { groupForTask, type AITaskId, type AITier } from "@/lib/ai/tasks";
-import { getRoutingFallbackEnabled, getRoutingTier } from "@/lib/app-preferences";
+import { getManagedDeviceId, getRoutingFallbackEnabled, getRoutingTier } from "@/lib/app-preferences";
 import { getValidAccessToken } from "@/lib/managed/auth";
 import { BASCASO_CLOUD_URL } from "@/lib/managed/config";
 
@@ -137,7 +137,12 @@ async function resolveTier(
       baseURL: `${BASCASO_CLOUD_URL}/functions/v1/ai-proxy/v1`,
       // 1 action = 1 jeton : l'id vient de l'appelant (workflow, bulk),
       // sinon cette résolution EST l'action.
-      headers: { "x-action-id": context?.actionId ?? crypto.randomUUID() },
+      // The device id is stable per install: it is the key of the subscription's
+      // single-active-device lock.
+      headers: {
+        "x-action-id": context?.actionId ?? crypto.randomUUID(),
+        "x-bascaso-device": getManagedDeviceId(),
+      },
     });
     return {
       model: managed.chat(`bascaso/${taskId}`),
@@ -217,6 +222,9 @@ export type AIErrorCategory =
   // message et une sémantique dédiés côté UI (cap horaire vs. cap par action).
   | "rate_limited"
   | "action_exhausted"
+  // The managed proxy's 409: the subscription is already in use on another device.
+  // Neither a rate limit nor a balance problem – nothing to retry right away.
+  | "device_conflict"
   | "unknown";
 
 /** Classify an AI provider error by inspecting its message. */
@@ -235,6 +243,9 @@ export function classifyAIError(err: unknown): AIErrorCategory {
   }
   if (/action_exhausted/i.test(message)) {
     return "action_exhausted";
+  }
+  if (/device_conflict/i.test(message)) {
+    return "device_conflict";
   }
   if (/401|unauthorized|invalid.*key|invalid.*api|incorrect.*key|authentication/i.test(message)) {
     return "auth";
@@ -259,6 +270,7 @@ const ERROR_MESSAGES: Record<AIErrorCategory, string | null> = {
   credits: null, // Géré par les routes, pas par validateApiKey
   rate_limited: null, // Erreurs du proxy managed – jamais vues par un test de clé BYOK
   action_exhausted: null, // Idem
+  device_conflict: null, // Idem
   unknown: null, // Handled separately with original message
 };
 

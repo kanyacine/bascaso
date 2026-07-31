@@ -25,6 +25,12 @@ function post(body: unknown): Request {
   });
 }
 
+function patch(body: unknown): Request {
+  return new Request("http://local/api/managed/me", {
+    method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+  });
+}
+
 describe("/api/managed/*", () => {
   // resetAllMocks (et non clearAllMocks) : seul reset vide la file des
   // mockResolvedValueOnce – sinon une valeur non consommée fuit sur le test suivant.
@@ -54,7 +60,7 @@ describe("/api/managed/*", () => {
     const { ManagedAuthError } = await import("@/lib/managed/auth");
     auth.signUp.mockRejectedValue(new ManagedAuthError("User already registered", "user_already_exists"));
     const { POST } = await import("@/app/api/managed/auth/route");
-    const res = await POST(post({ mode: "signup", email: "a@b.co", password: "password123" }));
+    const res = await POST(post({ mode: "signup", email: "a@b.co", password: "password123", username: "Yacine" }));
     expect(res.status).toBe(401);
     expect(await res.json()).toEqual({ error: "User already registered", code: "user_already_exists" });
   });
@@ -70,7 +76,7 @@ describe("/api/managed/*", () => {
   it("auth POST signup returns the email when confirmations are off", async () => {
     auth.signUp.mockResolvedValue({ status: "signed_in", session: { email: "a@b.c" } });
     const { POST } = await import("@/app/api/managed/auth/route");
-    const res = await POST(post({ mode: "signup", email: "a@b.co", password: "password123" }));
+    const res = await POST(post({ mode: "signup", email: "a@b.co", password: "password123", username: "Yacine" }));
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ email: "a@b.c" });
   });
@@ -80,9 +86,25 @@ describe("/api/managed/*", () => {
   it("auth POST signup reports confirmationRequired without erroring when GoTrue asks for confirmation", async () => {
     auth.signUp.mockResolvedValue({ status: "confirmation_required" });
     const { POST } = await import("@/app/api/managed/auth/route");
-    const res = await POST(post({ mode: "signup", email: "a@b.co", password: "password123" }));
+    const res = await POST(post({ mode: "signup", email: "a@b.co", password: "password123", username: "Yacine" }));
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ confirmationRequired: true });
+  });
+
+  // The username is not optional at signup: an account created without one would have
+  // no presence label anywhere in the app, and no way to gain one but a later PATCH.
+  it("auth POST signup without a username is a 400", async () => {
+    const { POST } = await import("@/app/api/managed/auth/route");
+    const res = await POST(post({ mode: "signup", email: "a@b.co", password: "password123" }));
+    expect(res.status).toBe(400);
+  });
+
+  it("auth POST signup forwards the username", async () => {
+    auth.signUp.mockResolvedValue({ status: "signed_in", session: { email: "a@b.c" } });
+    const { POST } = await import("@/app/api/managed/auth/route");
+    const res = await POST(post({ mode: "signup", email: "a@b.co", password: "password123", username: " Yacine " }));
+    expect(res.status).toBe(200);
+    expect(auth.signUp).toHaveBeenCalledWith("a@b.co", "password123", "Yacine");
   });
 
   it("auth POST verify stores the session and returns the email", async () => {
@@ -159,6 +181,26 @@ describe("/api/managed/*", () => {
     const res = await GET();
     expect(res.status).toBe(500);
     expect(await res.json()).toEqual({ error: "not json" });
+  });
+
+  it("me PATCH proxies the username to GoTrue", async () => {
+    auth.getValidAccessToken.mockResolvedValue("jwt");
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({}), { status: 200 }));
+    const { PATCH } = await import("@/app/api/managed/me/route");
+    const res = await PATCH(patch({ username: " Yacine " }));
+    expect(res.status).toBe(200);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(String(url)).toContain("/auth/v1/user");
+    expect(init.method).toBe("PUT");
+    expect(JSON.parse(init.body as string)).toEqual({ data: { username: "Yacine" } });
+  });
+
+  it("me PATCH is 401 when signed out and 400 on an empty username", async () => {
+    auth.getValidAccessToken.mockResolvedValue(null);
+    const { PATCH } = await import("@/app/api/managed/me/route");
+    expect((await PATCH(patch({ username: "x" }))).status).toBe(401);
+    auth.getValidAccessToken.mockResolvedValue("jwt");
+    expect((await PATCH(patch({ username: "  " }))).status).toBe(400);
   });
 
   it("checkout validates the sku and returns the url", async () => {

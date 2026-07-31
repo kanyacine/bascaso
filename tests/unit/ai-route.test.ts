@@ -788,6 +788,8 @@ describe("AI route", () => {
     );
 
     const data = await response.json();
-    expect(data).toEqual({ result: "Short", length: 5, overLimit: false });
+    // `tier` rides along on every success so the client knows whether the gesture
+    // cost a credit (see notifyManagedDebit).
+    expect(data).toEqual({ result: "Short", length: 5, overLimit: false, tier: "byok" });
   });
 });

@@ -4,9 +4,11 @@ const mockGetValidAccessToken = vi.fn();
 vi.mock("@/lib/managed/auth", () => ({ getValidAccessToken: mockGetValidAccessToken }));
 const mockGetRoutingTier = vi.fn();
 const mockGetRoutingFallbackEnabled = vi.fn(() => false);
+const DEVICE_ID = "aaaaaaaa-0000-4000-8000-00000000000a";
 vi.mock("@/lib/app-preferences", () => ({
   getRoutingTier: mockGetRoutingTier,
   getRoutingFallbackEnabled: () => mockGetRoutingFallbackEnabled(),
+  getManagedDeviceId: () => DEVICE_ID,
 }));
 const mockGetTierSettings = vi.fn();
 vi.mock("@/lib/ai/settings", () => ({ getTierSettings: mockGetTierSettings }));
@@ -49,9 +51,21 @@ describe("managed tier resolution", () => {
     await getLanguageModelForTask("translate", { actionId });
 
     expect(mockCreateOpenAI).toHaveBeenCalledWith(
-      expect.objectContaining({ headers: { "x-action-id": actionId } }),
+      expect.objectContaining({ headers: { "x-action-id": actionId, "x-bascaso-device": DEVICE_ID } }),
     );
     expect(randomUUIDSpy).not.toHaveBeenCalled();
+  });
+
+  // The device header is the subscription's single-active-device key. A managed
+  // provider built without it is refused by the proxy (400 invalid_device_id), so it
+  // has to be asserted at the same place as x-action-id.
+  it("managed tier sends the installation device header", async () => {
+    mockGetRoutingTier.mockReturnValue("managed");
+    mockGetValidAccessToken.mockResolvedValue("jwt-token");
+    const { getLanguageModelForTask } = await import("@/lib/ai/provider-factory");
+    await getLanguageModelForTask("translate", { actionId: "3f2c1b34-0000-4000-8000-000000000001" });
+    const headers = mockCreateOpenAI.mock.calls[0][0].headers as Record<string, string>;
+    expect(headers["x-bascaso-device"]).toBe(DEVICE_ID);
   });
 
   it("generates an action id when the caller does not provide one", async () => {
@@ -75,7 +89,7 @@ describe("managed tier resolution", () => {
     expect(randomUUIDSpy).toHaveBeenCalledTimes(1);
     const generated = randomUUIDSpy.mock.results[0]?.value;
     expect(mockCreateOpenAI).toHaveBeenCalledWith(
-      expect.objectContaining({ headers: { "x-action-id": generated } }),
+      expect.objectContaining({ headers: { "x-action-id": generated, "x-bascaso-device": DEVICE_ID } }),
     );
   });
 

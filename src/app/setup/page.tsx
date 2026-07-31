@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +22,7 @@ import {
   Lock,
   MagicWand,
   Package,
+  UserCircle,
   XCircle,
 } from "@phosphor-icons/react";
 import { toast } from "sonner";
@@ -30,16 +31,18 @@ import { AI_PROVIDERS } from "@/lib/ai-providers";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LocalServerFields } from "@/components/local-server-fields";
 import { ManagedAuthForm } from "@/components/managed-auth-form";
+import { ManagedPurchaseDialog } from "@/components/managed-purchase-dialog";
 import { ApiKeyInput } from "@/components/api-key-input";
 import { AppleFmOption, type AppleFmStatus } from "@/components/apple-fm-option";
 import { AppleFmLanguageOptions } from "@/components/apple-fm-language-options";
 import { clearNavigation } from "@/lib/nav-state";
 import { isLocalOpenAIProvider } from "@/lib/ai/local-provider";
 import { useTranslations } from "@/lib/i18n/locale-context";
+import { invalidateManagedAccount, useManagedAccount } from "@/lib/hooks/use-managed-account";
 
-const WIZARD_STEPS = 3;
+const WIZARD_STEPS = 4;
 
-// Step 3 – AI. The "apple-fm" id is kept as a local literal (not imported from
+// Step 4 – AI. The "apple-fm" id is kept as a local literal (not imported from
 // `@/lib/ai/apple-fm`) – that module reads a Node state file and must never end
 // up in the client bundle.
 type LocalEngine = "apple-fm" | "local-server";
@@ -96,9 +99,12 @@ export default function SetupPage() {
   // through immediately, exactly as it does in Settings > AI.
   const [allowUnsupportedLanguages, setAllowUnsupportedLanguages] = useState(false);
 
-  // Step 3 – cloud
+  // Step 3 – Bascaso account
+  const { account } = useManagedAccount();
+  const [purchaseOpen, setPurchaseOpen] = useState(false);
+
+  // Step 4 – AI
   const [cloudTab, setCloudTab] = useState<"account" | "byok">("account");
-  const [managedEmail, setManagedEmail] = useState<string | null>(null);
   const [byokProviderId, setByokProviderId] = useState(DEFAULT_BYOK_PROVIDER.id);
   const [byokModelId, setByokModelId] = useState(DEFAULT_BYOK_PROVIDER.models[0].id);
   const [byokApiKey, setByokApiKey] = useState("");
@@ -115,48 +121,24 @@ export default function SetupPage() {
     setByokApiKey("");
   }
 
-  // useCallback so the mount effect can list it as a dependency (same pattern
-  // as `refresh` in settings/account/page.tsx – keeps eslint exhaustive-deps happy).
-  const refreshManagedEmail = useCallback(
-    () =>
-      fetch("/api/managed/me")
-        .then((res) => (res.ok ? res.json() : null))
-        .then((data) => {
-          if (data) setManagedEmail(data.email);
-        })
-        // Cloud unreachable – the form stays visible, signing in will surface it.
-        .catch(() => {}),
-    [],
-  );
-
-  async function handleManagedSignOut() {
-    try {
-      await fetch("/api/managed/auth", { method: "DELETE" });
-    } catch {
-      // Local state resets regardless; a reload reflects the real server state.
-    }
-    setManagedEmail(null);
-  }
-
   // Read on arrival rather than at mount: the built-in model's sidecar boots
   // alongside the app, so a status fetched from the welcome screen can still say
   // "not found" by the time this step renders – leaving the option disabled with
-  // no way back. Nothing here is needed before step 3 anyway.
+  // no way back. Nothing here is needed before the AI step anyway.
   useEffect(() => {
-    if (step !== 3) return;
+    if (step !== 4) return;
     fetch("/api/settings/ai/apple-fm-status")
       .then((res) => res.json())
       .then(setAppleFmStatus)
       .catch(() => setAppleFmStatus({ available: false, reason: "sidecar_unreachable" }));
-    // Both of these can already carry a value if setup restarts mid-flight.
-    void refreshManagedEmail();
+    // Can already carry a value if setup restarts mid-flight.
     fetch("/api/settings/ai")
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data?.routing) setAllowUnsupportedLanguages(data.routing.allowUnsupportedLanguages);
       })
       .catch(() => {});
-  }, [step, refreshManagedEmail]);
+  }, [step]);
 
   function resetConnectionTest() {
     setTestStatus("idle");
@@ -329,6 +311,9 @@ export default function SetupPage() {
 
   function handleNext() {
     if (step < WIZARD_STEPS) {
+      // The AI step opens on whichever cloud option the user can actually use:
+      // the managed tab once signed in, BYOK otherwise.
+      if (step === 3) setCloudTab(account ? "account" : "byok");
       setStep(step + 1);
     } else {
       handleSubmit();
@@ -358,19 +343,22 @@ export default function SetupPage() {
               {step === 0 && <Package size={32} weight="fill" />}
               {step === 1 && <IdentificationBadge size={32} weight="fill" />}
               {step === 2 && <AppStoreLogoIcon size={32} weight="fill" />}
-              {step === 3 && <MagicWand size={32} weight="fill" />}
+              {step === 3 && <UserCircle size={32} weight="fill" />}
+              {step === 4 && <MagicWand size={32} weight="fill" />}
             </div>
             <h1 className="text-2xl font-bold tracking-tight">
               {step === 0 && t("setup.title.welcome")}
               {step === 1 && t("setup.title.account")}
               {step === 2 && t("setup.title.asc")}
-              {step === 3 && t("setup.title.ai")}
+              {step === 3 && t("setup.title.cloud")}
+              {step === 4 && t("setup.title.ai")}
             </h1>
             <p className="text-sm text-muted-foreground text-center">
               {step === 0 && t("setup.subtitle.welcome")}
               {step === 1 && t("setup.subtitle.account")}
               {step === 2 && t("setup.subtitle.asc")}
-              {step === 3 && t("setup.subtitle.ai")}
+              {step === 3 && t("setup.subtitle.cloud")}
+              {step === 4 && t("setup.subtitle.ai")}
             </p>
           </div>
 
@@ -594,8 +582,41 @@ export default function SetupPage() {
               </div>
             )}
 
-            {/* Step 3 – AI */}
+            {/* Step 3 – Bascaso account */}
             {step === 3 && (
+              <div className="space-y-4">
+                <div className="space-y-1.5 rounded-lg bg-muted/50 px-3 py-2.5">
+                  <p className="text-xs text-muted-foreground">{t("setup.cloudPitch")}</p>
+                  <p className="text-xs text-muted-foreground">{t("setup.cloudOptionalNote")}</p>
+                </div>
+                {account ? (
+                  <div className="space-y-3">
+                    <p className="text-sm">{t("settings.account.signedInAs", { email: account.email })}</p>
+                    <p className="text-sm font-medium">
+                      {account.subscribed
+                        ? t("settings.account.unlimited")
+                        : t("settings.account.balance", { count: account.balance })}
+                    </p>
+                    <div className="flex gap-2">
+                      <Button variant="outline" className="flex-1" onClick={() => setPurchaseOpen(true)}>
+                        {t("settings.ai.managedBuyCredits")}
+                      </Button>
+                      {!account.subscribed && (
+                        <Button variant="outline" className="flex-1" onClick={() => setPurchaseOpen(true)}>
+                          {t("settings.account.subscribe")}
+                        </Button>
+                      )}
+                    </div>
+                    <ManagedPurchaseDialog open={purchaseOpen} onOpenChange={setPurchaseOpen} />
+                  </div>
+                ) : (
+                  <ManagedAuthForm fill onAuthenticated={() => invalidateManagedAccount()} />
+                )}
+              </div>
+            )}
+
+            {/* Step 4 – AI */}
+            {step === 4 && (
               <div className="space-y-6">
                 {/* Local model */}
                 <section className="space-y-3">
@@ -675,21 +696,21 @@ export default function SetupPage() {
                       </TabsTrigger>
                     </TabsList>
                     <TabsContent value="account" className="pt-2">
-                      {managedEmail ? (
+                      {/* No sign-out anywhere in onboarding: leaving the account is not
+                          something to do while still setting the app up. */}
+                      {account ? (
                         <div className="space-y-2">
                           <p className="text-sm">
-                            {t("settings.account.signedInAs", { email: managedEmail })}
+                            {t("settings.account.signedInAs", { email: account.email })}
                           </p>
-                          <Button
-                            variant="outline"
-                            className="w-full"
-                            onClick={() => void handleManagedSignOut()}
-                          >
-                            {t("settings.account.signOut")}
-                          </Button>
+                          <p className="text-sm font-medium">
+                            {account.subscribed
+                              ? t("settings.account.unlimited")
+                              : t("settings.account.balance", { count: account.balance })}
+                          </p>
                         </div>
                       ) : (
-                        <ManagedAuthForm fill onAuthenticated={() => void refreshManagedEmail()} />
+                        <ManagedAuthForm fill onAuthenticated={() => invalidateManagedAccount()} />
                       )}
                     </TabsContent>
                     <TabsContent value="byok" className="space-y-4 pt-2">

@@ -218,6 +218,7 @@ describe("review insights route", () => {
       reviewCount: 2,
       currentReviewCount: 2,
       cached: false,
+      tier: "byok",
     });
   });
 
@@ -265,6 +266,7 @@ describe("review insights route", () => {
       reviewCount: 2,
       currentReviewCount: 2,
       cached: false,
+      tier: "byok",
     });
   });
 

@@ -23,6 +23,7 @@ import { useBulkAI, resultKey } from "@/lib/hooks/use-bulk-ai";
 import type { BulkField } from "@/lib/hooks/use-bulk-ai";
 import { useAiGuidance } from "@/lib/hooks/use-ai-guidance";
 import { useTranslations } from "@/lib/i18n/locale-context";
+import { TokenCostHint } from "@/components/token-cost-hint";
 
 interface BulkAllAIDialogProps {
   open: boolean;
@@ -494,6 +495,8 @@ export function BulkAllAIDialog({
             {t("bulkAi.selectedOf", { selected: runCheckedCount, total: runLocales.length })}
           </span>
           <div className="flex items-center gap-2">
+            {/* copy mode is a local field copy – runCopy() never calls /api/ai. */}
+            {mode === "translate" && <TokenCostHint group="metadata" />}
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               {t("common.cancel")}
             </Button>

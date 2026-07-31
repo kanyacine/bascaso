@@ -50,7 +50,9 @@ interface GoTrueResponse {
  *  une logique différente pour ça). */
 async function postGoTrue(
   path: string,
-  body: Record<string, string>,
+  // `unknown` and not `string`: GoTrue's `data` field – the only route into
+  // user_metadata – is an object, not a scalar.
+  body: Record<string, unknown>,
 ): Promise<{ res: Response; json: GoTrueResponse }> {
   const res = await fetch(`${BASCASO_CLOUD_URL}/auth/v1/${path}`, {
     method: "POST",
@@ -93,8 +95,12 @@ export type SignUpOutcome =
   | { status: "signed_in"; session: ManagedSession }
   | { status: "confirmation_required" };
 
-export async function signUp(email: string, password: string): Promise<SignUpOutcome> {
-  const { res, json } = await postGoTrue("signup", { email, password });
+/** `username` is required, not optional: it is the account's presence label in the
+ *  sidebar, the account menu and the AI settings page. GoTrue stores it in
+ *  user_metadata (via `data`), which the `me` endpoint reads back – no table of ours
+ *  holds it. */
+export async function signUp(email: string, password: string, username: string): Promise<SignUpOutcome> {
+  const { res, json } = await postGoTrue("signup", { email, password, data: { username } });
   // Adresse déjà inscrite. GoTrue ne renvoie 422 user_already_exists que si l'autoconfirm
   // email OU SMS est actif ; les deux étant coupés sur ce projet, il répond un 200 « sanitisé »
   // impossible à distinguer d'une inscription en attente – sauf par `identities`, vide ici alors

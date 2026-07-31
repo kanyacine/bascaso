@@ -27,8 +27,10 @@ import { buildForbiddenKeywords } from "@/lib/asc/keyword-utils";
 import { useAIStatus } from "@/lib/hooks/use-ai-status";
 import { toast } from "sonner";
 import { useTranslations } from "@/lib/i18n/locale-context";
+import { TokenCostHint } from "@/components/token-cost-hint";
 import { useReviewFieldLabel } from "@/lib/i18n/use-review-field-labels";
 import { aiErrorMessage } from "@/lib/ai/ai-error";
+import { notifyManagedDebit } from "@/lib/ai/debit-toast";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -210,6 +212,7 @@ export function AddLocaleDialog({
         console.log("[add-locale] translateField: response", field, res.status);
         if (res.ok) {
           const data = await res.json();
+          void notifyManagedDebit(data.tier, t);
           updateField(field, { value: data.result, translating: false });
           return data.result as string;
         }
@@ -222,7 +225,7 @@ export function AddLocaleDialog({
       updateField(field, { translating: false });
       return undefined;
     },
-    [locale, primaryLocale, appName, updateField, reportTranslateFailure],
+    [locale, primaryLocale, appName, updateField, reportTranslateFailure, t],
   );
 
   // Fix keywords: dedupe, remove forbidden, fill budget
@@ -256,6 +259,7 @@ export function AddLocaleDialog({
         console.log("[add-locale] fixKeywords: response", res.status);
         if (res.ok) {
           const data = await res.json();
+          void notifyManagedDebit(data.tier, t);
           updateField("keywords", { value: data.result, translating: false });
           return;
         }
@@ -267,7 +271,7 @@ export function AddLocaleDialog({
       }
       updateField("keywords", { translating: false });
     },
-    [locale, appName, updateField, reportTranslateFailure],
+    [locale, appName, updateField, reportTranslateFailure, t],
   );
 
   // Fetch base data when dialog opens (no auto-translate)
@@ -714,6 +718,7 @@ export function AddLocaleDialog({
         </ScrollArea>
 
         <DialogFooter className="border-t pt-4 mt-2">
+          <TokenCostHint group="metadata" />
           <div className="flex-1" />
           {aiConfigured && !loading && !translated && (
             <Button

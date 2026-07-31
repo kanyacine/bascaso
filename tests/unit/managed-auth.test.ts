@@ -47,8 +47,19 @@ describe("managed auth (GoTrue REST)", () => {
   it("signUp hits /signup", async () => {
     fetchMock.mockResolvedValueOnce(tokenResponse());
     const { signUp } = await import("@/lib/managed/auth");
-    await signUp("a@b.c", "password123");
+    await signUp("a@b.c", "password123", "Yacine");
     expect(fetchMock.mock.calls[0][0]).toContain("/auth/v1/signup");
+  });
+
+  // The username is the account's presence label across the app; GoTrue keeps it in
+  // user_metadata, which the `me` endpoint reads back. Sent under `data`, the only key
+  // GoTrue routes into user_metadata.
+  it("signUp sends the username as GoTrue user_metadata", async () => {
+    fetchMock.mockResolvedValueOnce(tokenResponse());
+    const { signUp } = await import("@/lib/managed/auth");
+    await signUp("a@b.c", "password123", "Yacine");
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(body.data).toEqual({ username: "Yacine" });
   });
 
   // Confirmations désactivées (état actuel du projet live) : /signup renvoie
@@ -57,7 +68,7 @@ describe("managed auth (GoTrue REST)", () => {
     fetchMock.mockResolvedValueOnce(tokenResponse());
     const { signUp } = await import("@/lib/managed/auth");
     const { getManagedSession } = await import("@/lib/managed/account");
-    const outcome = await signUp("a@b.c", "password123");
+    const outcome = await signUp("a@b.c", "password123", "Yacine");
     expect(outcome).toEqual({ status: "signed_in", session: expect.objectContaining({ email: "a@b.c", accessToken: "at-1" }) });
     expect(getManagedSession()!.accessToken).toBe("at-1");
   });
@@ -74,7 +85,7 @@ describe("managed auth (GoTrue REST)", () => {
     });
     const { signUp } = await import("@/lib/managed/auth");
     const { getManagedSession } = await import("@/lib/managed/account");
-    const outcome = await signUp("a@b.c", "password123");
+    const outcome = await signUp("a@b.c", "password123", "Yacine");
     expect(outcome).toEqual({ status: "confirmation_required" });
     expect(getManagedSession()).toBeNull();
   });
@@ -89,7 +100,7 @@ describe("managed auth (GoTrue REST)", () => {
       json: () => Promise.resolve({ id: "11111111-1111-1111-1111-111111111111", email: "a@b.c", identities: [] }),
     });
     const { signUp, ManagedAuthError } = await import("@/lib/managed/auth");
-    await expect(signUp("a@b.c", "password123")).rejects.toBeInstanceOf(ManagedAuthError);
+    await expect(signUp("a@b.c", "password123", "Yacine")).rejects.toBeInstanceOf(ManagedAuthError);
   });
 
   // Une vraie inscription en attente porte exactement une identité : elle ne doit PAS
@@ -100,7 +111,7 @@ describe("managed auth (GoTrue REST)", () => {
       json: () => Promise.resolve({ id: "22222222-2222-4222-8222-222222222222", email: "a@b.c", identities: [{ id: "x" }] }),
     });
     const { signUp } = await import("@/lib/managed/auth");
-    expect(await signUp("a@b.c", "password123")).toEqual({ status: "confirmation_required" });
+    expect(await signUp("a@b.c", "password123", "Yacine")).toEqual({ status: "confirmation_required" });
   });
 
   it("signUp reports confirmation_required when GoTrue nests the user under a 'user' key", async () => {
@@ -109,7 +120,7 @@ describe("managed auth (GoTrue REST)", () => {
       json: () => Promise.resolve({ user: { email: "a@b.c" } }),
     });
     const { signUp } = await import("@/lib/managed/auth");
-    const outcome = await signUp("a@b.c", "password123");
+    const outcome = await signUp("a@b.c", "password123", "Yacine");
     expect(outcome).toEqual({ status: "confirmation_required" });
   });
 
@@ -118,7 +129,7 @@ describe("managed auth (GoTrue REST)", () => {
       ok: false, json: () => Promise.resolve({ error_description: "User already registered" }),
     });
     const { signUp, ManagedAuthError } = await import("@/lib/managed/auth");
-    await expect(signUp("a@b.c", "password123")).rejects.toThrow(ManagedAuthError);
+    await expect(signUp("a@b.c", "password123", "Yacine")).rejects.toThrow(ManagedAuthError);
   });
 
   // Régression : la confirmation email activée en prod rend ces deux cas
@@ -131,7 +142,7 @@ describe("managed auth (GoTrue REST)", () => {
       ok: false, json: () => Promise.resolve({ error_code: "user_already_exists", msg: "User already registered" }),
     });
     const { signUp, ManagedAuthError } = await import("@/lib/managed/auth");
-    const err = await signUp("a@b.c", "password123").catch((e) => e);
+    const err = await signUp("a@b.c", "password123", "Yacine").catch((e) => e);
     expect(err).toBeInstanceOf(ManagedAuthError);
     expect((err as InstanceType<typeof ManagedAuthError>).code).toBe("user_already_exists");
     expect((err as Error).message).toBe("User already registered");
@@ -146,7 +157,7 @@ describe("managed auth (GoTrue REST)", () => {
       }),
     });
     const { signUp, ManagedAuthError } = await import("@/lib/managed/auth");
-    const err = await signUp("a@b.c", "password123").catch((e) => e);
+    const err = await signUp("a@b.c", "password123", "Yacine").catch((e) => e);
     expect(err).toBeInstanceOf(ManagedAuthError);
     expect((err as InstanceType<typeof ManagedAuthError>).code).toBe("over_email_send_rate_limit");
   });

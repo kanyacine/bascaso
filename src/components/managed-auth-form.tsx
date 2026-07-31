@@ -13,6 +13,7 @@ import {
   verifyManagedSignup,
 } from "@/lib/managed/client";
 import { invalidateAIStatus } from "@/lib/hooks/use-ai-status";
+import { invalidateAIRouting } from "@/lib/hooks/use-ai-routing";
 
 interface ManagedAuthFormProps {
   /** Called after a successful sign-in, sign-up or code verification. */
@@ -31,6 +32,7 @@ interface ManagedAuthFormProps {
  *  authenticated. */
 export function ManagedAuthForm({ onAuthenticated, fill }: ManagedAuthFormProps) {
   const t = useTranslations();
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -51,8 +53,16 @@ export function ManagedAuthForm({ onAuthenticated, fill }: ManagedAuthFormProps)
 
   async function handleAuth(mode: "login" | "signup") {
     setError(null);
+    // Checked here rather than by disabling the button: the field is only required for
+    // one of the two buttons, and a permanently greyed-out "Sign in" would be worse.
+    if (mode === "signup" && !username.trim()) {
+      setError(t("settings.account.usernameRequired"));
+      return;
+    }
     await runWithBusyFlag(setBusy, async () => {
-      const result = await authenticateManaged(mode, email, password);
+      const result = await authenticateManaged(
+        mode, email, password, mode === "signup" ? username.trim() : undefined,
+      );
       if (!result.ok) {
         if (result.reason === "auth") {
           setError(managedAuthErrorMessage(result.code, result.message, t));
@@ -68,6 +78,7 @@ export function ManagedAuthForm({ onAuthenticated, fill }: ManagedAuthFormProps)
         return;
       }
       invalidateAIStatus();
+      invalidateAIRouting();
       onAuthenticated();
     });
   }
@@ -82,6 +93,7 @@ export function ManagedAuthForm({ onAuthenticated, fill }: ManagedAuthFormProps)
         return;
       }
       invalidateAIStatus();
+      invalidateAIRouting();
       onAuthenticated();
     });
   }
@@ -137,6 +149,13 @@ export function ManagedAuthForm({ onAuthenticated, fill }: ManagedAuthFormProps)
 
   return (
     <div className={`${width} space-y-2`}>
+      {/* Only signing up needs it; the sign-in path ignores the field entirely. */}
+      <Input
+        type="text"
+        placeholder={t("settings.account.username")}
+        value={username}
+        onChange={(e) => setUsername(e.target.value)}
+      />
       <Input
         type="email"
         placeholder={t("settings.account.email")}

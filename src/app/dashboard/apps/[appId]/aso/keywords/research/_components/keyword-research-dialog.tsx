@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   ArrowLeft,
@@ -55,6 +55,8 @@ import { FIELD_LIMITS, localeName } from "@/lib/asc/locale-names";
 import { storefrontCountryCode } from "@/lib/aso/storefront-country";
 import { storefrontLocales } from "@/lib/asc/storefronts";
 import { useTranslations } from "@/lib/i18n/locale-context";
+import { TokenCostHint } from "@/components/token-cost-hint";
+import { notifyManagedDebit } from "@/lib/ai/debit-toast";
 import type { MessageKey } from "@/lib/i18n/messages";
 import { aiErrorMessage, MANAGED_WORKFLOW_ERROR_CODES } from "@/lib/ai/ai-error";
 import { cn } from "@/lib/utils";
@@ -177,6 +179,10 @@ export function KeywordResearchDialog({
   const [runId, setRunId] = useState<string | null>(null);
   const [run, setRun] = useState<WorkflowRunView | null>(null);
   const [launching, setLaunching] = useState(false);
+  // Tier of the run this dialog launched, carried from the launch response so the
+  // debit toast can fire when the run ends. A run adopted from history is left at
+  // null: it was already paid for, possibly in another session.
+  const launchedTier = useRef<string | undefined>(undefined);
   const [history, setHistory] = useState<WorkflowRunView[]>([]);
   const [viewingHistory, setViewingHistory] = useState(false);
   const country = storefrontCountryCode(storefront);
@@ -186,6 +192,19 @@ export function KeywordResearchDialog({
     status === "succeeded" || status === "failed" || status === "cancelled";
   const phase: "form" | "progress" | "results" =
     runId == null ? "form" : terminal ? "results" : "progress";
+
+  // One workflow run is one managed action, so one credit – announced when the run
+  // ends rather than at launch, where the debit has not happened yet. Success only:
+  // a run that died before its first proxy call was never settled.
+  const notifiedForRun = useRef<string | null>(null);
+  useEffect(() => {
+    if (!runId || !terminal || notifiedForRun.current === runId) return;
+    notifiedForRun.current = runId;
+    const tier = launchedTier.current;
+    launchedTier.current = undefined;
+    if (status !== "succeeded") return;
+    void notifyManagedDebit(tier, t);
+  }, [runId, terminal, status, t]);
 
   /** Adopt a terminal run from the history list – read-only (the SSE effect
    *  never subscribes when `terminal` is true). */
@@ -373,6 +392,7 @@ export function KeywordResearchDialog({
         return;
       }
       const id: string = data.runId;
+      launchedTier.current = data.tier;
       const nowIso = new Date().toISOString();
       setRun({
         id,
@@ -615,6 +635,7 @@ function FormView({
       )}
 
       <div className="flex items-center justify-end gap-2 pt-2">
+        <TokenCostHint group="workflows" />
         <Button variant="outline" onClick={onCancel}>
           {t("common.cancel")}
         </Button>

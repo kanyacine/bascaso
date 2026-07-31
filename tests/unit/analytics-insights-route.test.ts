@@ -145,6 +145,7 @@ describe("analytics insights route", () => {
       insights: { highlights: ["Growth"], opportunities: ["ASO"] },
       dataHash: "2:2026-03-02:5:12.5",
       cached: false,
+      tier: "byok",
     });
   });
 
@@ -283,6 +284,7 @@ describe("analytics insights route", () => {
       insights: { highlights: ["Growth"], opportunities: ["ASO"] },
       dataHash: "2:2026-03-02:5:12.5",
       cached: false,
+      tier: "byok",
     });
   });
 

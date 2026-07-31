@@ -4,6 +4,7 @@ import { useState, type Dispatch, type SetStateAction } from "react";
 import { toast } from "sonner";
 import { type Review, territoryToLocale } from "./territory-helpers";
 import { useTranslations } from "@/lib/i18n/locale-context";
+import { notifyManagedDebit } from "@/lib/ai/debit-toast";
 import { aiErrorMessage } from "@/lib/ai/ai-error";
 
 /** Resolve which app (and its display name) a review belongs to. */
@@ -194,7 +195,8 @@ export function useReviewActions<T extends Review>({
         throw new Error(message);
       }
 
-      const { result } = await res.json();
+      const { result, tier } = await res.json();
+      void notifyManagedDebit(tier, t);
       setReplyBody(result);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t("reviews.toastGenerateReplyFailed"));
@@ -235,7 +237,8 @@ export function useReviewActions<T extends Review>({
         throw new Error(message);
       }
 
-      const { result } = await res.json();
+      const { result, tier } = await res.json();
+      void notifyManagedDebit(tier, t);
       setReplyBody(result);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t("reviews.toastTranslationFailed"));
@@ -280,7 +283,8 @@ export function useReviewActions<T extends Review>({
         throw new Error(message);
       }
 
-      const { result } = await res.json();
+      const { result, tier } = await res.json();
+      void notifyManagedDebit(tier, t);
       setAppealText(result);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t("reviews.toastGenerateAppealFailed"));

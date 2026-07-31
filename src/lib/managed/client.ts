@@ -40,12 +40,14 @@ export async function authenticateManaged(
   mode: "login" | "signup",
   email: string,
   password: string,
+  /** Required by the route for `signup`, ignored for `login`. */
+  username?: string,
 ): Promise<ManagedAuthResult> {
   try {
     const res = await fetch("/api/managed/auth", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mode, email, password }),
+      body: JSON.stringify(username ? { mode, email, password, username } : { mode, email, password }),
     });
     // Un 5xx est une panne réseau/serveur en parlant au cloud managé (voir
     // route.ts), pas un problème d'identifiants – testé avant de lire le
@@ -158,6 +160,13 @@ export function isManagedSubscriptionActive(
   if (subscription.status !== "active" && subscription.status !== "trialing") return false;
   if (subscription.currentPeriodEnd == null) return true;
   return new Date(subscription.currentPeriodEnd).getTime() > Date.now();
+}
+
+/** Presence label for the account: the chosen username, else the email local part.
+ *  Never the full email – it shows in the sidebar footer, where an address is both too
+ *  long and more than the user asked to display. */
+export function accountDisplayName(a: { username: string | null; email: string }): string {
+  return a.username ?? a.email.split("@")[0];
 }
 
 /** Currencies Stripe carries without a minor unit: their `amount` is already the
