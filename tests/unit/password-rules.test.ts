@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { allRulesPass, MIN_PASSWORD_LENGTH, passwordRules } from "@/lib/managed/client";
+import { allRulesPass, passwordRules } from "@/lib/managed/client";
 import { en } from "@/lib/i18n/locales/en";
 import { getByPath } from "@/lib/i18n/messages";
 
@@ -13,11 +13,12 @@ describe("passwordRules", () => {
     expect(allRulesPass(passwordRules("password123", "password123"))).toBe(true);
   });
 
+  // 8 is the minimum both managed routes enforce (z.string().min(8)); the literal is
+  // spelled out here on purpose, so a change to either side fails this test.
   it("refuses a password shorter than the routes accept", () => {
-    const short = "a".repeat(MIN_PASSWORD_LENGTH - 1);
-    const [length] = passwordRules(short, short);
+    const [length] = passwordRules("a".repeat(7), "a".repeat(7));
     expect(length.ok).toBe(false);
-    expect(passwordRules("a".repeat(MIN_PASSWORD_LENGTH), "")[0].ok).toBe(true);
+    expect(passwordRules("a".repeat(8), "")[0].ok).toBe(true);
   });
 
   it("never counts two empty fields as matching", () => {

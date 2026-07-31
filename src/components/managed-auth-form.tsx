@@ -12,9 +12,9 @@ import { PRIVACY_URL, TERMS_URL } from "@/lib/brand";
 import { useTranslations } from "@/lib/i18n/locale-context";
 import {
   allRulesPass,
-  authenticateManaged,
   managedAuthErrorMessage,
   passwordRules,
+  postManagedAuth,
   runWithBusyFlag,
   verifyManagedSignup,
 } from "@/lib/managed/client";
@@ -76,9 +76,13 @@ export function ManagedAuthForm({ onAuthenticated, fill, defaultTab = "signin" }
   async function handleAuth(mode: "login" | "signup") {
     setError(null);
     await runWithBusyFlag(setBusy, async () => {
-      const result = await authenticateManaged(
-        mode, email, password, mode === "signup" ? username.trim() : undefined,
-      );
+      const result = await postManagedAuth({
+        mode,
+        email,
+        password,
+        // Required by the route for `signup`, ignored for `login`.
+        username: mode === "signup" ? username.trim() : undefined,
+      });
       if (!result.ok) {
         if (result.reason === "auth") {
           setError(managedAuthErrorMessage(result.code, result.message, t));

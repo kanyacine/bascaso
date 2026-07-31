@@ -1,3 +1,4 @@
+import type { EventEmitter } from "node:events";
 import { NextResponse } from "next/server";
 import type { z } from "zod";
 import { AscApiError } from "@/lib/asc/client";
@@ -65,6 +66,57 @@ export async function parseBody<T>(
   }
 
   return parsed.data;
+}
+
+/**
+ * Server-sent events relaying one emitter event: a `data:` frame per event, a heartbeat
+ * so an idle connection is not dropped, and a listener detached as soon as the client
+ * goes away.
+ */
+export function sseStream(emitter: EventEmitter, event: string): Response {
+  const encoder = new TextEncoder();
+  let cleanup = () => {};
+
+  const stream = new ReadableStream({
+    start(controller) {
+      // Enqueuing to a controller a disconnected client already closed throws;
+      // detach immediately so the throw can't reach the event's emitter.
+      function send(frame: string) {
+        try {
+          controller.enqueue(encoder.encode(frame));
+        } catch {
+          cleanup();
+        }
+      }
+
+      function onEvent(payload: unknown) {
+        send(`data: ${JSON.stringify(payload)}\n\n`);
+      }
+
+      emitter.on(event, onEvent);
+      const heartbeat = setInterval(() => send(": heartbeat\n\n"), 30_000);
+
+      cleanup = () => {
+        emitter.off(event, onEvent);
+        clearInterval(heartbeat);
+      };
+
+      send(": connected\n\n");
+    },
+    // Runs when the client disconnects – remove the listener right away rather
+    // than waiting up to 30s for the next heartbeat to fail.
+    cancel() {
+      cleanup();
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+    },
+  });
 }
 
 export interface SyncError {

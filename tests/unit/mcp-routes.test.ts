@@ -21,7 +21,10 @@ vi.mock("@/mcp", () => ({
   isMcpRunning: () => mockIsMcpRunning(),
 }));
 
-vi.mock("@/lib/api-helpers", () => ({
+// Partial: only parseBody is stubbed. sseStream stays real – the events test below
+// asserts on the stream it actually produces.
+vi.mock("@/lib/api-helpers", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/api-helpers")>()),
   parseBody: async (request: Request, schema: { parse: (v: unknown) => unknown }) => {
     const body = await request.json();
     try {

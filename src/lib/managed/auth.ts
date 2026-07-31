@@ -110,7 +110,7 @@ export async function signIn(email: string, password: string): Promise<ManagedSe
   return session;
 }
 
-export type SignUpOutcome =
+type SignUpOutcome =
   | { status: "signed_in"; session: ManagedSession }
   | { status: "confirmation_required" };
 

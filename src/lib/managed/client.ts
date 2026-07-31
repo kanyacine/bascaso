@@ -28,24 +28,6 @@ async function safeJson(res: Response): Promise<Record<string, unknown>> {
   }
 }
 
-/**
- * Isolé du composant pour être testable sans rendu React : distingue un échec
- * d'authentification (401 – identifiants) d'un échec réseau (fetch qui lève),
- * pour que l'appelant puisse afficher le bon message dans chaque cas. Un
- * signup accepté mais en attente de confirmation email est un succès HTTP
- * (200) qui porte `confirmationRequired: true` dans le corps – ni un échec
- * ni une connexion effective.
- */
-export async function authenticateManaged(
-  mode: "login" | "signup",
-  email: string,
-  password: string,
-  /** Required by the route for `signup`, ignored for `login`. */
-  username?: string,
-): Promise<ManagedAuthResult> {
-  return postManagedAuth(username ? { mode, email, password, username } : { mode, email, password });
-}
-
 /** Step one of the reset: ask for the email carrying the code. */
 export function requestManagedPasswordReset(email: string): Promise<ManagedAuthResult> {
   return postManagedAuth({ mode: "recover", email });
@@ -60,7 +42,17 @@ export function resetManagedPassword(
   return postManagedAuth({ mode: "reset", email, code, password });
 }
 
-async function postManagedAuth(body: Record<string, string>): Promise<ManagedAuthResult> {
+/**
+ * Isolé du composant pour être testable sans rendu React : distingue un échec
+ * d'authentification (401 – identifiants) d'un échec réseau (fetch qui lève),
+ * pour que l'appelant puisse afficher le bon message dans chaque cas. Un
+ * signup accepté mais en attente de confirmation email est un succès HTTP
+ * (200) qui porte `confirmationRequired: true` dans le corps – ni un échec
+ * ni une connexion effective.
+ */
+export async function postManagedAuth(
+  body: Record<string, string | undefined>,
+): Promise<ManagedAuthResult> {
   try {
     const res = await fetch("/api/managed/auth", {
       method: "POST",
@@ -133,13 +125,12 @@ export function managedAuthErrorMessage(
   }
 }
 
-/** Minimum password length, enforced identically by the zod schemas on both managed
- *  routes. Exported so the checklist below and the server agree by construction – a
- *  checklist that ticked green on a password the route rejects is exactly the kind of
- *  lying validation this replaces. */
-export const MIN_PASSWORD_LENGTH = 8;
+/** Minimum password length – same value as the zod schemas on both managed routes, so
+ *  the checklist below and the server agree. A checklist that ticked green on a
+ *  password the route rejects is exactly the kind of lying validation this replaces. */
+const MIN_PASSWORD_LENGTH = 8;
 
-export interface PasswordRule {
+interface PasswordRule {
   key: MessageKey;
   ok: boolean;
 }
@@ -168,7 +159,7 @@ type ManagedVerifyResult = { ok: true } | { ok: false; reason: "auth" | "network
 /**
  * Chemin secondaire de la confirmation par email : vérifie un code reçu par
  * l'utilisateur (quand le modèle d'email en contient un, plutôt qu'un simple
- * lien de confirmation). Même distinction auth/réseau qu'authenticateManaged.
+ * lien de confirmation). Même distinction auth/réseau que postManagedAuth.
  */
 export async function verifyManagedSignup(email: string, code: string): Promise<ManagedVerifyResult> {
   try {
