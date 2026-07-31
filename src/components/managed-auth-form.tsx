@@ -17,6 +17,10 @@ import { invalidateAIStatus } from "@/lib/hooks/use-ai-status";
 interface ManagedAuthFormProps {
   /** Called after a successful sign-in, sign-up or code verification. */
   onAuthenticated: () => void;
+  /** Span the container instead of the default narrow column, and let the
+   *  buttons share that width – the wizard renders this inside a tab panel,
+   *  where a 320px island under a full-width tab list looks unfinished. */
+  fill?: boolean;
 }
 
 /** Email/password form for the Bascaso cloud account, covering the two
@@ -25,7 +29,7 @@ interface ManagedAuthFormProps {
  *  email template only carries a link). Shared by the account settings page
  *  and the onboarding wizard; the parent decides what to render once
  *  authenticated. */
-export function ManagedAuthForm({ onAuthenticated }: ManagedAuthFormProps) {
+export function ManagedAuthForm({ onAuthenticated, fill }: ManagedAuthFormProps) {
   const t = useTranslations();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -38,6 +42,12 @@ export function ManagedAuthForm({ onAuthenticated }: ManagedAuthFormProps) {
   const [code, setCode] = useState("");
   const [verifyBusy, setVerifyBusy] = useState(false);
   const [verifyError, setVerifyError] = useState(false);
+
+  const width = fill ? "w-full" : "max-w-[320px]";
+  // w-full, not flex-1: the confirmation branch stacks its buttons in a block
+  // container where flex-1 is inert. In the sign-in/sign-up flex row the two
+  // buttons shrink from an equal basis, so they still split the width evenly.
+  const button = fill ? "w-full" : undefined;
 
   async function handleAuth(mode: "login" | "signup") {
     setError(null);
@@ -78,12 +88,12 @@ export function ManagedAuthForm({ onAuthenticated }: ManagedAuthFormProps) {
 
   if (pendingConfirmation) {
     return (
-      <div className="max-w-[320px] space-y-3">
+      <div className={`${width} space-y-3`}>
         <p className="text-sm text-muted-foreground">
           {t("settings.account.confirmHint", { email })}
         </p>
         {error && <p className="text-sm text-destructive">{error}</p>}
-        <Button disabled={busy} onClick={() => void handleAuth("login")}>
+        <Button className={button} disabled={busy} onClick={() => void handleAuth("login")}>
           {t("settings.account.confirmSignIn")}
         </Button>
 
@@ -112,6 +122,7 @@ export function ManagedAuthForm({ onAuthenticated }: ManagedAuthFormProps) {
               )}
               <Button
                 variant="outline"
+                className={button}
                 disabled={verifyBusy || !code.trim()}
                 onClick={() => void handleVerify()}
               >
@@ -125,7 +136,7 @@ export function ManagedAuthForm({ onAuthenticated }: ManagedAuthFormProps) {
   }
 
   return (
-    <div className="max-w-[320px] space-y-2">
+    <div className={`${width} space-y-2`}>
       <Input
         type="email"
         placeholder={t("settings.account.email")}
@@ -140,10 +151,15 @@ export function ManagedAuthForm({ onAuthenticated }: ManagedAuthFormProps) {
       />
       {error && <p className="text-sm text-destructive">{error}</p>}
       <div className="flex gap-2">
-        <Button disabled={busy} onClick={() => void handleAuth("login")}>
+        <Button className={button} disabled={busy} onClick={() => void handleAuth("login")}>
           {t("settings.account.signIn")}
         </Button>
-        <Button variant="outline" disabled={busy} onClick={() => void handleAuth("signup")}>
+        <Button
+          variant="outline"
+          className={button}
+          disabled={busy}
+          onClick={() => void handleAuth("signup")}
+        >
           {t("settings.account.signUp")}
         </Button>
       </div>
