@@ -209,6 +209,10 @@
      tailwind-merge instead, which resolves the conflict in our favour. */
   .account-pack {
     @apply relative;
+    /* Grows to share the row when the catalog is full, capped so one or two packs keep
+       a tile's size instead of stretching to the width of the card. */
+    flex: 1 1 6.5rem;
+    max-width: 9rem;
   }
   .account-pack:hover {
     border-color: color-mix(in oklab, var(--color-violet-500) 45%, var(--color-border));
@@ -217,11 +221,12 @@
     @apply absolute -top-2 left-1/2 -translate-x-1/2 border-0 text-white;
     background-image: var(--account-gradient);
   }
-  /* One column per pack, wrapping when the catalog outgrows the card: the pack
-     list is data (the cloud's skus table), so the grid must not assume three. */
+  /* One tile per pack, wrapping when the catalog outgrows the card: the pack list is
+     data (the cloud's skus table), so the row must not assume three. Flex rather than
+     grid – a grid track keeps its column whether or not a pack fills it, so a short
+     catalog stayed pinned to the left; flex centres what is actually there. */
   .account-pack-grid {
-    @apply grid gap-2;
-    grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr));
+    @apply flex flex-wrap justify-center gap-2;
   }
   .account-discount {
     @apply absolute -top-2 right-1 border-0 bg-destructive text-white;

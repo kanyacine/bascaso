@@ -117,6 +117,10 @@ export function ManagedAccountCard() {
   // the early return above gives `account`.
   const endsAt = account.endsAt;
   const subscriptions = catalog?.subscriptions ?? [];
+  // Read once: the card renders packs and subscriptions as two independent halves, so
+  // deactivating every row on one side must not take the other side down with it.
+  const hasPacks = (catalog?.packs.length ?? 0) > 0;
+  const hasSubscriptions = subscriptions.length > 0;
   // The offer a resubscribe goes back to. First row wins: the table orders
   // subscriptions by sort_order, so the primary offer is a data decision.
   const primarySubscription: Subscription | undefined = subscriptions[0];
@@ -207,55 +211,64 @@ export function ManagedAccountCard() {
         </div>
       ) : catalog === null ? (
         <div className="account-pack-grid mt-4">
-          <Skeleton className="h-20" />
-          <Skeleton className="h-20" />
-          <Skeleton className="h-20" />
+          {/* flex-1: the row is flex now, and a skeleton carries no width of its own. */}
+          <Skeleton className="h-20 flex-1" />
+          <Skeleton className="h-20 flex-1" />
+          <Skeleton className="h-20 flex-1" />
         </div>
-      ) : catalog.packs.length === 0 ? (
+      ) : !hasPacks && !hasSubscriptions ? (
+        // Both halves empty: the catalog is unreachable or every row is inactive – the
+        // only case that deserves a message, since there is nothing left to buy.
         <p className="mt-4 text-sm text-muted-foreground">{t("settings.account.catalogUnavailable")}</p>
       ) : (
         <>
-          <p className="mt-3 text-xs text-muted-foreground">{t("settings.account.creditsHint")}</p>
-          <div className="account-pack-grid mt-3">
-            {catalog.packs.map((pack) => (
-              <Button
-                key={pack.sku}
-                variant="outline"
-                className="account-pack h-auto flex-col gap-1 py-3"
-                disabled={opening}
-                onClick={() => void handleCheckout(pack.sku, snapshot)}
-              >
-                {openingSku === pack.sku ? (
-                  <Spinner className="size-5" />
-                ) : (
-                  <span className="font-mono text-xl font-semibold tabular-nums">{pack.credits}</span>
-                )}
-                <span className="text-sm font-medium">{formatPrice(pack.amount, pack.currency, locale)}</span>
-                <span className="text-[11px] text-muted-foreground">
-                  {t("settings.account.perCredit", {
-                    price: formatPrice(perCreditAmount(pack), pack.currency, locale),
-                  })}
-                </span>
-                {pack.sku === best && <Badge className="account-best">{t("settings.account.bestValue")}</Badge>}
-                {pack.discountPercent != null && (
-                  <Badge className="account-discount">
-                    {t("settings.account.discountBadge", { percent: pack.discountPercent })}
-                  </Badge>
-                )}
-              </Button>
-            ))}
-          </div>
-          {/* The whole subscription block is data-driven: no active subscription row means
-              packs are the only offer, so the divider, the CTAs and the "unlimited actions"
-              hint all go with it rather than framing an empty section. */}
-          {subscriptions.length > 0 && (
+          {/* Each half is data-driven and stands alone: packs only, subscriptions only, or
+              both. The divider belongs to neither – it only exists between the two. */}
+          {hasPacks && (
             <>
-              <div className="my-3 flex items-center gap-3">
-                <Separator className="flex-1" />
-                <span className="text-xs text-muted-foreground">{t("settings.account.orDivider")}</span>
-                <Separator className="flex-1" />
+              <p className="mt-3 text-xs text-muted-foreground">{t("settings.account.creditsHint")}</p>
+              <div className="account-pack-grid mt-3">
+                {catalog.packs.map((pack) => (
+                  <Button
+                    key={pack.sku}
+                    variant="outline"
+                    className="account-pack h-auto flex-col gap-1 py-3"
+                    disabled={opening}
+                    onClick={() => void handleCheckout(pack.sku, snapshot)}
+                  >
+                    {openingSku === pack.sku ? (
+                      <Spinner className="size-5" />
+                    ) : (
+                      <span className="font-mono text-xl font-semibold tabular-nums">{pack.credits}</span>
+                    )}
+                    <span className="text-sm font-medium">{formatPrice(pack.amount, pack.currency, locale)}</span>
+                    <span className="text-[11px] text-muted-foreground">
+                      {t("settings.account.perCredit", {
+                        price: formatPrice(perCreditAmount(pack), pack.currency, locale),
+                      })}
+                    </span>
+                    {pack.sku === best && <Badge className="account-best">{t("settings.account.bestValue")}</Badge>}
+                    {pack.discountPercent != null && (
+                      <Badge className="account-discount">
+                        {t("settings.account.discountBadge", { percent: pack.discountPercent })}
+                      </Badge>
+                    )}
+                  </Button>
+                ))}
               </div>
-              <div className="space-y-2">
+            </>
+          )}
+          {hasPacks && hasSubscriptions && (
+            <div className="my-3 flex items-center gap-3">
+              <Separator className="flex-1" />
+              <span className="text-xs text-muted-foreground">{t("settings.account.orDivider")}</span>
+              <Separator className="flex-1" />
+            </div>
+          )}
+          {hasSubscriptions && (
+            <>
+              {/* Without packs above, the divider that used to space this block is gone too. */}
+              <div className={hasPacks ? "space-y-2" : "mt-4 space-y-2"}>
                 {subscriptions.map((subscription) => (
                   <Button
                     key={subscription.sku}
