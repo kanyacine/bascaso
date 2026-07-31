@@ -203,14 +203,31 @@ describe("/api/managed/*", () => {
     expect((await PATCH(patch({ username: "  " }))).status).toBe(400);
   });
 
-  it("checkout validates the sku and returns the url", async () => {
+  it("checkout validates the sku format and returns the url", async () => {
     auth.getValidAccessToken.mockResolvedValue("token");
     fetchMock.mockResolvedValueOnce({ ok: true, status: 200, json: () => Promise.resolve({ url: "https://stripe/x" }) });
     const { POST } = await import("@/app/api/managed/checkout/route");
-    expect((await POST(post({ sku: "nope" }))).status).toBe(400);
+    // Format only – uppercase, spaces, emptiness. Which skus actually exist is the
+    // cloud's call (skus table): a well-formed unknown sku must reach it, not die here.
+    for (const sku of ["NOPE", "pack 10", "", "pack-10"]) {
+      expect((await POST(post({ sku }))).status).toBe(400);
+    }
     const res = await POST(post({ sku: "pack_10" }));
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ url: "https://stripe/x" });
+  });
+
+  it("checkout proxies a well-formed unknown sku and relays the cloud's 400", async () => {
+    auth.getValidAccessToken.mockResolvedValue("token");
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 400,
+      json: () => Promise.resolve({ error: "unknown_sku" }),
+    });
+    const { POST } = await import("@/app/api/managed/checkout/route");
+    const res = await POST(post({ sku: "pack_9000" }));
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "unknown_sku" });
   });
 
   // L'auth doit primer sur la validation du sku : un appelant non connecté

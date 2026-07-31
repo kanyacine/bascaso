@@ -217,6 +217,15 @@
     @apply absolute -top-2 left-1/2 -translate-x-1/2 border-0 text-white;
     background-image: var(--account-gradient);
   }
+  /* One column per pack, wrapping when the catalog outgrows the card: the pack
+     list is data (the cloud's skus table), so the grid must not assume three. */
+  .account-pack-grid {
+    @apply grid gap-2;
+    grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr));
+  }
+  .account-discount {
+    @apply absolute -top-2 right-1 border-0 bg-destructive text-white;
+  }
 }
 
 /* Sidebar scroll fade overlays */
