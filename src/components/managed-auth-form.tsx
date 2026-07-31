@@ -44,7 +44,10 @@ export function ManagedAuthForm({ onAuthenticated, fill }: ManagedAuthFormProps)
   const [verifyError, setVerifyError] = useState(false);
 
   const width = fill ? "w-full" : "max-w-[320px]";
-  const button = fill ? "flex-1" : undefined;
+  // w-full, not flex-1: the confirmation branch stacks its buttons in a block
+  // container where flex-1 is inert. In the sign-in/sign-up flex row the two
+  // buttons shrink from an equal basis, so they still split the width evenly.
+  const button = fill ? "w-full" : undefined;
 
   async function handleAuth(mode: "login" | "signup") {
     setError(null);
