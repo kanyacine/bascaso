@@ -29,7 +29,7 @@ import { toast } from "sonner";
 import { useTranslations } from "@/lib/i18n/locale-context";
 import { TokenCostHint } from "@/components/token-cost-hint";
 import { useReviewFieldLabel } from "@/lib/i18n/use-review-field-labels";
-import { aiErrorMessage } from "@/lib/ai/ai-error";
+import { toastAIError } from "@/lib/ai/ai-error-toast";
 import { notifyManagedDebit } from "@/lib/ai/debit-toast";
 
 // ---------------------------------------------------------------------------
@@ -183,7 +183,7 @@ export function AddLocaleDialog({
     (errorCode: string | undefined) => {
       if (errorToastShownRef.current) return;
       errorToastShownRef.current = true;
-      toast.error(aiErrorMessage(errorCode, t) ?? t("errors.aiRequestFailed"));
+      toastAIError(errorCode, t);
     },
     [t],
   );

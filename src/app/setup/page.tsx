@@ -31,7 +31,7 @@ import { AI_PROVIDERS } from "@/lib/ai-providers";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LocalServerFields } from "@/components/local-server-fields";
 import { ManagedAuthForm } from "@/components/managed-auth-form";
-import { ManagedPurchaseDialog } from "@/components/managed-purchase-dialog";
+import { ManagedAccountCard } from "@/components/managed-account-card";
 import { ApiKeyInput } from "@/components/api-key-input";
 import { AppleFmOption, type AppleFmStatus } from "@/components/apple-fm-option";
 import { AppleFmLanguageOptions } from "@/components/apple-fm-language-options";
@@ -101,7 +101,6 @@ export default function SetupPage() {
 
   // Step 3 – Bascaso account
   const { account } = useManagedAccount();
-  const [purchaseOpen, setPurchaseOpen] = useState(false);
 
   // Step 4 – AI
   const [cloudTab, setCloudTab] = useState<"account" | "byok">("account");
@@ -590,25 +589,7 @@ export default function SetupPage() {
                   <p className="text-xs text-muted-foreground">{t("setup.cloudOptionalNote")}</p>
                 </div>
                 {account ? (
-                  <div className="space-y-3">
-                    <p className="text-sm">{t("settings.account.signedInAs", { email: account.email })}</p>
-                    <p className="text-sm font-medium">
-                      {account.subscribed
-                        ? t("settings.account.unlimited")
-                        : t("settings.account.balance", { count: account.balance })}
-                    </p>
-                    <div className="flex gap-2">
-                      <Button variant="outline" className="flex-1" onClick={() => setPurchaseOpen(true)}>
-                        {t("settings.ai.managedBuyCredits")}
-                      </Button>
-                      {!account.subscribed && (
-                        <Button variant="outline" className="flex-1" onClick={() => setPurchaseOpen(true)}>
-                          {t("settings.account.subscribe")}
-                        </Button>
-                      )}
-                    </div>
-                    <ManagedPurchaseDialog open={purchaseOpen} onOpenChange={setPurchaseOpen} />
-                  </div>
+                  <ManagedAccountCard />
                 ) : (
                   <ManagedAuthForm fill onAuthenticated={() => invalidateManagedAccount()} />
                 )}
@@ -699,16 +680,7 @@ export default function SetupPage() {
                       {/* No sign-out anywhere in onboarding: leaving the account is not
                           something to do while still setting the app up. */}
                       {account ? (
-                        <div className="space-y-2">
-                          <p className="text-sm">
-                            {t("settings.account.signedInAs", { email: account.email })}
-                          </p>
-                          <p className="text-sm font-medium">
-                            {account.subscribed
-                              ? t("settings.account.unlimited")
-                              : t("settings.account.balance", { count: account.balance })}
-                          </p>
-                        </div>
+                        <ManagedAccountCard />
                       ) : (
                         <ManagedAuthForm fill onAuthenticated={() => invalidateManagedAccount()} />
                       )}

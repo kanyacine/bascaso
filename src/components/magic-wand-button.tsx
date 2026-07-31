@@ -25,7 +25,7 @@ import { AICompareDialog } from "./ai-compare-dialog";
 import { useTranslations } from "@/lib/i18n/locale-context";
 import { TokenCostHint } from "@/components/token-cost-hint";
 import type { MessageKey } from "@/lib/i18n/messages";
-import { aiErrorMessage } from "@/lib/ai/ai-error";
+import { toastAIError } from "@/lib/ai/ai-error-toast";
 import { notifyManagedDebit } from "@/lib/ai/debit-toast";
 
 export interface CopyFromVersion {
@@ -152,7 +152,7 @@ export async function fetchTranslation(
     const data = await res.json().catch(() => ({}));
 
     if (!res.ok) {
-      toast.error(aiErrorMessage(data.error, t) ?? t("errors.aiRequestFailed"));
+      toastAIError(data.error, t);
       return;
     }
 
