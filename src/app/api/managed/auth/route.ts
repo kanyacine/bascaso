@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { parseBody } from "@/lib/api-helpers";
 import {
+  joinWaitlist,
   ManagedAuthError,
   requestPasswordReset,
   resetPassword,
@@ -34,6 +35,15 @@ const schema = z.discriminatedUnion("mode", [
     code: z.string().min(6),
     password: z.string().min(8),
   }),
+  // Not an account operation, but the same door: it is only ever reached from the sign-up
+  // form, right after GoTrue refused to create an account because signups are closed.
+  // Its own route would be a second copy of this file's fetch/error plumbing for one call.
+  z.object({
+    mode: z.literal("waitlist"),
+    email: z.string().email(),
+    // Whatever was typed in the sign-up form's username field, which may still be empty.
+    username: z.string().trim().max(40).optional(),
+  }),
 ]);
 
 export async function POST(request: Request) {
@@ -58,6 +68,10 @@ export async function POST(request: Request) {
     if (parsed.mode === "reset") {
       const session = await resetPassword(parsed.email, parsed.code, parsed.password);
       return NextResponse.json({ email: session.email });
+    }
+    if (parsed.mode === "waitlist") {
+      await joinWaitlist(parsed.email, parsed.username);
+      return NextResponse.json({ ok: true });
     }
     // signup: confirmations off → a session straight away (like login); on → no
     // session, and the client must switch to the confirmation screen (see (a) in the

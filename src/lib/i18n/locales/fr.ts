@@ -73,6 +73,16 @@ export const fr: Messages = {
       resetDone: "Mot de passe changé – vous êtes connecté.",
       authWeakPassword: "Mot de passe trop faible – choisissez-en un plus long.",
       authSamePassword: "C'est déjà votre mot de passe actuel.",
+      authSignupsClosed: "Les inscriptions ouvrent bientôt.",
+      closedTitle: "Les inscriptions ouvrent bientôt",
+      // Wording stays neutral about where it is read: this panel shows both in the setup
+      // wizard and in the account settings, where there is no "next step" to point at.
+      closedBody:
+        "Le compte cloud n'est pas encore ouvert. bascaso fonctionne entièrement sans : un modèle local sur votre Mac, ou votre propre clé d'API.",
+      waitlistJoin: "M'informer des actualités",
+      waitlistHint:
+        "{email} servira uniquement à vous annoncer l'ouverture et les actualités bascaso. Rien d'autre, et vous pouvez demander son retrait à tout moment.",
+      waitlistDone: "C'est noté, on écrira à {email}.",
       sessionExpired: "Session expirée – reconnectez-vous.",
       signOutNotRevoked: "Déconnecté sur ce Mac, mais la session n'a pas pu être révoquée côté serveur.",
       emailChange: "Adresse e-mail",

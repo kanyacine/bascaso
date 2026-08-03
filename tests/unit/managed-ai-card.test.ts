@@ -204,9 +204,20 @@ describe("managedAuthErrorMessage", () => {
   // The fix's central regression: a code returned by the server but not mapped here
   // must never show "check your password" – that is probably not the problem. The server
   // message is the best information available.
+  // `signup_disabled` used to be the example here; it now has a message of its own (see
+  // below), so the unmapped case needs a code that really is unmapped.
   it("surfaces the server's own message for a coded but unmapped failure", () => {
-    expect(managedAuthErrorMessage("signup_disabled", "Signups are disabled", t))
-      .toBe("Signups are disabled");
+    expect(managedAuthErrorMessage("captcha_failed", "Captcha protection failed", t))
+      .toBe("Captcha protection failed");
+  });
+
+  // Signups closed while the repository goes public: the sign-up form turns this into an
+  // offer to be told when they open, and must never show GoTrue's raw English instead.
+  it("maps both closed-signup codes to their own localized message", () => {
+    for (const code of ["signup_disabled", "email_provider_disabled"]) {
+      expect(managedAuthErrorMessage(code, "Signups not allowed for this instance", t))
+        .toBe(en.settings.account.authSignupsClosed);
+    }
   });
 
   it("falls back to the generic message when a coded failure has no message", () => {

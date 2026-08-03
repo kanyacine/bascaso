@@ -467,4 +467,59 @@ describe("managed auth (GoTrue REST)", () => {
     expect(warnSpy).toHaveBeenCalledTimes(1);
     expect(warnSpy.mock.calls[0].join(" ")).not.toContain("old");
   });
+
+  // Signups closed on the project while the repository goes public. The whole point of
+  // this path is that the user sees an offer instead of GoTrue's raw English, so the two
+  // things worth pinning are the code surviving the round trip and the message it maps to.
+  describe("signups closed", () => {
+    it("signUp's ManagedAuthError carries signup_disabled", async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: false,
+        json: () => Promise.resolve({
+          code: 422, error_code: "signup_disabled", msg: "Signups not allowed for this instance",
+        }),
+      });
+      const { signUp, ManagedAuthError } = await import("@/lib/managed/auth");
+      const err = await signUp("a@b.c", "password123", "yacine").catch((e) => e);
+      expect(err).toBeInstanceOf(ManagedAuthError);
+      expect((err as InstanceType<typeof ManagedAuthError>).code).toBe("signup_disabled");
+    });
+
+    it("maps both closed-signup codes to the localized message, never the raw English", async () => {
+      const { managedAuthErrorMessage, signupsClosed } = await import("@/lib/managed/client");
+      const t = ((key: string) => key) as Parameters<typeof managedAuthErrorMessage>[2];
+      for (const code of ["signup_disabled", "email_provider_disabled"]) {
+        expect(signupsClosed(code)).toBe(true);
+        expect(managedAuthErrorMessage(code, "Signups not allowed for this instance", t))
+          .toBe("settings.account.authSignupsClosed");
+      }
+      expect(signupsClosed("invalid_credentials")).toBe(false);
+      expect(signupsClosed(undefined)).toBe(false);
+    });
+
+    it("joinWaitlist posts the address to the public function, with no bearer token", async () => {
+      fetchMock.mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ ok: true }) });
+      const { joinWaitlist } = await import("@/lib/managed/auth");
+      await joinWaitlist("a@b.c", "yacine");
+      const [url, init] = fetchMock.mock.calls[0];
+      expect(url).toContain("/functions/v1/waitlist");
+      expect(JSON.parse(init.body)).toEqual({ email: "a@b.c", username: "yacine" });
+      expect(init.headers.Authorization).toBeUndefined();
+    });
+
+    // Not a ManagedAuthError, and that distinction is the whole point: that class makes the
+    // route answer 401, which the client reads as "check your credentials" – for a write
+    // that carries none. A plain Error lands on the route's 500, which the client
+    // classifies as a network failure, which is what it is.
+    it("joinWaitlist rejects a failed write as a plain Error, never as an auth failure", async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: false, status: 500, text: () => Promise.resolve('{"error":"insert_failed"}'),
+      });
+      const { joinWaitlist, ManagedAuthError } = await import("@/lib/managed/auth");
+      const err = await joinWaitlist("a@b.c").catch((e) => e);
+      expect(err).toBeInstanceOf(Error);
+      expect(err).not.toBeInstanceOf(ManagedAuthError);
+      expect((err as Error).message).toContain("insert_failed");
+    });
+  });
 });

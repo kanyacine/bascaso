@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { CaretRight } from "@phosphor-icons/react";
+import { CaretRight, CheckCircle, Hourglass } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -16,6 +16,7 @@ import {
   passwordRules,
   postManagedAuth,
   runWithBusyFlag,
+  signupsClosed,
   verifyManagedSignup,
 } from "@/lib/managed/client";
 import { invalidateAIStatus } from "@/lib/hooks/use-ai-status";
@@ -55,6 +56,17 @@ export function ManagedAuthForm({ onAuthenticated, fill, defaultTab = "signin" }
   // managedAuthErrorMessage.
   const [error, setError] = useState<string | null>(null);
   const [pendingConfirmation, setPendingConfirmation] = useState(false);
+  // Signups are closed on the project: the sign-up button turns into an offer to be told
+  // when they open. Two pieces of state, because "we cannot create your account" and "your
+  // address is written down" are two different things to show.
+  const [closed, setClosed] = useState(false);
+  // The address the join actually succeeded for, not a bare boolean. It deliberately
+  // outlives the panel (see the tab handler), so a boolean would let the confirmation
+  // re-render against whatever is in the field by then: join as A, go back, retype B, try
+  // to sign up again, and the panel would promise to write to B without a single request
+  // having been sent for it. On the one screen whose whole premise is that the click is
+  // the consent, confirming an address nobody clicked for is the worst thing it can do.
+  const [joinedEmail, setJoinedEmail] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
   const [showCodeInput, setShowCodeInput] = useState(false);
   const [code, setCode] = useState("");
@@ -86,6 +98,7 @@ export function ManagedAuthForm({ onAuthenticated, fill, defaultTab = "signin" }
       if (!result.ok) {
         if (result.reason === "auth") {
           setError(managedAuthErrorMessage(result.code, result.message, t));
+          setClosed(signupsClosed(result.code));
         } else {
           toast.error(t("common.networkError"));
         }
@@ -98,6 +111,24 @@ export function ManagedAuthForm({ onAuthenticated, fill, defaultTab = "signin" }
         return;
       }
       authenticated();
+    });
+  }
+
+  /** Sends the address already in the form – the user has just typed it to try to sign up,
+   *  and asking for it a second time would be the app pretending not to have it. The click
+   *  is the consent, and the line under the button says what it is consent for. */
+  async function handleWaitlist() {
+    await runWithBusyFlag(setBusy, async () => {
+      const result = await postManagedAuth({
+        mode: "waitlist",
+        email,
+        username: username.trim() || undefined,
+      });
+      if (!result.ok) {
+        toast.error(t("common.networkError"));
+        return;
+      }
+      setJoinedEmail(email);
     });
   }
 
@@ -126,6 +157,63 @@ export function ManagedAuthForm({ onAuthenticated, fill, defaultTab = "signin" }
         }}
         onCancel={() => setResetting(false)}
       />
+    );
+  }
+
+  /* Signups are closed on the project. This takes over the whole form rather than adding a
+     line under the sign-up button: the answer to "create my account" is not a validation
+     error to correct, it is a different situation, and a message the user can fill a form
+     under reads as something they got wrong. The address they just typed is already in
+     hand, so the only thing left to decide is whether to leave it. Either way the wizard
+     carries on – the next step sets up a local or BYOK model, which needs no account. */
+  if (closed) {
+    return (
+      <div className={`${width} space-y-4 rounded-lg border bg-muted/30 p-5 text-center`}>
+        <div className="mx-auto flex size-12 items-center justify-center rounded-xl bg-muted">
+          <Hourglass size={24} className="text-muted-foreground" />
+        </div>
+        <div className="space-y-1.5">
+          <p className="text-base font-medium">{t("settings.account.closedTitle")}</p>
+          <p className="text-sm text-muted-foreground">{t("settings.account.closedBody")}</p>
+        </div>
+
+        {/* Confirms only the address the join succeeded for. Type a different one and the
+            offer comes back, because that address really has not been sent. */}
+        {joinedEmail === email ? (
+          /* Icon inline in the paragraph rather than a flex sibling: the message wraps to
+             two lines at this width, and a centred flex row leaves the tick stranded
+             against the left edge instead of next to the words it belongs to. */
+          <p className="text-sm font-medium">
+            <CheckCircle
+              size={16}
+              weight="fill"
+              className="mr-1.5 inline align-text-bottom text-green-500"
+            />
+            {t("settings.account.waitlistDone", { email: joinedEmail })}
+          </p>
+        ) : (
+          <div className="space-y-2">
+            <Button className="w-full" disabled={busy} onClick={() => void handleWaitlist()}>
+              {t("settings.account.waitlistJoin")}
+            </Button>
+            {/* Names the address and the single purpose, above the click that consents to
+                both – the user is agreeing to something specific, not to a checkbox. */}
+            <p className="text-xs text-muted-foreground">
+              {t("settings.account.waitlistHint", { email })}
+            </p>
+          </div>
+        )}
+
+        {/* Without this the panel is a trap: someone who already has an account and mistyped
+            their way into the sign-up tab would have no route back to signing in. */}
+        <button
+          type="button"
+          onClick={() => setClosed(false)}
+          className="text-xs text-muted-foreground hover:text-foreground hover:underline underline-offset-4"
+        >
+          {t("common.back")}
+        </button>
+      </div>
     );
   }
 
@@ -189,6 +277,9 @@ export function ManagedAuthForm({ onAuthenticated, fill, defaultTab = "signin" }
       onValueChange={(v) => {
         setTab(v as AuthTab);
         setError(null);
+        // `joinedEmail` deliberately survives: it is a fact about an address, not about the
+        // tab, and coming back to find the confirmation gone reads as "it did not work".
+        setClosed(false);
       }}
       className={width}
     >

@@ -210,6 +210,33 @@ describe("/api/managed/*", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("auth POST waitlist posts the address to the public function, with no bearer token", async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 200 }));
+    const { POST } = await import("@/app/api/managed/auth/route");
+    const res = await POST(post({ mode: "waitlist", email: "a@b.co", username: "Yacine" }));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
+    expect(String(fetchMock.mock.calls[0][0])).toContain("/functions/v1/waitlist");
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ email: "a@b.co", username: "Yacine" });
+    expect(fetchMock.mock.calls[0][1].headers.Authorization).toBeUndefined();
+  });
+
+  it("auth POST waitlist rejects a malformed address before calling the cloud", async () => {
+    const { POST } = await import("@/app/api/managed/auth/route");
+    const res = await POST(post({ mode: "waitlist", email: "pasunemail" }));
+    expect(res.status).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  // A failed write is a 500 and not a 401: nothing here is an authentication outcome, and
+  // the client maps 401 to "check your credentials" – for a call that carries none.
+  it("auth POST waitlist reports a failed write as a server failure, not as an auth one", async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ error: "insert_failed" }), { status: 500 }));
+    const { POST } = await import("@/app/api/managed/auth/route");
+    const res = await POST(post({ mode: "waitlist", email: "a@b.co" }));
+    expect(res.status).toBe(500);
+  });
+
   it("me returns 401 when signed out, proxies when signed in", async () => {
     auth.getValidAccessToken.mockResolvedValueOnce(null);
     const { GET } = await import("@/app/api/managed/me/route");
