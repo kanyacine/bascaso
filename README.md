@@ -37,6 +37,8 @@ itsyconnect-macos is MIT. RespectASO is AGPL-3.0, which is what makes Bascaso AG
 
 **An account, for people with no key.** Creating a Bascaso cloud account is optional and gives access to a hosted model billed per action. It exists so that someone without an API key can still use the AI features. Everything else in the app works without ever creating one.
 
+> **Sign-up is not open yet.** Accounts cannot be created for the moment. This is coming very soon. Until it lands, the on-device model and your own API key cover every AI feature in the app.
+
 ## Free and local
 
 The app is free under [AGPL-3.0](LICENSE), with no feature gates, no trial, and no limit on how many apps or developer accounts you manage. Your data stays on your machine. That is the point of the project and it is meant to stay that way.
@@ -105,7 +107,7 @@ covers what the managed tier charges and why; [docs/TERMS.md](docs/TERMS.md) cov
 
 Nothing, unless you use the managed AI tier. The on-device model is free. Your own API key costs whatever your provider charges you, and Bascaso takes no cut of it.
 
-The managed tier is the only paid part: prepaid credits, one credit per action, no subscription required. The app never asks for an account.
+The managed tier is the only paid part: prepaid credits, one credit per action, no subscription required. The app never asks for an account, and sign-up is not open yet in any case.
 
 ## Install
 
