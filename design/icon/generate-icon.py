@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Generateur de l'icone Bascaso.
+Bascaso icon generator.
 
-Produit, a partir d'une seule source vectorielle decrite ici :
-  - bascaso-icon.svg          la source vectorielle
-  - bascaso.iconset/          les 10 tailles attendues par macOS
-  - ../../public/icon.png     1024x1024, utilise par Electron et la page "A propos"
-  - ../../public/icon.icns    le bundle d'icones consomme par electron-forge
-  - ../../src/app/favicon.ico le favicon multi-resolutions du front Next.js
+Produces, from the single vector source described here:
+  - bascaso-icon.svg          the vector source
+  - bascaso.iconset/          the 10 sizes macOS expects
+  - ../../public/icon.png     1024x1024, used by Electron and the "About" page
+  - ../../public/icon.icns    the icon bundle consumed by electron-forge
+  - ../../src/app/favicon.ico the multi-resolution favicon of the Next.js front end
 
-Usage :  python3 generate-icon.py
-Dependances : pip install cairosvg pillow
+Usage:  python3 generate-icon.py
+Dependencies: pip install cairosvg pillow
 
-Le dessin : la boite d'Itsyconnect (couvercle + corps) sert de corps a une
-chouette dont les aigrettes sont integrees a la forme meme du couvercle, avec
-les yeux et le bec herites du hibou RespectASO.
+The drawing: the Itsyconnect box (lid + body) is the body of an owl whose ear
+tufts are built into the shape of the lid itself, with the eyes and beak
+inherited from the RespectASO owl.
 """
 import math
 import os
@@ -23,7 +23,7 @@ import struct
 import sys
 
 CANVAS = 1024
-HALF = 412           # demi-cote du squircle (ratio Apple : 824/1024)
+HALF = 412           # squircle half-side (Apple ratio: 824/1024)
 CENTER = 512
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -41,12 +41,12 @@ TEAL = "#2DD4BF"
 TEAL_DEEP = "#0D9488"
 INK = "#1E1B4B"
 
-BODY_RADIUS = 24     # arrondi du corps : volontairement cubique, esprit Itsyconnect
+BODY_RADIUS = 24     # body corner radius: deliberately cubic, Itsyconnect spirit
 
 
-# ------------------------------------------------------------------- geometrie
+# -------------------------------------------------------------------- geometry
 def squircle(a=HALF, cx=CENTER, cy=CENTER, n=5.0, steps=720):
-    """Superellipse d'exposant 5 : approxime le squircle des icones Apple."""
+    """Superellipse of exponent 5: approximates the squircle of Apple icons."""
     pts = []
     for i in range(steps):
         t = 2 * math.pi * i / steps
@@ -57,12 +57,12 @@ def squircle(a=HALF, cx=CENTER, cy=CENTER, n=5.0, steps=720):
 
 
 def symmetric_lid(left_half, x_join, bottom_left, bottom=416):
-    """Construit le couvercle a partir de sa seule moitie gauche.
+    """Build the lid from its left half only.
 
-    left_half est une liste de cubiques (c1x, c1y, c2x, c2y, px, py) partant de
-    (bottom_left, bottom) et arrivant sur (x_join, 304). La moitie droite est
-    obtenue par miroir + inversion de chaque cubique, ce qui garantit une
-    symetrie exacte plutot qu'approchee a la main.
+    left_half is a list of cubics (c1x, c1y, c2x, c2y, px, py) starting at
+    (bottom_left, bottom) and ending on (x_join, 304). The right half is
+    obtained by mirroring + reversing each cubic, which guarantees exact
+    symmetry rather than one approximated by hand.
     """
     d = "M %g %g " % (bottom_left, bottom)
     for seg in left_half:
@@ -78,23 +78,23 @@ def symmetric_lid(left_half, x_join, bottom_left, bottom=416):
 
 
 def lid_path(radius):
-    """Couvercle + aigrettes en une seule silhouette continue.
+    """Lid + ear tufts as one continuous silhouette.
 
-    Les deux pointes de chaque cote filent vers l'exterieur en diagonale et sont
-    separees par un sillon fin : c'est le geste des aigrettes de RespectASO,
-    greffe sur le couvercle de la boite Itsyconnect.
+    The two tips on each side run outwards diagonally and are separated by a
+    thin groove: that is the gesture of the RespectASO ear tufts, grafted onto
+    the lid of the Itsyconnect box.
 
-    Le couvercle est quasiment affleurant au corps (bord a 252 contre 256 pour le
-    corps, soit 4 px de debord) : un couvercle plus large ecrase la chouette.
+    The lid is almost flush with the body (edge at 252 against 256 for the body,
+    so a 4 px overhang): a wider lid crushes the owl.
     """
     k = radius * 0.45
     return symmetric_lid([
-        (252 + k, 416, 252, 416 - k, 252, 416 - radius),   # coin bas gauche
-        (250, 372, 230, 292, 196, 248),                    # pointe exterieure
-        (216, 272, 244, 300, 272, 312),                    # sillon
-        (268, 302, 258, 282, 246, 272),                    # pointe interieure
-        (258, 284, 280, 302, 304, 304),                    # retour au plat
-        (320, 304, 320, 304, 332, 304),                    # raccord
+        (252 + k, 416, 252, 416 - k, 252, 416 - radius),   # bottom left corner
+        (250, 372, 230, 292, 196, 248),                    # outer tip
+        (216, 272, 244, 300, 272, 312),                    # groove
+        (268, 302, 258, 282, 246, 272),                    # inner tip
+        (258, 284, 280, 302, 304, 304),                    # back to the flat
+        (320, 304, 320, 304, 332, 304),                    # join
     ], 332, bottom_left=252 + radius)
 
 
@@ -112,7 +112,7 @@ def eye(cx, cy, r, pupil=0.42):
 
 
 def talons(top=790, fill=VIOLET_MID):
-    """Serres triangulaires, base large et pointe emoussee."""
+    """Triangular talons, wide base and blunt tip."""
     out = ""
     for cx in (429, 595):
         h, w, tip = 52, 86, 22
@@ -172,14 +172,14 @@ def build_svg(body_radius=BODY_RADIUS):
 '''
 
 
-# ------------------------------------------------------------------------ sortie
+# ------------------------------------------------------------------------ output
 ICONSET = [(16, "icon_16x16"), (32, "icon_16x16@2x"), (32, "icon_32x32"),
            (64, "icon_32x32@2x"), (128, "icon_128x128"), (256, "icon_128x128@2x"),
            (256, "icon_256x256"), (512, "icon_256x256@2x"), (512, "icon_512x512"),
            (1024, "icon_512x512@2x")]
 
-# Meme table de types que l'icone Itsyconnect d'origine, pour ne rien perdre
-# en compatibilite selon les contextes d'affichage de macOS.
+# Same type table as the original Itsyconnect icon, so no compatibility is lost
+# across macOS display contexts.
 ICNS_TYPES = [(b"ic04", 16), (b"ic05", 32), (b"ic07", 128), (b"ic08", 256),
               (b"ic09", 512), (b"ic10", 1024), (b"ic11", 32), (b"ic12", 64),
               (b"ic13", 256), (b"ic14", 512)]
@@ -190,7 +190,7 @@ def main():
         import cairosvg
         from PIL import Image
     except ImportError:
-        sys.exit("Dependances manquantes : pip install cairosvg pillow")
+        sys.exit("Missing dependencies: pip install cairosvg pillow")
 
     svg = build_svg()
     svg_path = os.path.join(HERE, "bascaso-icon.svg")
@@ -225,7 +225,7 @@ def main():
     base.save(os.path.join(REPO, "src", "app", "favicon.ico"), format="ICO",
               sizes=[(s, s) for s in ico_sizes])
 
-    print("icone regeneree :")
+    print("icon regenerated:")
     print("  " + svg_path)
     print("  " + iconset)
     print("  " + icon_png)
