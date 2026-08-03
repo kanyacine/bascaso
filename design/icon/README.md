@@ -1,63 +1,62 @@
-# Icône Bascaso
+# Bascaso icon
 
-L'icône raconte la fusion des deux projets dont Bascaso est issu : la **boîte
-d'Itsyconnect** (couvercle + corps, angles volontairement cubiques) sert de corps
-à une **chouette**, dont les aigrettes, les yeux turquoise et le bec en losange
-sont hérités de **RespectASO**.
+The icon tells the story of the two projects Bascaso comes from: the
+**Itsyconnect box** (lid + body, corners deliberately cubic) is the body of an
+**owl** whose ear tufts, turquoise eyes and diamond beak are inherited from
+**RespectASO**.
 
-## Source unique
+## Single source
 
-Tout est généré depuis `generate-icon.py` — il n'y a **pas** de fichier binaire à
-retoucher à la main. Le SVG lui-même est une sortie du script, pas une entrée.
+Everything is generated from `generate-icon.py` – there is **no** binary file to
+retouch by hand. The SVG itself is an output of the script, not an input.
 
 ```bash
 pip install cairosvg pillow
 python3 design/icon/generate-icon.py
 ```
 
-Le script réécrit :
+The script rewrites:
 
-| Fichier | Rôle |
+| File | Role |
 | --- | --- |
-| `design/icon/bascaso-icon.svg` | source vectorielle lisible |
-| `design/icon/bascaso.iconset/` | les 10 tailles attendues par macOS |
-| `public/icon.png` | 1024×1024, utilisé par Electron (`electron/main.ts`) et la page « À propos » |
-| `public/icon.icns` | bundle consommé par electron-forge (`forge.config.ts`) |
-| `src/app/favicon.ico` | favicon multi-résolutions du front Next.js |
+| `design/icon/bascaso-icon.svg` | readable vector source |
+| `design/icon/bascaso.iconset/` | the 10 sizes macOS expects |
+| `public/icon.png` | 1024×1024, used by Electron (`electron/main.ts`) and the "About" page |
+| `public/icon.icns` | bundle consumed by electron-forge (`forge.config.ts`) |
+| `src/app/favicon.ico` | multi-resolution favicon for the Next.js front end |
 
-Le `.icns` est assemblé directement par le script (pas de dépendance à
-`iconutil`, donc régénérable depuis Linux comme depuis macOS). Il embarque la
-même table de types que l'icône d'origine — `ic04` `ic05` `ic07`–`ic14` — pour
-couvrir tous les contextes d'affichage de macOS.
+The `.icns` is assembled directly by the script (no dependency on `iconutil`, so
+it can be regenerated from Linux as well as from macOS). It embeds the same type
+table as the original icon – `ic04` `ic05` `ic07`–`ic14` – to cover every macOS
+display context.
 
-## Constantes de dessin
+## Drawing constants
 
-| Élément | Valeur |
+| Element | Value |
 | --- | --- |
 | Canvas | 1024 × 1024 |
-| Fond | superellipse d'exposant 5, demi-côté 412 (ratio Apple 824/1024) |
-| Arrondi du corps | `BODY_RADIUS = 24` |
-| Violet corps | `#8B5CF6`, dégradé `#A78BFA` → `#6D28D9` |
-| Violet couvercle | `#B79BFF` → `#8B5CF6` |
-| Turquoise iris | `#2DD4BF`, dégradé `#7FF0DE` → `#0D9488` |
-| Encre | `#1E1B4B` |
-| Lavande fond | `#F1ECFF` → `#D9CBFF` |
+| Background | superellipse of exponent 5, half-side 412 (Apple ratio 824/1024) |
+| Body corner radius | `BODY_RADIUS = 24` |
+| Body purple | `#8B5CF6`, gradient `#A78BFA` → `#6D28D9` |
+| Lid purple | `#B79BFF` → `#8B5CF6` |
+| Iris turquoise | `#2DD4BF`, gradient `#7FF0DE` → `#0D9488` |
+| Ink | `#1E1B4B` |
+| Lavender background | `#F1ECFF` → `#D9CBFF` |
 
-## Notes de dessin
+## Drawing notes
 
-- **Les aigrettes font partie du couvercle**, pas d'une forme posée derrière :
-  une seule silhouette continue, sinon un liseré parasite traverse la boîte.
-- Les pointes sont **courtes et orientées vers l'extérieur en diagonale**. Des
-  aigrettes longues et verticales donnent un effet « chapeau » ; des triangles
-  verticaux se lisent comme des oreilles de chat.
-- Le couvercle est décrit **par sa seule moitié gauche** (`symmetric_lid`), la
-  droite étant obtenue par miroir et inversion des cubiques : la symétrie est
-  exacte par construction, pas ajustée à la main.
-- L'arrondi des coins bas du couvercle suit celui du corps, pour éviter une
-  boîte molle posée sur un socle carré.
+- **The ear tufts are part of the lid**, not a shape sitting behind it: one
+  continuous silhouette, otherwise a stray seam runs across the box.
+- The tips are **short and angled outwards diagonally**. Long vertical tufts
+  give a "hat" effect; vertical triangles read as cat ears.
+- The lid is described **by its left half only** (`symmetric_lid`), the right
+  half being obtained by mirroring and reversing the cubics: symmetry is exact
+  by construction, not adjusted by hand.
+- The rounding of the lid's bottom corners follows that of the body, to avoid a
+  soft box sitting on a square base.
 
-## Rendu aux petites tailles
+## Rendering at small sizes
 
-Les yeux restent lisibles jusqu'à 32 px. À 16 px les serres et le sillon entre
-les aigrettes se fondent : c'est attendu, la silhouette générale suffit à
-identifier l'app dans la barre de menus.
+The eyes stay legible down to 32 px. At 16 px the talons and the groove between
+the ear tufts blend together: that is expected, the overall silhouette is enough
+to identify the app in the menu bar.
