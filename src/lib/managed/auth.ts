@@ -7,13 +7,13 @@ import {
 } from "./account";
 
 export class ManagedAuthError extends Error {
-  // `code` porte le error_code GoTrue (ex. "invalid_credentials", "user_already_exists",
-  // "over_email_send_rate_limit", "email_not_confirmed"). Mesuré en prod : ce GoTrue
-  // renvoie systématiquement {code, error_code, msg} sur /token comme sur /signup –
-  // pas la forme OAuth2 {error, error_description} qu'on supposait avant. `code`
-  // reste undefined seulement si le serveur omet error_code (défensif). Permet à
-  // l'appelant de distinguer ces cas d'un vrai problème d'identifiants au lieu
-  // de tout collapse sur le même message générique.
+  // `code` carries GoTrue's error_code (e.g. "invalid_credentials", "user_already_exists",
+  // "over_email_send_rate_limit", "email_not_confirmed"). Measured in production: this
+  // GoTrue always answers {code, error_code, msg} on /token as on /signup – not the
+  // OAuth2 shape {error, error_description} we assumed before. `code` stays undefined
+  // only if the server omits error_code (defensive). It lets the caller tell these
+  // cases apart from a genuine credentials problem instead of collapsing everything
+  // onto the same generic message.
   constructor(message: string, public code?: string) {
     super(message);
     this.name = "ManagedAuthError";
@@ -26,28 +26,26 @@ interface GoTrueResponse {
   expires_at?: number;
   expires_in?: number;
   user?: { email?: string };
-  // Réponse d'un signup en attente de confirmation : GoTrue renvoie l'objet
-  // utilisateur directement à la racine (champ "id" au premier niveau), pas
-  // sous une clé "user" imbriquée – cf. internal/api/signup.go de
-  // supabase/auth (`sendJSON(w, http.StatusOK, user)`).
+  // Response of a signup awaiting confirmation: GoTrue returns the user object at
+  // the root (an "id" field at the top level), not under a nested "user" key –
+  // see internal/api/signup.go in supabase/auth (`sendJSON(w, http.StatusOK, user)`).
   id?: string;
-  // Vide sur la réponse sanitisée d'une adresse déjà inscrite ; exactement une entrée
-  // sur une vraie inscription en attente. Seul signal qui distingue les deux.
+  // Empty on the sanitised response for an address that already signed up; exactly one
+  // entry on a genuine pending signup. The only signal that tells the two apart.
   identities?: unknown[];
-  // Jamais envoyé par ce GoTrue : vestige de l'hypothèse OAuth2. Conservé en
-  // premier arm du ?? uniquement par prudence si un proxy le réintroduisait.
+  // Never sent by this GoTrue: a leftover of the OAuth2 assumption. Kept as the first
+  // arm of the ?? purely in case a proxy were to reintroduce it.
   error_description?: string;
   msg?: string;
-  // Code machine-readable, présent sur TOUS les endpoints, /token compris.
-  // L'hypothèse inverse (forme OAuth2 sur /token) est ce qui avait rendu
-  // managedAuthFailed inatteignable et affiché de l'anglais brut aux non-anglophones.
-  // Mesuré en prod : mot de passe erroné → {code:400, error_code:"invalid_credentials", msg:…}.
+  // Machine-readable code, present on EVERY endpoint, /token included. The opposite
+  // assumption (OAuth2 shape on /token) is what made managedAuthFailed unreachable
+  // and showed raw English to non-English speakers.
+  // Measured in production: wrong password → {code:400, error_code:"invalid_credentials", msg:…}.
   error_code?: string;
 }
 
-/** POST bas niveau vers GoTrue : ne lève jamais, laisse l'appelant décider
- *  comment interpréter un statut non-2xx (signUp et verifySignup ont chacun
- *  une logique différente pour ça). */
+/** Low-level POST to GoTrue: never throws, leaves the caller to decide how to read
+ *  a non-2xx status (signUp and verifySignup each have their own logic for that). */
 async function postGoTrue(
   path: string,
   // `unknown` and not `string`: GoTrue's `data` field – the only route into
@@ -66,8 +64,8 @@ async function postGoTrue(
   return { res, json };
 }
 
-/** Variante stricte utilisée par signIn/refresh : un statut non-2xx ou une
- *  réponse sans access_token est toujours un échec d'authentification. */
+/** Strict variant used by signIn/refresh: a non-2xx status, or a response without an
+ *  access_token, is always an authentication failure. */
 async function goTrue(path: string, body: Record<string, string>): Promise<GoTrueResponse> {
   const { res, json } = await postGoTrue(path, body);
   if (!res.ok || !json.access_token) {
@@ -120,24 +118,24 @@ type SignUpOutcome =
  *  holds it. */
 export async function signUp(email: string, password: string, username: string): Promise<SignUpOutcome> {
   const { res, json } = await postGoTrue("signup", { email, password, data: { username } });
-  // Adresse déjà inscrite. GoTrue ne renvoie 422 user_already_exists que si l'autoconfirm
-  // email OU SMS est actif ; les deux étant coupés sur ce projet, il répond un 200 « sanitisé »
-  // impossible à distinguer d'une inscription en attente – sauf par `identities`, vide ici alors
-  // qu'une vraie nouvelle inscription en porte exactement une. Sans ce test, l'utilisateur qui
-  // revient s'inscrire se voit promettre un email de confirmation qu'il ne recevra jamais.
-  // Le cas 422 reste géré plus bas : le code doit rester correct si l'autoconfirm est réactivé.
-  // Réserve connue : GoTrue vide aussi `identities` pour un utilisateur INVITÉ
-  // (HasBeenInvited, internal/api/signup.go) – une vraie inscription en attente qui
-  // serait ici prise pour un doublon. bascaso n'a aucun flux d'invitation ; si on en
-  // ajoute un pour le tier payant, discriminer avec `invited_at`.
+  // Address already registered. GoTrue only returns 422 user_already_exists when email
+  // OR SMS autoconfirm is on; both are off on this project, so it answers a "sanitised"
+  // 200 indistinguishable from a pending signup – except through `identities`, empty here
+  // where a genuine new signup carries exactly one. Without this test, a user coming back
+  // to sign up is promised a confirmation email they will never receive.
+  // The 422 case is still handled below: the code must stay correct if autoconfirm is
+  // turned back on. Known caveat: GoTrue also empties `identities` for an INVITED user
+  // (HasBeenInvited, internal/api/signup.go) – a genuine pending signup that would be
+  // taken for a duplicate here. bascaso has no invitation flow; if one is added for the
+  // paid tier, discriminate on `invited_at`.
   if (res.ok && !json.access_token && Array.isArray(json.identities) && json.identities.length === 0) {
     throw new ManagedAuthError("User already registered", "user_already_exists");
   }
-  // Confirmation email activée côté projet : /signup répond 200 sans tokens.
-  // Ce n'est pas un échec d'identifiants – lever ManagedAuthError ferait
-  // afficher « identifiants invalides » pour un compte qui vient d'être créé.
-  // On détecte l'objet utilisateur sous ses deux formes possibles (voir
-  // GoTrueResponse ci-dessus) : "user" imbriqué, ou "id" à la racine.
+  // Email confirmation enabled on the project: /signup answers 200 with no tokens.
+  // This is not a credentials failure – throwing ManagedAuthError would show
+  // "invalid credentials" for an account that was just created. The user object is
+  // detected in both its possible shapes (see GoTrueResponse above): nested "user",
+  // or "id" at the root.
   if (res.ok && !json.access_token && (json.user != null || json.id != null)) {
     return { status: "confirmation_required" };
   }
@@ -150,13 +148,12 @@ export async function signUp(email: string, password: string, username: string):
 }
 
 /**
- * Confirme un signup via le code de vérification envoyé par email. GoTrue
- * attend `type: "signup"` pour ce flux, mais selon la version du projet ce
- * type peut être rejeté (400) au profit de `type: "email"` – le repli est
- * géré ici plutôt que figé à l'écriture, pour rester correct quelle que soit
- * la version acceptée par ce backend. Un code invalide/expiré (observé
- * empiriquement : 403 "otp_expired") n'est PAS un problème de type : on ne
- * retente donc que sur un 400.
+ * Confirms a signup with the verification code sent by email. GoTrue expects
+ * `type: "signup"` for this flow, but depending on the project's version that type
+ * can be rejected (400) in favour of `type: "email"` – the fallback is handled here
+ * rather than frozen at authoring time, so the code stays correct whichever version
+ * this backend accepts. An invalid/expired code (observed empirically: 403
+ * "otp_expired") is NOT a type problem, so the retry only happens on a 400.
  */
 export async function verifySignup(email: string, code: string): Promise<ManagedSession> {
   let { res, json } = await postGoTrue("verify", { type: "signup", email, token: code });
@@ -175,11 +172,11 @@ function readSessionOrClear(): ManagedSession | null {
   try {
     return getManagedSession();
   } catch (err) {
-    // Session illisible (clé maître changée, ligne corrompue…) : traitée
-    // comme déconnectée. Elle ne sera plus jamais exploitable, on la purge
-    // pour éviter de répéter l'échec à chaque appel. Logué (jamais le
-    // contenu du token) pour qu'une rotation de clé mal préparée reste
-    // visible en prod plutôt qu'un silencieux "déconnecté".
+    // Unreadable session (master key changed, corrupted row…): treated as signed
+    // out. It will never be usable again, so it is purged to avoid repeating the
+    // failure on every call. Logged (never the token's contents) so that a
+    // mishandled key rotation stays visible in production instead of showing up
+    // as a silent "signed out".
     console.warn(
       "[managed/auth] unreadable session, clearing:",
       err instanceof Error ? err.message : String(err),
@@ -189,18 +186,16 @@ function readSessionOrClear(): ManagedSession | null {
   }
 }
 
-/** Rafraîchissement en cours, partagé par tous les appelants concurrents.
- *  GoTrue fait tourner le refresh token : le second rafraîchissement d'une
- *  paire concurrente (un bulk IA en déclenche autant qu'il lance d'appels)
- *  présente un token déjà révoqué, échoue, et purge la session – l'utilisateur
- *  se retrouve déconnecté au milieu de son travail. Processus unique (le
- *  serveur Next embarqué dans Electron), donc une variable de module suffit. */
+/** In-flight refresh, shared by every concurrent caller. GoTrue rotates the refresh
+ *  token: the second refresh of a concurrent pair (a bulk AI run starts as many as it
+ *  fires calls) presents an already-revoked token, fails, and purges the session – the
+ *  user is signed out in the middle of their work. Single process (the Next server
+ *  embedded in Electron), so a module variable is enough. */
 let refreshInFlight: Promise<string | null> | null = null;
 
 async function refreshAccessToken(): Promise<string | null> {
-  // Relecture SOUS le verrou : un appelant mis en attente derrière un
-  // rafraîchissement en cours détient un instantané pris avant celui-ci, dont
-  // le refresh token vient justement d'être invalidé.
+  // Re-read UNDER the lock: a caller queued behind an in-flight refresh holds a
+  // snapshot taken before it, whose refresh token has just been invalidated.
   const session = readSessionOrClear();
   if (!session) return null;
   if (session.expiresAt - Math.floor(Date.now() / 1000) > 60) return session.accessToken;
@@ -221,14 +216,13 @@ async function refreshAccessToken(): Promise<string | null> {
   }
 }
 
-/** Access token valide (rafraîchi si < 60 s restantes), ou null si non connecté. */
+/** A valid access token (refreshed if under 60 s remain), or null if signed out. */
 export async function getValidAccessToken(): Promise<string | null> {
   const session = readSessionOrClear();
   if (!session) return null;
   if (session.expiresAt - Math.floor(Date.now() / 1000) > 60) return session.accessToken;
-  // `??=` n'évalue sa droite que si la gauche est nulle, et rien ne s'exécute
-  // entre le test et l'affectation : deux appelants ne peuvent pas démarrer
-  // deux rafraîchissements.
+  // `??=` only evaluates its right-hand side when the left is nullish, and nothing
+  // runs between the test and the assignment: two callers cannot start two refreshes.
   refreshInFlight ??= refreshAccessToken().finally(() => {
     refreshInFlight = null;
   });

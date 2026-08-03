@@ -3,14 +3,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const auth = {
   signIn: vi.fn(), signUp: vi.fn(), verifySignup: vi.fn(), getValidAccessToken: vi.fn(),
 };
-// Session locale factice : il n'y a pas de base ici, et les chemins ajoutés
-// (signOut, changePassword, deleteAccount) la lisent tous. Mutable pour que le cas
-// « déconnecté » puisse la retirer.
+// Fake local session: there is no database here, and the paths added since (signOut,
+// changePassword, deleteAccount) all read it. Mutable so the "signed out" case can take
+// it away.
 //
-// À noter, et c'est ce qui rend cette variable nécessaire : les mocks ci-dessous ne
-// s'appliquent qu'aux appelants EXTERNES du module. `updateUsername` ou `signOut`
-// appellent `getValidAccessToken` en interne, où le mock ne passe pas – ils voient
-// toujours la vraie fonction, donc la vraie session et le vrai fetch.
+// Worth noting, and what makes this variable necessary: the mocks below only apply to
+// callers OUTSIDE the module. `updateUsername` or `signOut` call `getValidAccessToken`
+// internally, where the mock does not reach – they always see the real function, hence
+// the real session and the real fetch.
 const VALID_SESSION = { email: "a@b.co", accessToken: "at", refreshToken: "rt", expiresAt: 2 ** 31 };
 let session: typeof VALID_SESSION | null = VALID_SESSION;
 const account = { clearManagedSession: vi.fn() };
@@ -46,8 +46,8 @@ function patch(body: unknown): Request {
 }
 
 describe("/api/managed/*", () => {
-  // resetAllMocks (et non clearAllMocks) : seul reset vide la file des
-  // mockResolvedValueOnce – sinon une valeur non consommée fuit sur le test suivant.
+  // resetAllMocks (not clearAllMocks): only reset drains the mockResolvedValueOnce
+  // queue – otherwise an unconsumed value leaks into the next test.
   beforeEach(() => { vi.resetAllMocks(); session = VALID_SESSION; });
 
   it("auth POST login saves and returns the email", async () => {
@@ -66,10 +66,10 @@ describe("/api/managed/*", () => {
     expect(res.status).toBe(401);
   });
 
-  // Le body porte déjà le vrai message serveur ; il doit aussi porter le code
-  // GoTrue quand il existe, pour que le client distingue "déjà inscrit" et
-  // "quota d'emails dépassé" d'un vrai problème d'identifiants au lieu de
-  // tout collapse sur "vérifiez votre mot de passe".
+  // The body already carries the real server message; it must also carry GoTrue's code
+  // when there is one, so the client can tell "already registered" and "email quota
+  // exceeded" apart from a genuine credentials problem instead of collapsing everything
+  // onto "check your password".
   it("auth POST surfaces the server's error code alongside the message", async () => {
     const { ManagedAuthError } = await import("@/lib/managed/auth");
     auth.signUp.mockRejectedValue(new ManagedAuthError("User already registered", "user_already_exists"));
@@ -95,8 +95,8 @@ describe("/api/managed/*", () => {
     expect(await res.json()).toEqual({ email: "a@b.c" });
   });
 
-  // Coeur du correctif (a) : un signup accepté par GoTrue mais en attente de
-  // confirmation ne doit plus remonter comme un échec d'identifiants (401).
+  // The heart of fix (a): a signup accepted by GoTrue but awaiting confirmation must no
+  // longer surface as a credentials failure (401).
   it("auth POST signup reports confirmationRequired without erroring when GoTrue asks for confirmation", async () => {
     auth.signUp.mockResolvedValue({ status: "confirmation_required" });
     const { POST } = await import("@/app/api/managed/auth/route");
@@ -145,8 +145,8 @@ describe("/api/managed/*", () => {
     expect(auth.verifySignup).not.toHaveBeenCalled();
   });
 
-  // #4 du roll-up : une panne réseau en parlant au cloud managé n'est pas un
-  // échec d'identifiants – ne doit plus se faire passer pour un 401.
+  // Roll-up #4: a network failure while talking to the managed cloud is not a
+  // credentials failure – it must no longer pass itself off as a 401.
   it("auth POST maps a non-ManagedAuthError exception (network fault) to 500, not 401", async () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     auth.signIn.mockRejectedValue(new TypeError("fetch failed"));
@@ -164,16 +164,16 @@ describe("/api/managed/*", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ ok: true, revoked: true });
     expect(account.clearManagedSession).toHaveBeenCalled();
-    // Le point du correctif : sans cet appel le refresh token reste valide côté
-    // GoTrue, et « déconnecté » ne veut rien dire pour le serveur.
+    // The point of the fix: without this call the refresh token stays valid on GoTrue's
+    // side, and "signed out" means nothing to the server.
     expect(String(fetchMock.mock.calls[0][0])).toContain("/auth/v1/logout");
   });
 
   it("auth DELETE reports a failed revocation instead of swallowing it", async () => {
     fetchMock.mockRejectedValue(new TypeError("offline"));
     const { DELETE } = await import("@/app/api/managed/auth/route");
-    // Session locale purgée quand même : une session qu'on ne peut pas révoquer
-    // reste une session qu'il faut cesser d'utiliser.
+    // The local session is purged anyway: a session we cannot revoke is still a session
+    // we must stop using.
     expect(await (await DELETE()).json()).toEqual({ ok: true, revoked: false });
     expect(account.clearManagedSession).toHaveBeenCalled();
   });
@@ -222,9 +222,9 @@ describe("/api/managed/*", () => {
     expect(await res.json()).toEqual({ email: "a@b.c", balance: 4, subscription: null });
   });
 
-  // #3 du roll-up : un fetch qui lève (backend injoignable) ou un res.json()
-  // qui échoue (réponse non-JSON) doit remonter la forme {error} du contrat
-  // docs/BACKEND.md plutôt que l'erreur Next générique hors contrat.
+  // Roll-up #3: a fetch that throws (backend unreachable) or a res.json() that fails
+  // (non-JSON response) must return the {error} shape docs/BACKEND.md specifies, rather
+  // than Next's generic off-contract error.
   it("me returns a 500 {error} when the upstream fetch throws", async () => {
     auth.getValidAccessToken.mockResolvedValueOnce("token");
     fetchMock.mockRejectedValueOnce(new TypeError("fetch failed"));
@@ -267,14 +267,14 @@ describe("/api/managed/*", () => {
     const { PATCH } = await import("@/app/api/managed/me/route");
     expect((await PATCH(patch({ field: "email", email: "new@b.co" }))).status).toBe(200);
     expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ email: "new@b.co" });
-    // Rien ne change tant que les deux adresses n'ont pas confirmé : purger la session
-    // ici déconnecterait un utilisateur dont l'e-mail n'a pas encore bougé.
+    // Nothing moves until both addresses have confirmed: purging the session here would
+    // sign out a user whose email has not changed yet.
     expect(account.clearManagedSession).not.toHaveBeenCalled();
   });
 
   it("me PATCH password re-authenticates before writing the new one", async () => {
-    // La garde qui remplace celle que GoTrue n'a pas (secure_password_change off) :
-    // sans elle, un Mac déverrouillé suffit pour prendre le compte.
+    // The guard standing in for the one GoTrue does not have (secure_password_change
+    // off): without it, an unlocked Mac is enough to take the account over.
     fetchMock
       .mockResolvedValueOnce(new Response(
         JSON.stringify({ access_token: "fresh", refresh_token: "rt", expires_in: 3600 }),
@@ -286,8 +286,8 @@ describe("/api/managed/*", () => {
     expect(res.status).toBe(200);
     expect(String(fetchMock.mock.calls[0][0])).toContain("grant_type=password");
     expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ email: "a@b.co", password: "old" });
-    // Le nouveau mot de passe est écrit avec le jeton que la ré-authentification vient
-    // d'émettre – GoTrue invalide les autres sessions du compte.
+    // The new password is written with the token the re-authentication just issued –
+    // GoTrue invalidates the account's other sessions.
     expect(fetchMock.mock.calls[1][1].headers.Authorization).toBe("Bearer fresh");
     expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ password: "password123" });
   });
@@ -301,7 +301,7 @@ describe("/api/managed/*", () => {
     const res = await PATCH(patch({ field: "password", currentPassword: "wrong", password: "password123" }));
     expect(res.status).toBe(401);
     expect(await res.json()).toMatchObject({ code: "invalid_credentials" });
-    // Une seule requête : rien n'a été écrit avec le mauvais mot de passe actuel.
+    // A single request: nothing was written with the wrong current password.
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
@@ -347,15 +347,14 @@ describe("/api/managed/*", () => {
     expect(await res.json()).toEqual({ error: "unknown_sku" });
   });
 
-  // L'auth doit primer sur la validation du sku : un appelant non connecté
-  // ne doit jamais recevoir d'information sur le schéma d'entrée, même avec
-  // un sku invalide. Doit rester rouge tant que checkout valide le sku
-  // avant de vérifier le token.
+  // Auth must come before sku validation: a caller who is not signed in must never
+  // learn anything about the input schema, even with an invalid sku. This must stay red
+  // as long as checkout validates the sku before checking the token.
   //
-  // Le sku doit être refusé PAR LE SCHÉMA pour que ce test discrimine : "nope",
-  // écrit ici à l'origine contre un z.enum, est devenu valide le jour où l'enum a
-  // laissé place à la regex du catalogue, et le test passait au vert dans les deux
-  // ordres. "NOPE" (majuscules) échoue bien à la regex.
+  // The sku has to be rejected BY THE SCHEMA for this test to discriminate: "nope",
+  // originally written here against a z.enum, became valid the day the enum gave way to
+  // the catalogue's regex, and the test went green in both orders. "NOPE" (uppercase)
+  // does fail the regex.
   it("checkout returns 401 when signed out, even with an invalid sku", async () => {
     auth.getValidAccessToken.mockResolvedValueOnce(null);
     const { POST } = await import("@/app/api/managed/checkout/route");
@@ -364,9 +363,9 @@ describe("/api/managed/*", () => {
     expect(await res.json()).toEqual({ error: "not_logged_in" });
   });
 
-  // Non couvert par le brief, mais BACKEND.md exige au moins un cas nominal
-  // par route : le proxy portal n'a pas de schéma à valider, seule la garde
-  // "not_logged_in" et le passthrough restent à vérifier.
+  // Not covered by the brief, but BACKEND.md requires at least one nominal case per
+  // route: the portal proxy has no schema to validate, so only the "not_logged_in" guard
+  // and the passthrough are left to check.
   it("portal returns 401 when signed out, proxies when signed in", async () => {
     auth.getValidAccessToken.mockResolvedValueOnce(null);
     const { POST } = await import("@/app/api/managed/portal/route");

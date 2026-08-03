@@ -6,10 +6,10 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  # Hérité d'upstream en dur sur nickustinov/itsyconnect : sur ce fork, le
-  # GITHUB_TOKEN n'a aucun droit d'écriture sur ce namespace, donc le push
-  # échouait au premier tag v*. github.repository suit le dépôt qui exécute
-  # le workflow (déjà en minuscules, ce que ghcr exige).
+  # Inherited from upstream, hardcoded to nickustinov/itsyconnect: on this fork the
+  # GITHUB_TOKEN has no write access to that namespace, so the push failed on the first
+  # v* tag. github.repository follows whichever repository runs the workflow (already
+  # lowercase, which ghcr requires).
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:

@@ -47,9 +47,9 @@ describe("parseManagedAccount", () => {
   });
 });
 
-// Un seul stub pour tout le fichier : deux `vi.stubGlobal("fetch", …)` au niveau module
-// s'écrasent l'un l'autre (le dernier gagne), et le premier describe se retrouvait à
-// piloter un mock que personne ne configurait.
+// One stub for the whole file: two module-level `vi.stubGlobal("fetch", …)` calls
+// overwrite each other (last one wins), leaving the first describe driving a mock nobody
+// configured.
 const fetchMock = vi.fn();
 vi.stubGlobal("fetch", fetchMock);
 
@@ -106,9 +106,9 @@ describe("fetchManagedAccount coalescing", () => {
   });
 });
 
-// Une session qui expire faisait basculer l'app en « déconnecté » sans un mot : le solde
-// disparaît, l'IA managée refuse, et rien ne dit pourquoi. Le drapeau ci-dessous est ce
-// qui permet au hook d'afficher un toast une fois – et une seule.
+// An expiring session used to flip the app to "signed out" without a word: the balance
+// vanishes, managed AI refuses, and nothing says why. The flag below is what lets the
+// hook show a toast once – and only once.
 describe("session expiry detection", () => {
   function signedIn() {
     return new Response(JSON.stringify({ email: "a@b.c", username: null, balance: 1, subscription: null }));
@@ -128,8 +128,8 @@ describe("session expiry detection", () => {
     fetchMock.mockResolvedValueOnce(unauthorized());
     await fetchManagedAccount();
     expect(takeSessionExpired()).toBe(true);
-    // Consommé : un seul toast par expiration, quel que soit le nombre de consommateurs
-    // montés qui posent la question.
+    // Consumed: one toast per expiry, however many mounted consumers ask the
+    // question.
     expect(takeSessionExpired()).toBe(false);
   });
 

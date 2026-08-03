@@ -473,11 +473,11 @@ export function KeywordResearchDialog({
                 onOpenHistory={openHistory}
                 onDeleteHistory={deleteHistory}
                 launching={launching}
-                // Wrappé : `launch` prend un actionId optionnel en 1er
-                // argument, et le passer nu à un onClick lui refilait
-                // l'événement React – JSON.stringify du body explosait alors
-                // sur la structure circulaire, capté par le catch générique
-                // qui affichait « Erreur réseau » sans qu'aucun fetch parte.
+                // Wrapped: `launch` takes an optional actionId as its first argument,
+                // and passing it bare to an onClick handed it the React event – then
+                // JSON.stringify of the body blew up on the circular structure, caught
+                // by the generic catch that showed "Network error" without a single
+                // fetch ever leaving.
                 onLaunch={() => launch()}
                 onCancel={() => onOpenChange(false)}
               />

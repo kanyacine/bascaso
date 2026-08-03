@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// #8 du roll-up : un BASCASO_CLOUD_URL mal configuré avec un slash final
-// produisait "…co//functions/…" à chaque site d'appel. Normalisé une fois à
-// la frontière de config plutôt qu'à chaque appelant.
+// Roll-up #8: a BASCASO_CLOUD_URL misconfigured with a trailing slash produced
+// "…co//functions/…" at every call site. Normalised once at the config boundary rather
+// than in each caller.
 describe("BASCASO_CLOUD_URL", () => {
   const original = process.env.BASCASO_CLOUD_URL;
 

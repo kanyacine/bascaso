@@ -13,9 +13,9 @@ const t = (key: Parameters<typeof translate>[1], params?: Record<string, string 
   translate(getMessages("en"), key, params);
 
 describe("runWithBusyFlag", () => {
-  // Régression : le formulaire de connexion managé restait bloqué (boutons
-  // désactivés en permanence) après un échec, car un `return` précoce dans le
-  // bloc `!res.ok` contournait la remise à zéro du flag "busy".
+  // Regression: the managed sign-in form stayed stuck (buttons disabled for good) after
+  // a failure, because an early `return` inside the `!res.ok` branch skipped resetting
+  // the "busy" flag.
   it("clears the busy flag after a successful run", async () => {
     const setBusy = vi.fn();
     await runWithBusyFlag(setBusy, async () => {});
@@ -27,7 +27,7 @@ describe("runWithBusyFlag", () => {
     let sawFailureBranch = false;
     await runWithBusyFlag(setBusy, async () => {
       sawFailureBranch = true;
-      return; // chemin d'échec – ne doit pas empêcher la remise à zéro
+      return; // failure path – must not prevent the reset
     });
     expect(sawFailureBranch).toBe(true);
     expect(setBusy.mock.calls).toEqual([[true], [false]]);
@@ -68,10 +68,10 @@ describe("postManagedAuth", () => {
     expect(result).toEqual({ ok: false, reason: "auth" });
   });
 
-  // Coeur du correctif : le body du 401 porte déjà le vrai message serveur
-  // (route.ts) – il ne doit plus être jeté, sinon settings.account.authFailed
-  // ("vérifiez votre mot de passe") s'affiche même quand ce n'est pas un
-  // problème de mot de passe (compte déjà inscrit, quota d'emails dépassé).
+  // The heart of the fix: the body of the 401 already carries the real server message
+  // (route.ts) – it must no longer be thrown away, otherwise settings.account.authFailed
+  // ("check your password") shows even when the password is not the problem (account
+  // already registered, email quota exceeded).
   it("surfaces the server's error code and message on a 401", async () => {
     fetchMock.mockResolvedValue({
       ok: false,
@@ -100,10 +100,9 @@ describe("postManagedAuth", () => {
     expect(result).toEqual({ ok: false, reason: "network" });
   });
 
-  // #4 du roll-up (relecture) : le 500 renvoyé par route.ts pour une panne
-  // réseau côté cloud managé ne doit pas retomber sur "reason: auth" – ça
-  // afficherait "vérifiez votre mot de passe" pour une coupure réseau,
-  // exactement le préjudice que #4 existait pour supprimer.
+  // Roll-up #4 (re-review): the 500 route.ts returns for a network failure against the
+  // managed cloud must not fall through to "reason: auth" – that would show "check your
+  // password" for a dropped connection, exactly the harm #4 existed to remove.
   it("reports reason 'network' (not 'auth') on a 500 from the route", async () => {
     fetchMock.mockResolvedValue({
       ok: false,
@@ -114,9 +113,9 @@ describe("postManagedAuth", () => {
     expect(result).toEqual({ ok: false, reason: "network" });
   });
 
-  // Coeur du correctif (a) : un signup accepté par GoTrue mais en attente de
-  // confirmation doit se distinguer d'un succès simple, sans passer par la
-  // branche "reason: auth" (ce n'est pas un échec d'identifiants).
+  // The heart of fix (a): a signup accepted by GoTrue but awaiting confirmation must be
+  // distinguishable from a plain success, without going through the "reason: auth"
+  // branch (it is not a credentials failure).
   it("reports confirmationRequired when the server signals a pending email confirmation", async () => {
     fetchMock.mockResolvedValue({ ok: true, json: () => Promise.resolve({ confirmationRequired: true }) });
     const result = await postManagedAuth({ mode: "signup", email: "a@b.co", password: "password123" });
@@ -157,7 +156,7 @@ describe("verifyManagedSignup", () => {
     expect(result).toEqual({ ok: false, reason: "network" });
   });
 
-  // #4 du roll-up (relecture) : même correctif que postManagedAuth.
+  // Roll-up #4 (re-review): same fix as postManagedAuth.
   it("reports reason 'network' (not 'auth') on a 500 from the route", async () => {
     fetchMock.mockResolvedValue({ ok: false, status: 500 });
     const result = await verifyManagedSignup("a@b.co", "123456");
@@ -166,8 +165,8 @@ describe("verifyManagedSignup", () => {
 });
 
 describe("managedAuthErrorMessage", () => {
-  // Les deux cas rendus probables par la confirmation email en prod : ni
-  // l'un ni l'autre n'est un problème d'identifiants.
+  // The two cases email confirmation makes likely in production: neither is a
+  // credentials problem.
   it("maps user_already_exists to its own localized message", () => {
     expect(managedAuthErrorMessage("user_already_exists", "User already registered", t))
       .toBe(en.settings.account.authUserExists);
@@ -178,34 +177,33 @@ describe("managedAuthErrorMessage", () => {
       .toBe(en.settings.account.authRateLimited);
   });
 
-  // Le grant OAuth2 du login (mauvais mot de passe) ne porte pas de code :
-  // c'est le seul cas où "vérifiez identifiants" reste le bon message.
+  // The login OAuth2 grant (wrong password) carries no code: it is the one case where
+  // "check your credentials" is still the right message.
   it("falls back to the generic credentials message when no code is present", () => {
     expect(managedAuthErrorMessage(undefined, "Invalid login credentials", t))
       .toBe(en.settings.account.authFailed);
   });
 
-  // Régression : GoTrue renvoie {code:400, error_code:"invalid_credentials",
-  // msg:"Invalid login credentials"} pour un mauvais mot de passe (mesuré en
-  // prod) – pas la forme OAuth2 {error, error_description} supposée avant.
-  // Sans ce cas, le `default:` renvoyait le message serveur brut en anglais.
+  // Regression: GoTrue returns {code:400, error_code:"invalid_credentials",
+  // msg:"Invalid login credentials"} for a wrong password (measured in production) – not
+  // the OAuth2 shape {error, error_description} assumed before. Without this case, the
+  // `default:` arm returned the raw English server message.
   it("maps invalid_credentials (bad password, real GoTrue shape) to the generic credentials message", () => {
     expect(managedAuthErrorMessage("invalid_credentials", "Invalid login credentials", t))
       .toBe(en.settings.account.authFailed);
   });
 
-  // GoTrue renvoie ce code quand la connexion est tentée avant que le compte
-  // ne soit confirmé – le cas le plus probable produit par le bouton "Je me
-  // suis confirmé – me connecter" cliqué trop tôt.
+  // GoTrue returns this code when a sign-in is attempted before the account is
+  // confirmed – the likeliest case, produced by clicking "I have confirmed – sign me in"
+  // too early.
   it("maps email_not_confirmed to its own localized message", () => {
     expect(managedAuthErrorMessage("email_not_confirmed", "Email not confirmed", t))
       .toBe(en.settings.account.authEmailNotConfirmed);
   });
 
-  // Régression centrale du correctif : un code renvoyé par le serveur mais
-  // non mappé ne doit jamais afficher "vérifiez votre mot de passe" – ce
-  // n'est probablement pas le problème. Le message serveur est la meilleure
-  // information disponible.
+  // The fix's central regression: a code returned by the server but not mapped here
+  // must never show "check your password" – that is probably not the problem. The server
+  // message is the best information available.
   it("surfaces the server's own message for a coded but unmapped failure", () => {
     expect(managedAuthErrorMessage("signup_disabled", "Signups are disabled", t))
       .toBe("Signups are disabled");
@@ -222,8 +220,8 @@ describe("isManagedSubscriptionActive", () => {
   const future = () => new Date(Date.now() + HOUR).toISOString();
   const past = () => new Date(Date.now() - HOUR).toISOString();
 
-  // Miroir exact de la condition backend de debit_action : status actif/essai
-  // ET (pas d'échéance connue OU échéance dans le futur).
+  // An exact mirror of debit_action's backend condition: status active/trialing AND (no
+  // known expiry OR an expiry in the future).
   it("is false when there is no subscription", () => {
     expect(isManagedSubscriptionActive(null)).toBe(false);
     expect(isManagedSubscriptionActive(undefined)).toBe(false);
@@ -244,9 +242,9 @@ describe("isManagedSubscriptionActive", () => {
     expect(isManagedSubscriptionActive({ status: "trialing", currentPeriodEnd: future() })).toBe(true);
   });
 
-  // Le bug corrigé ici : une ligne zombie (status "active" mais échéance
-  // dépassée) ne doit plus afficher "Abonnement illimité" pendant que le
-  // backend débite des jetons à chaque appel.
+  // The bug fixed here: a zombie row (status "active" but an expiry in the past) must no
+  // longer show "Unlimited subscription" while the backend debits tokens on every
+  // call.
   it("is false for active/trialing with a currentPeriodEnd already in the past", () => {
     expect(isManagedSubscriptionActive({ status: "active", currentPeriodEnd: past() })).toBe(false);
     expect(isManagedSubscriptionActive({ status: "trialing", currentPeriodEnd: past() })).toBe(false);

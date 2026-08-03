@@ -1,11 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { canRetryForFree } from "@/app/dashboard/apps/[appId]/aso/keywords/research/_components/keyword-research-dialog";
 
-// Re-review Important : le hint "gratuit" s'affichait sans jamais vérifier
-// si le retry avait une chance réelle de rester dans la fenêtre de 90 min du
-// backend. canRetryForFree isole cette décision (30 min = 90 - le budget de
-// 60 min qu'un retry peut lui-même consommer) pour la tester sans dépendre
-// de l'horloge réelle.
+// Re-review, Important: the "free" hint showed without ever checking whether the retry
+// stood a real chance of landing inside the backend's 90-minute window. canRetryForFree
+// isolates that decision (30 min = 90 minus the 60-minute budget a retry can itself
+// burn) so it can be tested without depending on the real clock.
 describe("canRetryForFree", () => {
   beforeEach(() => {
     vi.useFakeTimers();
