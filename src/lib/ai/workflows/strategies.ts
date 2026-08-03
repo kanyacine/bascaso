@@ -24,9 +24,9 @@ export interface StrategyConfig {
   chipClass: string;
 }
 
-// Multiplicateurs par classification respectASO – validés en revue le
-// 2026-07-24. Avoid reste pénalisé partout, jamais exclu (un pool pauvre
-// remplit quand même le champ).
+// Multipliers per respectASO classification – signed off in review on 2026-07-24.
+// Avoid stays penalised everywhere, never excluded (a thin pool still fills the
+// field).
 export const STRATEGIES = {
   balanced: {
     weights: { "Sweet Spot": 1.3, "Hidden Gem": 1.2, "Good Target": 1.1, "Moderate": 1.0, "Low Volume": 0.6, "High Competition": 0.4, "Avoid": 0.2 },

@@ -191,10 +191,10 @@ describe("startKeywordResearch", () => {
     expect(row?.error).toBe("boom");
   });
 
-  // Régression : la cause d'un WorkflowStepError (le vrai rejet du proxy
-  // managé) était perdue – seul le message générique "workflow_step_failed:X"
-  // était stocké, jamais traduisible côté client via aiErrorMessage. Même
-  // mapping que les routes /api/ai, /api/apps/.../insights (classifyAIError).
+  // Regression: a WorkflowStepError's cause (the managed proxy's real rejection) was
+  // lost – only the generic "workflow_step_failed:X" message was stored, never
+  // translatable on the client through aiErrorMessage. Same mapping as the /api/ai and
+  // /api/apps/.../insights routes (classifyAIError).
   it("maps a rate_limited proxy error (WorkflowStepError cause) to the same code the AI routes return", async () => {
     const cause = new Error('429 {"error":{"code":"rate_limited"}}');
     mockRun.mockRejectedValue(new WorkflowStepError("seeds", emptyResult, cause));
@@ -228,9 +228,9 @@ describe("startKeywordResearch", () => {
     expect(getRun(started.runId)?.error).toBe("ai_credits_exhausted");
   });
 
-  // Filet défensif (le pipeline ne devrait jamais laisser passer une erreur
-  // brute hors WorkflowStepError/AbortError) : même mapping si le contrat
-  // était rompu, plutôt que le message brut du proxy.
+  // Defensive net (the pipeline should never let a raw error through other than
+  // WorkflowStepError/AbortError): the same mapping if the contract were broken, rather
+  // than the proxy's raw message.
   it("maps a raw rate_limited error via the defensive catch-all branch too", async () => {
     mockRun.mockRejectedValue(new Error('429 {"error":{"code":"rate_limited"}}'));
     const { startKeywordResearch, getRun, __whenSettled } = await loadManager();
@@ -241,9 +241,9 @@ describe("startKeywordResearch", () => {
     expect(getRun(started.runId)?.error).toBe("ai_rate_limited");
   });
 
-  // Re-review Important : le message n'était visible que sur err.cause, jamais
-  // persisté – classifyAIError renvoyait "unknown", le code stocké restait le
-  // générique "workflow_step_failed:score", donc rien de traduisible côté UI.
+  // Re-review, Important: the message was only visible on err.cause, never persisted –
+  // classifyAIError returned "unknown", the stored code stayed the generic
+  // "workflow_step_failed:score", so there was nothing translatable in the UI.
   it("maps an ItunesUnavailableError (WorkflowStepError cause) to the stable itunes_unavailable code", async () => {
     const cause = new ItunesUnavailableError(
       "itunes_unavailable: only 1/8 attempted keyword(s) could be scored (< 30%) – too thin a sample to propose metadata from",
@@ -257,11 +257,10 @@ describe("startKeywordResearch", () => {
     expect(getRun(started.runId)?.error).toBe("itunes_unavailable");
   });
 
-  // Re-review Critical 1 : une proposition nulle pouvait encore être persistée
-  // "succeeded" par une autre porte (ex. seedsSchema acceptant des chaînes
-  // vides, filtrées ensuite) que le floor/ceiling propre à keyword-research.ts
-  // ne couvre pas (il n'agit que quand skippedKeywords > 0). Garde-fou posé une
-  // fois ici, indépendant de la cause.
+  // Re-review, Critical 1: a null proposal could still be persisted as "succeeded"
+  // through another door (e.g. seedsSchema accepting empty strings, filtered out later)
+  // that keyword-research.ts's own floor/ceiling does not cover (it only acts when
+  // skippedKeywords > 0). The guard is placed once here, independently of the cause.
   it("fails a run that resolved with a null proposal instead of persisting it as succeeded", async () => {
     mockRun.mockResolvedValue(emptyResult); // proposal: null, skippedKeywords: [] – not an iTunes case
     const { startKeywordResearch, getRun, __whenSettled } = await loadManager();
@@ -278,9 +277,8 @@ describe("startKeywordResearch", () => {
     expect(row?.result).toEqual(emptyResult);
   });
 
-  // Re-review Important : rejouer avec un nouvel actionId à chaque retry
-  // facturait un second crédit pour le même geste – l'actionId d'origine doit
-  // être réutilisable.
+  // Re-review, Important: replaying with a fresh actionId on every retry billed a second
+  // credit for the same gesture – the original actionId must be reusable.
   it("mints a fresh actionId and persists it on the row when none is provided", async () => {
     mockRun.mockResolvedValue(succeededResult);
     const { startKeywordResearch, getRun, __whenSettled } = await loadManager();
@@ -306,17 +304,16 @@ describe("startKeywordResearch", () => {
     expect(mockRun.mock.calls[0][0]).toMatchObject({ actionId: "reuse-me" });
   });
 
-  // Re-review Important : la fenêtre de rejeu gratuit se mesure depuis le mint
-  // de l'actionId, pas depuis le createdAt du dernier run. Chaque retry écrit
-  // une ligne neuve en réutilisant la même action : lire createdAt remettait
-  // l'horloge à zéro à chaque saut, et l'UI promettait un retry gratuit bien
-  // après l'expiration réelle côté backend.
+  // Re-review, Important: the free-replay window is measured from the actionId's mint,
+  // not from the last run's createdAt. Every retry writes a fresh row while reusing the
+  // same action: reading createdAt reset the clock on each hop, and the UI promised a
+  // free retry long after the backend's real expiry.
   it("carries the action's mint time across a multi-hop retry chain", async () => {
     mockRun.mockResolvedValue(succeededResult);
     const { startKeywordResearch, getRun, __whenSettled } = await loadManager();
 
-    // Horloge pilotee : sans elle les trois sauts partagent la meme
-    // milliseconde et le test ne peut plus distinguer createdAt du mint.
+    // Driven clock: without it the three hops share the same millisecond and the test
+    // can no longer tell createdAt apart from the mint.
     vi.useFakeTimers();
     const mint = "2026-01-01T12:00:00.000Z";
     vi.setSystemTime(new Date(mint));
@@ -325,9 +322,9 @@ describe("startKeywordResearch", () => {
     await __whenSettled(first.runId);
     const origin = getRun(first.runId)!;
     expect(origin.createdAt).toBe(mint);
-    expect(origin.actionStartedAt).toBe(mint); // premier saut : les deux coïncident
+    expect(origin.actionStartedAt).toBe(mint); // first hop: the two coincide
 
-    // Deux retries successifs sur la même action, chacun avec son propre createdAt.
+    // Two successive retries on the same action, each with its own createdAt.
     const hops: string[] = [];
     for (const minutes of [20, 40]) {
       vi.setSystemTime(new Date(Date.parse(mint) + minutes * 60_000));
@@ -340,14 +337,14 @@ describe("startKeywordResearch", () => {
       hops.push(hop.createdAt);
       expect(hop.actionStartedAt).toBe(mint);
     }
-    // Le 3e saut a bien son propre createdAt : c'est l'écart que la lecture de
-    // createdAt masquait.
+    // The third hop does have its own createdAt: that gap is what reading createdAt
+    // hid.
     expect(hops).toEqual(["2026-01-01T12:20:00.000Z", "2026-01-01T12:40:00.000Z"]);
     vi.useRealTimers();
   });
 
-  // La suppression d'un rapport ne doit pas rouvrir la fenêtre : le mint voyage
-  // sur chaque ligne de la chaîne, il survit donc à la perte de la tête.
+  // Deleting a report must not reopen the window: the mint travels on every row of the
+  // chain, so it survives losing the head.
   it("keeps the mint time when the chain's head row is deleted", async () => {
     mockRun.mockResolvedValue(succeededResult);
     const { startKeywordResearch, getRun, deleteRun, __whenSettled } = await loadManager();

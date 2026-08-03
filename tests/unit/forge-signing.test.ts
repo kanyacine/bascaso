@@ -23,11 +23,10 @@ describe("forge signing configuration", () => {
     vi.restoreAllMocks();
   });
 
-  // Le cas dangereux : avant, `osxSign` était conditionné à APPLE_TEAM_ID et
-  // `osxNotarize` à APPLE_ID. Un environnement à moitié rempli produisait donc
-  // un DMG non signé qui se construisait proprement et ressemblait trait pour
-  // trait à une release – on ne le découvre qu'une fois remis à quelqu'un,
-  // quand Gatekeeper le refuse.
+  // The dangerous case: `osxSign` used to be gated on APPLE_TEAM_ID and `osxNotarize` on
+  // APPLE_ID. A half-filled environment therefore produced an unsigned DMG that built
+  // cleanly and looked exactly like a release – you only find out once it is handed to
+  // someone and Gatekeeper refuses it.
   it.each([
     ["APPLE_TEAM_ID"],
     ["APPLE_ID"],
@@ -45,9 +44,9 @@ describe("forge signing configuration", () => {
     expect((error as Error).message).toContain("APPLE_TEAM_ID");
   });
 
-  // Le mode à préférer : notarytool lit le secret dans le trousseau, il ne
-  // transite donc jamais par argv – où n'importe quel `ps` le lit pendant toute
-  // la durée de la soumission.
+  // The mode to prefer: notarytool reads the secret from the keychain, so it never
+  // travels through argv – where any `ps` reads it for the whole duration of the
+  // submission.
   it("notarises from the keychain profile alone, with no password in the environment", async () => {
     process.env.APPLE_KEYCHAIN_PROFILE = "bascaso";
     const config = await loadConfig();
@@ -64,8 +63,8 @@ describe("forge signing configuration", () => {
     expect(config.packagerConfig?.osxNotarize).toEqual({ keychainProfile: "bascaso" });
   });
 
-  // Un profil suffit à lui seul : le compléter à moitié avec des variables de
-  // mot de passe ne doit pas faire échouer un build par ailleurs valide.
+  // A profile is sufficient on its own: half-completing it with password variables must
+  // not fail an otherwise valid build.
   it("does not fail on a partial password set when a keychain profile is present", async () => {
     process.env.APPLE_KEYCHAIN_PROFILE = "bascaso";
     process.env.APPLE_ID = "you@example.com";
@@ -80,10 +79,10 @@ describe("forge signing configuration", () => {
     expect(warn.mock.calls.flat().join(" ")).toMatch(/UNSIGNED/);
   });
 
-  // entitlements.plist était dans le dépôt sans être référencé nulle part. Les
-  // deux entitlements qu'il accorde sont ce qui empêche le renderer de Chromium
-  // d'être tué sous le hardened runtime, exigé par la notarisation : signer sans
-  // eux donne un build qui passe la notarisation puis crashe au lancement.
+  // entitlements.plist sat in the repo without being referenced anywhere. The two
+  // entitlements it grants are what keeps Chromium's renderer from being killed under
+  // the hardened runtime that notarisation requires: signing without them yields a build
+  // that passes notarisation and then crashes on launch.
   it("wires the entitlements file when all three credentials are set", async () => {
     process.env.APPLE_ID = "you@example.com";
     process.env.APPLE_ID_PASSWORD = "abcd-efgh-ijkl-mnop";

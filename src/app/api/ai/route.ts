@@ -93,9 +93,9 @@ const requestSchema = z.object({
   whatsNew: z.string().optional(),
   promotionalText: z.string().optional(),
   isLaunch: z.boolean().optional(),
-  // 1 geste utilisateur = 1 action managée : l'appelant fournit l'id quand son
-  // geste peut déclencher plusieurs appels (bulk, workflow) ; sinon la
-  // résolution en génère un (voir getLanguageModelForTask).
+  // 1 user gesture = 1 managed action: the caller supplies the id when its gesture can
+  // trigger several calls (bulk, workflow); otherwise the resolution generates one (see
+  // getLanguageModelForTask).
   actionId: z.string().uuid().optional(),
 });
 

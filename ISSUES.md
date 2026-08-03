@@ -36,15 +36,12 @@ docs/UI.md mandates `<h3 className="section-title">` for form headings; these us
 
 Also: `review-changes/page.tsx:348` hand-styled `<h2>` instead of `.section-title`; `dashboard/page.tsx:372` uses `py-16` padding as a centering hack instead of the `flex-1` chain.
 
-### 6. Dead developer scratch files committed to git
-Unreferenced by anything: `scripts/debug-analytics.ts`, `debug-crash-data.ts`, `debug-impressions.ts`, `debug-instances.ts`, `debug-perf-crashes.ts`, `explore-analytics.ts`, `explore-app-data.ts`, `explore-review-summaries.ts`, `explore-testflight.ts`, `delete-snapshot.ts`, and `.itsypad-preview.html` in the repo root. Delete them.
-
-### 7. Copy-pasted any typing in locale/AI dialogs
+### 6. Copy-pasted any typing in locale/AI dialogs
 - `src/components/remove-locale-dialog.tsx:65,68,211` and `add-locale-dialog.tsx:272-308,523` parse localizations as `(l: any)` with eslint-disables; the proper type exists in `src/lib/asc/localizations.ts`.
 - `localeData: Record<string, Record<string, any>>` duplicated in `bulk-ai-dialog.tsx:31`, `bulk-all-ai-dialog.tsx:34`, `magic-wand-button.tsx:63`, `src/lib/hooks/use-bulk-ai.ts:29`. Type it once, import it.
 - The locale-array filtering block (`.some((l) => l.attributes.locale === locale)`) is duplicated between `remove-locale-dialog.tsx` and `add-locale-dialog.tsx` – extract a helper.
 
-### 8. 16 API routes hand-roll error handling
+### 7. 16 API routes hand-roll error handling
 53 of 69 route files use `errorJson`/`parseBody` from `src/lib/api-helpers.ts`; the other 16 re-implement `request.json().catch(() => null)` + inline `NextResponse.json({ error }, ...)` (e.g. `refresh/route.ts:27-34`, `nominations/route.ts:79-81`). Route them through the helpers.
 
 ## Minor

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { formatPrice } from "@/lib/managed/client";
 
-// Le prix affiché sur un bouton qui débite une carte : une erreur ici n'est pas
-// cosmétique, elle annonce au client autre chose que ce qu'il va payer.
+// The price shown on a button that charges a card: a mistake here is not cosmetic, it
+// tells the customer something other than what they are about to pay.
 describe("formatPrice", () => {
   it("renders a round amount without decimals", () => {
     expect(formatPrice(1000, "eur", "fr")).toContain("10");
@@ -13,8 +13,8 @@ describe("formatPrice", () => {
     expect(formatPrice(1050, "eur", "fr").replace(/\s/g, "")).toContain("10,50");
   });
 
-  // Stripe porte ces devises SANS unité mineure : leur `amount` est déjà la
-  // somme entière. Diviser par 100 afficherait ¥10 pour un prix de ¥1000.
+  // Stripe carries these currencies WITHOUT a minor unit: their `amount` is already the
+  // whole figure. Dividing by 100 would show ¥10 for a ¥1000 price.
   it("does not divide zero-decimal currencies by 100", () => {
     expect(formatPrice(1000, "jpy", "en")).toContain("1,000");
     expect(formatPrice(1000, "krw", "en")).toContain("1,000");
@@ -24,8 +24,8 @@ describe("formatPrice", () => {
     expect(formatPrice(1000, "JPY", "en")).toContain("1,000");
   });
 
-  // La devise vient du prix Stripe, pas de la locale : afficher des euros à un
-  // utilisateur facturé en dollars annoncerait le mauvais montant.
+  // The currency comes from the Stripe price, not from the locale: showing euros to a
+  // user billed in dollars would state the wrong amount.
   it("uses the price's currency, not one implied by the locale", () => {
     expect(formatPrice(1000, "usd", "fr")).toContain("$");
     expect(formatPrice(1000, "eur", "en")).toContain("€");

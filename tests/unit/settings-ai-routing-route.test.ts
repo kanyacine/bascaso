@@ -46,8 +46,8 @@ describe("PUT /api/settings/ai/routing", () => {
     expect(settings.routing.groups.metadata).toEqual({ tier: "managed", explicit: true });
   });
 
-  // Sans compte, ce tier n'est routable par rien : accepté puis stocké, il ne se
-  // manifestait qu'à la première action IA, loin du réglage fautif.
+  // With no account, nothing can route this tier: accepted and then stored, it only
+  // showed up on the first AI action, far from the setting at fault.
   it("rejects the managed tier when no cloud account is linked", async () => {
     const { PUT } = await import("@/app/api/settings/ai/routing/route");
     const { GET } = await import("@/app/api/settings/ai/route");
@@ -97,9 +97,9 @@ describe("PUT /api/settings/ai/routing", () => {
     expect(settings.routing.groups.workflows).toEqual({ tier: "byok", explicit: false });
   });
 
-  // Le bug d'origine : « Réinitialiser » efface les préférences explicites, et le
-  // défaut figé les renvoyait sur byok – un routage managé disparaissait en silence
-  // et le client repartait sur sa clé BYOK sans rien voir.
+  // The original bug: "Reset" clears the explicit preferences, and the frozen default
+  // sent them back to byok – a managed routing silently disappeared and the client went
+  // back to its BYOK key without noticing.
   it("restores the managed default on reset when a cloud account is linked", async () => {
     seedManagedAccount(testDb);
     const { PUT } = await import("@/app/api/settings/ai/routing/route");

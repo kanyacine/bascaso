@@ -5,7 +5,7 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
-  # Permet de relancer la CI sans pousser un commit (onglet Actions -> Run workflow).
+  # Lets CI be re-run without pushing a commit (Actions tab -> Run workflow).
   workflow_dispatch:
 
 jobs:
@@ -32,15 +32,15 @@ jobs:
       - run: npm ci
       - run: npm run lint
 
-  # Job propre au fork. Ce que `tsc --noEmit` et vitest ne voient pas :
-  #  - drizzle-kit check : les migrations de `drizzle/` sont cohérentes entre elles.
-  #    Le vrai risque ici est d'ajouter une colonne au schéma sans générer la
-  #    migration correspondante – le typecheck reste vert, l'app casse au boot.
-  #  - electron:compile : `electron/` a son propre tsconfig, hors du champ du tsc
-  #    de l'app. Une rupture y passait inaperçue jusqu'au packaging.
-  #  - next build : le seul à valider les frontières serveur/client, les types de
-  #    routes générés et le rendu des pages. Un composant marqué "use client" qui
-  #    importe un module server-only compile très bien et casse au build.
+  # Fork-specific job. What `tsc --noEmit` and vitest do not see:
+  #  - drizzle-kit check: the migrations in `drizzle/` are consistent with each other.
+  #    The real risk here is adding a column to the schema without generating the
+  #    matching migration – the typecheck stays green, the app breaks at boot.
+  #  - electron:compile: `electron/` has its own tsconfig, outside the app's tsc scope.
+  #    A breakage there went unnoticed until packaging.
+  #  - next build: the only step validating the server/client boundaries, the generated
+  #    route types and page rendering. A component marked "use client" that imports a
+  #    server-only module compiles perfectly well and breaks the build.
   build:
     runs-on: ubuntu-latest
     steps:

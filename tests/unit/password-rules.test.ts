@@ -3,10 +3,10 @@ import { allRulesPass, passwordRules } from "@/lib/managed/client";
 import { en } from "@/lib/i18n/locales/en";
 import { getByPath } from "@/lib/i18n/messages";
 
-// La check-list remplace une validation qui mentait : un mot de passe trop court était
-// refusé par la route avec « vérifiez vos identifiants ». Ce qui compte donc ici, c'est
-// que la règle affichée soit exactement celle qui sera appliquée – un décalage
-// ramènerait le mensonge, en vert cette fois.
+// The checklist replaces a validation that lied: a password that was too short got
+// refused by the route with "check your credentials". What matters here is therefore
+// that the rule displayed is exactly the one that will be enforced – a mismatch would
+// bring the lie back, in green this time.
 describe("passwordRules", () => {
   it("is all red on an empty field and all green on a valid pair", () => {
     expect(allRulesPass(passwordRules("", ""))).toBe(false);
@@ -22,8 +22,8 @@ describe("passwordRules", () => {
   });
 
   it("never counts two empty fields as matching", () => {
-    // Sans la garde de longueur, "" === "" passerait la règle de correspondance et la
-    // check-list s'ouvrirait à moitié verte sur un formulaire vierge.
+    // Without the length guard, "" === "" would pass the match rule and the checklist
+    // would open half green on a blank form.
     expect(passwordRules("", "")[1].ok).toBe(false);
   });
 

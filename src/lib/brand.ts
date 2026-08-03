@@ -29,9 +29,9 @@ export const SUPPORT_EMAIL = "bascaso-support@zavyn.app";
  *  copyable snippets are built around. */
 export const MCP_SERVER_NAME = "bascaso";
 
-/** Politique de confidentialité et conditions de vente. Ils vivent dans le dépôt tant
- *  qu'aucun domaine n'est en place : un lien mort vaut moins qu'un lien vers la source,
- *  et celle-ci est de toute façon la version qui fait foi. À repointer sur le site le
- *  jour où il existe. */
+/** Privacy policy and terms of sale. They live in the repository for as long as no
+ *  domain is in place: a dead link is worth less than a link to the source, and the
+ *  source is the authoritative version anyway. To be repointed at the site the day it
+ *  exists. */
 export const PRIVACY_URL = `${BRAND_REPO_URL}/blob/main/docs/PRIVACY.md`;
 export const TERMS_URL = `${BRAND_REPO_URL}/blob/main/docs/TERMS.md`;

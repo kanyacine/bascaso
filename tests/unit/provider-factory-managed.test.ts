@@ -100,10 +100,9 @@ describe("managed tier resolution", () => {
     await expect(getLanguageModelForTask("translate")).rejects.toThrow(AIRoutingError);
   });
 
-  // getValidAccessToken renvoie null aussi bien pour « jamais connecté » que pour
-  // « refresh token périmé ». Ce second cas était un échec dur alors même que le
-  // repli était activé et qu'une clé BYOK était configurée – le tier local, lui,
-  // repliait déjà.
+  // getValidAccessToken returns null both for "never signed in" and for "refresh token
+  // expired". The second case was a hard failure even with fallback enabled and a BYOK
+  // key configured – whereas the local tier already fell back.
   it("falls back to BYOK when the cloud session is gone and fallback is on", async () => {
     mockGetRoutingTier.mockReturnValue("managed");
     mockGetValidAccessToken.mockResolvedValue(null);
@@ -145,10 +144,10 @@ describe("managed tier resolution", () => {
     expect(classifyAIError(new Error('402 {"error":{"code":"insufficient_credits"}}'))).toBe("credits");
   });
 
-  // Les deux codes 429 renvoyés par le proxy managed – aucun des deux n'avait
-  // de catégorie dédiée avant ce correctif (rate_limited retombait dans le
-  // "rate_limit" générique BYOK, action_exhausted dans "unknown"), donc les
-  // routes IA les faisaient tous deux échouer en 500 générique.
+  // The two 429 codes the managed proxy returns – neither had a category of its own
+  // before this fix (rate_limited fell into BYOK's generic "rate_limit",
+  // action_exhausted into "unknown"), so the AI routes failed both with a generic
+  // 500.
   it("classifies proxy hourly rate-limit errors distinctly from generic BYOK rate limits", async () => {
     const { classifyAIError } = await import("@/lib/ai/provider-factory");
     expect(classifyAIError(new Error('429 {"error":{"code":"rate_limited"}}'))).toBe("rate_limited");

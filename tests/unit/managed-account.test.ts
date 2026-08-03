@@ -11,12 +11,11 @@ describe("managed account session store", () => {
     process.env.ENCRYPTION_MASTER_KEY = TEST_MASTER_KEY;
   });
 
-  // Les jetons portent un tiret : il n'appartient pas à l'alphabet base64, donc
-  // aucune sortie chiffrée ne peut les contenir par hasard. Les valeurs "at" et
-  // "rt" utilisées auparavant faisaient échouer ce test dans ~2 % des
-  // exécutions – une séquence de deux caractères apparaît fatalement dans 88
-  // caractères de base64 aléatoire, et l'échec n'apprenait rien sur le
-  // chiffrement.
+  // The tokens carry a dash: it is not part of the base64 alphabet, so no encrypted
+  // output can contain them by accident. The "at" and "rt" values used before failed
+  // this test in ~2 % of runs – a two-character sequence inevitably appears somewhere in
+  // 88 characters of random base64, and the failure taught nothing about the
+  // encryption.
   it("round-trips a session encrypted at rest", async () => {
     const { saveManagedSession, getManagedSession } = await import("@/lib/managed/account");
     const session = {
