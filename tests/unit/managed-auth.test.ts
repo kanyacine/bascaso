@@ -508,10 +508,19 @@ describe("managed auth (GoTrue REST)", () => {
       expect(init.headers.Authorization).toBeUndefined();
     });
 
-    it("joinWaitlist rejects on a failed write, so the form never claims a false success", async () => {
-      fetchMock.mockResolvedValueOnce({ ok: false, json: () => Promise.resolve({ error: "insert_failed" }) });
-      const { joinWaitlist } = await import("@/lib/managed/auth");
-      await expect(joinWaitlist("a@b.c")).rejects.toThrow();
+    // Not a ManagedAuthError, and that distinction is the whole point: that class makes the
+    // route answer 401, which the client reads as "check your credentials" – for a write
+    // that carries none. A plain Error lands on the route's 500, which the client
+    // classifies as a network failure, which is what it is.
+    it("joinWaitlist rejects a failed write as a plain Error, never as an auth failure", async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: false, status: 500, text: () => Promise.resolve('{"error":"insert_failed"}'),
+      });
+      const { joinWaitlist, ManagedAuthError } = await import("@/lib/managed/auth");
+      const err = await joinWaitlist("a@b.c").catch((e) => e);
+      expect(err).toBeInstanceOf(Error);
+      expect(err).not.toBeInstanceOf(ManagedAuthError);
+      expect((err as Error).message).toContain("insert_failed");
     });
   });
 });

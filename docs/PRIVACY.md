@@ -12,7 +12,9 @@ draw that line precisely.
 
 ## Without an account
 
-This is the default. No account, no server, no request to us.
+This is the default. No account, and no request to us — with one exception you have to ask
+for: the [waiting list](#the-waiting-list-while-sign-ups-are-closed) below, which sends your
+address and only if you click the button that says so.
 
 **Stored on your Mac**, in `~/Library/Application Support/bascaso/`:
 

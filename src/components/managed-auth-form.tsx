@@ -57,10 +57,16 @@ export function ManagedAuthForm({ onAuthenticated, fill, defaultTab = "signin" }
   const [error, setError] = useState<string | null>(null);
   const [pendingConfirmation, setPendingConfirmation] = useState(false);
   // Signups are closed on the project: the sign-up button turns into an offer to be told
-  // when they open. Two flags, because "we cannot create your account" and "your address is
-  // written down" are two different things to show.
+  // when they open. Two pieces of state, because "we cannot create your account" and "your
+  // address is written down" are two different things to show.
   const [closed, setClosed] = useState(false);
-  const [onWaitlist, setOnWaitlist] = useState(false);
+  // The address the join actually succeeded for, not a bare boolean. It deliberately
+  // outlives the panel (see the tab handler), so a boolean would let the confirmation
+  // re-render against whatever is in the field by then: join as A, go back, retype B, try
+  // to sign up again, and the panel would promise to write to B without a single request
+  // having been sent for it. On the one screen whose whole premise is that the click is
+  // the consent, confirming an address nobody clicked for is the worst thing it can do.
+  const [joinedEmail, setJoinedEmail] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
   const [showCodeInput, setShowCodeInput] = useState(false);
   const [code, setCode] = useState("");
@@ -122,7 +128,7 @@ export function ManagedAuthForm({ onAuthenticated, fill, defaultTab = "signin" }
         toast.error(t("common.networkError"));
         return;
       }
-      setOnWaitlist(true);
+      setJoinedEmail(email);
     });
   }
 
@@ -171,7 +177,9 @@ export function ManagedAuthForm({ onAuthenticated, fill, defaultTab = "signin" }
           <p className="text-sm text-muted-foreground">{t("settings.account.closedBody")}</p>
         </div>
 
-        {onWaitlist ? (
+        {/* Confirms only the address the join succeeded for. Type a different one and the
+            offer comes back, because that address really has not been sent. */}
+        {joinedEmail === email ? (
           /* Icon inline in the paragraph rather than a flex sibling: the message wraps to
              two lines at this width, and a centred flex row leaves the tick stranded
              against the left edge instead of next to the words it belongs to. */
@@ -181,7 +189,7 @@ export function ManagedAuthForm({ onAuthenticated, fill, defaultTab = "signin" }
               weight="fill"
               className="mr-1.5 inline align-text-bottom text-green-500"
             />
-            {t("settings.account.waitlistDone", { email })}
+            {t("settings.account.waitlistDone", { email: joinedEmail })}
           </p>
         ) : (
           <div className="space-y-2">
@@ -269,7 +277,7 @@ export function ManagedAuthForm({ onAuthenticated, fill, defaultTab = "signin" }
       onValueChange={(v) => {
         setTab(v as AuthTab);
         setError(null);
-        // `onWaitlist` deliberately survives: it is a fact about the user, not about the
+        // `joinedEmail` deliberately survives: it is a fact about an address, not about the
         // tab, and coming back to find the confirmation gone reads as "it did not work".
         setClosed(false);
       }}

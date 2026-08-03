@@ -352,6 +352,15 @@ export async function deleteAccount(): Promise<void> {
  * No session and no token: the caller is, by definition, someone who has just been refused
  * an account. The edge function is the only thing that touches the table – it writes, never
  * reads, and answers the same whether the address was already there or not.
+ *
+ * A plain Error, deliberately, where every sibling in this file raises ManagedAuthError:
+ * that class exists to carry a GoTrue code the form turns into a specific message, and
+ * nothing here is an authentication outcome. Raising it would make the route answer 401,
+ * which the client reads as `reason: "auth"` – "check your credentials" for a write that
+ * failed with no credentials in play. Left as an Error, the route's own handler logs it and
+ * answers 500, which the client classifies as a network failure. Which is what it is: the
+ * function's two error bodies (`invalid_email`, unreachable behind the route's `z.email()`,
+ * and `insert_failed`) mean the same thing to the user – it was not written down, try again.
  */
 export async function joinWaitlist(email: string, username?: string): Promise<void> {
   const res = await fetch(`${BASCASO_CLOUD_URL}/functions/v1/waitlist`, {
@@ -359,7 +368,12 @@ export async function joinWaitlist(email: string, username?: string): Promise<vo
     headers: { apikey: BASCASO_CLOUD_PUBLISHABLE_KEY, "Content-Type": "application/json" },
     body: JSON.stringify({ email, username }),
   });
-  if (!res.ok) throw new ManagedAuthError("Waitlist request failed");
+  if (!res.ok) {
+    // The body goes to the server log, never to the user – it is the only place the
+    // difference between the two failures is recorded, and the only place it is useful.
+    const body = await res.text().catch(() => "");
+    throw new Error(`waitlist request failed (${res.status}): ${body.slice(0, 200)}`);
+  }
 }
 
 async function requireAccessToken(): Promise<string> {
