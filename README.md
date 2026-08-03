@@ -111,7 +111,9 @@ The managed tier is the only paid part: prepaid credits, one credit per action, 
 
 ## Install
 
-> **Status: not yet released.** There is no published build and no download link yet. Signing, notarisation and auto-update are not wired up (see [docs/RELEASE.md](docs/RELEASE.md) for the current state). Until the first release lands, build from source.
+**[Download Bascaso.dmg](https://github.com/kanyacine/bascaso/releases/latest/download/Bascaso.dmg)** – signed and notarised, Apple Silicon only. Open the DMG, drag Bascaso to Applications. The app updates itself from here on.
+
+The on-device Apple model needs macOS 26; every other feature works without it. Prefer to build it yourself? See below.
 
 ## Build from source
 

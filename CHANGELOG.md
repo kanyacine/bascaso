@@ -1,5 +1,30 @@
 # Changelog
 
+Versions from 2026.8.0 onwards are Bascaso's own, in CalVer (`YYYY.M.PATCH`).
+The 1.x entries below belong to the itsyconnect-macos line this project was
+forked from, and are kept for history.
+
+## 2026.8.0
+
+First public release. Bascaso is a desktop app and self-hosted web dashboard
+that replaces Apple's App Store Connect, with an ASO layer built into the
+listing you are editing.
+
+- Edit store metadata across every locale at once – descriptions, keywords, what's new, promotional text, names and subtitles – with an opt-in diff mode that accumulates changes locally and pushes them in one go
+- Score keywords where you type them: popularity, difficulty, opportunity and download estimates per locale and storefront, with character budgets and cross-locale duplicate detection (methodology ported from RespectASO, [docs/ASO.md](docs/ASO.md))
+- Run an agentic keyword workflow that searches for competitors, harvests and filters candidates, scores them against live iTunes data and composes a title, subtitle and keyword field within Apple's limits
+- Manage TestFlight builds, groups, testers and feedback; read analytics, acquisition and crashes; reply to, translate and appeal customer reviews; upload and translate screenshots; submit nominations
+- Three AI tiers, routed per group of tasks: Apple's on-device Foundation Model (no key, no network), your own key from Anthropic, OpenAI, Google, xAI, Mistral or DeepSeek, or a managed tier billed per action. No feature is held back for a paid tier
+- Local-first: credentials and app data live in one SQLite file on your Mac, encrypted with AES-256-GCM under a key held in the macOS Keychain. No telemetry or analytics SDK
+- Optional MCP server so AI coding tools can manage listings from your terminal ([docs/MCP.md](docs/MCP.md)), and a Docker image for self-hosting
+
+Requires an Apple Silicon Mac. The on-device model needs macOS 26; every other
+feature works without it. The download is signed and notarised.
+
+Built on [itsyconnect-macos](https://github.com/nickustinov/itsyconnect-macos)
+by Nick Ustinov (MIT) and [RespectASO](https://github.com/respectlytics/respectaso)
+by Respectlytics (AGPL-3.0). Bascaso is AGPL-3.0.
+
 ## 1.14.1
 
 - Trying signing the app with new credentials
