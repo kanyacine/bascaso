@@ -71,6 +71,14 @@ export const en = {
       resetDone: "Password changed – you are signed in.",
       authWeakPassword: "This password is too weak – pick a longer one.",
       authSamePassword: "That is already your password.",
+      authSignupsClosed: "Sign-ups open soon.",
+      closedTitle: "Sign-ups open soon",
+      closedBody:
+        "The cloud account is not open yet. Bascaso works entirely without one: a local model on your Mac, or your own API key.",
+      waitlistJoin: "Tell me when it opens",
+      waitlistHint:
+        "{email} will only be used to tell you when sign-ups open and to send Bascaso news. Nothing else, and you can ask for it to be removed at any time.",
+      waitlistDone: "Noted – we will write to {email}.",
       sessionExpired: "Session expired – sign in again.",
       signOutNotRevoked: "Signed out on this Mac, but the session could not be revoked on the server.",
       emailChange: "Email address",

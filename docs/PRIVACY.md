@@ -37,6 +37,27 @@ This is the default. No account, no server, no request to us.
 - **Your own API key (BYOK)** — the app calls your provider **directly** from your machine,
   with your key. We are not in that path and never see the content.
 
+## The waiting list, while sign-ups are closed
+
+Sign-ups are not open yet. If you try to create an account, the app says so and offers to
+tell you when they open. Nothing is sent unless you click that button — and if you do not,
+the app carries on setting itself up with a local or BYOK model, which needs no account.
+
+**What the click sends:** the email address you had just typed, the display name if you had
+typed one, and the date. Nothing else. There is no password, no account, and no link to
+anything else we hold.
+
+- **The purpose is the only one:** telling you when sign-ups open, and Bascaso news. That is
+  what the button says, and clicking it is the consent — freely given, specific, informed.
+  The address is not used for anything else and is not passed to anyone.
+- **Nobody can read the list back.** The app writes to a single-purpose endpoint that only
+  inserts; it never reads. The table refuses every other access, and the list is visible only
+  to the project owner in the hosting dashboard.
+- **Getting off it:** write to **bascaso-support@zavyn.app** and the row is deleted. Every
+  message we send you will carry the same route. Note that this list sits outside the account
+  deletion described below — it has no account attached, by definition — so creating an
+  account later does not remove your address from it; ask, and it goes.
+
 ## With a Bascaso cloud account (the managed AI tier)
 
 Creating an account is a deliberate action, and routing a task to the managed tier is
@@ -112,11 +133,13 @@ deleted user id. It was caught reviewing this file against the database rather t
 the code, and fixed by the migration that added the missing constraint. The cascade is
 verified, not assumed: deleting a user with a per-call record removes it.
 
-Two things sit outside that:
+Three things sit outside that:
 
 - **Stripe** keeps payment records under its own legal obligations. Accounting law requires
   it; we cannot delete them on request.
 - **Your local data** never left your Mac. Deleting the app's folder removes it.
+- **The waiting list**, if you joined it before accounts existed. It is keyed on the address,
+  not on an account, so nothing about it cascades — see [the section above](#the-waiting-list-while-sign-ups-are-closed).
 
 ### Exercising your other rights
 
@@ -145,7 +168,8 @@ and shipping it as one would be a mistake. Before the first paying customer:
 - **The support address has to be monitored** — `bascaso-support@zavyn.app` is published above
   as the data subject request route, which makes it a commitment with a one-month deadline
   attached rather than a placeholder. The mailbox must exist and be read before the first
-  account is created.
+  address is written down, which now means before the waiting list goes live — earlier than
+  the first account, since sign-ups open after it.
 
 Related: [TERMS.md](TERMS.md) · [MANAGED.md](MANAGED.md) (what the managed tier charges and
 why) · [ASO.md](ASO.md) (what the ASO layer queries).

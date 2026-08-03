@@ -73,6 +73,14 @@ export const de: Messages = {
       resetDone: "Passwort geändert – Sie sind angemeldet.",
       authWeakPassword: "Dieses Passwort ist zu schwach – wählen Sie ein längeres.",
       authSamePassword: "Das ist bereits Ihr Passwort.",
+      authSignupsClosed: "Die Registrierung öffnet demnächst.",
+      closedTitle: "Die Registrierung öffnet demnächst",
+      closedBody:
+        "Das Cloud-Konto ist noch nicht offen. Bascaso funktioniert vollständig ohne: ein lokales Modell auf Ihrem Mac oder Ihr eigener API-Schlüssel.",
+      waitlistJoin: "Benachrichtigen Sie mich",
+      waitlistHint:
+        "{email} wird ausschließlich verwendet, um Sie über die Öffnung der Registrierung und über Bascaso-Neuigkeiten zu informieren. Nichts weiter, und Sie können die Löschung jederzeit verlangen.",
+      waitlistDone: "Notiert – wir schreiben an {email}.",
       sessionExpired: "Sitzung abgelaufen – bitte erneut anmelden.",
       signOutNotRevoked: "Auf diesem Mac abgemeldet, aber die Sitzung konnte serverseitig nicht widerrufen werden.",
       emailChange: "E-Mail-Adresse",

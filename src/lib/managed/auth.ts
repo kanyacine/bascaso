@@ -346,6 +346,22 @@ export async function deleteAccount(): Promise<void> {
   clearManagedSession();
 }
 
+/**
+ * Ask to be told when signups open, while they are closed.
+ *
+ * No session and no token: the caller is, by definition, someone who has just been refused
+ * an account. The edge function is the only thing that touches the table – it writes, never
+ * reads, and answers the same whether the address was already there or not.
+ */
+export async function joinWaitlist(email: string, username?: string): Promise<void> {
+  const res = await fetch(`${BASCASO_CLOUD_URL}/functions/v1/waitlist`, {
+    method: "POST",
+    headers: { apikey: BASCASO_CLOUD_PUBLISHABLE_KEY, "Content-Type": "application/json" },
+    body: JSON.stringify({ email, username }),
+  });
+  if (!res.ok) throw new ManagedAuthError("Waitlist request failed");
+}
+
 async function requireAccessToken(): Promise<string> {
   const token = await getValidAccessToken();
   if (!token) throw new ManagedAuthError("Not signed in");

@@ -90,6 +90,17 @@ export async function postManagedAuth(
  * que d'accuser un mot de passe qui n'est peut-être pas en cause – jamais le
  * générique par défaut pour un code qu'on ne reconnaît pas.
  */
+/**
+ * GoTrue's two ways of saying "not taking new accounts right now": `signup_disabled` is the
+ * project's "allow new users to sign up" switch, `email_provider_disabled` the email
+ * provider being off entirely. Neither is a credentials problem, and neither is permanent –
+ * this is the state the app ships in while the repository is public and signups are not yet
+ * open. The form offers the waiting list instead of leaving the user at a dead end.
+ */
+export function signupsClosed(code: string | undefined): boolean {
+  return code === "signup_disabled" || code === "email_provider_disabled";
+}
+
 export function managedAuthErrorMessage(
   code: string | undefined,
   message: string | undefined,
@@ -117,6 +128,12 @@ export function managedAuthErrorMessage(
       return t("settings.account.authWeakPassword");
     case "same_password":
       return t("settings.account.authSamePassword");
+    // Signups closed. Without this the default arm would print GoTrue's raw "Signups not
+    // allowed for this instance" – English, and describing an instance the user has no
+    // notion of, for what is simply "not yet".
+    case "signup_disabled":
+    case "email_provider_disabled":
+      return t("settings.account.authSignupsClosed");
     case "invalid_credentials":
     case undefined:
       return t("settings.account.authFailed");
