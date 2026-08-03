@@ -41,6 +41,10 @@ itsyconnect-macos is MIT. RespectASO is AGPL-3.0, which is what makes Bascaso AG
 
 The app is free under [AGPL-3.0](LICENSE), with no feature gates, no trial, and no limit on how many apps or developer accounts you manage. Your data stays on your machine. That is the point of the project and it is meant to stay that way.
 
+## Written with LLMs
+
+A large majority of this codebase was written with large language models, including the tests, the documentation and this README. That is stated here because it changes how you should read the repository: check the code before you trust it with your App Store Connect credentials, and treat a confident comment as a claim to verify rather than a fact. Everything is under AGPL-3.0, so all of it is there to be read.
+
 ## Where your data goes
 
 Bascaso is local-first. Your App Store Connect credentials, your app data and your settings live in one SQLite file on your Mac, encrypted with AES-256-GCM under a master key held in the macOS Keychain. Nothing is uploaded, and there is no analytics or telemetry SDK in the app.
