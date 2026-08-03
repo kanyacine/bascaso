@@ -1,4 +1,4 @@
-<h1>Bascaso</h1>
+<h1><img src="public/icon.png" width="40" alt="" /> Bascaso</h1>
 
 <p>
   App Store Connect, with ASO built in.
