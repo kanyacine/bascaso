@@ -12,9 +12,9 @@ import {
   verifySignup,
 } from "@/lib/managed/auth";
 
-// Union discriminée sur "mode" : login/signup exigent un mot de passe, verify
-// exige le code de confirmation reçu par email – des champs différents, donc
-// pas un simple z.object() avec des champs optionnels partagés.
+// Discriminated union on "mode": login/signup require a password, verify requires the
+// confirmation code received by email – different fields, so not a plain z.object() with
+// shared optional fields.
 const schema = z.discriminatedUnion("mode", [
   z.object({ mode: z.literal("login"), email: z.string().email(), password: z.string().min(8) }),
   z.object({
@@ -73,23 +73,23 @@ export async function POST(request: Request) {
       await joinWaitlist(parsed.email, parsed.username);
       return NextResponse.json({ ok: true });
     }
-    // signup : confirmations désactivées → session directe (comme login) ;
-    // activées → pas de session, le client doit basculer sur l'écran de
-    // confirmation (voir (a) dans le brief : ceci n'est pas un échec 401).
+    // signup: confirmations off → a session straight away (like login); on → no
+    // session, and the client must switch to the confirmation screen (see (a) in the
+    // brief: this is not a 401 failure).
     const outcome = await signUp(parsed.email, parsed.password, parsed.username);
     return outcome.status === "signed_in"
       ? NextResponse.json({ email: outcome.session.email })
       : NextResponse.json({ confirmationRequired: true });
   } catch (err) {
     if (err instanceof ManagedAuthError) {
-      // Code GoTrue (ex. "user_already_exists", "over_email_send_rate_limit")
-      // quand disponible – le client s'en sert pour un message spécifique au
-      // cas plutôt que le générique "vérifiez identifiants" (voir postManagedAuth).
+      // GoTrue's code (e.g. "user_already_exists", "over_email_send_rate_limit") when
+      // available – the client uses it for a case-specific message rather than the
+      // generic "check your credentials" (see postManagedAuth).
       return NextResponse.json({ error: err.message, code: err.code }, { status: 401 });
     }
-    // Pas un ManagedAuthError : panne réseau ou bug interne en parlant au cloud
-    // managé, pas un problème d'identifiants – un 401 ferait afficher
-    // "vérifiez votre mot de passe" côté client pour une coupure réseau.
+    // Not a ManagedAuthError: a network failure or internal bug while talking to the
+    // managed cloud, not a credentials problem – a 401 would show "check your password"
+    // on the client for a dropped connection.
     console.error("[managed/auth] unexpected error", err);
     return NextResponse.json({ error: "Unable to reach bascaso cloud" }, { status: 500 });
   }

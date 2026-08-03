@@ -19,17 +19,17 @@ import {
 } from "@/lib/ai/workflows/keyword-research";
 import { emitWorkflowEvent } from "@/lib/ai/workflows/events";
 import { classifyAIError } from "@/lib/ai/provider-factory";
-// Source unique du mapping catégorie → code (voir ai-error.ts) : l'UI d'un run lit
-// le Set qui en dérive, donc les deux côtés ne peuvent plus diverger.
+// Single source for the category → code mapping (see ai-error.ts): a run's UI reads the
+// Set derived from it, so the two sides can no longer drift apart.
 import { MANAGED_ERROR_CODE_BY_CATEGORY } from "@/lib/ai/ai-error";
 
 
-/** Code stocké dans workflow_runs.error : un échec du proxy managé connu
- *  devient le même code que les routes AI renvoient ; un ItunesUnavailableError
- *  (floor/ceiling – voir keyword-research.ts) devient le code maison stable
- *  "itunes_unavailable" plutôt que le message générique "workflow_step_failed:X".
- *  Toute autre erreur (bug interne…) garde son message d'origine – comportement
- *  inchangé, utile pour le debug serveur, jamais montré tel quel côté client. */
+/** The code stored in workflow_runs.error: a known managed-proxy failure becomes the
+ *  same code the AI routes return; an ItunesUnavailableError (floor/ceiling – see
+ *  keyword-research.ts) becomes the stable in-house code "itunes_unavailable" rather
+ *  than the generic "workflow_step_failed:X" message. Any other error (an internal
+ *  bug…) keeps its original message – unchanged behaviour, useful for server-side
+ *  debugging, never shown as-is on the client. */
 function workflowErrorCode(cause: unknown, fallback: string): string {
   if (cause instanceof ItunesUnavailableError) return "itunes_unavailable";
   return MANAGED_ERROR_CODE_BY_CATEGORY[classifyAIError(cause)] ?? fallback;
@@ -163,11 +163,11 @@ async function driveRun(
     emitWorkflowEvent({ runId, status: "succeeded" });
   } catch (err) {
     if (err instanceof WorkflowStepError) {
-      // La vraie erreur (ex. rejet du proxy managé) est `err.cause` – `err.message`
-      // n'est que "workflow_step_failed:<step>", jamais classifiable. La colonne
-      // `error` ne garde que le code : sans cette trace, une cause non classifiée
-      // (bug interne, rejet inattendu du proxy) n'était visible nulle part et le
-      // run échouait en silence côté support.
+      // The real error (e.g. the managed proxy's rejection) is `err.cause` –
+      // `err.message` is only "workflow_step_failed:<step>", never classifiable. The
+      // `error` column keeps the code alone: without this trace, an unclassified cause
+      // (an internal bug, an unexpected proxy rejection) was visible nowhere and the run
+      // failed silently as far as support was concerned.
       console.error(`[workflow] ${runId} failed at ${err.step}:`, err.cause);
       db.update(workflowRuns)
         .set({

@@ -9,7 +9,7 @@ export async function GET() {
     .from(aiSettings)
     .orderBy(sql`${aiSettings.updatedAt} DESC`)
     .get();
-  // Un compte managé (IA cloud bascaso) compte aussi comme « configuré ».
+  // A managed account (bascaso cloud AI) also counts as "configured".
   const managed = db.select({ id: managedAccount.id }).from(managedAccount).get();
 
   return NextResponse.json({ configured: !!row || !!managed });

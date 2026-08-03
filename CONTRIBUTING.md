@@ -66,4 +66,4 @@ The short version:
 
 Bascaso is licensed under [AGPL-3.0](LICENSE). By submitting a contribution you agree that it will be distributed under the same license.
 
-Bascaso is a fork of [itsyconnect-macos](https://github.com/nickustinov/itsyconnect-macos) by Nick Ustinov.
+Bascaso is a fork of [itsyconnect-macos](https://github.com/nickustinov/itsyconnect-macos) by Nick Ustinov, which is MIT licensed. The ASO scoring is ported from [RespectASO](https://github.com/respectlytics/respectaso) by Respectlytics, which is AGPL-3.0.

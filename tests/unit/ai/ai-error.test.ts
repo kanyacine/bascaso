@@ -48,18 +48,18 @@ describe("aiErrorMessage", () => {
   });
 });
 
-// La dérive entre run-manager et l'UI d'un run n'est plus testable parce qu'elle
-// n'est plus représentable : les deux dérivent de MANAGED_ERROR_CODE_BY_CATEGORY.
-// Reste à vérifier que chaque code de cette source a bien sa traduction dédiée –
-// sans quoi le dialogue afficherait le message générique pour un code qui a un sens
-// précis. Itère le Set, jamais une liste recopiée : une liste en dur ici recréerait
-// exactement la duplication qu'on vient de supprimer.
+// Drift between run-manager and a run's UI is no longer testable because it is no longer
+// representable: both derive from MANAGED_ERROR_CODE_BY_CATEGORY. What is left to check
+// is that every code from that source has its own translation – without which the dialog
+// would show the generic message for a code that carries a precise meaning. Iterates the
+// Set, never a copied list: a hardcoded list here would recreate exactly the duplication
+// that was just removed.
 describe("MANAGED_WORKFLOW_ERROR_CODES", () => {
-  it("n'est pas vide", () => {
+  it("is not empty", () => {
     expect(MANAGED_WORKFLOW_ERROR_CODES.size).toBeGreaterThan(0);
   });
 
-  it("donne à chaque code une traduction dédiée, jamais le message générique ni null", () => {
+  it("gives every code its own translation, never the generic message nor null", () => {
     const t = ((key: string) => key) as never;
     for (const code of MANAGED_WORKFLOW_ERROR_CODES) {
       const message = aiErrorMessage(code, t);

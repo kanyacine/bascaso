@@ -109,8 +109,8 @@ export function FixAllDialog({
   async function runFix() {
     const controller = new AbortController();
     abortRef.current = controller;
-    // 1 ouverture du dialogue « Fix All » = 1 action managée (1 jeton),
-    // quel que soit le nombre de locales corrigées par ce run.
+    // 1 opening of the "Fix All" dialog = 1 managed action (1 token), however many
+    // locales that run fixes.
     const actionId = crypto.randomUUID();
 
     const loading: Record<string, LocaleResult> = {};

@@ -31,9 +31,9 @@ describe("routing preferences", () => {
     expect(isRoutingTierExplicit("redaction")).toBe(false);
   });
 
-  // Le tier payant n'était le défaut de rien : un client pouvait créer un compte,
-  // acheter des jetons, et rien ne les consommait tant qu'il n'avait pas basculé
-  // les quatre groupes à la main.
+  // The paid tier was nothing's default: a customer could create an account, buy
+  // tokens, and have nothing consume them until they had switched all four groups over
+  // by hand.
   it("moves every unset group to managed once a cloud account is linked", () => {
     seedManagedAccount(testDb);
     expect(getRoutingTier("redaction")).toBe("managed");

@@ -9,17 +9,15 @@ import type { MessageKey } from "@/lib/i18n/messages";
 
 type ManagedAuthResult =
   | { ok: true; confirmationRequired?: boolean }
-  // `code`/`message` viennent du corps du 401 (voir route.ts) : le vrai code
-  // GoTrue et son message, pour que l'appelant affiche autre chose que
-  // "vérifiez identifiants" quand ce n'est pas le problème (voir
-  // managedAuthErrorMessage).
+  // `code`/`message` come from the body of the 401 (see route.ts): GoTrue's real
+  // code and its message, so the caller can show something other than "check your
+  // credentials" when that is not the problem (see managedAuthErrorMessage).
   | { ok: false; reason: "auth"; code?: string; message?: string }
   | { ok: false; reason: "network" };
 
-/** `res.json().catch(...)` ne rattrape pas un `res.json` absent (le throw est
- *  synchrone, avant la promesse) – utilisé par les tests qui ne mockent que
- *  `ok`/`status`. Ce wrapper couvre les deux cas : méthode absente et corps
- *  non-JSON. */
+/** `res.json().catch(...)` does not catch a missing `res.json` (the throw is
+ *  synchronous, before the promise) – which is what tests mocking only `ok`/`status`
+ *  produce. This wrapper covers both cases: missing method and non-JSON body. */
 async function safeJson(res: Response): Promise<Record<string, unknown>> {
   try {
     return await res.json();
@@ -43,12 +41,11 @@ export function resetManagedPassword(
 }
 
 /**
- * Isolé du composant pour être testable sans rendu React : distingue un échec
- * d'authentification (401 – identifiants) d'un échec réseau (fetch qui lève),
- * pour que l'appelant puisse afficher le bon message dans chaque cas. Un
- * signup accepté mais en attente de confirmation email est un succès HTTP
- * (200) qui porte `confirmationRequired: true` dans le corps – ni un échec
- * ni une connexion effective.
+ * Kept out of the component so it can be tested without rendering React: it tells an
+ * authentication failure (401 – credentials) apart from a network failure (a fetch that
+ * throws), so the caller can show the right message in each case. A signup that is
+ * accepted but awaiting email confirmation is an HTTP success (200) carrying
+ * `confirmationRequired: true` in the body – neither a failure nor an actual sign-in.
  */
 export async function postManagedAuth(
   body: Record<string, string | undefined>,
@@ -59,15 +56,15 @@ export async function postManagedAuth(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-    // Un 5xx est une panne réseau/serveur en parlant au cloud managé (voir
-    // route.ts), pas un problème d'identifiants – testé avant de lire le
-    // corps, sinon ce 500 (sans `code`) retombe sur managedAuthFailed
-    // ("vérifiez votre mot de passe") pour une coupure réseau.
+    // A 5xx is a network/server failure while talking to the managed cloud (see
+    // route.ts), not a credentials problem – tested before reading the body, otherwise
+    // that 500 (which carries no `code`) falls through to managedAuthFailed ("check
+    // your password") for what is really a dropped connection.
     if (res.status >= 500) return { ok: false, reason: "network" };
     if (!res.ok) {
-      // La confirmation email active en prod rend "déjà inscrit" et "quota
-      // d'emails dépassé" probables – ni l'un ni l'autre n'est un problème
-      // d'identifiants (voir managedAuthErrorMessage côté appelant).
+      // Email confirmation being on in production makes "already registered" and
+      // "email quota exceeded" likely – neither is a credentials problem (see
+      // managedAuthErrorMessage on the caller's side).
       const data = await safeJson(res);
       return { ok: false, reason: "auth", code: data.code as string | undefined, message: data.error as string | undefined };
     }
@@ -79,16 +76,15 @@ export async function postManagedAuth(
 }
 
 /**
- * Message affiché sous le formulaire managé pour un échec "auth" (401). Les
- * codes connus – compte déjà inscrit, quota d'emails Supabase dépassé, email
- * pas encore confirmé – ont chacun une action différente et un message dédié.
- * `invalid_credentials` (mauvais mot de passe – forme réelle mesurée en prod :
- * {code:400, error_code:"invalid_credentials", msg:…}, pas la forme OAuth2
- * {error, error_description} supposée avant) et l'absence de code partagent
- * le même message générique "vérifiez vos identifiants". Pour tout autre code
- * (renvoyé par le serveur mais non mappé ici), on affiche son message plutôt
- * que d'accuser un mot de passe qui n'est peut-être pas en cause – jamais le
- * générique par défaut pour un code qu'on ne reconnaît pas.
+ * The message shown under the managed form for an "auth" failure (401). The known
+ * codes – account already registered, Supabase email quota exceeded, email not yet
+ * confirmed – each call for a different action and get their own message.
+ * `invalid_credentials` (wrong password – real shape measured in production:
+ * {code:400, error_code:"invalid_credentials", msg:…}, not the OAuth2 shape
+ * {error, error_description} assumed before) and the absence of a code share the
+ * generic "check your credentials" message. For any other code (returned by the
+ * server but not mapped here) its own message is shown rather than blaming a password
+ * that may not be at fault – never the generic default for a code we do not recognise.
  */
 /**
  * GoTrue's two ways of saying "not taking new accounts right now": `signup_disabled` is the
@@ -113,8 +109,8 @@ export function managedAuthErrorMessage(
       return t("settings.account.authRateLimited");
     case "email_not_confirmed":
       return t("settings.account.authEmailNotConfirmed");
-    // Distinct de over_email_send_rate_limit : GoTrue limite aussi /token et /signup
-    // par IP, ce que produit un clic répété impatient sur « je me suis confirmé ».
+    // Distinct from over_email_send_rate_limit: GoTrue also rate-limits /token and
+    // /signup per IP, which is what impatiently clicking "I have confirmed" produces.
     case "over_request_rate_limit":
       return t("settings.account.authTooManyRequests");
     // Reset and email-change codes. Without them the default arm below would print
@@ -174,9 +170,9 @@ export function allRulesPass(rules: PasswordRule[]): boolean {
 type ManagedVerifyResult = { ok: true } | { ok: false; reason: "auth" | "network" };
 
 /**
- * Chemin secondaire de la confirmation par email : vérifie un code reçu par
- * l'utilisateur (quand le modèle d'email en contient un, plutôt qu'un simple
- * lien de confirmation). Même distinction auth/réseau que postManagedAuth.
+ * Secondary path of email confirmation: verifies a code the user received (when the
+ * email template carries one rather than just a confirmation link). Same auth/network
+ * distinction as postManagedAuth.
  */
 export async function verifyManagedSignup(email: string, code: string): Promise<ManagedVerifyResult> {
   try {
@@ -193,10 +189,10 @@ export async function verifyManagedSignup(email: string, code: string): Promise<
 }
 
 /**
- * Remet `setBusy(false)` quel que soit le chemin de sortie de `fn` – succès,
- * retour anticipé ou exception. Corrige une régression où un `return` précoce
- * dans le bloc `!res.ok` contournait la remise à zéro du flag "busy" et
- * bloquait définitivement les boutons du formulaire après un échec.
+ * Restores `setBusy(false)` whichever way `fn` exits – success, early return or
+ * exception. Fixes a regression where an early `return` inside the `!res.ok` branch
+ * skipped resetting the "busy" flag and left the form's buttons disabled for good
+ * after a failure.
  */
 export async function runWithBusyFlag(setBusy: (busy: boolean) => void, fn: () => Promise<void>): Promise<void> {
   setBusy(true);
@@ -213,12 +209,11 @@ interface ManagedSubscription {
 }
 
 /**
- * Miroir exact de la condition de `debit_action` côté backend : un
- * abonnement ne dispense de débit que s'il est actif/en essai ET pas expiré
- * (`currentPeriodEnd` null = pas d'échéance connue → traité comme valide,
- * sinon comparé à "maintenant"). Une divergence ici ferait afficher
- * "Abonnement illimité" sur la carte alors qu'un abonnement zombie fait
- * débiter des jetons à chaque appel IA.
+ * An exact mirror of `debit_action`'s condition on the backend: a subscription only
+ * waives the debit if it is active/trialing AND not expired (`currentPeriodEnd` null =
+ * no known expiry → treated as valid, otherwise compared against "now"). Drifting from
+ * it here would show "Unlimited subscription" on the card while a zombie subscription
+ * has tokens debited on every AI call.
  */
 export function isManagedSubscriptionActive(
   subscription: ManagedSubscription | null | undefined,

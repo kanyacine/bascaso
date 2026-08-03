@@ -96,7 +96,7 @@ export interface ResolvedTaskModel {
   providerId: string;
   modelId: string;
   tier: AITier;
-  /** Set for the embedded Apple model – callers reject bigger inputs (étape 2). */
+  /** Set for the embedded Apple model – callers reject bigger inputs (step 2). */
   maxInputChars?: number;
   /** Set for the embedded Apple model – the BCP-47 primary codes it supports.
    *  Callers can reject outputs in languages outside this list. */
@@ -105,8 +105,8 @@ export interface ResolvedTaskModel {
 
 /** The single seam between call sites and providers: task → group → tier → model.
  *  Resolution order is task pref > group pref > shipped default; only the group
- *  level exists in v1. `context.locale` reserves the slot for per-locale overrides ;
- *  `context.actionId` porte l'unité de facturation du tier managed (voir resolveTier). */
+ *  level exists in v1. `context.locale` reserves the slot for per-locale overrides;
+ *  `context.actionId` carries the managed tier's billing unit (see resolveTier). */
 export async function getLanguageModelForTask(
   taskId: AITaskId,
   context?: { locale?: string; actionId?: string },
@@ -135,8 +135,8 @@ async function resolveTier(
     const managed = createOpenAI({
       apiKey: token,
       baseURL: `${BASCASO_CLOUD_URL}/functions/v1/ai-proxy/v1`,
-      // 1 action = 1 jeton : l'id vient de l'appelant (workflow, bulk),
-      // sinon cette résolution EST l'action.
+      // 1 action = 1 token: the id comes from the caller (workflow, bulk), otherwise
+      // this resolution IS the action.
       // The device id is stable per install: it is the key of the subscription's
       // single-active-device lock.
       headers: {
@@ -217,9 +217,9 @@ export type AIErrorCategory =
   | "model_not_found"
   | "rate_limit"
   | "credits"
-  // Les deux codes 429 propres au proxy managed – distincts de "rate_limit"
-  // (429 générique renvoyé par un fournisseur BYOK) car ils ont chacun un
-  // message et une sémantique dédiés côté UI (cap horaire vs. cap par action).
+  // The managed proxy's own two 429 codes – distinct from "rate_limit" (the generic 429
+  // a BYOK provider returns) because each has its own message and meaning in the UI
+  // (hourly cap vs. per-action cap).
   | "rate_limited"
   | "action_exhausted"
   // The managed proxy's 409: the subscription is already in use on another device.
@@ -230,14 +230,14 @@ export type AIErrorCategory =
 /** Classify an AI provider error by inspecting its message. */
 export function classifyAIError(err: unknown): AIErrorCategory {
   const message = err instanceof Error ? err.message : String(err);
-  // Testé en premier : le message contient « 402 », qui ne matche aucune autre
-  // catégorie, mais l'ordre le rend explicite (erreur du proxy managed).
+  // Tested first: the message contains "402", which matches no other category, but the
+  // order makes it explicit (a managed-proxy error).
   if (/insufficient_credits/i.test(message)) {
     return "credits";
   }
-  // Testés avant le pattern générique /429|rate.limit|quota/ ci-dessous, qui
-  // matcherait "rate_limited" par accident (rate.limit ⊂ rate_limited) et ne
-  // laisserait jamais "action_exhausted" atteindre sa propre catégorie.
+  // Tested before the generic /429|rate.limit|quota/ pattern below, which would match
+  // "rate_limited" by accident (rate.limit ⊂ rate_limited) and never let
+  // "action_exhausted" reach its own category.
   if (/rate_limited/i.test(message)) {
     return "rate_limited";
   }
@@ -267,10 +267,10 @@ const ERROR_MESSAGES: Record<AIErrorCategory, string | null> = {
   permission: "API key lacks required permissions",
   model_not_found: "Model not found – check your provider and model selection",
   rate_limit: null, // Rate limited but key is valid
-  credits: null, // Géré par les routes, pas par validateApiKey
-  rate_limited: null, // Erreurs du proxy managed – jamais vues par un test de clé BYOK
-  action_exhausted: null, // Idem
-  device_conflict: null, // Idem
+  credits: null, // Handled by the routes, not by validateApiKey
+  rate_limited: null, // Managed-proxy errors – never seen by a BYOK key test
+  action_exhausted: null, // Ditto
+  device_conflict: null, // Ditto
   unknown: null, // Handled separately with original message
 };
 

@@ -391,8 +391,8 @@ export function AddLocaleDialog({
     if (!base) return;
     console.log("[add-locale] handleTranslate: start");
     errorToastShownRef.current = false;
-    // 1 clic « traduire » = 1 action managée (1 jeton), quel que soit le
-    // nombre de champs/appels /api/ai que ce run déclenche.
+    // 1 click on "translate" = 1 managed action (1 token), however many fields or
+    // /api/ai calls that run triggers.
     const actionId = crypto.randomUUID();
 
     setFields((prev) => {

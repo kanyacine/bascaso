@@ -29,8 +29,8 @@ describe("managed auth (GoTrue REST)", () => {
   });
   afterEach(() => {
     vi.restoreAllMocks();
-    // Un test tourne volontairement la clé maître ; la beforeEach la restaure pour ce
-    // fichier, mais pas pour les suites qui partagent le même worker vitest.
+    // One test deliberately rotates the master key; the beforeEach restores it for this
+    // file, but not for suites sharing the same vitest worker.
     process.env.ENCRYPTION_MASTER_KEY = TEST_MASTER_KEY;
   });
 
@@ -62,8 +62,8 @@ describe("managed auth (GoTrue REST)", () => {
     expect(body.data).toEqual({ username: "Yacine" });
   });
 
-  // Confirmations désactivées (état actuel du projet live) : /signup renvoie
-  // une session directement, comme signIn – comportement inchangé.
+  // Confirmations off (the live project's current state): /signup returns a session
+  // straight away, like signIn – unchanged behaviour.
   it("signUp returns a signed_in outcome and stores the session when confirmations are off", async () => {
     fetchMock.mockResolvedValueOnce(tokenResponse());
     const { signUp } = await import("@/lib/managed/auth");
@@ -73,11 +73,11 @@ describe("managed auth (GoTrue REST)", () => {
     expect(getManagedSession()!.accessToken).toBe("at-1");
   });
 
-  // Confirmations activées (état cible en prod) : GoTrue répond 200 sans
-  // tokens. D'après le code source de supabase/auth (internal/api/signup.go,
-  // `sendJSON(w, http.StatusOK, user)`), l'objet utilisateur est renvoyé tel
-  // quel à la racine de la réponse (champ "id" au premier niveau), pas sous
-  // une clé "user" imbriquée – on couvre donc les deux formes.
+  // Confirmations on (the target state in production): GoTrue answers 200 with no
+  // tokens. Per supabase/auth's source (internal/api/signup.go,
+  // `sendJSON(w, http.StatusOK, user)`), the user object is returned as-is at the root
+  // of the response (an "id" field at the top level), not under a nested "user" key –
+  // so both shapes are covered.
   it("signUp reports confirmation_required when GoTrue returns a bare user object (no nested 'user' key)", async () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,
@@ -90,10 +90,10 @@ describe("managed auth (GoTrue REST)", () => {
     expect(getManagedSession()).toBeNull();
   });
 
-  // Adresse déjà inscrite : GoTrue (autoconfirm coupé des deux côtés, cas de la prod)
-  // renvoie un 200 sanitisé indiscernable d'une inscription en attente, SAUF par
-  // `identities` vide. Sans ce test, la promesse « on t'a envoyé un mail » repart pour
-  // un compte qui n'en recevra jamais.
+  // Address already registered: GoTrue (autoconfirm off on both sides, as in production)
+  // returns a sanitised 200 indistinguishable from a pending signup, EXCEPT through an
+  // empty `identities`. Without this test, the "we sent you an email" promise goes out
+  // again for an account that will never receive one.
   it("signUp reports user_already_exists when the sanitized 200 carries an empty identities array", async () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,
@@ -103,8 +103,8 @@ describe("managed auth (GoTrue REST)", () => {
     await expect(signUp("a@b.c", "password123", "Yacine")).rejects.toBeInstanceOf(ManagedAuthError);
   });
 
-  // Une vraie inscription en attente porte exactement une identité : elle ne doit PAS
-  // être confondue avec le cas ci-dessus.
+  // A genuine pending signup carries exactly one identity: it must NOT be confused with
+  // the case above.
   it("signUp still reports confirmation_required when identities carries one entry", async () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,
@@ -132,11 +132,10 @@ describe("managed auth (GoTrue REST)", () => {
     await expect(signUp("a@b.c", "password123", "Yacine")).rejects.toThrow(ManagedAuthError);
   });
 
-  // Régression : la confirmation email activée en prod rend ces deux cas
-  // probables (compte déjà inscrit, quota Supabase d'emails/heure dépassé) –
-  // ni l'un ni l'autre n'est un problème d'identifiants, donc le code GoTrue
-  // doit survivre jusqu'au client pour éviter le message générique "vérifiez
-  // votre mot de passe".
+  // Regression: email confirmation being on in production makes these two cases likely
+  // (account already registered, Supabase hourly email quota exceeded) – neither is a
+  // credentials problem, so GoTrue's code must survive all the way to the client to
+  // avoid the generic "check your password" message.
   it("signUp carries the server's error_code for an already-registered account (422)", async () => {
     fetchMock.mockResolvedValueOnce({
       ok: false, json: () => Promise.resolve({ error_code: "user_already_exists", msg: "User already registered" }),
@@ -162,12 +161,12 @@ describe("managed auth (GoTrue REST)", () => {
     expect((err as InstanceType<typeof ManagedAuthError>).code).toBe("over_email_send_rate_limit");
   });
 
-  // Mesuré en prod : /token?grant_type=password sur un mauvais mot de passe
-  // renvoie {code:400, error_code:"invalid_credentials", msg:"Invalid login
-  // credentials"} – pas la forme OAuth2 {error, error_description} supposée
-  // avant (jamais envoyée par ce GoTrue). `code` doit porter "invalid_credentials",
-  // que managedAuthErrorMessage (page.tsx) mappe vers le message générique
-  // localisé plutôt que d'afficher ce texte anglais brut.
+  // Measured in production: /token?grant_type=password with a wrong password returns
+  // {code:400, error_code:"invalid_credentials", msg:"Invalid login credentials"} – not
+  // the OAuth2 shape {error, error_description} assumed before (never sent by this
+  // GoTrue). `code` must carry "invalid_credentials", which managedAuthErrorMessage
+  // (page.tsx) maps to the localised generic message rather than showing that raw
+  // English text.
   it("signIn's ManagedAuthError carries invalid_credentials for the real GoTrue password-grant shape", async () => {
     fetchMock.mockResolvedValueOnce({
       ok: false, json: () => Promise.resolve({ code: 400, error_code: "invalid_credentials", msg: "Invalid login credentials" }),
@@ -191,8 +190,8 @@ describe("managed auth (GoTrue REST)", () => {
       expect(getManagedSession()!.accessToken).toBe("at-1");
     });
 
-    // Repli explicite : si ce projet GoTrue rejette type "signup" avec un 400
-    // (type non supporté par cette version), on retente une fois avec "email".
+    // Explicit fallback: if this GoTrue project rejects type "signup" with a 400 (type
+    // unsupported by that version), retry once with "email".
     it("retries with type email when the signup type is rejected with a 400", async () => {
       fetchMock
         .mockResolvedValueOnce({ ok: false, status: 400, json: () => Promise.resolve({ error_code: "validation_failed", msg: "Type should be one of..." }) })
@@ -204,9 +203,9 @@ describe("managed auth (GoTrue REST)", () => {
       expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ type: "email", email: "a@b.c", token: "123456" });
     });
 
-    // Un code invalide/expiré n'est pas une histoire de "type" : GoTrue répond
-    // 403 otp_expired (observé empiriquement sur le projet live), donc pas de
-    // deuxième tentative, et l'erreur remonte telle quelle.
+    // An invalid/expired code is not a "type" story: GoTrue answers 403 otp_expired
+    // (observed empirically on the live project), so there is no second attempt and the
+    // error propagates as-is.
     it("does not retry and throws on an invalid/expired code (403)", async () => {
       fetchMock.mockResolvedValueOnce({
         ok: false, status: 403, json: () => Promise.resolve({ error_code: "otp_expired", msg: "Token has expired or is invalid" }),
@@ -257,10 +256,10 @@ describe("managed auth (GoTrue REST)", () => {
     expect(getManagedSession()!.refreshToken).toBe("rt-2");
   });
 
-  // GoTrue fait tourner le refresh token : sans verrou, deux rafraîchissements
-  // concurrents (un bulk IA en déclenche autant qu'il lance d'appels) présentaient
-  // le même token, le second arrivait après révocation, échouait, et purgeait la
-  // session – déconnexion en plein travail.
+  // GoTrue rotates the refresh token: without a lock, two concurrent refreshes (a bulk
+  // AI run starts as many as it fires calls) presented the same token, the second one
+  // arrived after revocation, failed, and purged the session – signing the user out
+  // mid-work.
   it("shares a single refresh between concurrent callers", async () => {
     const { saveManagedSession, getManagedSession } = await import("@/lib/managed/account");
     saveManagedSession({ email: "a@b.c", accessToken: "old", refreshToken: "rt-old", expiresAt: 0 });
@@ -285,8 +284,8 @@ describe("managed auth (GoTrue REST)", () => {
   it("refreshes again after the shared refresh has settled", async () => {
     const { saveManagedSession } = await import("@/lib/managed/account");
     saveManagedSession({ email: "a@b.c", accessToken: "old", refreshToken: "rt-old", expiresAt: 0 });
-    // Le second appel doit repartir sur un rafraîchissement neuf : si le verrou
-    // n'était jamais relâché, la session resterait figée sur le premier résultat.
+    // The second call must start a fresh refresh: were the lock never released, the
+    // session would stay frozen on the first result.
     fetchMock
       .mockResolvedValueOnce(tokenResponse({ access_token: "at-2", refresh_token: "rt-2", expires_at: 0 }))
       .mockResolvedValueOnce(tokenResponse({ access_token: "at-3", refresh_token: "rt-3", expires_at: 0 }));
@@ -306,9 +305,9 @@ describe("managed auth (GoTrue REST)", () => {
     expect(getManagedSession()).toBeNull();
   });
 
-  // #6 du roll-up : les deux catch nus de getValidAccessToken étaient
-  // silencieux – une rotation de clé maître ou une ligne corrompue en
-  // production restait invisible. Logué sans jamais exposer le token.
+  // Roll-up #6: getValidAccessToken's two bare catches were silent – a master-key
+  // rotation or a corrupted row in production stayed invisible. Now logged, without
+  // ever exposing the token.
   it("logs (without the token) when a refresh fails, before clearing the session", async () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const { saveManagedSession } = await import("@/lib/managed/account");
@@ -322,8 +321,8 @@ describe("managed auth (GoTrue REST)", () => {
     expect(loggedArgs).not.toContain("rt-dead-secret");
   });
 
-  // Cas supplémentaires pour couvrir les chaînes de repli (??) de goTrue/toSession,
-  // au-delà de ceux du brief.
+  // Extra cases covering goTrue/toSession's fallback chains (??), beyond those in the
+  // brief.
   it("falls back to the server's msg field when error_description is absent", async () => {
     fetchMock.mockResolvedValueOnce({
       ok: false, json: () => Promise.resolve({ msg: "email not confirmed" }),
@@ -374,7 +373,7 @@ describe("managed auth (GoTrue REST)", () => {
     await expect(signOut()).resolves.toEqual({ revoked: true });
     expect(getManagedSession()).toBeNull();
     const [url] = fetchMock.mock.calls[1];
-    // Le correctif : sans /logout le refresh token reste utilisable côté GoTrue.
+    // The fix: without /logout the refresh token stays usable on GoTrue's side.
     expect(String(url)).toContain("/auth/v1/logout?scope=global");
   });
 
@@ -384,8 +383,8 @@ describe("managed auth (GoTrue REST)", () => {
     const { getManagedSession } = await import("@/lib/managed/account");
     await signIn("a@b.c", "password123");
     fetchMock.mockRejectedValueOnce(new TypeError("offline"));
-    // Une session qu'on ne peut pas révoquer reste une session qu'il faut cesser
-    // d'utiliser – mais l'appelant doit pouvoir le dire à l'utilisateur.
+    // A session we cannot revoke is still a session we must stop using – but the caller
+    // must be able to say so to the user.
     await expect(signOut()).resolves.toEqual({ revoked: false });
     expect(getManagedSession()).toBeNull();
   });
@@ -422,14 +421,14 @@ describe("managed auth (GoTrue REST)", () => {
     await signIn("a@b.c", "password123");
     fetchMock.mockResolvedValueOnce({ ok: false, status: 500, json: () => Promise.resolve({}) });
     await expect(deleteAccount()).rejects.toThrow();
-    // Un écran déconnecté au-dessus d'un compte toujours actif (et toujours facturé)
-    // serait pire que l'erreur.
+    // A signed-out screen on top of an account that is still live (and still billed)
+    // would be worse than the error.
     expect(getManagedSession()).not.toBeNull();
   });
 
-  // cancel_failed = l'abonnement Stripe est toujours vivant et la carte peut encore
-  // être débitée ; delete_failed = un simple réessai. Collapser les deux cacherait
-  // celui qui coûte de l'argent, donc le code remonte jusqu'à l'appelant.
+  // cancel_failed = the Stripe subscription is still live and the card can still be
+  // charged; delete_failed = a plain retry. Collapsing the two would hide the one that
+  // costs money, so the code travels up to the caller.
   it("deleteAccount forwards the cloud's failure code", async () => {
     fetchMock.mockResolvedValueOnce(tokenResponse());
     const { signIn, deleteAccount, ManagedAuthError } = await import("@/lib/managed/auth");
@@ -439,7 +438,7 @@ describe("managed auth (GoTrue REST)", () => {
     });
     await expect(deleteAccount()).rejects.toMatchObject({ code: "cancel_failed" });
 
-    // Un corps illisible ne doit pas faire échouer la lecture du code.
+    // An unreadable body must not break reading the code.
     fetchMock.mockResolvedValueOnce({
       ok: false, status: 500, json: () => Promise.reject(new Error("not json")),
     });
@@ -456,15 +455,15 @@ describe("managed auth (GoTrue REST)", () => {
       refreshToken: "rt",
       expiresAt: Math.floor(Date.now() / 1000) + 3600,
     });
-    // Rotation de la clé maître entre l'écriture et la lecture : la ligne
-    // existante devient indéchiffrable (authTag mismatch).
+    // Master key rotated between the write and the read: the existing row becomes
+    // undecryptable (authTag mismatch).
     process.env.ENCRYPTION_MASTER_KEY = "a".repeat(64);
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const { getValidAccessToken } = await import("@/lib/managed/auth");
     await expect(getValidAccessToken()).resolves.toBeNull();
     expect(getManagedSession()).toBeNull();
-    // #6 du roll-up : cette rotation de clé doit désormais laisser une trace,
-    // jamais le token déchiffrable ("old") qui a été purgé.
+    // Roll-up #6: this key rotation must now leave a trace, never the decryptable token
+    // ("old") that was purged.
     expect(warnSpy).toHaveBeenCalledTimes(1);
     expect(warnSpy.mock.calls[0].join(" ")).not.toContain("old");
   });

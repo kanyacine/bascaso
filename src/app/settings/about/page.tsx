@@ -53,8 +53,9 @@ export default function AboutPage() {
         </a>
       </Button>
 
-      {/* Atteignables depuis l'app, pas seulement depuis le dépôt : un client qui paie doit
-          pouvoir lire ce qu'il a accepté sans quitter le produit ni savoir qu'un dépôt existe. */}
+      {/* Reachable from the app, not only from the repository: a paying customer must be
+          able to read what they agreed to without leaving the product, or knowing a
+          repository exists. */}
       <div className="flex gap-4 text-sm">
         <a
           href={PRIVACY_URL}

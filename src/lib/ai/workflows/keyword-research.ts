@@ -423,9 +423,9 @@ export async function runKeywordResearch(
   signal: AbortSignal,
 ): Promise<KeywordResearchResult> {
   const strategy = input.strategy ?? DEFAULT_STRATEGY;
-  // 1 run de workflow = 1 action managée (1 jeton), quels que soient ses appels LLM.
-  // Un retry fourni par l'appelant réutilise le même actionId (fenêtre de
-  // rejeu gratuite côté backend) plutôt que d'en frapper un nouveau.
+  // 1 workflow run = 1 managed action (1 token), whatever its LLM calls.
+  // A retry supplied by the caller reuses the same actionId (the backend's free-replay
+  // window) rather than minting a new one.
   const actionId = input.actionId ?? crypto.randomUUID();
   const runStartedAt = Date.now();
   const partial: KeywordResearchResult = {
@@ -539,8 +539,8 @@ export async function runKeywordResearch(
       const keyword = seeds[i];
       tripBreakerIfOverBudget();
       if (itunesCircuitOpen) {
-        // Le disjoncteur est déjà ouvert – ne pas retenter, juste marquer
-        // manquant sans payer l'échelle de backoff.
+        // The breaker is already open – do not retry, just mark this one missing
+        // without paying the backoff ladder.
         partial.skippedKeywords.push(keyword);
         onProgress({ step: "expand", done: i + 1, total: seeds.length });
         continue;
@@ -565,9 +565,9 @@ export async function runKeywordResearch(
         }
       } catch (err) {
         if (!isItunesUnavailable(err)) throw err;
-        // Le crédit géré est déjà dépensé (premier appel LLM à l'étape "seeds") –
-        // une seed non scorable devient un point de donnée manquant, pas un run
-        // avorté.
+        // The managed credit is already spent (the first LLM call at the "seeds"
+        // step) – a seed that cannot be scored becomes a missing data point, not an
+        // aborted run.
         recordItunesFailure(keyword, err);
       }
       onProgress({ step: "expand", done: i + 1, total: seeds.length });

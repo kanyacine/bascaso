@@ -6,9 +6,9 @@ const mockScoreKeyword = vi.fn();
 const mockGetLanguageModelForTask = vi.fn();
 const mockGenerateObject = vi.fn();
 
-// importOriginal préserve ItunesRateLimited / SearchApiUnavailableError réelles –
-// seule searchApps est stubbée. Le SUT en a besoin pour classer les échecs
-// itunes rencontrés via scoreKeyword (voir tests "iTunes throttle").
+// importOriginal keeps the real ItunesRateLimited / SearchApiUnavailableError – only
+// searchApps is stubbed. The SUT needs them to classify the iTunes failures it meets
+// through scoreKeyword (see the "iTunes throttle" tests).
 vi.mock("@/lib/aso/itunes", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/aso/itunes")>();
   return {
@@ -271,11 +271,11 @@ describe("runKeywordResearch – scoring failure", () => {
 });
 
 describe("runKeywordResearch – iTunes throttle degrades instead of failing", () => {
-  // Le crédit managé est débité au premier appel LLM ("seeds", étape 2) – tout
-  // ce qui suit (expand, score) tourne sur un crédit déjà dépensé. Un double
-  // 429 iTunes qui abortait le workflow ici gaspillait donc ce crédit sans
-  // rien livrer. La marque "relevant" pour tout index judgé isole le test de
-  // l'arithmétique d'index (voir commentaire de relevantResponse plus haut).
+  // The managed credit is debited on the first LLM call ("seeds", step 2) – everything
+  // after it (expand, score) runs on an already-spent credit. A double iTunes 429 that
+  // aborted the workflow here therefore wasted that credit without delivering anything.
+  // Marking every judged index "relevant" isolates the test from index arithmetic (see
+  // relevantResponse's comment above).
   const allRelevant = Array.from({ length: 30 }, (_, i) => i);
 
   it("skips a seed whose scoring stays iTunes-rate-limited and still completes with the rest", async () => {

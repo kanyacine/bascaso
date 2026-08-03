@@ -180,8 +180,8 @@ export function useBulkAI({
     const controller = new AbortController();
     abortRef.current = controller;
     const runId = ++runIdRef.current;
-    // 1 clic « traduire tout » = 1 action managée (1 jeton), quel que soit le
-    // nombre de locales/champs traduits par ce run.
+    // 1 click on "translate all" = 1 managed action (1 token), however many
+    // locales/fields that run translates.
     const actionId = crypto.randomUUID();
 
     // Set all to loading
@@ -213,7 +213,7 @@ export function useBulkAI({
       }
       const key = resultKey(locale, fieldKey);
       setResults((prev) => ({ ...prev, [key]: { status: "loading", value: "" } }));
-      // 1 clic « réessayer ce champ » = 1 action managée à part entière.
+      // 1 click on "retry this field" = 1 managed action in its own right.
       fireTranslate(locale, field, controller, ++runIdRef.current, crypto.randomUUID());
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -236,8 +236,8 @@ export function useBulkAI({
         return next;
       });
       const runId = ++runIdRef.current;
-      // 1 clic « réessayer cette locale » = 1 action managée, quel que soit
-      // le nombre de champs de cette locale.
+      // 1 click on "retry this locale" = 1 managed action, however many fields that
+      // locale has.
       const actionId = crypto.randomUUID();
       for (const f of fields) {
         fireTranslate(locale, f, controller, runId, actionId);

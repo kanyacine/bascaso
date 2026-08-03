@@ -43,12 +43,12 @@ export function aiErrorMessage(errorCode: string | undefined, t: Translate): str
   }
 }
 
-/** Catégorie d'échec du proxy managé → code stocké dans `workflow_runs.error`.
- *  Source unique : `run-manager.ts` écrit d'après cette map, l'UI d'un run traduit
- *  d'après le Set qui en dérive. Les deux listes étaient auparavant écrites à la main
- *  chacune de son côté – ajouter un code d'un seul côté cessait silencieusement de
- *  l'afficher de l'autre. Ici la dérive n'est plus représentable.
- *  Import de type seulement : rien de `provider-factory` n'entre dans le bundle client. */
+/** Managed-proxy failure category → the code stored in `workflow_runs.error`.
+ *  Single source: `run-manager.ts` writes from this map, a run's UI translates from the
+ *  Set derived from it. The two lists used to be hand-written on each side – adding a
+ *  code on one side silently stopped displaying it on the other. Here the drift is no
+ *  longer representable.
+ *  Type-only import: nothing from `provider-factory` enters the client bundle. */
 export const MANAGED_ERROR_CODE_BY_CATEGORY: Partial<Record<AIErrorCategory, string>> = {
   credits: "ai_credits_exhausted",
   rate_limited: "ai_rate_limited",
@@ -58,14 +58,14 @@ export const MANAGED_ERROR_CODE_BY_CATEGORY: Partial<Record<AIErrorCategory, str
   permission: "ai_auth_error",
 };
 
-/** Seuls codes qu'une UI de run doit traduire : toute autre valeur de
- *  `workflow_runs.error` (bug interne…) reste un message brut – il serait faux
- *  d'annoncer « requête IA échouée » pour une cause qui n'est pas l'IA.
- *  "itunes_unavailable" et "no_proposal" sont posés directement par
- *  run-manager.ts (pas via classifyAIError – ce ne sont pas des catégories
- *  d'échec du proxy IA, donc pas de place dans MANAGED_ERROR_CODE_BY_CATEGORY)
- *  mais méritent le même traitement traduit : un run qui échoue par manque
- *  de données iTunes ou sans proposition doit dire pourquoi, pas rester muet. */
+/** The only codes a run's UI should translate: any other `workflow_runs.error` value
+ *  (an internal bug…) stays a raw message – announcing "AI request failed" for a cause
+ *  that is not the AI would be wrong.
+ *  "itunes_unavailable" and "no_proposal" are set directly by run-manager.ts (not
+ *  through classifyAIError – they are not AI-proxy failure categories, so they have no
+ *  place in MANAGED_ERROR_CODE_BY_CATEGORY) but deserve the same translated treatment:
+ *  a run that fails for want of iTunes data, or with no proposal, must say why rather
+ *  than stay mute. */
 export const MANAGED_WORKFLOW_ERROR_CODES: ReadonlySet<string> = new Set([
   ...Object.values(MANAGED_ERROR_CODE_BY_CATEGORY),
   "itunes_unavailable",

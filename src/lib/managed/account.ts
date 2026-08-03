@@ -6,7 +6,7 @@ export interface ManagedSession {
   email: string;
   accessToken: string;
   refreshToken: string;
-  /** Expiration de l'access token, epoch secondes. */
+  /** Access token expiry, epoch seconds. */
   expiresAt: number;
 }
 
@@ -39,9 +39,9 @@ export function clearManagedSession(): void {
   db.delete(managedAccount).run();
 }
 
-/** Un compte cloud est-il lié ? Ne déchiffre pas la session : la présence de la
- *  ligne suffit, et cette question est posée à chaque résolution de tier – y
- *  compris quand la clé maître a changé et que le déchiffrement lèverait. */
+/** Is a cloud account linked? Does not decrypt the session: the row's presence is
+ *  enough, and this question is asked on every tier resolution – including when the
+ *  master key has changed and decryption would throw. */
 export function hasManagedAccount(): boolean {
   return db.select({ email: managedAccount.email }).from(managedAccount).get() != null;
 }

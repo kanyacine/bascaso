@@ -259,12 +259,11 @@ function setupAutoUpdater(): void {
   const updater: Electron.AutoUpdater = require("electron").autoUpdater;
   autoUpdater = updater;
 
-  // Doit pointer sur CE dépôt, jamais sur upstream. Le flux hérité interrogeait
-  // nickustinov/itsyconnect-macos : tant que les deux versions coïncident, la
-  // réponse est « à jour » et le défaut reste invisible – mais à la première
-  // version supérieure publiée là-bas, chaque install Bascaso téléchargeait et
-  // installait l'app d'upstream par-dessus elle-même. Une substitution de
-  // produit silencieuse, pas une mise à jour manquante.
+  // Must point at THIS repository, never at upstream. The inherited feed queried
+  // nickustinov/itsyconnect-macos: as long as the two versions coincide the answer is
+  // "up to date" and the defect stays invisible – but on the first higher version
+  // published over there, every Bascaso install would download and install upstream's
+  // app over itself. A silent product substitution, not a missing update.
   const feedURL = `https://update.electronjs.org/kanyacine/bascaso/${process.platform}-${process.arch}/${app.getVersion()}`;
   updater.setFeedURL({ url: feedURL });
 
