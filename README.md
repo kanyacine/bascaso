@@ -34,16 +34,19 @@ covers what the managed tier charges and why; [docs/TERMS.md](docs/TERMS.md) cov
 
 <table>
   <tr>
-    <td><a href="docs/screenshots/1.webp"><img src="docs/screenshots/1.webp" alt="App overview" /></a></td>
-    <td><a href="docs/screenshots/2.webp"><img src="docs/screenshots/2.webp" alt="Store listing" /></a></td>
+    <td><a href="docs/screenshots/1.webp"><img src="docs/screenshots/1.webp" alt="App overview – downloads, proceeds and crash-free rate" /></a></td>
+    <td><a href="docs/screenshots/2.webp"><img src="docs/screenshots/2.webp" alt="Store listing – per-locale fields with keyword scores and character budgets" /></a></td>
+    <td><a href="docs/screenshots/3.webp"><img src="docs/screenshots/3.webp" alt="TestFlight builds – installs, sessions, crashes and tester groups per build" /></a></td>
   </tr>
   <tr>
-    <td><a href="docs/screenshots/3.webp"><img src="docs/screenshots/3.webp" alt="Screenshots" /></a></td>
-    <td><a href="docs/screenshots/4.webp"><img src="docs/screenshots/4.webp" alt="TestFlight builds" /></a></td>
+    <td><a href="docs/screenshots/4.webp"><img src="docs/screenshots/4.webp" alt="Analytics – impressions, downloads, proceeds and the conversion funnel" /></a></td>
+    <td><a href="docs/screenshots/5.webp"><img src="docs/screenshots/5.webp" alt="Customer reviews – ratings breakdown, filters, translate and reply" /></a></td>
+    <td><a href="docs/screenshots/6.webp"><img src="docs/screenshots/6.webp" alt="AI routing – which tier handles each group of tasks" /></a></td>
   </tr>
   <tr>
-    <td><a href="docs/screenshots/5.webp"><img src="docs/screenshots/5.webp" alt="Analytics" /></a></td>
-    <td><a href="docs/screenshots/6.webp"><img src="docs/screenshots/6.webp" alt="Customer reviews" /></a></td>
+    <td><a href="docs/screenshots/7.webp"><img src="docs/screenshots/7.webp" alt="Keyword scoring – popularity, difficulty, opportunity and verdict per candidate" /></a></td>
+    <td><a href="docs/screenshots/8.webp"><img src="docs/screenshots/8.webp" alt="Expanded keyword – opportunity signals, difficulty breakdown and estimated downloads" /></a></td>
+    <td><a href="docs/screenshots/9.webp"><img src="docs/screenshots/9.webp" alt="Keyword analysis – ranking difficulty for the top 5, 10 and 20 results" /></a></td>
   </tr>
 </table>
 
