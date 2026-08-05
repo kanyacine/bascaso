@@ -27,6 +27,7 @@ by Respectlytics (AGPL-3.0). Bascaso is AGPL-3.0.
 
 ## 1.14.1
 
+- Fix analytics silently losing history on high-volume accounts – report instances with roughly 100k+ rows (typically the historical snapshot carrying an app's full history) hit an engine argument limit and were skipped with only a console warning, so charts started weeks ago instead of at launch; all rows are now ingested (thanks @yaaayaaa)
 - Trying signing the app with new credentials
 
 ## 1.14.0
