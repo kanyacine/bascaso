@@ -165,7 +165,8 @@ describe("editorReducer – elements", () => {
   });
 
   it("update-element patches by id without touching neighbors", () => {
-    let { doc, id } = docWithElement();
+    const { doc: doc0, id } = docWithElement();
+    let doc = doc0;
     const other = createEmojiElement("⭐", "Star");
     doc = editorReducer(doc, { type: "add-element", index: 0, element: other });
     doc = editorReducer(doc, { type: "update-element", index: 0, elementId: id, patch: { x: 10, opacity: 50 } });
@@ -179,20 +180,23 @@ describe("editorReducer – elements", () => {
   });
 
   it("set-element-text writes the language map and the legacy mirror", () => {
-    let { doc, id } = docWithElement();
+    const { doc: doc0, id } = docWithElement();
+    let doc = doc0;
     doc = editorReducer(doc, { type: "set-element-text", index: 0, elementId: id, language: "en", value: "Hello" });
     expect(doc.screenshots[0].elements[0].texts).toEqual({ en: "Hello" });
     expect(doc.screenshots[0].elements[0].text).toBe("Hello");
   });
 
   it("set-element-icon-shadow patches the nested shadow, creating it if absent", () => {
-    let { doc, id } = docWithElement();
+    const { doc: doc0, id } = docWithElement();
+    let doc = doc0;
     doc = editorReducer(doc, { type: "set-element-icon-shadow", index: 0, elementId: id, patch: { enabled: true, blur: 5 } });
     expect(doc.screenshots[0].elements[0].iconShadow).toMatchObject({ enabled: true, blur: 5 });
   });
 
   it("remove-element deletes by id", () => {
-    let { doc, id } = docWithElement();
+    const { doc: doc0, id } = docWithElement();
+    let doc = doc0;
     doc = editorReducer(doc, { type: "remove-element", index: 0, elementId: id });
     expect(doc.screenshots[0].elements).toHaveLength(0);
   });
@@ -231,14 +235,16 @@ describe("editorReducer – popouts", () => {
   });
 
   it("update-popout patches flat fields by id; unknown id is a no-op", () => {
-    let { doc, id } = docWithPopout();
+    const { doc: doc0, id } = docWithPopout();
+    let doc = doc0;
     doc = editorReducer(doc, { type: "update-popout", index: 0, popoutId: id, patch: { cropX: 10, width: 45 } });
     expect(doc.screenshots[0].popouts[0]).toMatchObject({ cropX: 10, width: 45 });
     expect(editorReducer(doc, { type: "update-popout", index: 0, popoutId: "nope", patch: { x: 1 } })).toBe(doc);
   });
 
   it("set-popout-shadow and set-popout-border patch nested objects", () => {
-    let { doc, id } = docWithPopout();
+    const { doc: doc0, id } = docWithPopout();
+    let doc = doc0;
     doc = editorReducer(doc, { type: "set-popout-shadow", index: 0, popoutId: id, patch: { blur: 99 } });
     doc = editorReducer(doc, { type: "set-popout-border", index: 0, popoutId: id, patch: { enabled: false } });
     expect(doc.screenshots[0].popouts[0].shadow).toMatchObject({ blur: 99, opacity: 40, enabled: true });

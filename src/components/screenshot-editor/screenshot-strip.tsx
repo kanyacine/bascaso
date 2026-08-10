@@ -7,20 +7,12 @@ import { CSS } from "@dnd-kit/utilities";
 import { CopySimple, Plus, TrashSimple } from "@phosphor-icons/react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { uploadAsset } from "./upload-asset";
 import { useTranslations } from "@/lib/i18n/locale-context";
 import type { EditorAction } from "@/lib/screenshot-editor/reducer";
 import type { RenderImage, ScreenshotDoc } from "@/lib/screenshot-editor/types";
 
 const ACCEPTED_TYPES = "image/png,image/jpeg,image/webp";
-
-async function uploadAsset(appId: string, file: File): Promise<string> {
-  const formData = new FormData();
-  formData.set("file", file);
-  const res = await fetch(`/api/apps/${appId}/screenshot-doc/assets`, { method: "POST", body: formData });
-  if (!res.ok) throw new Error("upload failed");
-  const { name } = await res.json();
-  return name;
-}
 
 function StripItem({ id, index, doc, images, dispatch }: {
   id: string; index: number; doc: ScreenshotDoc; images: Map<string, RenderImage>;

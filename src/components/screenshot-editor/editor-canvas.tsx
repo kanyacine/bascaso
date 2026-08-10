@@ -16,7 +16,7 @@ export function EditorCanvas({ doc, images }: { doc: ScreenshotDoc; images: Map<
     frame.current = requestAnimationFrame(() => {
       const canvas = canvasRef.current;
       if (!canvas || doc.screenshots.length === 0) return;
-      renderScreenshotToCanvas(canvas, doc, doc.selectedIndex, assetsForShot(doc, doc.selectedIndex, images), {
+      renderScreenshotToCanvas(canvas, doc, doc.selectedIndex, assetsForShot(doc, doc.selectedIndex, images, {}), {
         language: doc.currentLanguage,
         projectLanguages: doc.projectLanguages,
         createCanvas: (w, h) => {

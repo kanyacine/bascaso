@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { RenderAssets, RenderImage, ScreenshotDoc } from "@/lib/screenshot-editor/types";
+import type {
+  LaurelVariant, RenderAssets, RenderImage, ScreenshotDoc,
+} from "@/lib/screenshot-editor/types";
 
-/** Collect every image ref used by the doc (screenshot bitmaps only in phase 2). */
+/** Collect every image ref used by the doc – screenshots, backgrounds, element bitmaps. */
 function collectRefs(doc: ScreenshotDoc): string[] {
   const refs = new Set<string>();
   for (const shot of doc.screenshots) {
@@ -11,6 +13,10 @@ function collectRefs(doc: ScreenshotDoc): string[] {
       if (entry?.src) refs.add(entry.src);
     }
     if (shot.src) refs.add(shot.src);
+    if (shot.background.image) refs.add(shot.background.image);
+    for (const el of shot.elements) {
+      if (el.src) refs.add(el.src);
+    }
   }
   return [...refs];
 }
@@ -37,23 +43,46 @@ export function useEditorImages(appId: string, doc: ScreenshotDoc | null): Map<s
   return images;
 }
 
+const LAUREL_VARIANTS: LaurelVariant[] = ["laurel-simple-left", "laurel-detailed-left"];
+
+/** Load the two laurel SVGs (static public assets) once. */
+export function useLaurelImages(): Partial<Record<LaurelVariant, RenderImage>> {
+  const [laurels, setLaurels] = useState<Partial<Record<LaurelVariant, RenderImage>>>({});
+  useEffect(() => {
+    for (const variant of LAUREL_VARIANTS) {
+      const img = new Image();
+      img.onload = () => {
+        setLaurels((prev) => ({ ...prev, [variant]: img as unknown as RenderImage }));
+      };
+      img.src = `/screenshot-editor/${variant}.svg`;
+    }
+  }, []);
+  return laurels;
+}
+
 /** Build the RenderAssets for one screenshot from the shared bitmap cache. */
 export function assetsForShot(
   doc: ScreenshotDoc,
   index: number,
   images: Map<string, RenderImage>,
+  laurelImages: Partial<Record<LaurelVariant, RenderImage>>,
 ): RenderAssets {
   const shot = doc.screenshots[index];
   const screenshotImages: Record<string, RenderImage | undefined> = {};
+  const elementImages: Record<string, RenderImage | undefined> = {};
   if (shot) {
     for (const [lang, entry] of Object.entries(shot.localizedImages)) {
       if (entry?.src) screenshotImages[lang] = images.get(entry.src);
+    }
+    for (const el of shot.elements) {
+      if (el.src) elementImages[el.id] = images.get(el.src);
     }
   }
   return {
     screenshotImages,
     legacyImage: shot?.src ? images.get(shot.src) : null,
-    elementImages: {}, // phase 3
-    laurelImages: {}, // phase 3
+    backgroundImage: shot?.background.image ? images.get(shot.background.image) : undefined,
+    elementImages,
+    laurelImages,
   };
 }

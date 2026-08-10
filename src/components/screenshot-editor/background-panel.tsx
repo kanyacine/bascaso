@@ -8,6 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, TrashSimple } from "@phosphor-icons/react";
 import { PanelColor, PanelSlider } from "./panel-controls";
+import { uploadAsset } from "./upload-asset";
 import { useTranslations } from "@/lib/i18n/locale-context";
 import type { EditorAction } from "@/lib/screenshot-editor/reducer";
 import type { Background, ScreenshotDoc } from "@/lib/screenshot-editor/types";
@@ -24,12 +25,11 @@ export function BackgroundPanel({ doc, dispatch, appId }: {
   const onImage = async (files: FileList | null) => {
     const file = files?.[0];
     if (!file) return;
-    const formData = new FormData();
-    formData.set("file", file);
-    const res = await fetch(`/api/apps/${appId}/screenshot-doc/assets`, { method: "POST", body: formData });
-    if (!res.ok) { toast.error(t("screenshotEditor.uploadFailed")); return; }
-    const { name } = await res.json();
-    patch({ type: "image", image: name });
+    try {
+      patch({ type: "image", image: await uploadAsset(appId, file) });
+    } catch {
+      toast.error(t("screenshotEditor.uploadFailed"));
+    }
   };
 
   return (
