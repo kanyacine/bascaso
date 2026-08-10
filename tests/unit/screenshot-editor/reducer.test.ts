@@ -215,3 +215,117 @@ describe("editorReducer – elements", () => {
     expect(editorReducer(doc, { type: "remove-element", index: 9, elementId: "x" })).toBe(doc);
   });
 });
+
+describe("editorReducer – popouts", () => {
+  function docWithPopout() {
+    let doc = docWithShots(1);
+    const popout = createPopout();
+    doc = editorReducer(doc, { type: "add-popout", index: 0, popout });
+    return { doc, id: popout.id };
+  }
+
+  it("add-popout appends", () => {
+    const { doc } = docWithPopout();
+    expect(doc.screenshots[0].popouts).toHaveLength(1);
+    expect(doc.screenshots[0].popouts[0].cropX).toBe(25);
+  });
+
+  it("update-popout patches flat fields by id; unknown id is a no-op", () => {
+    let { doc, id } = docWithPopout();
+    doc = editorReducer(doc, { type: "update-popout", index: 0, popoutId: id, patch: { cropX: 10, width: 45 } });
+    expect(doc.screenshots[0].popouts[0]).toMatchObject({ cropX: 10, width: 45 });
+    expect(editorReducer(doc, { type: "update-popout", index: 0, popoutId: "nope", patch: { x: 1 } })).toBe(doc);
+  });
+
+  it("set-popout-shadow and set-popout-border patch nested objects", () => {
+    let { doc, id } = docWithPopout();
+    doc = editorReducer(doc, { type: "set-popout-shadow", index: 0, popoutId: id, patch: { blur: 99 } });
+    doc = editorReducer(doc, { type: "set-popout-border", index: 0, popoutId: id, patch: { enabled: false } });
+    expect(doc.screenshots[0].popouts[0].shadow).toMatchObject({ blur: 99, opacity: 40, enabled: true });
+    expect(doc.screenshots[0].popouts[0].border).toMatchObject({ enabled: false, width: 3 });
+  });
+
+  it("popout and element actions ignore unknown ids and out-of-range indexes", () => {
+    let doc = docWithShots(1);
+    const a = createPopout(); const b = createPopout();
+    doc = editorReducer(doc, { type: "add-popout", index: 0, popout: a });
+    doc = editorReducer(doc, { type: "add-popout", index: 0, popout: b });
+    // patching one popout leaves its neighbor untouched
+    doc = editorReducer(doc, { type: "update-popout", index: 0, popoutId: b.id, patch: { x: 5 } });
+    expect(doc.screenshots[0].popouts[0].x).toBe(a.x);
+    expect(doc.screenshots[0].popouts[1].x).toBe(5);
+    expect(editorReducer(doc, { type: "move-element", index: 0, elementId: "nope", direction: "up" })).toBe(doc);
+    expect(editorReducer(doc, { type: "move-element", index: 9, elementId: "x", direction: "up" })).toBe(doc);
+    expect(editorReducer(doc, { type: "move-popout", index: 0, popoutId: "nope", direction: "up" })).toBe(doc);
+    expect(editorReducer(doc, { type: "move-popout", index: 9, popoutId: "x", direction: "up" })).toBe(doc);
+    expect(editorReducer(doc, { type: "remove-popout", index: 0, popoutId: "nope" })).toBe(doc);
+    expect(editorReducer(doc, { type: "remove-popout", index: 9, popoutId: "x" })).toBe(doc);
+  });
+
+  it("remove-popout and move-popout mirror the element semantics", () => {
+    let doc = docWithShots(1);
+    const a = createPopout(); const b = createPopout();
+    doc = editorReducer(doc, { type: "add-popout", index: 0, popout: a });
+    doc = editorReducer(doc, { type: "add-popout", index: 0, popout: b });
+    doc = editorReducer(doc, { type: "move-popout", index: 0, popoutId: a.id, direction: "up" });
+    expect(doc.screenshots[0].popouts.map((p) => p.id)).toEqual([b.id, a.id]);
+    expect(editorReducer(doc, { type: "move-popout", index: 0, popoutId: a.id, direction: "up" })).toBe(doc);
+    doc = editorReducer(doc, { type: "move-popout", index: 0, popoutId: a.id, direction: "down" });
+    expect(doc.screenshots[0].popouts.map((p) => p.id)).toEqual([a.id, b.id]);
+    doc = editorReducer(doc, { type: "remove-popout", index: 0, popoutId: a.id });
+    expect(doc.screenshots[0].popouts.map((p) => p.id)).toEqual([b.id]);
+  });
+});
+
+describe("editorReducer – style transfer", () => {
+  function styledPair() {
+    let doc = docWithShots(2);
+    doc = editorReducer(doc, { type: "set-background", index: 0, patch: { type: "solid", solid: "#123456" } });
+    doc = editorReducer(doc, { type: "set-text-setting", index: 0, patch: { headlineSize: 150 } });
+    doc = editorReducer(doc, { type: "set-headline", index: 0, language: "en", value: "Source title" });
+    doc = editorReducer(doc, { type: "set-headline", index: 1, language: "en", value: "Target title" });
+    doc = editorReducer(doc, { type: "add-element", index: 0, element: createTextElement("en") });
+    doc = editorReducer(doc, { type: "add-popout", index: 0, popout: createPopout() });
+    doc = editorReducer(doc, { type: "add-popout", index: 1, popout: createPopout() });
+    return doc;
+  }
+
+  it("transfer-style copies background, screenshot and text style but keeps target headlines", () => {
+    let doc = styledPair();
+    doc = editorReducer(doc, { type: "transfer-style", from: 0, to: 1 });
+    const target = doc.screenshots[1];
+    expect(target.background.solid).toBe("#123456");
+    expect(target.text.headlineSize).toBe(150);
+    expect(target.text.headlines.en).toBe("Target title"); // content preserved
+  });
+
+  it("transfer-style copies elements with fresh ids and never copies popouts", () => {
+    let doc = styledPair();
+    const targetPopoutId = doc.screenshots[1].popouts[0].id;
+    doc = editorReducer(doc, { type: "transfer-style", from: 0, to: 1 });
+    const source = doc.screenshots[0]; const target = doc.screenshots[1];
+    expect(target.elements).toHaveLength(1);
+    expect(target.elements[0].text).toBe(source.elements[0].text);
+    expect(target.elements[0].id).not.toBe(source.elements[0].id);
+    expect(target.popouts.map((p) => p.id)).toEqual([targetPopoutId]);
+  });
+
+  it("transfer-style is a no-op for same or invalid indexes", () => {
+    const doc = styledPair();
+    expect(editorReducer(doc, { type: "transfer-style", from: 0, to: 0 })).toBe(doc);
+    expect(editorReducer(doc, { type: "transfer-style", from: 5, to: 1 })).toBe(doc);
+    expect(editorReducer(doc, { type: "transfer-style", from: 0, to: 5 })).toBe(doc);
+  });
+
+  it("apply-style-to-all restyles every other shot and skips the source", () => {
+    let doc = styledPair();
+    doc = editorReducer(doc, { type: "add-screenshot", imageRef: "c.png" });
+    doc = editorReducer(doc, { type: "apply-style-to-all", from: 0 });
+    expect(doc.screenshots[1].background.solid).toBe("#123456");
+    expect(doc.screenshots[2].background.solid).toBe("#123456");
+    expect(doc.screenshots[1].text.headlines.en).toBe("Target title");
+    expect(doc.screenshots[0].elements[0].id) // source untouched
+      .not.toBe(doc.screenshots[1].elements[0].id);
+    expect(editorReducer(doc, { type: "apply-style-to-all", from: 9 })).toBe(doc);
+  });
+});

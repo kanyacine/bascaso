@@ -1,7 +1,7 @@
 import { createDefaultScreenshot } from "./defaults";
 import type {
-  Background, EditorElement, EditorScreenshot, GradientStop, ScreenshotDoc, ScreenshotSettings,
-  Shadow, TextSettings,
+  Background, EditorElement, EditorScreenshot, GradientStop, Popout, ScreenshotDoc,
+  ScreenshotSettings, Shadow, TextSettings,
 } from "./types";
 
 export type EditorAction =
@@ -29,7 +29,15 @@ export type EditorAction =
   | { type: "set-element-text"; index: number; elementId: string; language: string; value: string }
   | { type: "set-element-icon-shadow"; index: number; elementId: string; patch: Partial<Shadow> }
   | { type: "remove-element"; index: number; elementId: string }
-  | { type: "move-element"; index: number; elementId: string; direction: "up" | "down" };
+  | { type: "move-element"; index: number; elementId: string; direction: "up" | "down" }
+  | { type: "add-popout"; index: number; popout: Popout }
+  | { type: "update-popout"; index: number; popoutId: string; patch: Partial<Omit<Popout, "id" | "shadow" | "border">> }
+  | { type: "set-popout-shadow"; index: number; popoutId: string; patch: Partial<Shadow> }
+  | { type: "set-popout-border"; index: number; popoutId: string; patch: Partial<Popout["border"]> }
+  | { type: "remove-popout"; index: number; popoutId: string }
+  | { type: "move-popout"; index: number; popoutId: string; direction: "up" | "down" }
+  | { type: "transfer-style"; from: number; to: number }
+  | { type: "apply-style-to-all"; from: number };
 
 function patchShot(
   doc: ScreenshotDoc,
@@ -53,6 +61,36 @@ function patchElement(
     ...s,
     elements: s.elements.map((e) => (e.id === elementId ? update(e) : e)),
   }));
+}
+
+function patchPopout(
+  doc: ScreenshotDoc,
+  index: number,
+  popoutId: string,
+  update: (p: Popout) => Popout,
+): ScreenshotDoc {
+  const shot = doc.screenshots[index];
+  if (!shot || !shot.popouts.some((p) => p.id === popoutId)) return doc;
+  return patchShot(doc, index, (s) => ({
+    ...s,
+    popouts: s.popouts.map((p) => (p.id === popoutId ? update(p) : p)),
+  }));
+}
+
+/** Copy styling from one screenshot onto another – content (headlines, popouts) stays. */
+function restyleFrom(source: EditorScreenshot, target: EditorScreenshot): EditorScreenshot {
+  return {
+    ...target,
+    background: structuredClone(source.background),
+    screenshot: structuredClone(source.screenshot),
+    text: {
+      ...structuredClone(source.text),
+      headlines: structuredClone(target.text.headlines),
+      subheadlines: structuredClone(target.text.subheadlines),
+    },
+    elements: source.elements.map((el) => ({ ...structuredClone(el), id: crypto.randomUUID() })),
+    // popouts intentionally kept – crop regions are specific to each shot's source image
+  };
 }
 
 export function editorReducer(doc: ScreenshotDoc, action: EditorAction): ScreenshotDoc {
@@ -177,6 +215,57 @@ export function editorReducer(doc: ScreenshotDoc, action: EditorAction): Screens
         [elements[i], elements[j]] = [elements[j], elements[i]];
         return { ...s, elements };
       });
+    }
+    case "add-popout":
+      return patchShot(doc, action.index, (s) => ({ ...s, popouts: [...s.popouts, action.popout] }));
+    case "update-popout":
+      return patchPopout(doc, action.index, action.popoutId, (p) => ({ ...p, ...action.patch }));
+    case "set-popout-shadow":
+      return patchPopout(doc, action.index, action.popoutId, (p) => ({
+        ...p,
+        shadow: { ...p.shadow, ...action.patch },
+      }));
+    case "set-popout-border":
+      return patchPopout(doc, action.index, action.popoutId, (p) => ({
+        ...p,
+        border: { ...p.border, ...action.patch },
+      }));
+    case "remove-popout": {
+      const shot = doc.screenshots[action.index];
+      if (!shot?.popouts.some((p) => p.id === action.popoutId)) return doc;
+      return patchShot(doc, action.index, (s) => ({
+        ...s,
+        popouts: s.popouts.filter((p) => p.id !== action.popoutId),
+      }));
+    }
+    case "move-popout": {
+      const shot = doc.screenshots[action.index];
+      if (!shot) return doc;
+      const i = shot.popouts.findIndex((p) => p.id === action.popoutId);
+      const j = action.direction === "up" ? i + 1 : i - 1;
+      if (i < 0 || j < 0 || j >= shot.popouts.length) return doc;
+      return patchShot(doc, action.index, (s) => {
+        const popouts = [...s.popouts];
+        [popouts[i], popouts[j]] = [popouts[j], popouts[i]];
+        return { ...s, popouts };
+      });
+    }
+    case "transfer-style": {
+      const source = doc.screenshots[action.from];
+      const target = doc.screenshots[action.to];
+      if (!source || !target || action.from === action.to) return doc;
+      return {
+        ...doc,
+        screenshots: doc.screenshots.map((s, i) => (i === action.to ? restyleFrom(source, s) : s)),
+      };
+    }
+    case "apply-style-to-all": {
+      const source = doc.screenshots[action.from];
+      if (!source || doc.screenshots.length < 2) return doc;
+      return {
+        ...doc,
+        screenshots: doc.screenshots.map((s, i) => (i === action.from ? s : restyleFrom(source, s))),
+      };
     }
   }
 }
