@@ -42,6 +42,11 @@ describe("saveAsset / readAsset", () => {
     const name = saveAsset("app-a", Buffer.from("x"), "image/png");
     expect(readAsset("app-b", name)).toBeNull();
   });
+
+  it("refuses to guess a location when DATABASE_PATH is unset", () => {
+    delete process.env.DATABASE_PATH;
+    expect(() => saveAsset("a", Buffer.from("x"), "image/png")).toThrow(/DATABASE_PATH/);
+  });
 });
 
 describe("asset routes", () => {
