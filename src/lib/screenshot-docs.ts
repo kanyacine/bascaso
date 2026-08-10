@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { screenshotDocs } from "@/db/schema";
 import { DEFAULTS } from "@/lib/screenshot-editor/defaults";
@@ -93,4 +93,67 @@ export function saveCurrentDoc(appId: string, doc: ScreenshotDoc): { id: string;
     .returning()
     .get();
   return { id: inserted.id, updatedAt: inserted.updatedAt };
+}
+
+export interface VersionSummary {
+  id: string;
+  name: string;
+  createdAt: string;
+}
+
+function versionRow(appId: string, id: string) {
+  return db
+    .select()
+    .from(screenshotDocs)
+    .where(and(eq(screenshotDocs.appId, appId), eq(screenshotDocs.id, id), eq(screenshotDocs.kind, "version")))
+    .get();
+}
+
+export function listVersionSnapshots(appId: string): VersionSummary[] {
+  return db
+    .select({ id: screenshotDocs.id, name: screenshotDocs.name, createdAt: screenshotDocs.createdAt })
+    .from(screenshotDocs)
+    .where(and(eq(screenshotDocs.appId, appId), eq(screenshotDocs.kind, "version")))
+    // ulid() suffixes are random, not monotonic – rowid is the only reliable tiebreaker
+    // for snapshots written inside the same millisecond (export + duplicate).
+    .orderBy(desc(screenshotDocs.createdAt), sql`rowid desc`)
+    .all()
+    .map((row) => ({ ...row, name: row.name ?? "" }));
+}
+
+export function getVersionSnapshot(
+  appId: string,
+  id: string,
+): { id: string; name: string; doc: ScreenshotDoc } | null {
+  const row = versionRow(appId, id);
+  if (!row) return null;
+  return { id: row.id, name: row.name ?? "", doc: JSON.parse(row.doc) as ScreenshotDoc };
+}
+
+/** Copy a version's doc into the current row. The caller decides about confirmations. */
+export function restoreVersionSnapshot(appId: string, id: string): { doc: ScreenshotDoc } | null {
+  const snapshot = getVersionSnapshot(appId, id);
+  if (!snapshot) return null;
+  const doc = normalizeDocLanguages(snapshot.doc);
+  saveCurrentDoc(appId, doc);
+  return { doc };
+}
+
+export function duplicateVersionSnapshot(appId: string, id: string, name: string): VersionSummary | null {
+  const row = versionRow(appId, id);
+  if (!row) return null;
+  const inserted = db
+    .insert(screenshotDocs)
+    .values({ appId, kind: "version", name, languages: row.languages, outputDevice: row.outputDevice, doc: row.doc })
+    .returning()
+    .get();
+  return { id: inserted.id, name, createdAt: inserted.createdAt };
+}
+
+export function deleteVersionSnapshot(appId: string, id: string): boolean {
+  const result = db
+    .delete(screenshotDocs)
+    .where(and(eq(screenshotDocs.appId, appId), eq(screenshotDocs.id, id), eq(screenshotDocs.kind, "version")))
+    .run();
+  return result.changes > 0;
 }

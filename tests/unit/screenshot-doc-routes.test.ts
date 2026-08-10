@@ -3,10 +3,20 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 const mockGetOrCreate = vi.fn();
 const mockSave = vi.fn();
 const mockSnapshot = vi.fn();
+const mockList = vi.fn();
+const mockGetVersion = vi.fn();
+const mockRestore = vi.fn();
+const mockDuplicate = vi.fn();
+const mockDelete = vi.fn();
 vi.mock("@/lib/screenshot-docs", () => ({
   getOrCreateCurrentDoc: (...a: unknown[]) => mockGetOrCreate(...a),
   saveCurrentDoc: (...a: unknown[]) => mockSave(...a),
   saveVersionSnapshot: (...a: unknown[]) => mockSnapshot(...a),
+  listVersionSnapshots: (...a: unknown[]) => mockList(...a),
+  getVersionSnapshot: (...a: unknown[]) => mockGetVersion(...a),
+  restoreVersionSnapshot: (...a: unknown[]) => mockRestore(...a),
+  duplicateVersionSnapshot: (...a: unknown[]) => mockDuplicate(...a),
+  deleteVersionSnapshot: (...a: unknown[]) => mockDelete(...a),
 }));
 
 beforeEach(() => { vi.clearAllMocks(); });
@@ -108,5 +118,89 @@ describe("POST /api/apps/[appId]/screenshot-doc/versions", () => {
     }), params);
     expect(res.status).toBe(502);
     expect(await res.json()).toEqual({ error: "boom" });
+  });
+});
+
+const idParams = { params: Promise.resolve({ appId: "app-1", id: "01V" }) };
+
+describe("GET /versions", () => {
+  it("lists snapshots", async () => {
+    mockList.mockReturnValue([{ id: "01V", name: "First", createdAt: "t" }]);
+    const { GET } = await import("@/app/api/apps/[appId]/screenshot-doc/versions/route");
+    const res = await GET(new Request("http://localhost"), params);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ versions: [{ id: "01V", name: "First", createdAt: "t" }] });
+    expect(mockList).toHaveBeenCalledWith("app-1");
+  });
+
+  it("maps lib errors through errorJson", async () => {
+    mockList.mockImplementation(() => { throw new Error("boom"); });
+    const { GET } = await import("@/app/api/apps/[appId]/screenshot-doc/versions/route");
+    expect((await GET(new Request("http://localhost"), params)).status).toBe(502);
+  });
+});
+
+describe("/versions/[id]", () => {
+  it("GET returns the snapshot, 404 when absent", async () => {
+    mockGetVersion.mockReturnValue({ id: "01V", name: "First", doc: { a: 1 } });
+    const { GET } = await import("@/app/api/apps/[appId]/screenshot-doc/versions/[id]/route");
+    expect((await GET(new Request("http://localhost"), idParams)).status).toBe(200);
+    mockGetVersion.mockReturnValue(null);
+    expect((await GET(new Request("http://localhost"), idParams)).status).toBe(404);
+    mockGetVersion.mockImplementation(() => { throw new Error("boom"); });
+    expect((await GET(new Request("http://localhost"), idParams)).status).toBe(502);
+  });
+
+  it("POST op=restore returns the restored doc", async () => {
+    mockRestore.mockReturnValue({ doc: { restored: true } });
+    const { POST } = await import("@/app/api/apps/[appId]/screenshot-doc/versions/[id]/route");
+    const res = await POST(new Request("http://localhost", {
+      method: "POST", body: JSON.stringify({ op: "restore" }),
+    }), idParams);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ doc: { restored: true } });
+    expect(mockRestore).toHaveBeenCalledWith("app-1", "01V");
+  });
+
+  it("POST op=duplicate needs a name and returns 201", async () => {
+    mockDuplicate.mockReturnValue({ id: "01W", name: "Copy", createdAt: "t" });
+    const { POST } = await import("@/app/api/apps/[appId]/screenshot-doc/versions/[id]/route");
+    const res = await POST(new Request("http://localhost", {
+      method: "POST", body: JSON.stringify({ op: "duplicate", name: "Copy" }),
+    }), idParams);
+    expect(res.status).toBe(201);
+    const missing = await POST(new Request("http://localhost", {
+      method: "POST", body: JSON.stringify({ op: "duplicate" }),
+    }), idParams);
+    expect(missing.status).toBe(400);
+    mockDuplicate.mockReturnValue(null);
+    const gone = await POST(new Request("http://localhost", {
+      method: "POST", body: JSON.stringify({ op: "duplicate", name: "Copy" }),
+    }), idParams);
+    expect(gone.status).toBe(404);
+  });
+
+  it("POST 404s on an unknown id, DELETE deletes", async () => {
+    mockRestore.mockReturnValue(null);
+    const { POST, DELETE } = await import("@/app/api/apps/[appId]/screenshot-doc/versions/[id]/route");
+    const res = await POST(new Request("http://localhost", {
+      method: "POST", body: JSON.stringify({ op: "restore" }),
+    }), idParams);
+    expect(res.status).toBe(404);
+    mockDelete.mockReturnValue(true);
+    expect((await DELETE(new Request("http://localhost"), idParams)).status).toBe(204);
+    mockDelete.mockReturnValue(false);
+    expect((await DELETE(new Request("http://localhost"), idParams)).status).toBe(404);
+    mockDelete.mockImplementation(() => { throw new Error("boom"); });
+    expect((await DELETE(new Request("http://localhost"), idParams)).status).toBe(502);
+  });
+
+  it("maps POST lib errors through errorJson", async () => {
+    mockRestore.mockImplementation(() => { throw new Error("boom"); });
+    const { POST } = await import("@/app/api/apps/[appId]/screenshot-doc/versions/[id]/route");
+    const res = await POST(new Request("http://localhost", {
+      method: "POST", body: JSON.stringify({ op: "restore" }),
+    }), idParams);
+    expect(res.status).toBe(502);
   });
 });

@@ -6,8 +6,12 @@ vi.mock("@/db", () => ({
   get db() { return testDb; },
 }));
 
-import { createEmptyDoc, getOrCreateCurrentDoc, saveCurrentDoc, saveVersionSnapshot } from "@/lib/screenshot-docs";
+import {
+  createEmptyDoc, deleteVersionSnapshot, duplicateVersionSnapshot, getOrCreateCurrentDoc,
+  getVersionSnapshot, listVersionSnapshots, restoreVersionSnapshot, saveCurrentDoc, saveVersionSnapshot,
+} from "@/lib/screenshot-docs";
 import { DEFAULTS } from "@/lib/screenshot-editor/defaults";
+import { screenshotDocs } from "@/db/schema";
 
 beforeEach(() => { testDb = createTestDb(); });
 
@@ -93,5 +97,68 @@ describe("saveVersionSnapshot", () => {
   it("snapshots the empty doc when no current row exists yet", () => {
     const snap = saveVersionSnapshot("app-fresh", "First");
     expect(snap.name).toBe("First");
+  });
+});
+
+describe("version snapshots – list/get/restore/duplicate/delete", () => {
+  function seedTwoVersions(appId: string) {
+    getOrCreateCurrentDoc(appId);
+    const doc = createEmptyDoc();
+    doc.outputDevice = "APP_IPHONE_65";
+    saveCurrentDoc(appId, doc);
+    const v1 = saveVersionSnapshot(appId, "First");
+    const doc2 = createEmptyDoc();
+    saveCurrentDoc(appId, doc2);
+    const v2 = saveVersionSnapshot(appId, "Second");
+    return { v1, v2 };
+  }
+
+  it("lists newest first, scoped by app", () => {
+    const { v1, v2 } = seedTwoVersions("app-v");
+    seedTwoVersions("app-other");
+    const list = listVersionSnapshots("app-v");
+    expect(list.map((v) => v.id)).toEqual([v2.id, v1.id]);
+    expect(list[0]).toEqual({ id: v2.id, name: "Second", createdAt: expect.any(String) });
+  });
+
+  it("gets a snapshot with its doc, misses cleanly", () => {
+    const { v1 } = seedTwoVersions("app-g");
+    const snap = getVersionSnapshot("app-g", v1.id);
+    expect(snap?.name).toBe("First");
+    expect(snap?.doc.outputDevice).toBe("APP_IPHONE_65");
+    expect(getVersionSnapshot("app-g", "nope")).toBeNull();
+    expect(getVersionSnapshot("app-other-2", v1.id)).toBeNull(); // cross-app blocked
+  });
+
+  it("restores a version into the current doc", () => {
+    const { v1 } = seedTwoVersions("app-r");
+    expect(getOrCreateCurrentDoc("app-r").doc.outputDevice).not.toBe("APP_IPHONE_65");
+    const restored = restoreVersionSnapshot("app-r", v1.id);
+    expect(restored?.doc.outputDevice).toBe("APP_IPHONE_65");
+    expect(getOrCreateCurrentDoc("app-r").doc.outputDevice).toBe("APP_IPHONE_65");
+    expect(restoreVersionSnapshot("app-r", "nope")).toBeNull();
+  });
+
+  it("reads a nameless row as an empty name (the column is nullable)", () => {
+    seedTwoVersions("app-n");
+    const bare = testDb
+      .insert(screenshotDocs)
+      .values({ appId: "app-n", kind: "version", languages: "[]", outputDevice: "APP_IPHONE_67", doc: "{}" })
+      .returning()
+      .get();
+    expect(getVersionSnapshot("app-n", bare.id)?.name).toBe("");
+    expect(listVersionSnapshots("app-n").find((v) => v.id === bare.id)?.name).toBe("");
+  });
+
+  it("duplicates and deletes", () => {
+    const { v1 } = seedTwoVersions("app-d");
+    const copy = duplicateVersionSnapshot("app-d", v1.id, "Copy of First");
+    expect(copy?.name).toBe("Copy of First");
+    expect(copy?.id).not.toBe(v1.id);
+    expect(listVersionSnapshots("app-d")).toHaveLength(3);
+    expect(deleteVersionSnapshot("app-d", v1.id)).toBe(true);
+    expect(deleteVersionSnapshot("app-d", v1.id)).toBe(false);
+    expect(listVersionSnapshots("app-d")).toHaveLength(2);
+    expect(duplicateVersionSnapshot("app-d", "nope", "X")).toBeNull();
   });
 });
