@@ -2,6 +2,9 @@
 
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { useParams, useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { PaintBrush } from "@phosphor-icons/react";
+import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import {
   PointerSensor,
@@ -284,6 +287,15 @@ export default function ScreenshotsPage() {
 
   return (
     <div className="flex flex-1 flex-col gap-6">
+      <div className="flex justify-end">
+        <Button asChild size="sm">
+          <Link href={`/dashboard/apps/${appId}/screenshots/editor`}>
+            <PaintBrush size={16} className="mr-1.5" />
+            {t("screenshotEditor.open")}
+          </Link>
+        </Button>
+      </div>
+
       {!isBaseLocale && !readOnly && (
         <BaseLocaleScreenshots
           appId={appId}
