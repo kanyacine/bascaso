@@ -30,7 +30,8 @@ function currentRow(appId: string) {
 export function getOrCreateCurrentDoc(appId: string): { id: string; doc: ScreenshotDoc; updatedAt: string } {
   const existing = currentRow(appId);
   if (existing) {
-    return { id: existing.id, doc: JSON.parse(existing.doc) as ScreenshotDoc, updatedAt: existing.updatedAt };
+    const doc = normalizeDocLanguages(JSON.parse(existing.doc) as ScreenshotDoc);
+    return { id: existing.id, doc, updatedAt: existing.updatedAt };
   }
   const doc = createEmptyDoc();
   const inserted = db
@@ -45,6 +46,24 @@ export function getOrCreateCurrentDoc(appId: string): { id: string; doc: Screens
     .returning()
     .get();
   return { id: inserted.id, doc, updatedAt: inserted.updatedAt };
+}
+
+/** Freeze the current doc into a named `kind='version'` row – written automatically on export. */
+export function saveVersionSnapshot(appId: string, name: string): { id: string; name: string; createdAt: string } {
+  const current = getOrCreateCurrentDoc(appId);
+  const inserted = db
+    .insert(screenshotDocs)
+    .values({
+      appId,
+      kind: "version",
+      name,
+      languages: JSON.stringify(current.doc.projectLanguages),
+      outputDevice: current.doc.outputDevice,
+      doc: JSON.stringify(current.doc),
+    })
+    .returning()
+    .get();
+  return { id: inserted.id, name, createdAt: inserted.createdAt };
 }
 
 export function saveCurrentDoc(appId: string, doc: ScreenshotDoc): { id: string; updatedAt: string } {

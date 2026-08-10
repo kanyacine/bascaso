@@ -10,6 +10,7 @@ const docSchema = z.object({
   screenshots: z.array(z.record(z.string(), z.unknown())),
   selectedIndex: z.number().int().min(0),
   outputDevice: z.string().min(1),
+  outputDevices: z.array(z.string().min(1)).optional(),
   customWidth: z.number().positive(),
   customHeight: z.number().positive(),
   currentLanguage: z.string().min(1),

@@ -6,7 +6,7 @@ vi.mock("@/db", () => ({
   get db() { return testDb; },
 }));
 
-import { createEmptyDoc, getOrCreateCurrentDoc, saveCurrentDoc } from "@/lib/screenshot-docs";
+import { createEmptyDoc, getOrCreateCurrentDoc, saveCurrentDoc, saveVersionSnapshot } from "@/lib/screenshot-docs";
 import { DEFAULTS } from "@/lib/screenshot-editor/defaults";
 
 beforeEach(() => { testDb = createTestDb(); });
@@ -61,5 +61,37 @@ describe("saveCurrentDoc", () => {
   it("inserts when no current row exists yet (save before get)", () => {
     const saved = saveCurrentDoc("app-2", createEmptyDoc());
     expect(getOrCreateCurrentDoc("app-2").id).toBe(saved.id);
+  });
+});
+
+describe("getOrCreateCurrentDoc – legacy language normalization", () => {
+  it("returns en-US for a stored bare-en doc", () => {
+    const created = getOrCreateCurrentDoc("app-legacy");
+    const legacy = JSON.parse(JSON.stringify(created.doc).replaceAll('"en-US"', '"en"'));
+    saveCurrentDoc("app-legacy", legacy);
+    const reread = getOrCreateCurrentDoc("app-legacy");
+    expect(reread.doc.currentLanguage).toBe("en-US");
+    expect(reread.doc.projectLanguages).toEqual(["en-US"]);
+  });
+});
+
+describe("saveVersionSnapshot", () => {
+  it("copies the current doc into a named version row without touching current", () => {
+    getOrCreateCurrentDoc("app-1");
+    const doc = createEmptyDoc();
+    doc.outputDevice = "APP_IPHONE_65";
+    saveCurrentDoc("app-1", doc);
+    const snap = saveVersionSnapshot("app-1", "Export 2026-08-10 18:00");
+    expect(snap.name).toBe("Export 2026-08-10 18:00");
+    expect(snap.id).toMatch(/^[0-9A-HJKMNP-TV-Z]{26}$/);
+    const current = getOrCreateCurrentDoc("app-1");
+    expect(current.doc.outputDevice).toBe("APP_IPHONE_65"); // untouched
+    const snap2 = saveVersionSnapshot("app-1", "Another");
+    expect(snap2.id).not.toBe(snap.id); // multiple versions per app are fine
+  });
+
+  it("snapshots the empty doc when no current row exists yet", () => {
+    const snap = saveVersionSnapshot("app-fresh", "First");
+    expect(snap.name).toBe("First");
   });
 });
