@@ -114,6 +114,19 @@ describe("parseAppscreenProject", () => {
     expect(imageRefs.get("screenshot:0:en")).toBe(doc.screenshots[0].localizedImages.en.src);
   });
 
+  it("migrates pre-v2 3D positions on import", () => {
+    const raw = syntheticProject();
+    raw.screenshots[0].screenshot.use3D = true;
+    raw.screenshots[0].screenshot.scale = 70;
+    raw.screenshots[0].screenshot.x = 60;
+    delete (raw as { formatVersion?: number }).formatVersion;
+    const { doc } = parseAppscreenProject(raw);
+    expect(doc.screenshots[0].screenshot.x).toBeCloseTo(Math.min(100, 50 + 10 * (2 / (0.3 * 0.9))));
+    (raw as { formatVersion?: number }).formatVersion = 2;
+    raw.screenshots[0].screenshot.x = 60;
+    expect(parseAppscreenProject(raw).doc.screenshots[0].screenshot.x).toBe(60);
+  });
+
   it("collects every image ref under a resolvable key", () => {
     const { imageRefs } = parseAppscreenProject(syntheticProject());
     expect([...imageRefs.keys()].sort()).toEqual([

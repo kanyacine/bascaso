@@ -1,5 +1,6 @@
 /* Portions derived from appscreen (https://github.com/YUZU-Hub/appscreen), MIT License, Copyright YuzuHub */
 import { getCanvasDimensions } from "../devices";
+import { migrate3DPosition } from "../three-scene";
 import type {
   Background,
   Dimensions,
@@ -126,6 +127,7 @@ interface AppscreenProject {
     popouts?: Popout[];
   }[];
   selectedIndex: number;
+  formatVersion?: number;
   outputDevice: string;
   customWidth: number;
   customHeight: number;
@@ -155,6 +157,7 @@ export interface ParsedAppscreenProject {
 /** Map one appscreen project onto the doc model. Pure data mapping — no bitmap decoding. */
 export function parseAppscreenProject(raw: unknown): ParsedAppscreenProject {
   const project = raw as AppscreenProject;
+  const needs3DMigration = !project.formatVersion || project.formatVersion < 2;
   const currentLanguage = project.currentLanguage;
   const imageRefs = new Map<string, string>();
 
@@ -185,7 +188,7 @@ export function parseAppscreenProject(raw: unknown): ParsedAppscreenProject {
       name: s.name,
       localizedImages,
       background: s.background,
-      screenshot: s.screenshot,
+      screenshot: needs3DMigration ? migrate3DPosition(s.screenshot) : s.screenshot,
       text: s.text,
       elements,
       popouts: s.popouts ?? [],
