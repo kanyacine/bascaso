@@ -1,8 +1,10 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { PanelColor, PanelSlider } from "./panel-controls";
+import { POSITION_PRESETS, matchPositionPreset } from "@/lib/screenshot-editor/position-presets";
 import { FRAME_COLOR_PRESETS, frameColorPreset } from "@/lib/screenshot-editor/three-scene";
 import { useTranslations } from "@/lib/i18n/locale-context";
 import type { EditorAction } from "@/lib/screenshot-editor/reducer";
@@ -17,6 +19,7 @@ export function ScreenshotPanel({ doc, dispatch }: {
   const patch = (p: Partial<ScreenshotSettings>) => dispatch({ type: "set-screenshot-setting", index, patch: p });
   const shadow = (p: Partial<Shadow>) => dispatch({ type: "set-shadow", index, patch: p });
   const frame = (p: Partial<ScreenshotSettings["frame"]>) => dispatch({ type: "set-frame", index, patch: p });
+  const activePreset = matchPositionPreset(s);
 
   return (
     <div className="space-y-6">
@@ -27,9 +30,24 @@ export function ScreenshotPanel({ doc, dispatch }: {
           <ToggleGroupItem value="2d" className="flex-1">2D</ToggleGroupItem>
           <ToggleGroupItem value="3d" className="flex-1">3D</ToggleGroupItem>
         </ToggleGroup>
+        {!s.use3D ? (
+          <div className="space-y-1.5">
+            <span className="text-sm">{t("screenshotEditor.positionPresets")}</span>
+            <div className="grid grid-cols-2 gap-1.5">
+              {POSITION_PRESETS.map((p) => (
+                <Button key={p.id} size="sm" className="text-xs"
+                        variant={activePreset === p.id ? "secondary" : "outline"}
+                        onClick={() => patch(p.values)}>
+                  {t(p.key)}
+                </Button>
+              ))}
+            </div>
+          </div>
+        ) : null}
         <PanelSlider label={t("screenshotEditor.scale")} value={s.scale} min={10} max={100} onChange={(v) => patch({ scale: v })} />
-        <PanelSlider label={t("screenshotEditor.positionX")} value={s.x} min={0} max={100} onChange={(v) => patch({ x: v })} />
-        <PanelSlider label={t("screenshotEditor.positionY")} value={s.y} min={0} max={100} onChange={(v) => patch({ y: v })} />
+        {/* -80..180 like appscreen – the bleed presets push the device past the canvas edges. */}
+        <PanelSlider label={t("screenshotEditor.positionX")} value={s.x} min={-80} max={180} onChange={(v) => patch({ x: v })} />
+        <PanelSlider label={t("screenshotEditor.positionY")} value={s.y} min={-80} max={180} onChange={(v) => patch({ y: v })} />
         {!s.use3D ? (
           <>
             <PanelSlider label={t("screenshotEditor.rotation")} value={s.rotation} min={-45} max={45} onChange={(v) => patch({ rotation: v })} />

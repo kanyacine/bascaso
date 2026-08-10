@@ -11,7 +11,7 @@ import type {
 export type EditorAction =
   | { type: "replace-doc"; doc: ScreenshotDoc }
   | { type: "select-screenshot"; index: number }
-  | { type: "add-screenshot"; imageRef: string }
+  | { type: "add-screenshot"; imageRef?: string }
   | { type: "remove-screenshot"; index: number }
   | { type: "duplicate-screenshot"; index: number }
   | { type: "reorder-screenshots"; from: number; to: number }
@@ -162,7 +162,8 @@ export function editorReducer(doc: ScreenshotDoc, action: EditorAction): Screens
       return { ...doc, selectedIndex: action.index };
     case "add-screenshot": {
       const shot = createDefaultScreenshot(doc.defaults);
-      shot.localizedImages = { [doc.currentLanguage]: { src: action.imageRef } };
+      // No ref = blank screenshot (background + text only), like appscreen's "add" button.
+      if (action.imageRef) shot.localizedImages = { [doc.currentLanguage]: { src: action.imageRef } };
       const screenshots = [...doc.screenshots, shot];
       return { ...doc, screenshots, selectedIndex: screenshots.length - 1 };
     }

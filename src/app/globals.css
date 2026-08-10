@@ -263,3 +263,21 @@
 .no-drag {
   -webkit-app-region: no-drag;
 }
+/* macOS routes clicks inside a drag region to the window, so a floating layer that opens over the
+   title bar becomes unhoverable and unclickable. Opt every one out – the popper wrapper covers the
+   popper-positioned layers, the slots cover item-aligned selects and the overlay-backed dialogs. */
+[data-radix-popper-content-wrapper],
+[data-slot="select-content"],
+[data-slot="combobox-content"],
+[data-slot="dropdown-menu-content"],
+[data-slot="dropdown-menu-sub-content"],
+[data-slot="popover-content"],
+[data-slot="tooltip-content"],
+[data-slot="dialog-content"],
+[data-slot="dialog-overlay"],
+[data-slot="alert-dialog-content"],
+[data-slot="alert-dialog-overlay"],
+[data-slot="sheet-content"],
+[data-slot="sheet-overlay"] {
+  -webkit-app-region: no-drag;
+}

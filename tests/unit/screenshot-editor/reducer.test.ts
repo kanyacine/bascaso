@@ -23,6 +23,13 @@ describe("editorReducer – screenshots list", () => {
     expect(doc.screenshots[0].background.type).toBe("gradient"); // from defaults
   });
 
+  it("add-screenshot without a ref appends a blank screenshot", () => {
+    const doc = editorReducer(createEmptyDoc(), { type: "add-screenshot" });
+    expect(doc.screenshots).toHaveLength(1);
+    expect(doc.screenshots[0].localizedImages).toEqual({});
+    expect(doc.screenshots[0].background.type).toBe("gradient");
+  });
+
   it("never mutates its input", () => {
     const before = createEmptyDoc();
     const frozen = JSON.stringify(before);

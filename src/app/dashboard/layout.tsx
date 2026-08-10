@@ -80,17 +80,19 @@ function ScrollableContent({ children }: { children: React.ReactNode }) {
   const { open } = useInsightsPanel();
   const pathname = usePathname();
   const hasPanel = /\/apps\/[^/]+\/reviews$/.test(pathname) || pathname.match(/\/analytics(\/|$)/);
-  // The screenshot editor is a three-column workspace – the shared max-width lives here, so its
-  // exception does too (docs/UI.md forbids pages overriding the width themselves).
+  // The screenshot editor is a three-column workspace that fills the window – the shared max-width
+  // and page scroll live here, so its exception does too (docs/UI.md forbids pages overriding them).
   const fullWidth = /\/apps\/[^/]+\/screenshots\/editor(\/|$)/.test(pathname);
   return (
     <div
-      className="flex flex-1 flex-col overflow-y-auto pt-6 pb-8"
+      className={fullWidth
+        ? "flex min-h-0 flex-1 flex-col overflow-hidden py-4"
+        : "flex flex-1 flex-col overflow-y-auto pt-6 pb-8"}
       style={{ paddingRight: open && hasPanel ? INSIGHTS_PANEL_WIDTH : undefined }}
     >
       <div
         className={fullWidth
-          ? "flex w-full flex-1 flex-col px-6"
+          ? "flex min-h-0 w-full flex-1 flex-col px-6"
           : "mx-auto flex w-full max-w-6xl flex-1 flex-col px-6"}
       >
         {children}

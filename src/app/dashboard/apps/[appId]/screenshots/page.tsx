@@ -287,15 +287,6 @@ export default function ScreenshotsPage() {
 
   return (
     <div className="flex flex-1 flex-col gap-6">
-      <div className="flex justify-end">
-        <Button asChild size="sm">
-          <Link href={`/dashboard/apps/${appId}/screenshots/editor`}>
-            <PaintBrush size={16} className="mr-1.5" />
-            {t("screenshotEditor.open")}
-          </Link>
-        </Button>
-      </div>
-
       {!isBaseLocale && !readOnly && (
         <BaseLocaleScreenshots
           appId={appId}
@@ -309,13 +300,19 @@ export default function ScreenshotsPage() {
         />
       )}
 
-      {showTabs && (
-        <DeviceCategoryTabs
-          categories={readOnly ? visibleCategories : allCategories}
-          selected={selectedCategory}
-          onSelect={setSelectedCategory}
-        />
-      )}
+      <DeviceCategoryTabs
+        categories={showTabs ? (readOnly ? visibleCategories : allCategories) : []}
+        selected={selectedCategory}
+        onSelect={setSelectedCategory}
+        action={
+          <Button asChild size="sm">
+            <Link href={`/dashboard/apps/${appId}/screenshots/editor`}>
+              <PaintBrush size={16} className="mr-1.5" />
+              {t("screenshotEditor.open")}
+            </Link>
+          </Button>
+        }
+      />
 
       {isEmpty && readOnly ? (
         <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">

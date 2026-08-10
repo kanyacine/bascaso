@@ -101,7 +101,9 @@ export function ElementsPanel({ appId, doc, dispatch, images, selectedElementId,
         {elements.length === 0 ? (
           <p className="py-2 text-sm text-muted-foreground">{t("screenshotEditor.noElements")}</p>
         ) : null}
-        {elements.map((el, i) => (
+        {/* Front-most first, like every layer panel: the array draws back-to-front, so the list is
+            reversed and "move forward" walks up the list instead of down it. */}
+        {[...elements].reverse().map((el, i) => (
           <div key={el.id}
                className={`group flex items-center gap-2 rounded-md border px-2 py-1.5 text-sm ${el.id === selectedElementId ? "border-primary" : "border-transparent hover:border-muted-foreground/30"}`}>
             <button type="button" className="flex min-w-0 flex-1 items-center gap-2 text-left"
@@ -118,12 +120,12 @@ export function ElementsPanel({ appId, doc, dispatch, images, selectedElementId,
               <span className="ml-auto shrink-0 text-xs text-muted-foreground">{LAYER_SHORT[el.layer]}</span>
             </button>
             <div className="hidden shrink-0 gap-0.5 group-hover:flex">
-              <Button size="icon" variant="ghost" className="size-6" disabled={i === elements.length - 1}
+              <Button size="icon" variant="ghost" className="size-6" disabled={i === 0}
                       aria-label={t("screenshotEditor.moveForward")}
                       onClick={() => dispatch({ type: "move-element", index, elementId: el.id, direction: "up" })}>
                 <ArrowUp size={12} />
               </Button>
-              <Button size="icon" variant="ghost" className="size-6" disabled={i === 0}
+              <Button size="icon" variant="ghost" className="size-6" disabled={i === elements.length - 1}
                       aria-label={t("screenshotEditor.moveBackward")}
                       onClick={() => dispatch({ type: "move-element", index, elementId: el.id, direction: "down" })}>
                 <ArrowDown size={12} />

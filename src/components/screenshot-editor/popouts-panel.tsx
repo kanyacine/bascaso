@@ -53,23 +53,25 @@ export function PopoutsPanel({ doc, dispatch, images, selectedPopoutId, onSelect
         {popouts.length === 0 && image ? (
           <p className="py-2 text-sm text-muted-foreground">{t("screenshotEditor.noPopouts")}</p>
         ) : null}
-        {popouts.map((p, i) => (
+        {/* Front-most first, like the elements panel: the array draws back-to-front, so the list is
+            reversed and "move forward" walks up the list instead of down it. */}
+        {[...popouts].reverse().map((p, i) => (
           <div key={p.id}
                className={`group flex items-center gap-2 rounded-md border px-2 py-1.5 text-sm ${p.id === selectedPopoutId ? "border-primary" : "border-transparent hover:border-muted-foreground/30"}`}>
             <button type="button" className="flex min-w-0 flex-1 items-center justify-between text-left"
                     onClick={() => onSelectPopout(p.id)}>
-              <span>{t("screenshotEditor.popoutName", { index: i + 1 })}</span>
+              <span>{t("screenshotEditor.popoutName", { index: popouts.length - i })}</span>
               <span className="text-xs text-muted-foreground">
                 {Math.round(p.cropWidth)}% × {Math.round(p.cropHeight)}%
               </span>
             </button>
             <div className="hidden shrink-0 gap-0.5 group-hover:flex">
-              <Button size="icon" variant="ghost" className="size-6" disabled={i === popouts.length - 1}
+              <Button size="icon" variant="ghost" className="size-6" disabled={i === 0}
                       aria-label={t("screenshotEditor.moveForward")}
                       onClick={() => dispatch({ type: "move-popout", index, popoutId: p.id, direction: "up" })}>
                 <ArrowUp size={12} />
               </Button>
-              <Button size="icon" variant="ghost" className="size-6" disabled={i === 0}
+              <Button size="icon" variant="ghost" className="size-6" disabled={i === popouts.length - 1}
                       aria-label={t("screenshotEditor.moveBackward")}
                       onClick={() => dispatch({ type: "move-popout", index, popoutId: p.id, direction: "down" })}>
                 <ArrowDown size={12} />

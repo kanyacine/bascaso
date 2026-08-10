@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowCounterClockwise, CopySimple, DownloadSimple, TrashSimple, UploadSimple } from "@phosphor-icons/react";
+import {
+  ArrowCounterClockwise, CopySimple, DownloadSimple, MagnifyingGlass, TrashSimple, UploadSimple,
+} from "@phosphor-icons/react";
 import { toast } from "sonner";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
@@ -25,6 +27,7 @@ export function VersionsDialog({ open, onOpenChange, appId, doc, dispatch }: {
 }) {
   const t = useTranslations();
   const [versions, setVersions] = useState<VersionRow[]>([]);
+  const [query, setQuery] = useState("");
   const [newName, setNewName] = useState("");
   const [confirm, setConfirm] = useState<Confirm>(null);
   const [busy, setBusy] = useState(false);
@@ -37,8 +40,15 @@ export function VersionsDialog({ open, onOpenChange, appId, doc, dispatch }: {
   }, [base]);
 
   useEffect(() => {
-    if (open) void refresh();
+    if (open) {
+      setQuery("");
+      void refresh();
+    }
   }, [open, refresh]);
+
+  // The API already returns them newest-first (createdAt desc, rowid desc), so filtering keeps it.
+  const needle = query.trim().toLowerCase();
+  const filtered = needle ? versions.filter((v) => v.name.toLowerCase().includes(needle)) : versions;
 
   const save = async () => {
     setBusy(true);
@@ -126,11 +136,23 @@ export function VersionsDialog({ open, onOpenChange, appId, doc, dispatch }: {
             <DialogDescription>{t("screenshotEditor.versionsHint")}</DialogDescription>
           </DialogHeader>
 
-          <section className="max-h-64 space-y-1 overflow-y-auto">
+          {versions.length > 0 ? (
+            <div className="relative">
+              <MagnifyingGlass size={14}
+                               className="absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground" />
+              <Input value={query} className="pl-8" placeholder={t("screenshotEditor.searchVersions")}
+                     onChange={(e) => setQuery(e.target.value)} />
+            </div>
+          ) : null}
+
+          {/* Exactly three rows, then it scrolls: 3 × h-14 plus the two 4px gaps of space-y-1. */}
+          <section className="max-h-44 space-y-1 overflow-y-auto">
             {versions.length === 0 ? (
               <p className="text-xs text-muted-foreground">{t("screenshotEditor.noVersions")}</p>
-            ) : versions.map((v) => (
-              <div key={v.id} className="flex items-center justify-between gap-2 rounded-md border px-3 py-1.5 text-sm">
+            ) : filtered.length === 0 ? (
+              <p className="text-xs text-muted-foreground">{t("screenshotEditor.noVersionsFound")}</p>
+            ) : filtered.map((v) => (
+              <div key={v.id} className="flex h-14 items-center justify-between gap-2 rounded-md border px-3 text-sm">
                 <div className="min-w-0">
                   <p className="truncate">{v.name}</p>
                   <p className="text-xs text-muted-foreground">{new Date(v.createdAt).toLocaleString()}</p>
@@ -165,10 +187,10 @@ export function VersionsDialog({ open, onOpenChange, appId, doc, dispatch }: {
             </div>
             <div className="flex items-center gap-2">
               <Button size="sm" variant="outline" onClick={() => importInput.current?.click()}>
-                <UploadSimple size={14} className="mr-1" />{t("screenshotEditor.importJson")}
+                <DownloadSimple size={14} className="mr-1" />{t("screenshotEditor.importJson")}
               </Button>
               <Button size="sm" variant="outline" onClick={exportJson}>
-                <DownloadSimple size={14} className="mr-1" />{t("screenshotEditor.exportJson")}
+                <UploadSimple size={14} className="mr-1" />{t("screenshotEditor.exportJson")}
               </Button>
               <input ref={importInput} type="file" accept="application/json,.json" hidden
                      onChange={(e) => importJson(e.target.files)} />

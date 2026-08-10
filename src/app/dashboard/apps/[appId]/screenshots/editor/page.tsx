@@ -1,8 +1,9 @@
 "use client";
 
 import { use, useState } from "react";
+import Link from "next/link";
 import {
-  ClockCounterClockwise, Crop, DeviceMobile, Export, Palette, Shapes, TextT,
+  ArrowLeft, Crop, DeviceMobile, Export, Palette, Shapes, TextT,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -72,8 +73,17 @@ export default function ScreenshotEditorPage({ params }: { params: Promise<{ app
 
   return (
     <div className="flex min-h-0 flex-1 gap-4">
-      <ScreenshotStrip appId={appId} doc={doc} dispatch={dispatch} images={images} />
-      <div className="flex min-w-0 flex-1 items-center justify-center rounded-lg border bg-muted/30 p-4">
+      <div className="flex min-h-0 shrink-0 flex-col gap-2">
+        <Button asChild variant="ghost" size="sm" className="justify-start">
+          <Link href={`/dashboard/apps/${appId}/screenshots`}>
+            <ArrowLeft size={14} className="mr-1.5" />{t("common.back")}
+          </Link>
+        </Button>
+        <ScreenshotStrip appId={appId} doc={doc} dispatch={dispatch} images={images}
+                         laurelImages={laurelImages} fontsVersion={fontsVersion} mockup={mockup}
+                         onVersions={() => setVersionsOpen(true)} />
+      </div>
+      <div className="flex min-w-0 flex-1 items-center justify-center overflow-hidden rounded-lg border bg-muted/30 p-4">
         {selected ? (
           <EditorCanvas doc={doc} images={images} laurelImages={laurelImages} fontsVersion={fontsVersion}
                         mockup={mockup} dispatch={dispatch}
@@ -92,15 +102,10 @@ export default function ScreenshotEditorPage({ params }: { params: Promise<{ app
         </div>
         <div className="flex items-center justify-between gap-2">
           <LanguageSwitcher doc={doc} dispatch={dispatch} onManage={() => setLanguagesOpen(true)} />
-          <div className="flex shrink-0 items-center gap-1">
-            <Button size="icon" variant="ghost" className="size-8" aria-label={t("screenshotEditor.versions")}
-                    onClick={() => setVersionsOpen(true)}>
-              <ClockCounterClockwise size={16} />
-            </Button>
-            <Button size="sm" onClick={() => setExportOpen(true)} disabled={doc.screenshots.length === 0}>
-              <Export size={16} className="mr-1.5" />{t("screenshotEditor.export")}
-            </Button>
-          </div>
+          <Button size="sm" className="shrink-0" onClick={() => setExportOpen(true)}
+                  disabled={doc.screenshots.length === 0}>
+            <Export size={16} className="mr-1.5" />{t("screenshotEditor.export")}
+          </Button>
         </div>
         {selected ? (
           <Tabs value={tab} onValueChange={setTab}>
@@ -112,12 +117,18 @@ export default function ScreenshotEditorPage({ params }: { params: Promise<{ app
                 ["elements", Shapes, t("screenshotEditor.elements")],
                 ["popouts", Crop, t("screenshotEditor.popouts")],
               ] as const).map(([value, Icon, label]) => (
-                <Tooltip key={value}>
-                  <TooltipTrigger asChild>
-                    <TabsTrigger value={value} aria-label={label}><Icon size={16} /></TabsTrigger>
-                  </TooltipTrigger>
-                  <TooltipContent>{label}</TooltipContent>
-                </Tooltip>
+                // The tooltip wraps the icon, not the trigger: as a parent with asChild it spreads
+                // its own data-state onto TabsTrigger and overwrites data-state="active", which
+                // kills the selected-tab styling.
+                <TabsTrigger key={value} value={value} aria-label={label}
+                             className="data-[state=active]:text-primary">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="flex items-center"><Icon size={16} /></span>
+                    </TooltipTrigger>
+                    <TooltipContent>{label}</TooltipContent>
+                  </Tooltip>
+                </TabsTrigger>
               ))}
             </TabsList>
             <TabsContent value="background"><BackgroundPanel doc={doc} dispatch={dispatch} appId={appId} /></TabsContent>
