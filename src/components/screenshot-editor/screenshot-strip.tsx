@@ -21,9 +21,9 @@ import type { RenderImage, ScreenshotDoc } from "@/lib/screenshot-editor/types";
 
 const ACCEPTED_TYPES = "image/png,image/jpeg,image/webp";
 
-function StripItem({ id, index, doc, images, dispatch }: {
+function StripItem({ id, index, doc, images, dispatch, onReplaceImage }: {
   id: string; index: number; doc: ScreenshotDoc; images: Map<string, RenderImage>;
-  dispatch: (a: EditorAction) => void;
+  dispatch: (a: EditorAction) => void; onReplaceImage: (index: number) => void;
 }) {
   const t = useTranslations();
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -78,6 +78,9 @@ function StripItem({ id, index, doc, images, dispatch }: {
                               }}>
               {t("screenshotEditor.copyStyleFromSelected")}
             </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => onReplaceImage(index)}>
+              {t("screenshotEditor.replaceImage")}
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
         <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
@@ -107,6 +110,8 @@ export function ScreenshotStrip({ appId, doc, dispatch, images }: {
 }) {
   const t = useTranslations();
   const fileInput = useRef<HTMLInputElement>(null);
+  const replaceInput = useRef<HTMLInputElement>(null);
+  const pendingReplace = useRef<number | null>(null);
   // Positional sortable ids – the list is rebuilt from the doc on every dispatch.
   const ids = doc.screenshots.map((_, i) => `shot-${i}`);
   const [uploading, setUploading] = useState(false);
@@ -138,13 +143,35 @@ export function ScreenshotStrip({ appId, doc, dispatch, images }: {
     }
   };
 
+  // Replacing an image writes it under the current working language only – the other
+  // languages keep falling back through resolveScreenshotImage.
+  const onReplaceImage = (index: number) => {
+    pendingReplace.current = index;
+    replaceInput.current?.click();
+  };
+
+  const onReplaceFile = async (files: FileList | null) => {
+    const file = files?.[0];
+    const index = pendingReplace.current;
+    pendingReplace.current = null;
+    if (!file || index === null) return;
+    try {
+      const name = await uploadAsset(appId, file);
+      dispatch({ type: "set-screenshot-image", index, language: doc.currentLanguage, imageRef: name });
+    } catch {
+      toast.error(t("screenshotEditor.uploadFailed"));
+    } finally {
+      if (replaceInput.current) replaceInput.current.value = "";
+    }
+  };
+
   return (
     <div className="flex w-28 shrink-0 flex-col gap-3 overflow-y-auto">
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
         <SortableContext items={ids} strategy={verticalListSortingStrategy}>
           {doc.screenshots.map((_, index) => (
             <StripItem key={ids[index]} id={ids[index]} index={index} doc={doc} images={images}
-                       dispatch={dispatch} />
+                       dispatch={dispatch} onReplaceImage={onReplaceImage} />
           ))}
         </SortableContext>
       </DndContext>
@@ -154,6 +181,8 @@ export function ScreenshotStrip({ appId, doc, dispatch, images }: {
       </Button>
       <input ref={fileInput} type="file" accept={ACCEPTED_TYPES} multiple hidden
              onChange={(e) => onFiles(e.target.files)} />
+      <input ref={replaceInput} type="file" accept={ACCEPTED_TYPES} hidden
+             onChange={(e) => onReplaceFile(e.target.files)} />
     </div>
   );
 }
