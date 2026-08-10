@@ -156,6 +156,17 @@ export function DashboardBreadcrumb() {
             </BreadcrumbItem>
             {pageSegment === "testflight" ? (
               renderTestFlightCrumbs()
+            ) : pageSegment === "screenshots" && segments[1] === "editor" ? (
+              <>
+                <BreadcrumbSeparator className="hidden md:block" />
+                <BreadcrumbItem className="hidden md:block">
+                  <BreadcrumbLink asChild><Link href={`/dashboard/apps/${appId}/screenshots`}>{t("breadcrumb.pages.screenshots")}</Link></BreadcrumbLink>
+                </BreadcrumbItem>
+                <BreadcrumbSeparator className="hidden md:block" />
+                <BreadcrumbItem>
+                  <BreadcrumbPage>{t("breadcrumb.pages.screenshotsEditor")}</BreadcrumbPage>
+                </BreadcrumbItem>
+              </>
             ) : pageSegment === "nominations" && segments[1] ? (
               <>
                 <BreadcrumbSeparator className="hidden md:block" />
