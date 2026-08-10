@@ -1,7 +1,8 @@
 "use client";
 
 import { use, useState } from "react";
-import { Crop, DeviceMobile, Palette, Shapes, TextT } from "@phosphor-icons/react";
+import { Crop, DeviceMobile, Export, Palette, Shapes, TextT } from "@phosphor-icons/react";
+import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -16,6 +17,9 @@ import { TextPanel } from "@/components/screenshot-editor/text-panel";
 import { ElementsPanel } from "@/components/screenshot-editor/elements-panel";
 import { PopoutsPanel } from "@/components/screenshot-editor/popouts-panel";
 import { FormatSelect } from "@/components/screenshot-editor/format-select";
+import { LanguageSwitcher } from "@/components/screenshot-editor/language-switcher";
+import { LanguagesDialog } from "@/components/screenshot-editor/languages-dialog";
+import { ExportDialog } from "@/components/screenshot-editor/export-dialog";
 
 export default function ScreenshotEditorPage({ params }: { params: Promise<{ appId: string }> }) {
   const { appId } = use(params);
@@ -26,6 +30,8 @@ export default function ScreenshotEditorPage({ params }: { params: Promise<{ app
   const [tab, setTab] = useState("background");
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
   const [selectedPopoutId, setSelectedPopoutId] = useState<string | null>(null);
+  const [languagesOpen, setLanguagesOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
 
   // Selection is per screenshot: reset it during render when the selected shot changes
   // (React's "adjusting state when props change" – an effect here would cascade renders).
@@ -70,6 +76,12 @@ export default function ScreenshotEditorPage({ params }: { params: Promise<{ app
             {saveState === "saving" ? t("screenshotEditor.saving") : saveState === "saved" ? t("screenshotEditor.saved") : ""}
           </span>
         </div>
+        <div className="flex items-center justify-between">
+          <LanguageSwitcher doc={doc} dispatch={dispatch} onManage={() => setLanguagesOpen(true)} />
+          <Button size="sm" onClick={() => setExportOpen(true)} disabled={doc.screenshots.length === 0}>
+            <Export size={16} className="mr-1.5" />{t("screenshotEditor.export")}
+          </Button>
+        </div>
         {selected ? (
           <Tabs value={tab} onValueChange={setTab}>
             <TabsList className="grid w-full grid-cols-5">
@@ -102,6 +114,10 @@ export default function ScreenshotEditorPage({ params }: { params: Promise<{ app
           </Tabs>
         ) : null}
       </div>
+      <LanguagesDialog open={languagesOpen} onOpenChange={setLanguagesOpen}
+                       doc={doc} dispatch={dispatch} appId={appId} />
+      <ExportDialog open={exportOpen} onOpenChange={setExportOpen} doc={doc} dispatch={dispatch}
+                    appId={appId} images={images} laurelImages={laurelImages} />
     </div>
   );
 }
