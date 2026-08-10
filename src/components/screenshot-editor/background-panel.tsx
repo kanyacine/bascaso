@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Plus, TrashSimple } from "@phosphor-icons/react";
 import { PanelColor, PanelSlider } from "./panel-controls";
 import { uploadAsset } from "./upload-asset";
@@ -77,11 +78,43 @@ export function BackgroundPanel({ doc, dispatch, appId }: {
 
       {bg.type === "image" ? (
         <section className="space-y-3">
-          <Button size="sm" variant="outline" onClick={() => fileInput.current?.click()}>
-            {t("screenshotEditor.replaceImage")}
-          </Button>
+          {bg.image === null ? (
+            <p className="text-xs text-muted-foreground">{t("screenshotEditor.noBackgroundImage")}</p>
+          ) : null}
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={() => fileInput.current?.click()}>
+              {t("screenshotEditor.replaceImage")}
+            </Button>
+            {bg.image !== null ? (
+              <Button size="sm" variant="ghost" onClick={() => patch({ image: null })}>
+                {t("screenshotEditor.removeImage")}
+              </Button>
+            ) : null}
+          </div>
           <input ref={fileInput} type="file" accept="image/png,image/jpeg,image/webp" hidden
                  onChange={(e) => onImage(e.target.files)} />
+          {bg.image !== null ? (
+            <>
+              <div className="flex items-center justify-between text-sm">
+                <span>{t("screenshotEditor.imageFit")}</span>
+                <ToggleGroup type="single" value={bg.imageFit}
+                             onValueChange={(v) => v && patch({ imageFit: v as Background["imageFit"] })}>
+                  <ToggleGroupItem value="cover" className="h-7 px-2 text-xs">
+                    {t("screenshotEditor.imageFitCover")}
+                  </ToggleGroupItem>
+                  <ToggleGroupItem value="contain" className="h-7 px-2 text-xs">
+                    {t("screenshotEditor.imageFitContain")}
+                  </ToggleGroupItem>
+                </ToggleGroup>
+              </div>
+              <PanelSlider label={t("screenshotEditor.imageBlur")} value={bg.imageBlur} min={0} max={60}
+                           onChange={(v) => patch({ imageBlur: v })} />
+              <PanelColor label={t("screenshotEditor.overlay")} value={bg.overlayColor}
+                          onChange={(v) => patch({ overlayColor: v })} />
+              <PanelSlider label={t("screenshotEditor.overlayOpacity")} value={bg.overlayOpacity} min={0} max={100}
+                           onChange={(v) => patch({ overlayOpacity: v })} />
+            </>
+          ) : null}
         </section>
       ) : null}
 
