@@ -1,8 +1,10 @@
 "use client";
 
-import { use } from "react";
+import { use, useState } from "react";
+import { Crop, DeviceMobile, Palette, Shapes, TextT } from "@phosphor-icons/react";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useTranslations } from "@/lib/i18n/locale-context";
 import { useEditorDoc } from "@/lib/hooks/use-editor-doc";
 import { useEditorImages } from "@/lib/hooks/use-editor-images";
@@ -11,6 +13,8 @@ import { ScreenshotStrip } from "@/components/screenshot-editor/screenshot-strip
 import { BackgroundPanel } from "@/components/screenshot-editor/background-panel";
 import { ScreenshotPanel } from "@/components/screenshot-editor/screenshot-panel";
 import { TextPanel } from "@/components/screenshot-editor/text-panel";
+import { ElementsPanel } from "@/components/screenshot-editor/elements-panel";
+import { PopoutsPanel } from "@/components/screenshot-editor/popouts-panel";
 import { FormatSelect } from "@/components/screenshot-editor/format-select";
 
 export default function ScreenshotEditorPage({ params }: { params: Promise<{ appId: string }> }) {
@@ -18,6 +22,27 @@ export default function ScreenshotEditorPage({ params }: { params: Promise<{ app
   const t = useTranslations();
   const { doc, dispatch, saveState } = useEditorDoc(appId);
   const images = useEditorImages(appId, doc);
+  const [tab, setTab] = useState("background");
+  const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
+  const [selectedPopoutId, setSelectedPopoutId] = useState<string | null>(null);
+
+  // Selection is per screenshot: reset it during render when the selected shot changes
+  // (React's "adjusting state when props change" – an effect here would cascade renders).
+  const [selectionOwner, setSelectionOwner] = useState(doc?.selectedIndex);
+  if (doc && doc.selectedIndex !== selectionOwner) {
+    setSelectionOwner(doc.selectedIndex);
+    setSelectedElementId(null);
+    setSelectedPopoutId(null);
+  }
+
+  const selectElement = (id: string | null) => {
+    setSelectedElementId(id);
+    if (id) setSelectedPopoutId(null);
+  };
+  const selectPopout = (id: string | null) => {
+    setSelectedPopoutId(id);
+    if (id) setSelectedElementId(null);
+  };
 
   if (!doc) {
     return <div className="flex flex-1 items-center justify-center"><Spinner /></div>;
@@ -43,15 +68,34 @@ export default function ScreenshotEditorPage({ params }: { params: Promise<{ app
           </span>
         </div>
         {selected ? (
-          <Tabs defaultValue="background">
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="background">{t("screenshotEditor.background")}</TabsTrigger>
-              <TabsTrigger value="screenshot">{t("screenshotEditor.screenshot")}</TabsTrigger>
-              <TabsTrigger value="text">{t("screenshotEditor.text")}</TabsTrigger>
+          <Tabs value={tab} onValueChange={setTab}>
+            <TabsList className="grid w-full grid-cols-5">
+              {([
+                ["background", Palette, t("screenshotEditor.background")],
+                ["screenshot", DeviceMobile, t("screenshotEditor.screenshot")],
+                ["text", TextT, t("screenshotEditor.text")],
+                ["elements", Shapes, t("screenshotEditor.elements")],
+                ["popouts", Crop, t("screenshotEditor.popouts")],
+              ] as const).map(([value, Icon, label]) => (
+                <Tooltip key={value}>
+                  <TooltipTrigger asChild>
+                    <TabsTrigger value={value} aria-label={label}><Icon size={16} /></TabsTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent>{label}</TooltipContent>
+                </Tooltip>
+              ))}
             </TabsList>
             <TabsContent value="background"><BackgroundPanel doc={doc} dispatch={dispatch} appId={appId} /></TabsContent>
             <TabsContent value="screenshot"><ScreenshotPanel doc={doc} dispatch={dispatch} /></TabsContent>
             <TabsContent value="text"><TextPanel doc={doc} dispatch={dispatch} /></TabsContent>
+            <TabsContent value="elements">
+              <ElementsPanel appId={appId} doc={doc} dispatch={dispatch} images={images}
+                             selectedElementId={selectedElementId} onSelectElement={selectElement} />
+            </TabsContent>
+            <TabsContent value="popouts">
+              <PopoutsPanel doc={doc} dispatch={dispatch} images={images}
+                            selectedPopoutId={selectedPopoutId} onSelectPopout={selectPopout} />
+            </TabsContent>
           </Tabs>
         ) : null}
       </div>
