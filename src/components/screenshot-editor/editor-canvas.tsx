@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { renderScreenshotToCanvas, resolveScreenshotImage } from "@/lib/screenshot-editor/render/compose";
 import { getCanvasDimensions } from "@/lib/screenshot-editor/devices";
 import {
-  dragPosition, drawSnapGuides, hitTestElements, hitTestPopouts, type DragState,
+  dragPosition, drawSnapGuides, hitTestElements, hitTestPopouts, move3DFromDrag, rotate3DFromDrag,
+  type DragState,
 } from "@/lib/screenshot-editor/interaction";
 import { assetsForShot } from "@/lib/hooks/use-editor-images";
 import type { EditorAction } from "@/lib/screenshot-editor/reducer";
@@ -25,6 +26,10 @@ export function EditorCanvas({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const frame = useRef(0);
   const drag = useRef<DragState | null>(null);
+  const drag3D = useRef<{
+    startClientX: number; startClientY: number; alt: boolean;
+    origRotation: { x: number; y: number; z: number }; origX: number; origY: number;
+  } | null>(null);
   const [dragging, setDragging] = useState(false);
   const [hovering, setHovering] = useState(false);
 
@@ -89,19 +94,32 @@ export function EditorCanvas({
   };
 
   const dims = getCanvasDimensions(doc);
+  const is3D = doc.screenshots[doc.selectedIndex]?.screenshot.use3D ?? false;
   return (
     <canvas
       ref={canvasRef}
       className="max-h-full max-w-full object-contain"
       style={{
         aspectRatio: `${dims.width} / ${dims.height}`,
-        cursor: dragging ? "grabbing" : hovering ? "grab" : "default",
+        cursor: dragging ? "grabbing" : hovering || is3D ? "grab" : "default",
         touchAction: "none",
       }}
       onPointerDown={(e) => {
         const { x, y } = canvasPoint(e);
         const hit = hitTest(x, y);
-        if (!hit) return;
+        if (!hit) {
+          const shot3D = doc.screenshots[doc.selectedIndex];
+          if (!shot3D?.screenshot.use3D) return;
+          drag3D.current = {
+            startClientX: e.clientX, startClientY: e.clientY, alt: e.altKey,
+            origRotation: { ...shot3D.screenshot.rotation3D },
+            origX: shot3D.screenshot.x, origY: shot3D.screenshot.y,
+          };
+          setDragging(true);
+          e.currentTarget.setPointerCapture(e.pointerId);
+          e.preventDefault();
+          return;
+        }
         const shot = doc.screenshots[doc.selectedIndex];
         const item = hit.isPopout
           ? shot.popouts.find((p) => p.id === hit.id)!
@@ -116,6 +134,17 @@ export function EditorCanvas({
         e.preventDefault();
       }}
       onPointerMove={(e) => {
+        if (drag3D.current) {
+          const d = drag3D.current;
+          const dx = e.clientX - d.startClientX;
+          const dy = e.clientY - d.startClientY;
+          // absolute from the drag origin – no per-event compounding
+          const patch = d.alt
+            ? move3DFromDrag({ x: d.origX, y: d.origY }, dx, dy)
+            : { rotation3D: rotate3DFromDrag(d.origRotation, dx, dy) };
+          dispatch({ type: "set-screenshot-setting", index: doc.selectedIndex, patch });
+          return;
+        }
         const { x, y } = canvasPoint(e);
         if (!drag.current) {
           setHovering(hitTest(x, y) !== null);
@@ -131,6 +160,7 @@ export function EditorCanvas({
       }}
       onPointerUp={(e) => {
         drag.current = null;
+        drag3D.current = null;
         setDragging(false);
         e.currentTarget.releasePointerCapture(e.pointerId);
       }}

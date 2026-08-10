@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   SNAP_THRESHOLD, snapToGuides, dragPosition, hitTestElements, hitTestPopouts, drawSnapGuides,
+  move3DFromDrag, rotate3DFromDrag,
   type DragState,
 } from "@/lib/screenshot-editor/interaction";
 import { createEmojiElement, createTextElement, createGraphicElement, createPopout } from "@/lib/screenshot-editor/elements";
@@ -106,5 +107,17 @@ describe("drawSnapGuides", () => {
     const { canvas: c2, ctx: ctx2 } = makeCanvas(400, 800);
     drawSnapGuides(ctx2, { width: c2.width, height: c2.height }, { x: 10, y: 10 });
     expect(px(ctx2, 200, 400)[3]).toBe(0);
+  });
+});
+
+describe("3D drag", () => {
+  it("rotates 0.5° per pixel and clamps at ±45", () => {
+    expect(rotate3DFromDrag({ x: 0, y: 0, z: 5 }, 20, -10)).toEqual({ x: -5, y: 10, z: 5 });
+    expect(rotate3DFromDrag({ x: 44, y: -44, z: 0 }, -10, 10)).toEqual({ x: 45, y: -45, z: 0 });
+  });
+
+  it("moves 0.2% per pixel and clamps 0-100", () => {
+    expect(move3DFromDrag({ x: 50, y: 60 }, 100, -50)).toEqual({ x: 70, y: 50 });
+    expect(move3DFromDrag({ x: 99, y: 1 }, 100, -100)).toEqual({ x: 100, y: 0 });
   });
 });

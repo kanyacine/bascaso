@@ -109,3 +109,28 @@ export function drawSnapGuides(
   }
   context.restore();
 }
+
+/** 3D canvas drag → rotation (three-renderer.js:1108-1111): 0.5° per pixel, clamped ±45. */
+export function rotate3DFromDrag(
+  rotation3D: { x: number; y: number; z: number },
+  deltaX: number,
+  deltaY: number,
+): { x: number; y: number; z: number } {
+  return {
+    x: clamp(rotation3D.x + deltaY * 0.5, -45, 45),
+    y: clamp(rotation3D.y + deltaX * 0.5, -45, 45),
+    z: rotation3D.z,
+  };
+}
+
+/** Alt+drag → position (three-renderer.js:1098-1099): 0.2% per pixel, clamped 0-100. */
+export function move3DFromDrag(
+  pos: { x: number; y: number },
+  deltaX: number,
+  deltaY: number,
+): { x: number; y: number } {
+  return {
+    x: clamp(pos.x + deltaX * 0.2, 0, 100),
+    y: clamp(pos.y + deltaY * 0.2, 0, 100),
+  };
+}
