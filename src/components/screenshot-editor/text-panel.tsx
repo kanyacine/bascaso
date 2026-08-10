@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { FontPicker } from "./font-picker";
 import { PanelColor, PanelSlider } from "./panel-controls";
 import { localeName } from "@/lib/asc/locale-names";
 import { useTranslations } from "@/lib/i18n/locale-context";
@@ -49,6 +50,10 @@ export function TextPanel({ doc, dispatch }: { doc: ScreenshotDoc; dispatch: (a:
                 </SelectContent>
               </Select>
             </div>
+            <div className="flex items-center justify-between text-sm">
+              <span>{t("screenshotEditor.fontFamily")}</span>
+              <FontPicker value={txt.headlineFont} onChange={(v) => patch({ headlineFont: v })} />
+            </div>
             <PanelColor label={t("screenshotEditor.color")} value={txt.headlineColor}
                         onChange={(v) => patch({ headlineColor: v })} />
           </>
@@ -66,6 +71,10 @@ export function TextPanel({ doc, dispatch }: { doc: ScreenshotDoc; dispatch: (a:
                    onChange={(e) => dispatch({ type: "set-subheadline", index, language: lang, value: e.target.value })} />
             <PanelSlider label={t("screenshotEditor.size")} value={layout.subheadlineSize} min={12} max={140}
                          onChange={(v) => layoutPatch({ subheadlineSize: v })} />
+            <div className="flex items-center justify-between text-sm">
+              <span>{t("screenshotEditor.fontFamily")}</span>
+              <FontPicker value={txt.subheadlineFont} onChange={(v) => patch({ subheadlineFont: v })} />
+            </div>
             <PanelColor label={t("screenshotEditor.color")} value={txt.subheadlineColor}
                         onChange={(v) => patch({ subheadlineColor: v })} />
             <PanelSlider label={t("screenshotEditor.opacity")} value={txt.subheadlineOpacity} min={0} max={100}

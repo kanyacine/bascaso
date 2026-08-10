@@ -19,7 +19,9 @@ const securityHeaders = [
   },
   {
     key: "Content-Security-Policy",
-    value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.mzstatic.com; font-src 'self'; connect-src 'self'",
+    // Google origins are for the screenshot editor canvas fonts only – the UI font stays
+    // self-hosted via next/font. connect-src stays closed: the font catalog is embedded.
+    value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://*.mzstatic.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self'",
   },
 ];
 

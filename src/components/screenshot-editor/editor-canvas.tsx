@@ -10,10 +10,13 @@ import { assetsForShot } from "@/lib/hooks/use-editor-images";
 import type { EditorAction } from "@/lib/screenshot-editor/reducer";
 import type { LaurelVariant, RenderImage, ScreenshotDoc } from "@/lib/screenshot-editor/types";
 
-export function EditorCanvas({ doc, images, laurelImages, dispatch, onSelectElement, onSelectPopout }: {
+export function EditorCanvas({
+  doc, images, laurelImages, fontsVersion, dispatch, onSelectElement, onSelectPopout,
+}: {
   doc: ScreenshotDoc;
   images: Map<string, RenderImage>;
   laurelImages: Partial<Record<LaurelVariant, RenderImage>>;
+  fontsVersion: number;
   dispatch: (a: EditorAction) => void;
   onSelectElement: (id: string) => void;
   onSelectPopout: (id: string) => void;
@@ -50,7 +53,7 @@ export function EditorCanvas({ doc, images, laurelImages, dispatch, onSelectElem
     });
     const pending = frame.current;
     return () => cancelAnimationFrame(pending);
-  }, [doc, images, laurelImages, dragging]);
+  }, [doc, images, laurelImages, dragging, fontsVersion]);
 
   const canvasPoint = (e: React.PointerEvent) => {
     const canvas = canvasRef.current!;

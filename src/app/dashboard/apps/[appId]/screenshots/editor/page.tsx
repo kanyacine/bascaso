@@ -9,6 +9,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useApps } from "@/lib/apps-context";
 import { useTranslations } from "@/lib/i18n/locale-context";
 import { useEditorDoc } from "@/lib/hooks/use-editor-doc";
+import { useEditorFonts } from "@/lib/hooks/use-editor-fonts";
 import { useEditorImages, useLaurelImages } from "@/lib/hooks/use-editor-images";
 import { EditorCanvas } from "@/components/screenshot-editor/editor-canvas";
 import { ScreenshotStrip } from "@/components/screenshot-editor/screenshot-strip";
@@ -30,6 +31,7 @@ export default function ScreenshotEditorPage({ params }: { params: Promise<{ app
   const { doc, dispatch, saveState } = useEditorDoc(appId);
   const images = useEditorImages(appId, doc);
   const laurelImages = useLaurelImages();
+  const fontsVersion = useEditorFonts(doc);
   const [tab, setTab] = useState("background");
   const [selectedElementId, setSelectedElementId] = useState<string | null>(null);
   const [selectedPopoutId, setSelectedPopoutId] = useState<string | null>(null);
@@ -65,7 +67,8 @@ export default function ScreenshotEditorPage({ params }: { params: Promise<{ app
       <ScreenshotStrip appId={appId} doc={doc} dispatch={dispatch} images={images} />
       <div className="flex min-w-0 flex-1 items-center justify-center rounded-lg border bg-muted/30 p-4">
         {selected ? (
-          <EditorCanvas doc={doc} images={images} laurelImages={laurelImages} dispatch={dispatch}
+          <EditorCanvas doc={doc} images={images} laurelImages={laurelImages} fontsVersion={fontsVersion}
+                        dispatch={dispatch}
                         onSelectElement={(id) => { selectElement(id); setTab("elements"); }}
                         onSelectPopout={(id) => { selectPopout(id); setTab("popouts"); }} />
         ) : (

@@ -9,12 +9,14 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { PanelColor, PanelSlider } from "./panel-controls";
 import { EmojiPicker } from "./emoji-picker";
+import { FontPicker } from "./font-picker";
 import { IconPicker } from "./icon-picker";
 import { iconSvgDataUri } from "./icon-catalog";
 import { uploadAsset } from "./upload-asset";
 import {
   createEmojiElement, createGraphicElement, createIconElement, createTextElement,
 } from "@/lib/screenshot-editor/elements";
+import { SYSTEM_FONTS } from "@/lib/screenshot-editor/font-catalog";
 import { getElementText } from "@/lib/screenshot-editor/render/elements";
 import { useTranslations } from "@/lib/i18n/locale-context";
 import type { MessageKey } from "@/lib/i18n/messages";
@@ -180,6 +182,11 @@ export function ElementsPanel({ appId, doc, dispatch, images, selectedElementId,
                     {WEIGHTS.map((w) => <SelectItem key={w} value={w}>{w}</SelectItem>)}
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span>{t("screenshotEditor.fontFamily")}</span>
+                <FontPicker value={selected.font ?? SYSTEM_FONTS[0].value}
+                            onChange={(v) => patch({ font: v })} />
               </div>
               <PanelColor label={t("screenshotEditor.color")} value={selected.fontColor ?? "#ffffff"}
                           onChange={(v) => patch({ fontColor: v })} />
