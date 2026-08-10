@@ -53,6 +53,8 @@ function init() {
     "ALTER TABLE workflow_runs ADD COLUMN action_id text",
     "ALTER TABLE workflow_runs ADD COLUMN action_started_at text",
     "CREATE TABLE IF NOT EXISTS managed_account (id text PRIMARY KEY NOT NULL, email text NOT NULL, encrypted_session text NOT NULL, iv text NOT NULL, auth_tag text NOT NULL, encrypted_dek text NOT NULL, updated_at text NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS screenshot_docs (id text PRIMARY KEY NOT NULL, app_id text NOT NULL, kind text NOT NULL, name text, languages text NOT NULL, output_device text NOT NULL, doc text NOT NULL, created_at text NOT NULL, updated_at text NOT NULL)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS screenshot_docs_current_unique ON screenshot_docs (app_id) WHERE kind = 'current'",
   ];
   for (const stmt of safeguardStatements) {
     try { _sqlite.exec(stmt); } catch { /* already applied */ }

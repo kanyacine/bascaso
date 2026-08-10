@@ -1,4 +1,5 @@
-import { sqliteTable, text, integer, primaryKey } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, primaryKey, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { sql } from "drizzle-orm";
 import { ulid } from "@/lib/ulid";
 
 // --- ASC credentials ---
@@ -184,3 +185,25 @@ export const pendingChanges = sqliteTable("pending_changes", {
     .notNull()
     .$defaultFn(() => new Date().toISOString()),
 });
+
+// --- Screenshot editor documents ---
+
+export const screenshotDocs = sqliteTable(
+  "screenshot_docs",
+  {
+    id: text("id").primaryKey().$defaultFn(ulid),
+    appId: text("app_id").notNull(),
+    kind: text("kind").notNull(), // 'current' | 'version'
+    name: text("name"), // null for kind='current'
+    languages: text("languages").notNull(), // JSON string[]
+    outputDevice: text("output_device").notNull(),
+    doc: text("doc").notNull(), // JSON ScreenshotDoc (image refs only, no bitmaps)
+    createdAt: text("created_at")
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+    updatedAt: text("updated_at")
+      .notNull()
+      .$defaultFn(() => new Date().toISOString()),
+  },
+  (t) => [uniqueIndex("screenshot_docs_current_unique").on(t.appId).where(sql`kind = 'current'`)],
+);
