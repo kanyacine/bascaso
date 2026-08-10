@@ -1,5 +1,7 @@
 "use client";
 
+import { MagicWand } from "@phosphor-icons/react";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
@@ -16,7 +18,9 @@ const WEIGHTS = ["300", "400", "500", "600", "700", "800", "900"];
 
 // Text writes go to doc.currentLanguage; the five layout controls follow the per-language
 // layout switch (colors, weights and italics stay global across languages – appscreen behavior).
-export function TextPanel({ doc, dispatch }: { doc: ScreenshotDoc; dispatch: (a: EditorAction) => void }) {
+export function TextPanel({ doc, dispatch, onMagicTitles }: {
+  doc: ScreenshotDoc; dispatch: (a: EditorAction) => void; onMagicTitles?: () => void;
+}) {
   const t = useTranslations();
   const index = doc.selectedIndex;
   const lang = doc.currentLanguage;
@@ -30,6 +34,12 @@ export function TextPanel({ doc, dispatch }: { doc: ScreenshotDoc; dispatch: (a:
 
   return (
     <div className="space-y-6">
+      {onMagicTitles ? (
+        <Button size="sm" variant="outline" className="w-full" onClick={onMagicTitles}>
+          <MagicWand size={14} className="mr-1.5" />{t("screenshotEditor.magicTitles")}
+        </Button>
+      ) : null}
+
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="section-title">{t("screenshotEditor.headline")}</h3>
