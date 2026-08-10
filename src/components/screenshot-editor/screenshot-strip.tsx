@@ -4,9 +4,16 @@ import { useRef, useState } from "react";
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { CopySimple, Plus, TrashSimple } from "@phosphor-icons/react";
+import { CopySimple, DotsThree, Plus, TrashSimple } from "@phosphor-icons/react";
 import { toast } from "sonner";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { uploadAsset } from "./upload-asset";
 import { useTranslations } from "@/lib/i18n/locale-context";
 import type { EditorAction } from "@/lib/screenshot-editor/reducer";
@@ -19,6 +26,7 @@ function StripItem({ id, index, doc, images, dispatch }: {
   dispatch: (a: EditorAction) => void;
 }) {
   const t = useTranslations();
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
   const shot = doc.screenshots[index];
   const ref = shot.localizedImages[doc.currentLanguage]?.src ?? shot.src ?? null;
@@ -51,6 +59,44 @@ function StripItem({ id, index, doc, images, dispatch }: {
                 onClick={() => dispatch({ type: "remove-screenshot", index })}>
           <TrashSimple size={12} />
         </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button size="icon" variant="secondary" className="size-6"
+                    aria-label={t("screenshotEditor.applyStyleToAll")}>
+              <DotsThree size={12} />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <DropdownMenuItem onSelect={() => setConfirmOpen(true)}
+                              disabled={doc.screenshots.length < 2}>
+              {t("screenshotEditor.applyStyleToAll")}
+            </DropdownMenuItem>
+            <DropdownMenuItem disabled={index === doc.selectedIndex}
+                              onSelect={() => {
+                                dispatch({ type: "transfer-style", from: doc.selectedIndex, to: index });
+                                toast.success(t("screenshotEditor.styleApplied"));
+                              }}>
+              {t("screenshotEditor.copyStyleFromSelected")}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{t("screenshotEditor.applyStyleToAllTitle")}</AlertDialogTitle>
+              <AlertDialogDescription>{t("screenshotEditor.applyStyleToAllBody")}</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+              <AlertDialogAction onClick={() => {
+                dispatch({ type: "apply-style-to-all", from: index });
+                toast.success(t("screenshotEditor.styleApplied"));
+              }}>
+                {t("screenshotEditor.apply")}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </div>
   );
