@@ -189,6 +189,8 @@ export interface RenderAssets {
   backgroundImage?: RenderImage | null;
   elementImages: Record<string, RenderImage | undefined>;
   laurelImages: Partial<Record<LaurelVariant, RenderImage>>;
+  /** Pre-rendered transparent 3D phone bitmap at canvas dims (three-renderer.ts). */
+  mockup?: RenderImage | null;
 }
 
 export interface RenderEnv {

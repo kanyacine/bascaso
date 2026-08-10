@@ -11,12 +11,13 @@ import type { EditorAction } from "@/lib/screenshot-editor/reducer";
 import type { LaurelVariant, RenderImage, ScreenshotDoc } from "@/lib/screenshot-editor/types";
 
 export function EditorCanvas({
-  doc, images, laurelImages, fontsVersion, dispatch, onSelectElement, onSelectPopout,
+  doc, images, laurelImages, fontsVersion, mockup, dispatch, onSelectElement, onSelectPopout,
 }: {
   doc: ScreenshotDoc;
   images: Map<string, RenderImage>;
   laurelImages: Partial<Record<LaurelVariant, RenderImage>>;
   fontsVersion: number;
+  mockup: RenderImage | null;
   dispatch: (a: EditorAction) => void;
   onSelectElement: (id: string) => void;
   onSelectPopout: (id: string) => void;
@@ -33,15 +34,19 @@ export function EditorCanvas({
     frame.current = requestAnimationFrame(() => {
       const canvas = canvasRef.current;
       if (!canvas || doc.screenshots.length === 0) return;
-      renderScreenshotToCanvas(canvas, doc, doc.selectedIndex, assetsForShot(doc, doc.selectedIndex, images, laurelImages), {
-        language: doc.currentLanguage,
-        projectLanguages: doc.projectLanguages,
-        createCanvas: (w, h) => {
-          const c = document.createElement("canvas");
-          c.width = w; c.height = h;
-          return c;
+      renderScreenshotToCanvas(
+        canvas, doc, doc.selectedIndex,
+        { ...assetsForShot(doc, doc.selectedIndex, images, laurelImages), mockup },
+        {
+          language: doc.currentLanguage,
+          projectLanguages: doc.projectLanguages,
+          createCanvas: (w, h) => {
+            const c = document.createElement("canvas");
+            c.width = w; c.height = h;
+            return c;
+          },
         },
-      });
+      );
       if (drag.current) {
         const shot = doc.screenshots[doc.selectedIndex];
         const item = drag.current.isPopout
@@ -53,7 +58,7 @@ export function EditorCanvas({
     });
     const pending = frame.current;
     return () => cancelAnimationFrame(pending);
-  }, [doc, images, laurelImages, dragging, fontsVersion]);
+  }, [doc, images, laurelImages, dragging, fontsVersion, mockup]);
 
   const canvasPoint = (e: React.PointerEvent) => {
     const canvas = canvasRef.current!;

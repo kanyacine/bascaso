@@ -95,13 +95,13 @@ describe("renderScreenshotToCanvas", () => {
     expect(px(ctx, 5, 300)).toEqual([16, 32, 48, 255]);
   });
 
-  it("renders use3D docs through the 2D path in phase 1", () => {
+  it("skips the flat screenshot for use3D docs – the mockup bitmap replaces it", () => {
     const doc = makeDoc();
     doc.screenshots[0].screenshot.use3D = true;
     const canvas = createCanvas(1, 1);
     renderScreenshotToCanvas(canvas as never, doc, 0, makeAssets(), env);
     const ctx = canvas.getContext("2d") as unknown as CanvasRenderingContext2D;
-    expect(px(ctx, 150, 360)).toEqual([255, 0, 0, 255]); // same 2D output
+    expect(px(ctx, 150, 360)).toEqual([16, 32, 48, 255]); // background, not the 2D screenshot
   });
 
   it("skips the screenshot layer when no image resolves, but still draws bg/text/elements", () => {

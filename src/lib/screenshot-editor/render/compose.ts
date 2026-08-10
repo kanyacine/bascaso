@@ -54,7 +54,7 @@ export function resolveScreenshotImage(
 
 // Port of renderScreenshotToCanvas (app.js:7050-7102). Adaptations: dimensions come from the doc
 // instead of a parameter, canvas.style sizing is dropped (preview scaling is a React concern), and
-// the 3D branch is not ported in phase 1 — use3D docs render through the 2D path.
+// the 3D branch consumes a bitmap rendered outside this pure pipeline (assets.mockup).
 export function renderScreenshotToCanvas(
   canvas: RenderCanvas,
   doc: ScreenshotDoc,
@@ -93,9 +93,13 @@ export function renderScreenshotToCanvas(
   // Elements behind screenshot
   drawElementsToContext(ctx, dims, elements, "behind-screenshot", env, assets);
 
-  // Draw screenshot (2D — the 3D path lands in phase 5)
+  // Draw screenshot – the 3D mockup is pre-rendered outside the pure pipeline (app.js:6824-6840)
   const settings = screenshot.screenshot;
-  if (img) {
+  if (settings.use3D) {
+    // absent while the model loads – the mockups hook re-renders when it lands (appscreen
+    // draws nothing either, app.js:6830-6839)
+    if (assets.mockup) ctx.drawImage(assets.mockup, 0, 0, dims.width, dims.height);
+  } else if (img) {
     drawScreenshotToContext(ctx, dims, img, settings);
   }
 
