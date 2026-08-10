@@ -7,7 +7,11 @@ import { applyTranslationEntries, docWithLanguage, type TranslationEntry } from 
 import {
   ASC_MAX_SCREENSHOTS_PER_SET, exportFileName, type ExportJob,
 } from "@/lib/screenshot-editor/export";
-import { renderScreenshotToCanvas } from "@/lib/screenshot-editor/render/compose";
+import { renderScreenshotToCanvas, resolveScreenshotImage } from "@/lib/screenshot-editor/render/compose";
+import { getCanvasDimensions } from "@/lib/screenshot-editor/devices";
+import { collectFontFamilies } from "@/lib/screenshot-editor/fonts";
+import { getMockupRenderer } from "@/lib/screenshot-editor/three-renderer";
+import { loadEditorFont } from "./use-editor-fonts";
 import { useTranslations } from "@/lib/i18n/locale-context";
 import type { AscLocalization } from "@/lib/asc/localizations";
 import type { AscScreenshotSet } from "@/lib/asc/display-types";
@@ -108,10 +112,25 @@ export function useEditorExport({ appId, doc, images, laurelImages }: {
 
   const renderJob = useCallback(async (job: ExportJob, translations: Map<string, TranslationEntry[]>) => {
     const source = jobDoc(doc, job, translations);
+    const dims = getCanvasDimensions(source);
+    const devices3D = [...new Set(
+      source.screenshots.filter((s) => s.screenshot.use3D).map((s) => s.screenshot.device3D),
+    )];
+    const mockups = devices3D.length > 0 ? await getMockupRenderer() : null;
+    if (mockups) await Promise.all(devices3D.map((d) => mockups.loadModel(d)));
     const files: RenderedFile[] = [];
     for (let i = 0; i < source.screenshots.length; i++) {
+      const shot = source.screenshots[i];
+      const assets = assetsForShot(source, i, images, laurelImages);
+      let mockup: RenderImage | null = null;
+      if (shot.screenshot.use3D && mockups) {
+        const shotImage = resolveScreenshotImage(assets, job.language, source.projectLanguages);
+        if (shotImage) {
+          mockup = mockups.render(shot.screenshot, shotImage, dims) as unknown as RenderImage;
+        }
+      }
       const canvas = document.createElement("canvas");
-      renderScreenshotToCanvas(canvas, source, i, assetsForShot(source, i, images, laurelImages), {
+      renderScreenshotToCanvas(canvas, source, i, { ...assets, mockup }, {
         language: job.language,
         projectLanguages: source.projectLanguages,
         createCanvas: (w, h) => {
@@ -133,6 +152,8 @@ export function useEditorExport({ appId, doc, images, laurelImages }: {
       toast.error(t("screenshotEditor.exportImagesLoading"));
       return false;
     }
+    // Never rasterize a fallback face – await every family the doc uses (appscreen gap).
+    await Promise.all(collectFontFamilies(doc).map((f) => loadEditorFont(f).catch(() => {})));
     cancelled.current = false;
     setRunning(true);
     try {
