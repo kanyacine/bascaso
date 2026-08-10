@@ -12,11 +12,13 @@ export function LanguageSwitcher({ doc, dispatch, onManage }: {
   doc: ScreenshotDoc; dispatch: (a: EditorAction) => void; onManage: () => void;
 }) {
   const t = useTranslations();
+  // min-w-0 + w-full: the switcher gives way to the actions on its right instead of
+  // pushing them out of the 320px panel, whatever the locale name's length.
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex min-w-0 flex-1 items-center gap-1">
       <Select value={doc.currentLanguage}
               onValueChange={(v) => dispatch({ type: "set-current-language", language: v })}>
-        <SelectTrigger className="w-40 text-sm" aria-label={t("screenshotEditor.language")}>
+        <SelectTrigger className="w-full min-w-0 text-sm" aria-label={t("screenshotEditor.language")}>
           <SelectValue />
         </SelectTrigger>
         <SelectContent>

@@ -90,9 +90,9 @@ export default function ScreenshotEditorPage({ params }: { params: Promise<{ app
             {saveState === "saving" ? t("screenshotEditor.saving") : saveState === "saved" ? t("screenshotEditor.saved") : ""}
           </span>
         </div>
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2">
           <LanguageSwitcher doc={doc} dispatch={dispatch} onManage={() => setLanguagesOpen(true)} />
-          <div className="flex items-center gap-1">
+          <div className="flex shrink-0 items-center gap-1">
             <Button size="icon" variant="ghost" className="size-8" aria-label={t("screenshotEditor.versions")}
                     onClick={() => setVersionsOpen(true)}>
               <ClockCounterClockwise size={16} />
