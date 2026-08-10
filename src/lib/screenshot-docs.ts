@@ -3,10 +3,11 @@ import { db } from "@/db";
 import { screenshotDocs } from "@/db/schema";
 import { DEFAULTS } from "@/lib/screenshot-editor/defaults";
 import { EDITOR_FORMATS } from "@/lib/screenshot-editor/devices";
+import { normalizeDocLanguages } from "@/lib/screenshot-editor/languages";
 import type { ScreenshotDoc } from "@/lib/screenshot-editor/types";
 
 export function createEmptyDoc(): ScreenshotDoc {
-  return {
+  return normalizeDocLanguages({
     screenshots: [],
     selectedIndex: 0,
     outputDevice: EDITOR_FORMATS[0].key,
@@ -15,7 +16,7 @@ export function createEmptyDoc(): ScreenshotDoc {
     currentLanguage: "en",
     projectLanguages: ["en"],
     defaults: structuredClone(DEFAULTS),
-  };
+  });
 }
 
 function currentRow(appId: string) {

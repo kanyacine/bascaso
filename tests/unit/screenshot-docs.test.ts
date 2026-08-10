@@ -19,9 +19,12 @@ describe("createEmptyDoc", () => {
     expect(doc.outputDevice).toBe("APP_IPHONE_67");
     expect(doc.customWidth).toBe(1290);
     expect(doc.customHeight).toBe(2796);
-    expect(doc.currentLanguage).toBe("en");
-    expect(doc.projectLanguages).toEqual(["en"]);
-    expect(doc.defaults).toEqual(DEFAULTS);
+    expect(doc.currentLanguage).toBe("en-US");
+    expect(doc.projectLanguages).toEqual(["en-US"]);
+    expect(doc.defaults.background).toEqual(DEFAULTS.background);
+    expect(doc.defaults.screenshot).toEqual(DEFAULTS.screenshot);
+    expect(doc.defaults.text.headlineLanguages).toEqual(["en-US"]);
+    expect(doc.defaults.text.headlines).toEqual({ "en-US": "" });
     expect(doc.defaults).not.toBe(DEFAULTS); // deep clone, never the shared object
   });
 });
@@ -47,12 +50,12 @@ describe("saveCurrentDoc", () => {
     const created = getOrCreateCurrentDoc("app-1");
     const doc = createEmptyDoc();
     doc.outputDevice = "APP_IPHONE_65";
-    doc.projectLanguages = ["en", "fr"];
+    doc.projectLanguages = ["en-US", "fr-FR"];
     const saved = saveCurrentDoc("app-1", doc);
     expect(saved.id).toBe(created.id);
     const reread = getOrCreateCurrentDoc("app-1");
     expect(reread.doc.outputDevice).toBe("APP_IPHONE_65");
-    expect(reread.doc.projectLanguages).toEqual(["en", "fr"]);
+    expect(reread.doc.projectLanguages).toEqual(["en-US", "fr-FR"]);
   });
 
   it("inserts when no current row exists yet (save before get)", () => {

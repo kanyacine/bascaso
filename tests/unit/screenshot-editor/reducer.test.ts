@@ -19,7 +19,7 @@ describe("editorReducer – screenshots list", () => {
     const doc = editorReducer(createEmptyDoc(), { type: "add-screenshot", imageRef: "a.png" });
     expect(doc.screenshots).toHaveLength(1);
     expect(doc.selectedIndex).toBe(0);
-    expect(doc.screenshots[0].localizedImages).toEqual({ en: { src: "a.png" } });
+    expect(doc.screenshots[0].localizedImages).toEqual({ "en-US": { src: "a.png" } });
     expect(doc.screenshots[0].background.type).toBe("gradient"); // from defaults
   });
 
@@ -52,7 +52,7 @@ describe("editorReducer – screenshots list", () => {
   it("reorder-screenshots moves an item and follows the selected screenshot", () => {
     let doc = docWithShots(3); // selected: 2 (last added)
     doc = editorReducer(doc, { type: "reorder-screenshots", from: 2, to: 0 });
-    expect(doc.screenshots.map((s) => s.localizedImages.en?.src)).toEqual(["ref-2.png", "ref-0.png", "ref-1.png"]);
+    expect(doc.screenshots.map((s) => s.localizedImages["en-US"]?.src)).toEqual(["ref-2.png", "ref-0.png", "ref-1.png"]);
     expect(doc.selectedIndex).toBe(0);
   });
 
