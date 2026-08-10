@@ -88,6 +88,8 @@ export interface TextSettings {
 
 export type ElementLayer = "behind-screenshot" | "above-screenshot" | "above-text";
 
+export type IconWeight = "thin" | "light" | "regular" | "bold" | "fill" | "duotone";
+
 export interface EditorElement {
   id: string;
   type: "text" | "emoji" | "icon" | "graphic";
@@ -103,6 +105,8 @@ export interface EditorElement {
   src?: string | null;
   name?: string;
   iconShadow?: Partial<Shadow>;
+  iconColor?: string; // icon fill baked into src; kept to re-rasterize on change
+  iconWeight?: IconWeight; // Phosphor weight (replaces appscreen's iconStrokeWidth)
   // text
   text?: string;
   texts?: Record<string, string>;
