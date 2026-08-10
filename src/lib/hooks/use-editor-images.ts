@@ -6,7 +6,7 @@ import type {
 } from "@/lib/screenshot-editor/types";
 
 /** Collect every image ref used by the doc – screenshots, backgrounds, element bitmaps. */
-function collectRefs(doc: ScreenshotDoc): string[] {
+export function collectRefs(doc: ScreenshotDoc): string[] {
   const refs = new Set<string>();
   for (const shot of doc.screenshots) {
     for (const entry of Object.values(shot.localizedImages)) {
