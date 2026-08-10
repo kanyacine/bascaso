@@ -189,8 +189,7 @@ function drawLaurelSVG(
 
   // The SVG is black fill — use a temp canvas to recolor it
   const tmp = env.createCanvas(Math.ceil(branchW), Math.ceil(branchH));
-  const tctx = tmp.getContext("2d");
-  if (!tctx) return;
+  const tctx = tmp.getContext("2d") as CanvasRenderingContext2D;
 
   // Draw the SVG scaled into the temp canvas
   tctx.drawImage(img, 0, 0, branchW, branchH);

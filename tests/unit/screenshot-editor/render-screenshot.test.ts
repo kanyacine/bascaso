@@ -85,6 +85,18 @@ describe("drawScreenshotToContext", () => {
     expect(px(ctx, 45, 200)[3]).toBeGreaterThan(0); // blur spills left of x=50
   });
 
+  it("strokes the device frame without rotation or perspective", () => {
+    const { ctx } = makeCanvas(200, 400);
+    drawScreenshotToContext(ctx, dims, redImage(), settings({
+      frame: { enabled: true, color: "#00ff00", width: 20, opacity: 100 },
+    }));
+    // image spans x∈[50,150]; frameWidth = 20 * (100/400) = 5 → stroke covers x ∈ [45, 50)
+    const [r, g, b] = px(ctx, 47, 200);
+    expect(g).toBeGreaterThan(200);
+    expect(r).toBeLessThan(60);
+    expect(b).toBeLessThan(60);
+  });
+
   it("strokes the device frame when enabled (with rotation + perspective reapplied)", () => {
     const { ctx } = makeCanvas(200, 400);
     drawScreenshotToContext(ctx, dims, redImage(), settings({

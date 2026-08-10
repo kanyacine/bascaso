@@ -63,6 +63,14 @@ describe("drawPopoutsToContext", () => {
     expect(px(ctx, 100, 100)[3]).toBe(255);
   });
 
+  it("falls back to black for a shadow with no colour (legacy docs)", () => {
+    const { ctx } = makeCanvas(200, 200);
+    drawPopoutsToContext(ctx, dims, [popout({
+      shadow: { enabled: true, color: "", blur: 20, opacity: 100, x: 0, y: 0 },
+    })], source(), DEFAULTS.screenshot);
+    expect(px(ctx, 100, 135)[3]).toBeGreaterThan(0); // shadow spill below the band
+  });
+
   it("draws shadow and border branches", () => {
     const { ctx } = makeCanvas(200, 200);
     drawPopoutsToContext(ctx, dims, [popout({

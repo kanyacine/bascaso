@@ -33,6 +33,7 @@ describe("getElementText", () => {
     expect(getElementText(el({ texts: { de: "Hallo" } }), "fr")).toBe("Hallo");
     expect(getElementText(el({ texts: { de: "" }, text: "legacy" }), "fr")).toBe("legacy");
     expect(getElementText(el({ text: undefined }), "en")).toBe("");
+    expect(getElementText(el({ texts: { de: "" }, text: undefined }), "fr")).toBe("");
   });
 });
 
@@ -78,6 +79,51 @@ describe("drawElementsToContext", () => {
     // icon spans 80×80 centered at (100,100)
     expect(px(ctx, 100, 100)).toEqual([0, 255, 0, 255]);
     expect(px(ctx, 55, 100)[3]).toBeGreaterThan(0); // shadow spill
+  });
+
+  it("falls back to black/zero for an icon shadow with no colour or offsets (legacy docs)", () => {
+    const { ctx } = makeCanvas(200, 200);
+    drawElementsToContext(
+      ctx, dims,
+      [el({ id: "icon1", type: "icon", src: "x", width: 40, iconShadow: { enabled: true } })],
+      "above-screenshot", env,
+      { elementImages: { icon1: greenSquare() }, laurelImages: {} },
+    );
+    expect(px(ctx, 100, 100)).toEqual([0, 255, 0, 255]); // icon still drawn
+  });
+
+  it("offsets an icon shadow by x/y when set", () => {
+    const { ctx } = makeCanvas(200, 200);
+    drawElementsToContext(
+      ctx, dims,
+      [el({ id: "icon1", type: "icon", src: "x", width: 40,
+            iconShadow: { enabled: true, color: "#000000", opacity: 100, blur: 4, x: 12, y: 12 } })],
+      "above-screenshot", env,
+      { elementImages: { icon1: greenSquare() }, laurelImages: {} },
+    );
+    expect(px(ctx, 148, 148)[3]).toBeGreaterThan(0); // shadow pushed past the icon's bottom-right
+  });
+
+  it("draws italic text elements", () => {
+    const { ctx } = makeCanvas(200, 200);
+    drawElementsToContext(ctx, dims, [el({ italic: true })], "above-screenshot", env, {
+      elementImages: {}, laurelImages: {},
+    });
+    let painted = 0;
+    for (let x = 60; x < 140; x += 2) for (let y = 80; y < 120; y += 2) if (px(ctx, x, y)[3] > 0) painted++;
+    expect(painted).toBeGreaterThan(0);
+  });
+
+  it("ignores an unknown frame name", () => {
+    const { ctx } = makeCanvas(200, 200);
+    drawElementsToContext(ctx, dims, [el({ frame: "unknown-frame" })], "above-screenshot", env, {
+      elementImages: {}, laurelImages: {},
+    });
+    let stroked = 0;
+    for (let x = 0; x < 200; x += 2) for (let y = 0; y < 200; y += 2) {
+      const [r, g] = px(ctx, x, y); if (g > 200 && r < 100) stroked++;
+    }
+    expect(stroked).toBe(0); // no frame drawn, only the red text
   });
 
   it("draws a graphic with preserved aspect ratio and applies opacity + rotation branches", () => {

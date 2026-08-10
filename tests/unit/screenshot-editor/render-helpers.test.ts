@@ -43,4 +43,9 @@ describe("wrapText", () => {
   it("coerces non-string input like the original", () => {
     expect(wrapText(fakeCtx, 42 as unknown as string, 500)).toEqual(["42"]);
   });
+
+  it("drops a trailing empty word instead of emitting a blank line", () => {
+    // "a " splits into ["a", ""]; the empty word overflows and leaves currentLine empty
+    expect(wrapText(fakeCtx, "a ", 5)).toEqual(["a"]);
+  });
 });

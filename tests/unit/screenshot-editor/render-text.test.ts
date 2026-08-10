@@ -40,6 +40,44 @@ describe("getEffectiveLayout", () => {
   });
 });
 
+describe("layout fallbacks for legacy docs with missing fields", () => {
+  const bare = {
+    headlineSize: 0, subheadlineSize: 0, position: undefined,
+    offsetY: "12", lineHeight: 0,
+  } as unknown as TextSettings;
+
+  it("falls back to the hardcoded defaults when the flat fields are missing", () => {
+    expect(getEffectiveLayout(bare, "en"))
+      .toEqual({ headlineSize: 100, subheadlineSize: 50, position: "top", offsetY: 12, lineHeight: 110 });
+  });
+
+  it("falls back to the hardcoded defaults when no source language settings exist", () => {
+    const t = {
+      ...bare, perLanguageLayout: true, languageSettings: undefined,
+      currentLayoutLang: "", currentHeadlineLang: "", currentSubheadlineLang: "",
+    } as unknown as TextSettings;
+    expect(getEffectiveLayout(t, "ja"))
+      .toEqual({ headlineSize: 100, subheadlineSize: 50, position: "top", offsetY: 12, lineHeight: 110 });
+  });
+
+  it("falls back to the flat fields when no source language settings exist", () => {
+    const t = {
+      perLanguageLayout: true, languageSettings: {},
+      currentLayoutLang: "", currentHeadlineLang: "", currentSubheadlineLang: "",
+      headlineSize: 80, subheadlineSize: 40, position: "bottom", offsetY: 5, lineHeight: 130,
+    } as unknown as TextSettings;
+    expect(getEffectiveLayout(t, "ja"))
+      .toEqual({ headlineSize: 80, subheadlineSize: 40, position: "bottom", offsetY: 5, lineHeight: 130 });
+  });
+
+  it("defaults the layout language to 'en' when every language field is empty", () => {
+    expect(getTextLayoutLanguage(text({ currentLayoutLang: "", currentHeadlineLang: "" }))).toBe("en");
+    expect(getTextLayoutLanguage(text({
+      currentLayoutLang: "", headlineEnabled: false, subheadlineEnabled: true, currentSubheadlineLang: "",
+    }))).toBe("en");
+  });
+});
+
 /** Records every ctx call; measureText = 10px/char. Enough surface for drawTextToContext. */
 function recordingCtx() {
   const calls: { method: string; args: unknown[] }[] = [];
@@ -105,6 +143,52 @@ describe("drawTextToContext", () => {
     // headline at 240; gap = lineHeight - size = 10 → sub starts at 240 + 100 + 10 = 350
     expect(ys).toEqual([["Head", 500, 240], ["Sub", 500, 350]]);
     expect(ctx.fillStyle).toBe("rgba(255, 255, 255, 0.7)");
+  });
+
+  it("draws nothing when the headline and subheadline maps are missing", () => {
+    const { ctx, calls } = recordingCtx();
+    const t = text({ subheadlineEnabled: true });
+    drawTextToContext(ctx, dims, {
+      ...t, headlines: undefined, subheadlines: undefined,
+    } as unknown as TextSettings);
+    expect(calls).toEqual([]);
+  });
+
+  it("draws the headline alone when the subheadline is enabled but empty for that language", () => {
+    const { ctx, calls } = recordingCtx();
+    const t = text({
+      headlines: { en: "Head" },
+      subheadlineEnabled: true, subheadlines: { fr: "Sous-titre" },
+    });
+    drawTextToContext(ctx, dims, t);
+    expect(calls).toEqual([{ method: "fillText", args: ["Head", 500, 240] }]);
+  });
+
+  it("resolves empty language codes to 'en' and decorates a bottom-positioned headline", () => {
+    const { ctx, calls } = recordingCtx();
+    const t = text({
+      currentHeadlineLang: "", currentSubheadlineLang: "",
+      headlines: { en: "Bottom" }, position: "bottom", offsetY: 10,
+      headlineUnderline: true, headlineStrikethrough: true,
+    });
+    drawTextToContext(ctx, dims, t);
+    expect(calls.filter((c) => c.method === "fillText")).toEqual([
+      { method: "fillText", args: ["Bottom", 500, 1800] },
+    ]);
+    // underline at y + size*0.1, strikethrough at y - size*0.4 for the bottom baseline
+    expect(calls.filter((c) => c.method === "fillRect").map((c) => c.args[1]))
+      .toEqual([1800 + 10, 1800 - 40]);
+  });
+
+  it("composes the subheadline font from the headline font when its own fields are missing", () => {
+    const { ctx, calls } = recordingCtx();
+    const t = text({
+      headlineEnabled: false, subheadlineEnabled: true, subheadlines: { en: "Sub" },
+      subheadlineItalic: true, subheadlineWeight: "", subheadlineFont: "",
+    });
+    drawTextToContext(ctx, dims, t);
+    expect(ctx.font).toBe("italic 400 50px -apple-system, BlinkMacSystemFont, 'SF Pro Display'");
+    expect(calls.filter((c) => c.method === "fillText")).toHaveLength(1);
   });
 
   it("draws subheadline alone (headline disabled) and bottom-position subheadline decorations", () => {

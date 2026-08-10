@@ -23,6 +23,14 @@ function twoToneImage(): RenderImage {
   return canvas as unknown as RenderImage;
 }
 
+/** 20×40 test bitmap: top half red, bottom half blue. */
+function tallTwoToneImage(): RenderImage {
+  const { canvas, ctx } = makeCanvas(20, 40);
+  ctx.fillStyle = "#ff0000"; ctx.fillRect(0, 0, 20, 20);
+  ctx.fillStyle = "#0000ff"; ctx.fillRect(0, 20, 20, 20);
+  return canvas as unknown as RenderImage;
+}
+
 describe("drawBackgroundToContext", () => {
   it("fills solid color", () => {
     const { ctx } = makeCanvas(100, 100);
@@ -50,6 +58,23 @@ describe("drawBackgroundToContext", () => {
     expect(px(ctx, 75, 50)).toEqual([0, 0, 255, 255]);
   });
 
+  it("cover crops the source vertically for a taller-than-canvas image", () => {
+    const { ctx } = makeCanvas(100, 100);
+    // 1:2 image on 1:1 canvas → cover crops top/bottom, centre band fills the canvas
+    drawBackgroundToContext(ctx, dims, baseBg({ type: "image" }), tallTwoToneImage());
+    expect(px(ctx, 50, 25)).toEqual([255, 0, 0, 255]);
+    expect(px(ctx, 50, 75)).toEqual([0, 0, 255, 255]);
+  });
+
+  it("contain letterboxes vertically for a taller-than-canvas image", () => {
+    const { ctx } = makeCanvas(100, 100);
+    // 1:2 image on 1:1 canvas → contain fits the height, bars on the left and right
+    drawBackgroundToContext(ctx, dims, baseBg({ type: "image", imageFit: "contain" }), tallTwoToneImage());
+    expect(px(ctx, 5, 50)).toEqual([0, 0, 0, 255]);   // left bar
+    expect(px(ctx, 50, 25)).toEqual([255, 0, 0, 255]); // image band, top half
+    expect(px(ctx, 50, 75)).toEqual([0, 0, 255, 255]); // image band, bottom half
+  });
+
   it("contain letterboxes with black bars", () => {
     const { ctx } = makeCanvas(100, 100);
     drawBackgroundToContext(ctx, dims, baseBg({ type: "image", imageFit: "contain" }), twoToneImage());
@@ -73,6 +98,18 @@ describe("drawBackgroundToContext", () => {
     const { ctx } = makeCanvas(100, 100);
     drawBackgroundToContext(ctx, dims, baseBg({ type: "image", imageBlur: 4 }), twoToneImage());
     expect(ctx.filter === "none" || ctx.filter === "").toBe(true);
+  });
+
+  it("draws the image unfitted when imageFit is neither cover nor contain (legacy docs)", () => {
+    const { ctx } = makeCanvas(100, 100);
+    drawBackgroundToContext(
+      ctx, dims,
+      baseBg({ type: "image", imageFit: "stretch" as unknown as Background["imageFit"] }),
+      twoToneImage(),
+    );
+    // whole source stretched over the whole canvas, no letterbox fill
+    expect(px(ctx, 25, 50)).toEqual([255, 0, 0, 255]);
+    expect(px(ctx, 75, 50)).toEqual([0, 0, 255, 255]);
   });
 
   it("draws nothing for type image without a bitmap", () => {
