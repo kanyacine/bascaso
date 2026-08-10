@@ -163,6 +163,9 @@ export const ru: Messages = {
       reportIssue: "Сообщить о проблеме",
       privacy: "Конфиденциальность",
       terms: "Условия продажи",
+      credits: "Благодарности",
+      creditsAppscreen: "Редактор скриншотов основан на appscreen (лицензия MIT)",
+      creditsModels: "3D-модели: iPhone 15 Pro Max от MajdyModels, Samsung Galaxy S25 Ultra от mistJS – через Sketchfab, CC BY 4.0",
     },
     teams: {
       active: "Активна",

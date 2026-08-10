@@ -161,6 +161,9 @@ export const en = {
       reportIssue: "Report an issue",
       privacy: "Privacy",
       terms: "Terms of sale",
+      credits: "Credits",
+      creditsAppscreen: "Screenshot editor derived from appscreen (MIT license)",
+      creditsModels: "3D device models: iPhone 15 Pro Max by MajdyModels, Samsung Galaxy S25 Ultra by mistJS – via Sketchfab, CC BY 4.0",
     },
     teams: {
       active: "Active",

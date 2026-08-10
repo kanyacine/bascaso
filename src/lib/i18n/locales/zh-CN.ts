@@ -158,6 +158,9 @@ export const zhCN: Messages = {
       reportIssue: "报告问题",
       privacy: "隐私",
       terms: "销售条款",
+      credits: "致谢",
+      creditsAppscreen: "截图编辑器源自 appscreen（MIT 许可证）",
+      creditsModels: "3D 设备模型：iPhone 15 Pro Max 由 MajdyModels 制作，Samsung Galaxy S25 Ultra 由 mistJS 制作 – 来自 Sketchfab，CC BY 4.0",
     },
     teams: {
       active: "当前",

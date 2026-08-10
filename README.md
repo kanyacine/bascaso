@@ -239,3 +239,11 @@ Added here: the on-device Apple model, the agentic keyword workflow, tiered AI r
 ## License
 
 [AGPL-3.0](LICENSE)
+
+## Third-party
+
+- The screenshot editor is derived from [appscreen](https://github.com/YUZU-Hub/appscreen)
+  (MIT License, Copyright YuzuHub) – full text in `docs/licenses/appscreen-MIT.txt`.
+- 3D device models (CC BY 4.0, via Sketchfab):
+  [iPhone 15 Pro Max](https://sketchfab.com/majdymodels) by MajdyModels,
+  [Samsung Galaxy S25 Ultra](https://sketchfab.com/mistjs) by mistJS.

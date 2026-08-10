@@ -42,6 +42,7 @@ export interface ScreenshotSettings {
   use3D: boolean; // phase 5 — phase 1 always renders 2D
   device3D: string;
   rotation3D: { x: number; y: number; z: number };
+  frameColor?: string; // 3D frame preset id; absent = first preset of the device
   shadow: Shadow;
   frame: { enabled: boolean; color: string; width: number; opacity: number };
 }
