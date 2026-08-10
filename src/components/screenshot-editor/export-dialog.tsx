@@ -6,7 +6,7 @@ import type { LaurelVariant, RenderImage, ScreenshotDoc } from "@/lib/screenshot
 export function ExportDialog(_props: {
   open: boolean; onOpenChange: (o: boolean) => void;
   doc: ScreenshotDoc; dispatch: (a: EditorAction) => void;
-  appId: string; appName?: string;
+  appId: string; appName?: string; primaryLocale: string;
   images: Map<string, RenderImage>;
   laurelImages: Partial<Record<LaurelVariant, RenderImage>>;
 }) {

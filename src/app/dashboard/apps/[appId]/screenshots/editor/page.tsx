@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useApps } from "@/lib/apps-context";
 import { useTranslations } from "@/lib/i18n/locale-context";
 import { useEditorDoc } from "@/lib/hooks/use-editor-doc";
 import { useEditorImages, useLaurelImages } from "@/lib/hooks/use-editor-images";
@@ -24,6 +25,8 @@ import { ExportDialog } from "@/components/screenshot-editor/export-dialog";
 export default function ScreenshotEditorPage({ params }: { params: Promise<{ appId: string }> }) {
   const { appId } = use(params);
   const t = useTranslations();
+  const { apps } = useApps();
+  const app = apps.find((a) => a.id === appId);
   const { doc, dispatch, saveState } = useEditorDoc(appId);
   const images = useEditorImages(appId, doc);
   const laurelImages = useLaurelImages();
@@ -115,9 +118,10 @@ export default function ScreenshotEditorPage({ params }: { params: Promise<{ app
         ) : null}
       </div>
       <LanguagesDialog open={languagesOpen} onOpenChange={setLanguagesOpen}
-                       doc={doc} dispatch={dispatch} appId={appId} />
+                       doc={doc} dispatch={dispatch} appId={appId} appName={app?.name} />
       <ExportDialog open={exportOpen} onOpenChange={setExportOpen} doc={doc} dispatch={dispatch}
-                    appId={appId} images={images} laurelImages={laurelImages} />
+                    appId={appId} appName={app?.name} primaryLocale={app?.primaryLocale ?? ""}
+                    images={images} laurelImages={laurelImages} />
     </div>
   );
 }
