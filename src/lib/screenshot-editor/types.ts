@@ -159,6 +159,7 @@ export interface ScreenshotDoc {
   screenshots: EditorScreenshot[];
   selectedIndex: number;
   outputDevice: string; // EDITOR_FORMATS key or "custom"
+  outputDevices?: string[]; // working formats; absent = [outputDevice]; never "custom"
   customWidth: number;
   customHeight: number;
   currentLanguage: string;

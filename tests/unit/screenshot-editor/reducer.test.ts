@@ -335,3 +335,153 @@ describe("editorReducer – style transfer", () => {
     expect(editorReducer(doc, { type: "apply-style-to-all", from: 9 })).toBe(doc);
   });
 });
+
+describe("editorReducer – languages", () => {
+  function bilingual(): ScreenshotDoc {
+    let doc = docWithShots(1);
+    doc = editorReducer(doc, { type: "add-language", language: "fr-FR" });
+    return doc;
+  }
+
+  it("add-language seeds project list, mirrors and empty texts on shots and defaults", () => {
+    const doc = bilingual();
+    expect(doc.projectLanguages).toEqual(["en-US", "fr-FR"]);
+    const t = doc.screenshots[0].text;
+    expect(t.headlineLanguages).toContain("fr-FR");
+    expect(t.subheadlineLanguages).toContain("fr-FR");
+    expect(t.headlines["fr-FR"]).toBe("");
+    expect(t.subheadlines["fr-FR"]).toBe("");
+    expect(doc.defaults.text.headlines["fr-FR"]).toBe("");
+    expect(editorReducer(doc, { type: "add-language", language: "fr-FR" })).toBe(doc); // dup no-op
+  });
+
+  it("add-language keeps an existing translation when a language is re-added", () => {
+    let doc = bilingual();
+    doc = editorReducer(doc, { type: "set-headline", index: 0, language: "fr-FR", value: "Tête" });
+    doc = editorReducer(doc, { type: "remove-language", language: "de-DE" }); // unknown, no-op
+    const readded = editorReducer(
+      { ...doc, projectLanguages: ["en-US"] },
+      { type: "add-language", language: "fr-FR" },
+    );
+    expect(readded.screenshots[0].text.headlines["fr-FR"]).toBe("Tête");
+  });
+
+  it("set-current-language switches doc and per-shot text langs, guards membership", () => {
+    let doc = bilingual();
+    doc = editorReducer(doc, { type: "set-current-language", language: "fr-FR" });
+    expect(doc.currentLanguage).toBe("fr-FR");
+    expect(doc.screenshots[0].text.currentHeadlineLang).toBe("fr-FR");
+    expect(doc.screenshots[0].text.currentLayoutLang).toBe("fr-FR");
+    expect(editorReducer(doc, { type: "set-current-language", language: "de-DE" })).toBe(doc);
+    expect(editorReducer(doc, { type: "set-current-language", language: "fr-FR" })).toBe(doc);
+  });
+
+  it("remove-language cleans texts, layouts, images and element texts (appscreen leaks fixed)", () => {
+    let doc = bilingual();
+    doc = editorReducer(doc, { type: "set-headline", index: 0, language: "fr-FR", value: "Tête" });
+    doc = editorReducer(doc, { type: "set-screenshot-image", index: 0, language: "fr-FR", imageRef: "fr.png" });
+    doc = editorReducer(doc, { type: "set-language-layout", index: 0, language: "fr-FR", patch: { offsetY: 20 } });
+    const el = createTextElement("en-US");
+    doc = editorReducer(doc, { type: "add-element", index: 0, element: el });
+    doc = editorReducer(doc, { type: "add-element", index: 0, element: createEmojiElement("⭐", "Star") });
+    doc = editorReducer(doc, { type: "set-element-text", index: 0, elementId: el.id, language: "fr-FR", value: "FR" });
+    doc = editorReducer(doc, { type: "set-current-language", language: "fr-FR" });
+    doc = editorReducer(doc, { type: "remove-language", language: "fr-FR" });
+    expect(doc.projectLanguages).toEqual(["en-US"]);
+    expect(doc.currentLanguage).toBe("en-US"); // switched off the removed language
+    const t = doc.screenshots[0].text;
+    expect(t.headlines["fr-FR"]).toBeUndefined();
+    expect(t.headlineLanguages).toEqual(["en-US"]);
+    expect(t.languageSettings["fr-FR"]).toBeUndefined();
+    expect(doc.screenshots[0].localizedImages["fr-FR"]).toBeUndefined();
+    expect(doc.screenshots[0].elements.find((e) => e.id === el.id)?.texts?.["fr-FR"]).toBeUndefined();
+  });
+
+  it("remove-language keeps the current language when another one goes", () => {
+    let doc = bilingual();
+    doc = editorReducer(doc, { type: "remove-language", language: "fr-FR" });
+    expect(doc.currentLanguage).toBe("en-US");
+    expect(doc.projectLanguages).toEqual(["en-US"]);
+  });
+
+  it("remove-language refuses the last language and unknown languages", () => {
+    const doc = docWithShots(1);
+    expect(editorReducer(doc, { type: "remove-language", language: "en-US" })).toBe(doc);
+    expect(editorReducer(bilingual(), { type: "remove-language", language: "de-DE" })).toEqual(bilingual());
+  });
+
+  it("apply-doc-translations writes through the shared pure helper", () => {
+    let doc = bilingual();
+    doc = editorReducer(doc, {
+      type: "apply-doc-translations",
+      entries: [{ kind: "headline", index: 0, language: "fr-FR", value: "Tête" }],
+    });
+    expect(doc.screenshots[0].text.headlines["fr-FR"]).toBe("Tête");
+  });
+});
+
+describe("editorReducer – working formats", () => {
+  it("toggle-output-device materializes, adds and removes, in EDITOR_FORMATS order", () => {
+    let doc = createEmptyDoc(); // outputDevice APP_IPHONE_67, outputDevices absent
+    doc = editorReducer(doc, { type: "toggle-output-device", device: "APP_IPAD_PRO_3GEN_129" });
+    expect(doc.outputDevices).toEqual(["APP_IPHONE_67", "APP_IPAD_PRO_3GEN_129"]);
+    doc = editorReducer(doc, { type: "toggle-output-device", device: "APP_IPHONE_65" });
+    expect(doc.outputDevices).toEqual(["APP_IPHONE_67", "APP_IPHONE_65", "APP_IPAD_PRO_3GEN_129"]);
+    doc = editorReducer(doc, { type: "toggle-output-device", device: "APP_IPHONE_65" });
+    expect(doc.outputDevices).toEqual(["APP_IPHONE_67", "APP_IPAD_PRO_3GEN_129"]);
+  });
+
+  it("refuses to remove the current device or add unknown keys", () => {
+    let doc = createEmptyDoc();
+    doc = editorReducer(doc, { type: "toggle-output-device", device: "APP_IPHONE_65" });
+    expect(editorReducer(doc, { type: "toggle-output-device", device: "APP_IPHONE_67" })).toBe(doc);
+    expect(editorReducer(doc, { type: "toggle-output-device", device: "custom" })).toBe(doc);
+    expect(editorReducer(doc, { type: "toggle-output-device", device: "nope" })).toBe(doc);
+  });
+
+  it("set-output-device keeps the working list consistent", () => {
+    let doc = createEmptyDoc();
+    doc = editorReducer(doc, { type: "toggle-output-device", device: "APP_IPHONE_65" });
+    doc = editorReducer(doc, { type: "set-output-device", device: "APP_IPAD_PRO_129" });
+    expect(doc.outputDevice).toBe("APP_IPAD_PRO_129");
+    expect(doc.outputDevices).toContain("APP_IPAD_PRO_129");
+    const again = editorReducer(doc, { type: "set-output-device", device: "APP_IPHONE_65" });
+    expect(again.outputDevices).toEqual(doc.outputDevices); // already listed
+    const noList = editorReducer(createEmptyDoc(), { type: "set-output-device", device: "APP_IPHONE_65" });
+    expect(noList.outputDevices).toBeUndefined(); // absent list stays absent
+  });
+});
+
+describe("editorReducer – per-language layout", () => {
+  it("enable seeds only missing languages from the base values", () => {
+    let doc = docWithShots(1);
+    doc = editorReducer(doc, { type: "add-language", language: "fr-FR" });
+    doc = editorReducer(doc, { type: "add-language", language: "de-DE" });
+    doc = editorReducer(doc, { type: "set-language-layout", index: 0, language: "fr-FR", patch: { offsetY: 25 } });
+    doc = editorReducer(doc, { type: "set-per-language-layout", index: 0, enabled: true });
+    const t = doc.screenshots[0].text;
+    expect(t.perLanguageLayout).toBe(true);
+    expect(t.languageSettings["de-DE"]).toEqual({ // seeded from the base values on enable
+      headlineSize: t.headlineSize, subheadlineSize: t.subheadlineSize,
+      position: t.position, offsetY: t.offsetY, lineHeight: t.lineHeight,
+    });
+    expect(t.languageSettings["en-US"]).toEqual({
+      headlineSize: t.headlineSize, subheadlineSize: t.subheadlineSize,
+      position: t.position, offsetY: t.offsetY, lineHeight: t.lineHeight,
+    });
+    expect(t.languageSettings["fr-FR"].offsetY).toBe(25); // tuned layout survives enable
+    const off = editorReducer(doc, { type: "set-per-language-layout", index: 0, enabled: false });
+    expect(off.screenshots[0].text.perLanguageLayout).toBe(false);
+    expect(off.screenshots[0].text.languageSettings["fr-FR"].offsetY).toBe(25); // kept for re-enable
+  });
+
+  it("set-language-layout merges, seeds from base when absent, and repoints currentLayoutLang", () => {
+    let doc = docWithShots(1);
+    doc = editorReducer(doc, { type: "add-language", language: "de-DE" });
+    doc = editorReducer(doc, { type: "set-language-layout", index: 0, language: "de-DE", patch: { position: "bottom" } });
+    const t = doc.screenshots[0].text;
+    expect(t.languageSettings["de-DE"]).toMatchObject({ position: "bottom", headlineSize: t.headlineSize });
+    expect(t.currentLayoutLang).toBe("de-DE");
+    expect(editorReducer(doc, { type: "set-language-layout", index: 9, language: "de-DE", patch: {} })).toBe(doc);
+  });
+});

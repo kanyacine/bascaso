@@ -1,6 +1,8 @@
 import { createDefaultScreenshot } from "./defaults";
+import { EDITOR_FORMATS } from "./devices";
+import { applyTranslationEntries, docWithLanguage, type TranslationEntry } from "./languages";
 import type {
-  Background, EditorElement, EditorScreenshot, GradientStop, Popout, ScreenshotDoc,
+  Background, EditorElement, EditorScreenshot, GradientStop, LanguageLayout, Popout, ScreenshotDoc,
   ScreenshotSettings, Shadow, TextSettings,
 } from "./types";
 
@@ -37,7 +39,14 @@ export type EditorAction =
   | { type: "remove-popout"; index: number; popoutId: string }
   | { type: "move-popout"; index: number; popoutId: string; direction: "up" | "down" }
   | { type: "transfer-style"; from: number; to: number }
-  | { type: "apply-style-to-all"; from: number };
+  | { type: "apply-style-to-all"; from: number }
+  | { type: "set-current-language"; language: string }
+  | { type: "add-language"; language: string }
+  | { type: "remove-language"; language: string }
+  | { type: "apply-doc-translations"; entries: TranslationEntry[] }
+  | { type: "toggle-output-device"; device: string }
+  | { type: "set-per-language-layout"; index: number; enabled: boolean }
+  | { type: "set-language-layout"; index: number; language: string; patch: Partial<LanguageLayout> };
 
 function patchShot(
   doc: ScreenshotDoc,
@@ -75,6 +84,49 @@ function patchPopout(
     ...s,
     popouts: s.popouts.map((p) => (p.id === popoutId ? update(p) : p)),
   }));
+}
+
+function removeFromRecord<T>(record: Record<string, T>, key: string): Record<string, T> {
+  const { [key]: _removed, ...rest } = record;
+  return rest;
+}
+
+function textWithLanguageAdded(text: TextSettings, language: string): TextSettings {
+  return {
+    ...text,
+    headlineLanguages: [...text.headlineLanguages, language],
+    subheadlineLanguages: [...text.subheadlineLanguages, language],
+    // seeds first so an existing value survives a re-add
+    headlines: { [language]: "", ...text.headlines },
+    subheadlines: { [language]: "", ...text.subheadlines },
+  };
+}
+
+function textWithLanguageRemoved(text: TextSettings, language: string): TextSettings {
+  return {
+    ...text,
+    headlineLanguages: text.headlineLanguages.filter((l) => l !== language),
+    subheadlineLanguages: text.subheadlineLanguages.filter((l) => l !== language),
+    headlines: removeFromRecord(text.headlines, language),
+    subheadlines: removeFromRecord(text.subheadlines, language),
+    languageSettings: removeFromRecord(text.languageSettings, language),
+  };
+}
+
+function baseLayout(text: TextSettings): LanguageLayout {
+  return {
+    headlineSize: text.headlineSize,
+    subheadlineSize: text.subheadlineSize,
+    position: text.position,
+    offsetY: text.offsetY,
+    lineHeight: text.lineHeight,
+  };
+}
+
+function inFormatOrder(devices: string[]): string[] {
+  return [...devices].sort(
+    (a, b) => EDITOR_FORMATS.findIndex((f) => f.key === a) - EDITOR_FORMATS.findIndex((f) => f.key === b),
+  );
 }
 
 /** Copy styling from one screenshot onto another – content (headlines, popouts) stays. */
@@ -133,8 +185,13 @@ export function editorReducer(doc: ScreenshotDoc, action: EditorAction): Screens
         ...s,
         localizedImages: { ...s.localizedImages, [action.language]: { src: action.imageRef } },
       }));
-    case "set-output-device":
-      return { ...doc, outputDevice: action.device };
+    case "set-output-device": {
+      const outputDevices =
+        doc.outputDevices && !doc.outputDevices.includes(action.device)
+          ? inFormatOrder([...doc.outputDevices, action.device])
+          : doc.outputDevices;
+      return { ...doc, outputDevice: action.device, outputDevices };
+    }
     case "set-custom-size":
       return { ...doc, outputDevice: "custom", customWidth: action.width, customHeight: action.height };
     case "set-background":
@@ -267,5 +324,74 @@ export function editorReducer(doc: ScreenshotDoc, action: EditorAction): Screens
         screenshots: doc.screenshots.map((s, i) => (i === action.from ? s : restyleFrom(source, s))),
       };
     }
+    case "set-current-language":
+      if (action.language === doc.currentLanguage || !doc.projectLanguages.includes(action.language)) return doc;
+      return docWithLanguage(doc, action.language);
+    case "add-language": {
+      if (doc.projectLanguages.includes(action.language)) return doc;
+      return {
+        ...doc,
+        projectLanguages: [...doc.projectLanguages, action.language],
+        defaults: { ...doc.defaults, text: textWithLanguageAdded(doc.defaults.text, action.language) },
+        screenshots: doc.screenshots.map((s) => ({ ...s, text: textWithLanguageAdded(s.text, action.language) })),
+      };
+    }
+    case "remove-language": {
+      if (doc.projectLanguages.length <= 1 || !doc.projectLanguages.includes(action.language)) return doc;
+      const projectLanguages = doc.projectLanguages.filter((l) => l !== action.language);
+      const next: ScreenshotDoc = {
+        ...doc,
+        projectLanguages,
+        defaults: { ...doc.defaults, text: textWithLanguageRemoved(doc.defaults.text, action.language) },
+        screenshots: doc.screenshots.map((s) => ({
+          ...s,
+          localizedImages: removeFromRecord(s.localizedImages, action.language),
+          text: textWithLanguageRemoved(s.text, action.language),
+          elements: s.elements.map((el) =>
+            el.texts && action.language in el.texts
+              ? { ...el, texts: removeFromRecord(el.texts, action.language) }
+              : el,
+          ),
+        })),
+      };
+      return doc.currentLanguage === action.language ? docWithLanguage(next, projectLanguages[0]) : next;
+    }
+    case "apply-doc-translations":
+      return applyTranslationEntries(doc, action.entries);
+    case "toggle-output-device": {
+      if (!EDITOR_FORMATS.some((f) => f.key === action.device)) return doc;
+      const list = doc.outputDevices ?? [doc.outputDevice];
+      if (list.includes(action.device)) {
+        if (action.device === doc.outputDevice) return doc;
+        return { ...doc, outputDevices: list.filter((d) => d !== action.device) };
+      }
+      return { ...doc, outputDevices: inFormatOrder([...list, action.device]) };
+    }
+    case "set-per-language-layout":
+      return patchShot(doc, action.index, (s) => {
+        const languageSettings = { ...s.text.languageSettings };
+        if (action.enabled) {
+          for (const lang of doc.projectLanguages) {
+            // only fills what is missing – re-enabling never wipes a tuned layout (appscreen bug)
+            if (!languageSettings[lang]) languageSettings[lang] = baseLayout(s.text);
+          }
+        }
+        return { ...s, text: { ...s.text, perLanguageLayout: action.enabled, languageSettings } };
+      });
+    case "set-language-layout":
+      return patchShot(doc, action.index, (s) => ({
+        ...s,
+        text: {
+          ...s.text,
+          currentLayoutLang: action.language,
+          languageSettings: {
+            ...s.text.languageSettings,
+            [action.language]: {
+              ...(s.text.languageSettings[action.language] ?? baseLayout(s.text)),
+              ...action.patch,
+            },
+          },
+        },
+      }));
   }
 }
