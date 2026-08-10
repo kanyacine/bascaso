@@ -1,6 +1,8 @@
 import { createDefaultScreenshot } from "./defaults";
 import { EDITOR_FORMATS } from "./devices";
-import { applyTranslationEntries, docWithLanguage, type TranslationEntry } from "./languages";
+import {
+  applyTranslationEntries, docWithLanguage, normalizeDocLanguages, type TranslationEntry,
+} from "./languages";
 import type {
   Background, EditorElement, EditorScreenshot, GradientStop, LanguageLayout, Popout, ScreenshotDoc,
   ScreenshotSettings, Shadow, TextSettings,
@@ -147,8 +149,14 @@ function restyleFrom(source: EditorScreenshot, target: EditorScreenshot): Editor
 
 export function editorReducer(doc: ScreenshotDoc, action: EditorAction): ScreenshotDoc {
   switch (action.type) {
-    case "replace-doc":
-      return action.doc;
+    case "replace-doc": {
+      // restores and .json imports can carry any language shape and any stale index
+      const incoming = normalizeDocLanguages(action.doc);
+      return {
+        ...incoming,
+        selectedIndex: Math.max(0, Math.min(incoming.selectedIndex, incoming.screenshots.length - 1)),
+      };
+    }
     case "select-screenshot":
       if (action.index < 0 || action.index >= doc.screenshots.length) return doc;
       return { ...doc, selectedIndex: action.index };

@@ -146,7 +146,8 @@ describe("editorReducer – document level", () => {
   it("replace-doc swaps the whole document (initial load)", () => {
     const other = createEmptyDoc();
     other.outputDevice = "custom";
-    expect(editorReducer(createEmptyDoc(), { type: "replace-doc", doc: other })).toBe(other);
+    // a copy, not the same reference – the action normalizes and clamps (phase 5)
+    expect(editorReducer(createEmptyDoc(), { type: "replace-doc", doc: other })).toEqual(other);
   });
 });
 
@@ -483,5 +484,26 @@ describe("editorReducer – per-language layout", () => {
     expect(t.languageSettings["de-DE"]).toMatchObject({ position: "bottom", headlineSize: t.headlineSize });
     expect(t.currentLayoutLang).toBe("de-DE");
     expect(editorReducer(doc, { type: "set-language-layout", index: 9, language: "de-DE", patch: {} })).toBe(doc);
+  });
+});
+
+describe("editorReducer – replace-doc", () => {
+  it("swaps in the new doc, normalized and index-clamped", () => {
+    const current = docWithShots(1);
+    let incoming = createEmptyDoc();
+    incoming = editorReducer(incoming, { type: "add-screenshot", imageRef: "x.png" });
+    incoming.selectedIndex = 9; // stale index from an import
+    const legacy = JSON.parse(JSON.stringify(incoming).replaceAll('"en-US"', '"en"')) as ScreenshotDoc;
+    const out = editorReducer(current, { type: "replace-doc", doc: legacy });
+    expect(out.projectLanguages).toEqual(["en-US"]); // normalized
+    expect(out.selectedIndex).toBe(0); // clamped
+    expect(out.screenshots).toHaveLength(1);
+  });
+
+  it("clamps a negative index on an empty doc", () => {
+    const empty = createEmptyDoc();
+    empty.selectedIndex = 4;
+    const out = editorReducer(docWithShots(2), { type: "replace-doc", doc: empty });
+    expect(out.selectedIndex).toBe(0);
   });
 });

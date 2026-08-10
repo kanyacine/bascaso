@@ -1,7 +1,9 @@
 "use client";
 
 import { use, useState } from "react";
-import { Crop, DeviceMobile, Export, Palette, Shapes, TextT } from "@phosphor-icons/react";
+import {
+  ClockCounterClockwise, Crop, DeviceMobile, Export, Palette, Shapes, TextT,
+} from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -23,6 +25,7 @@ import { FormatSelect } from "@/components/screenshot-editor/format-select";
 import { LanguageSwitcher } from "@/components/screenshot-editor/language-switcher";
 import { LanguagesDialog } from "@/components/screenshot-editor/languages-dialog";
 import { ExportDialog } from "@/components/screenshot-editor/export-dialog";
+import { VersionsDialog } from "@/components/screenshot-editor/versions-dialog";
 
 export default function ScreenshotEditorPage({ params }: { params: Promise<{ appId: string }> }) {
   const { appId } = use(params);
@@ -39,6 +42,7 @@ export default function ScreenshotEditorPage({ params }: { params: Promise<{ app
   const [selectedPopoutId, setSelectedPopoutId] = useState<string | null>(null);
   const [languagesOpen, setLanguagesOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [versionsOpen, setVersionsOpen] = useState(false);
 
   // Selection is per screenshot: reset it during render when the selected shot changes
   // (React's "adjusting state when props change" – an effect here would cascade renders).
@@ -86,9 +90,15 @@ export default function ScreenshotEditorPage({ params }: { params: Promise<{ app
         </div>
         <div className="flex items-center justify-between">
           <LanguageSwitcher doc={doc} dispatch={dispatch} onManage={() => setLanguagesOpen(true)} />
-          <Button size="sm" onClick={() => setExportOpen(true)} disabled={doc.screenshots.length === 0}>
-            <Export size={16} className="mr-1.5" />{t("screenshotEditor.export")}
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button size="icon" variant="ghost" className="size-8" aria-label={t("screenshotEditor.versions")}
+                    onClick={() => setVersionsOpen(true)}>
+              <ClockCounterClockwise size={16} />
+            </Button>
+            <Button size="sm" onClick={() => setExportOpen(true)} disabled={doc.screenshots.length === 0}>
+              <Export size={16} className="mr-1.5" />{t("screenshotEditor.export")}
+            </Button>
+          </div>
         </div>
         {selected ? (
           <Tabs value={tab} onValueChange={setTab}>
@@ -127,6 +137,7 @@ export default function ScreenshotEditorPage({ params }: { params: Promise<{ app
       <ExportDialog open={exportOpen} onOpenChange={setExportOpen} doc={doc} dispatch={dispatch}
                     appId={appId} appName={app?.name} primaryLocale={app?.primaryLocale ?? ""}
                     images={images} laurelImages={laurelImages} />
+      <VersionsDialog open={versionsOpen} onOpenChange={setVersionsOpen} appId={appId} doc={doc} dispatch={dispatch} />
     </div>
   );
 }
