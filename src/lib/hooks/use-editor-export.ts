@@ -4,10 +4,13 @@ import { useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
 import { assetsForShot, collectRefs } from "@/lib/hooks/use-editor-images";
 import { applyTranslationEntries, docWithLanguage, type TranslationEntry } from "@/lib/screenshot-editor/languages";
-import { exportFileName, type ExportJob } from "@/lib/screenshot-editor/export";
+import {
+  ASC_MAX_SCREENSHOTS_PER_SET, exportFileName, type ExportJob,
+} from "@/lib/screenshot-editor/export";
 import { renderScreenshotToCanvas } from "@/lib/screenshot-editor/render/compose";
 import { useTranslations } from "@/lib/i18n/locale-context";
 import type { AscLocalization } from "@/lib/asc/localizations";
+import type { AscScreenshotSet } from "@/lib/asc/display-types";
 import type { LaurelVariant, RenderImage, ScreenshotDoc } from "@/lib/screenshot-editor/types";
 
 export interface RunExportOptions {
@@ -30,8 +33,65 @@ function jobDoc(doc: ScreenshotDoc, job: ExportJob, translations: Map<string, Tr
   return docWithLanguage({ ...translated, outputDevice: job.format }, job.language);
 }
 
-async function uploadToAsc(): Promise<void> {
-  throw new Error("asc destination lands in task 10");
+/** Push the rendered PNGs into the ASC screenshot sets: find or create the set for the job's
+ *  display type, purge it (the screenshots section mirrors ASC – no local merge), then upload
+ *  in strip order, capped at Apple's per-set limit. */
+async function uploadToAsc(
+  appId: string,
+  jobs: { job: ExportJob; files: RenderedFile[] }[],
+  asc: { versionId: string; localizations: AscLocalization[] },
+  onProgress: (job: ExportJob) => void,
+  isCancelled: () => boolean,
+): Promise<void> {
+  const setCache = new Map<string, string>(); // `${localizationId}:${displayType}` → setId
+  const setsFetched = new Map<string, AscScreenshotSet[]>();
+  for (const { job, files } of jobs) {
+    if (isCancelled()) return;
+    if (job.format === "custom") continue; // not an ASC display type – warned in the dialog
+    const localization = asc.localizations.find((l) => l.attributes.locale === job.language);
+    if (!localization) continue; // missing locales were surfaced in the dialog
+    const base = `/api/apps/${appId}/versions/${asc.versionId}/localizations/${localization.id}/screenshots`;
+    onProgress(job);
+    const cacheKey = `${localization.id}:${job.format}`;
+    let setId = setCache.get(cacheKey);
+    let existing: { id: string }[] = [];
+    if (!setId) {
+      let sets = setsFetched.get(localization.id);
+      if (!sets) {
+        const res = await fetch(`${base}?refresh=1`);
+        if (!res.ok) throw new Error("list sets failed");
+        sets = (await res.json()).screenshotSets as AscScreenshotSet[];
+        setsFetched.set(localization.id, sets);
+      }
+      const found = sets.find((s) => s.attributes.screenshotDisplayType === job.format);
+      if (found) {
+        setId = found.id;
+        existing = found.screenshots ?? [];
+      } else {
+        const created = await fetch(`${base}/sets`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ displayType: job.format }),
+        });
+        if (!created.ok) throw new Error("create set failed");
+        setId = (await created.json()).setId as string;
+      }
+      setCache.set(cacheKey, setId);
+    }
+    for (const shot of existing) {
+      const res = await fetch(`${base}/${shot.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("purge failed");
+    }
+    const capped = files.slice(0, ASC_MAX_SCREENSHOTS_PER_SET);
+    for (let i = 0; i < capped.length; i++) {
+      if (isCancelled()) return;
+      const form = new FormData();
+      form.set("setId", setId);
+      form.set("file", new File([capped[i].blob], `${i + 1}.png`, { type: "image/png" }));
+      const res = await fetch(base, { method: "POST", body: form });
+      if (!res.ok) throw new Error("upload failed");
+    }
+  }
 }
 
 export function useEditorExport({ appId, doc, images, laurelImages }: {
@@ -108,8 +168,15 @@ export function useEditorExport({ appId, doc, images, laurelImages }: {
         link.download = opts.zipName;
         link.click();
         URL.revokeObjectURL(url);
-      } else {
-        await uploadToAsc(); // Task 10 – unreachable while the ASC option is disabled
+      } else if (opts.asc) {
+        await uploadToAsc(
+          appId, rendered, opts.asc,
+          (job) => setProgress({
+            done: total, total,
+            label: t("screenshotEditor.exportUploading", { language: job.language, format: job.format }),
+          }),
+          () => cancelled.current,
+        );
       }
       toast.success(t("screenshotEditor.exportDone"));
       return true;

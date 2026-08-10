@@ -8,6 +8,9 @@ import {
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { TokenCostHint } from "@/components/token-cost-hint";
+import { AddLocaleDialog } from "@/components/add-locale-dialog";
+import { pickAppInfo } from "@/lib/asc/app-info-utils";
+import { useAppInfo } from "@/lib/hooks/use-app-info";
 import { localeName } from "@/lib/asc/locale-names";
 import { EDITABLE_STATES, resolveVersion } from "@/lib/asc/version-types";
 import { useVersions } from "@/lib/versions-context";
@@ -25,7 +28,7 @@ import type { LaurelVariant, RenderImage, ScreenshotDoc } from "@/lib/screenshot
 
 export function ExportDialog({
   open, onOpenChange, doc, dispatch: _dispatch, appId, appName,
-  primaryLocale: _primaryLocale, images, laurelImages,
+  primaryLocale, images, laurelImages,
 }: {
   open: boolean; onOpenChange: (o: boolean) => void;
   doc: ScreenshotDoc; dispatch: (a: EditorAction) => void;
@@ -37,13 +40,16 @@ export function ExportDialog({
   const [languages, setLanguages] = useState<ExportLanguageChoice>("current");
   const [formats, setFormats] = useState<ExportFormatChoice>("current");
   const [destination, setDestination] = useState<"zip" | "asc">("zip");
+  const [addLocaleCode, setAddLocaleCode] = useState<string | null>(null);
 
   const { versions } = useVersions();
   const version = resolveVersion(versions, null);
   const editable = version ? EDITABLE_STATES.has(version.attributes.appVersionState) : false;
   const versionId = version?.id ?? "";
-  const { localizations } = useLocalizations(appId, versionId);
+  const { localizations, refresh: refreshLocalizations } = useLocalizations(appId, versionId);
   const listingLocales = useMemo(() => localizations.map((l) => l.attributes.locale), [localizations]);
+  const { appInfos } = useAppInfo(appId);
+  const appInfoId = useMemo(() => pickAppInfo(appInfos)?.id ?? "", [appInfos]);
 
   const exporter = useEditorExport({ appId, doc, images, laurelImages });
   const translator = useEditorTranslation({ appName });
@@ -52,6 +58,11 @@ export function ExportDialog({
   const plan = buildExportPlan(doc, { languages, formats, listingLocales });
   const uniqueExtra = [...new Set(plan.filter((j) => j.translated).map((j) => j.language))];
   const tooMany = doc.screenshots.length > ASC_MAX_SCREENSHOTS_PER_SET;
+  // Working languages the listing does not carry yet: their jobs would be skipped on upload.
+  const missing = destination === "asc"
+    ? doc.projectLanguages.filter((l) => !listingLocales.includes(l))
+    : [];
+  const customFormat = destination === "asc" && plan.some((j) => j.format === "custom");
 
   const start = async () => {
     const translations = new Map<string, TranslationEntry[]>();
@@ -125,7 +136,7 @@ export function ExportDialog({
           <h3 className="section-title">{t("screenshotEditor.exportDestination")}</h3>
           <RadioGroup value={destination} onValueChange={(v) => setDestination(v as "zip" | "asc")}>
             <Label className="flex items-center gap-2 text-sm">
-              <RadioGroupItem value="asc" disabled />{t("screenshotEditor.exportToAsc")}
+              <RadioGroupItem value="asc" disabled={!editable} />{t("screenshotEditor.exportToAsc")}
             </Label>
             <Label className="flex items-center gap-2 text-sm">
               <RadioGroupItem value="zip" />{t("screenshotEditor.exportToZip")}
@@ -142,6 +153,17 @@ export function ExportDialog({
                   {t("screenshotEditor.exportMaxWarning", { max: ASC_MAX_SCREENSHOTS_PER_SET })}
                 </p>
               ) : null}
+              {customFormat ? (
+                <p className="text-xs text-amber-600">{t("screenshotEditor.exportCustomFormatSkipped")}</p>
+              ) : null}
+              {missing.map((lang) => (
+                <div key={lang} className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>{t("screenshotEditor.exportMissingLocale", { language: localeName(lang) })}</span>
+                  <Button size="sm" variant="outline" onClick={() => setAddLocaleCode(lang)}>
+                    {t("screenshotEditor.exportAddLocale")}
+                  </Button>
+                </div>
+              ))}
             </>
           ) : null}
         </section>
@@ -154,6 +176,11 @@ export function ExportDialog({
           </Button>
         </DialogFooter>
       </DialogContent>
+      <AddLocaleDialog open={addLocaleCode !== null}
+                       onOpenChange={(o) => { if (!o) setAddLocaleCode(null); }}
+                       locale={addLocaleCode ?? ""} appId={appId} primaryLocale={primaryLocale}
+                       appName={appName} versionId={versionId} appInfoId={appInfoId}
+                       onCreated={() => { void refreshLocalizations(); }} />
     </Dialog>
   );
 }
