@@ -13,10 +13,10 @@ describe("ai task registry", () => {
     expect(groupForTask("reviews-insights")).toBe("insights");
   });
 
-  it("covers the six /api/ai actions plus the two insights tasks plus the three workflow tasks", () => {
+  it("covers the seven /api/ai actions plus the two insights tasks plus the three workflow tasks", () => {
     expect(Object.keys(AI_TASK_GROUPS).sort()).toEqual([
       "analytics-insights", "draft-appeal", "draft-nomination", "draft-reply",
-      "fix-keywords", "improve", "reviews-insights", "translate",
+      "fix-keywords", "improve", "reviews-insights", "screenshot-titles", "translate",
       "workflow-compose", "workflow-relevance", "workflow-seeds",
     ]);
   });

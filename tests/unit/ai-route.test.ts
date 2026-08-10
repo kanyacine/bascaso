@@ -14,6 +14,8 @@ const mockBuildShortenPrompt = vi.fn();
 const mockGetAIGuidance = vi.fn();
 const mockGetAppleFmAllowUnsupportedLanguages = vi.fn();
 const mockErrorJson = vi.fn();
+const mockBuildScreenshotTitlesPrompt = vi.fn();
+const mockRepairGeneratedObjectText = vi.fn();
 
 vi.mock("ai", () => ({
   generateText: (...args: unknown[]) => mockGenerateText(...args),
@@ -41,7 +43,16 @@ vi.mock("@/lib/ai/prompts", () => ({
   buildFixKeywordsPrompt: (...args: unknown[]) => mockBuildFixKeywordsPrompt(...args),
   buildNominationPrompt: (...args: unknown[]) => mockBuildNominationPrompt(...args),
   buildShortenPrompt: (...args: unknown[]) => mockBuildShortenPrompt(...args),
+  buildScreenshotTitlesPrompt: (...args: unknown[]) => mockBuildScreenshotTitlesPrompt(...args),
 }));
+
+vi.mock("@/lib/ai/structured-output", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/ai/structured-output")>();
+  return {
+    ...actual,
+    repairGeneratedObjectText: (...args: unknown[]) => mockRepairGeneratedObjectText(...args),
+  };
+});
 
 vi.mock("@/lib/api-helpers", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/api-helpers")>();
@@ -82,6 +93,10 @@ describe("AI route", () => {
     mockGetAIGuidance.mockReturnValue("");
     mockGetAppleFmAllowUnsupportedLanguages.mockReset();
     mockGetAppleFmAllowUnsupportedLanguages.mockReturnValue(false);
+    mockBuildScreenshotTitlesPrompt.mockReset();
+    mockBuildScreenshotTitlesPrompt.mockReturnValue({ system: "sys", prompt: "prompt" });
+    mockRepairGeneratedObjectText.mockReset();
+    mockRepairGeneratedObjectText.mockResolvedValue(null);
     mockErrorJson.mockReset();
     mockErrorJson.mockImplementation(
       (_err, status = 500, fallback = "mapped") =>
@@ -791,5 +806,103 @@ describe("AI route", () => {
     // `tier` rides along on every success so the client knows whether the gesture
     // cost a credit (see notifyManagedDebit).
     expect(data).toEqual({ result: "Short", length: 5, overLimit: false, tier: "byok" });
+  });
+
+  describe("screenshot-titles action", () => {
+    const images = [{ mimeType: "image/jpeg", data: "aGVsbG8=" }];
+
+    it("sends image parts and returns parsed titles with the tier", async () => {
+      mockGenerateText.mockResolvedValue({
+        text: '{"titles":[{"headline":"Hi","subheadline":"There"}]}',
+      });
+      const { POST } = await import("@/app/api/ai/route");
+      const res = await POST(new Request("http://localhost", {
+        method: "POST",
+        body: JSON.stringify({ action: "screenshot-titles", text: "", locale: "fr-FR", images, appName: "Weatherly" }),
+      }));
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({
+        result: { titles: [{ headline: "Hi", subheadline: "There" }] },
+        tier: "byok",
+      });
+      const call = mockGenerateText.mock.calls[0][0];
+      expect(call.messages[0].content[0]).toMatchObject({ type: "image" });
+      expect(call.messages[0].content.at(-1)).toMatchObject({ type: "text", text: "prompt" });
+    });
+
+    it("caps the returned titles to the number of images sent", async () => {
+      mockGenerateText.mockResolvedValue({
+        text: '{"titles":[{"headline":"A","subheadline":"a"},{"headline":"B","subheadline":"b"}]}',
+      });
+      const { POST } = await import("@/app/api/ai/route");
+      const res = await POST(new Request("http://localhost", {
+        method: "POST",
+        body: JSON.stringify({ action: "screenshot-titles", text: "", locale: "fr-FR", images }),
+      }));
+      expect((await res.json()).result.titles).toHaveLength(1);
+    });
+
+    it("rejects the action without images", async () => {
+      const { POST } = await import("@/app/api/ai/route");
+      const res = await POST(new Request("http://localhost", {
+        method: "POST",
+        body: JSON.stringify({ action: "screenshot-titles", text: "", locale: "fr-FR" }),
+      }));
+      expect(res.status).toBe(400);
+    });
+
+    it("rejects the action without a locale", async () => {
+      const { POST } = await import("@/app/api/ai/route");
+      const res = await POST(new Request("http://localhost", {
+        method: "POST",
+        body: JSON.stringify({ action: "screenshot-titles", text: "", images }),
+      }));
+      expect(res.status).toBe(400);
+    });
+
+    it("recovers through the repair pass", async () => {
+      mockGenerateText.mockResolvedValue({ text: "not json at all" });
+      mockRepairGeneratedObjectText.mockResolvedValue('{"titles":[{"headline":"R","subheadline":"r"}]}');
+      const { POST } = await import("@/app/api/ai/route");
+      const res = await POST(new Request("http://localhost", {
+        method: "POST",
+        body: JSON.stringify({ action: "screenshot-titles", text: "", locale: "fr-FR", images }),
+      }));
+      expect(res.status).toBe(200);
+      expect((await res.json()).result.titles).toEqual([{ headline: "R", subheadline: "r" }]);
+    });
+
+    it("502s when parsing and repair both fail", async () => {
+      mockGenerateText.mockResolvedValue({ text: "not json at all" });
+      mockRepairGeneratedObjectText.mockResolvedValue(null);
+      const { POST } = await import("@/app/api/ai/route");
+      const res = await POST(new Request("http://localhost", {
+        method: "POST",
+        body: JSON.stringify({ action: "screenshot-titles", text: "", locale: "fr-FR", images }),
+      }));
+      expect(res.status).toBe(502);
+    });
+
+    it("surfaces a routing failure before spending anything", async () => {
+      mockGetLanguageModelForTask.mockRejectedValue(new AIRoutingError("ai_tier_not_configured", "The metadata tier is not configured"));
+      const { POST } = await import("@/app/api/ai/route");
+      const res = await POST(new Request("http://localhost", {
+        method: "POST",
+        body: JSON.stringify({ action: "screenshot-titles", text: "", locale: "fr-FR", images }),
+      }));
+      expect(res.status).toBe(400);
+      expect(mockGenerateText).not.toHaveBeenCalled();
+    });
+
+    it("maps provider failures through the shared error mapping", async () => {
+      mockGenerateText.mockRejectedValue(new Error("boom"));
+      mockClassifyAIError.mockReturnValue("rate_limited");
+      const { POST } = await import("@/app/api/ai/route");
+      const res = await POST(new Request("http://localhost", {
+        method: "POST",
+        body: JSON.stringify({ action: "screenshot-titles", text: "", locale: "fr-FR", images }),
+      }));
+      expect(res.status).toBe(429);
+    });
   });
 });

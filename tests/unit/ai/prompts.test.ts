@@ -3,6 +3,7 @@ import {
   buildTranslatePrompt,
   buildImprovePrompt,
   buildFixKeywordsPrompt,
+  buildScreenshotTitlesPrompt,
   buildReplyPrompt,
   buildAppealPrompt,
   buildAnalyticsInsightsPrompt,
@@ -621,5 +622,16 @@ describe("buildNominationPrompt", () => {
     });
 
     expect(prompt).not.toContain("App description:");
+  });
+});
+
+describe("buildScreenshotTitlesPrompt", () => {
+  it("states count, language and the JSON contract", () => {
+    const built = buildScreenshotTitlesPrompt({ count: 3, language: "French", appName: "Weatherly" });
+    expect(built.prompt).toContain("App: Weatherly");
+    expect(built.prompt).toContain("these 3 app screenshots");
+    expect(built.prompt).toContain("exactly 3 entries");
+    expect(built.prompt).toContain("Write all titles in French.");
+    expect(buildScreenshotTitlesPrompt({ count: 1, language: "English" }).prompt).not.toContain("App:");
   });
 });

@@ -10,6 +10,7 @@ import {
   buildFixKeywordsPrompt,
   buildNominationPrompt,
   buildShortenPrompt,
+  buildScreenshotTitlesPrompt,
 } from "@/lib/ai/prompts";
 import { errorJson, parseBody, routingErrorResponse } from "@/lib/api-helpers";
 import { noThinkingOptions, samplingTemperature } from "@/lib/ai/provider-options";
@@ -19,6 +20,9 @@ import {
   type GuidanceScope,
 } from "@/lib/app-preferences";
 import { APPLE_FM_PROVIDER_ID, appleFmInputTooLarge } from "@/lib/ai/apple-fm";
+import { parseScreenshotTitles, screenshotTitlesSchema } from "@/lib/ai/screenshot-titles";
+import { repairGeneratedObjectText } from "@/lib/ai/structured-output";
+import { localeName } from "@/lib/asc/locale-names";
 
 /** Review replies/appeals use their own guidance bucket; everything else uses translation guidance. */
 function guidanceScopeForAction(action: string): GuidanceScope {
@@ -74,6 +78,7 @@ const requestSchema = z.object({
     "draft-reply",
     "draft-appeal",
     "draft-nomination",
+    "screenshot-titles",
   ]),
   text: z.string(),
   field: z.string().optional(),
@@ -93,11 +98,42 @@ const requestSchema = z.object({
   whatsNew: z.string().optional(),
   promotionalText: z.string().optional(),
   isLaunch: z.boolean().optional(),
+  // screenshot-titles: the shots to look at, base64 (the client downscales to ≤512 px first)
+  images: z
+    .array(z.object({
+      mimeType: z.enum(["image/png", "image/jpeg", "image/webp"]),
+      data: z.string().min(1).max(2_000_000),
+    }))
+    .min(1)
+    .max(10)
+    .optional(),
   // 1 user gesture = 1 managed action: the caller supplies the id when its gesture can
   // trigger several calls (bulk, workflow); otherwise the resolution generates one (see
   // getLanguageModelForTask).
   actionId: z.string().uuid().optional(),
 });
+
+/** Provider failures map to the same status codes for every action, plain-text or multimodal. */
+function aiErrorResponse(err: unknown, action: string, field?: string): NextResponse {
+  console.error("[ai] error: action=%s field=%s", action, field, err);
+  const category = classifyAIError(err);
+  if (category === "credits") {
+    return NextResponse.json({ error: "ai_credits_exhausted" }, { status: 402 });
+  }
+  if (category === "rate_limited") {
+    return NextResponse.json({ error: "ai_rate_limited" }, { status: 429 });
+  }
+  if (category === "action_exhausted") {
+    return NextResponse.json({ error: "ai_action_exhausted" }, { status: 429 });
+  }
+  if (category === "device_conflict") {
+    return NextResponse.json({ error: "ai_device_conflict" }, { status: 409 });
+  }
+  if (category === "auth" || category === "permission") {
+    return NextResponse.json({ error: "ai_auth_error" }, { status: 401 });
+  }
+  return errorJson(err, 500, "AI request failed") as NextResponse;
+}
 
 export async function POST(request: Request) {
   const parsed = await parseBody(request, requestSchema);
@@ -106,12 +142,69 @@ export async function POST(request: Request) {
   const {
     action, text, field, reviewTitle, rating, fromLocale, toLocale, locale,
     appName, charLimit, guidance, description, subtitle, forbiddenWords,
-    versionString, whatsNew, promotionalText, isLaunch, actionId,
+    versionString, whatsNew, promotionalText, isLaunch, actionId, images,
   } = parsed;
 
   // Copy needs no AI – echo the text back
   if (action === "copy") {
     return NextResponse.json({ result: text });
+  }
+
+  // Screenshot titles is the one multimodal action: image parts in, JSON out. It has its own
+  // branch because none of the plain-text plumbing below (guidance, conversational detection,
+  // char limits) applies – but it shares the routing + error mapping.
+  if (action === "screenshot-titles") {
+    if (!images?.length || !locale) {
+      return NextResponse.json({ error: "images and locale are required" }, { status: 400 });
+    }
+    let resolved;
+    try {
+      resolved = await getLanguageModelForTask("screenshot-titles", { actionId });
+    } catch (err) {
+      return routingErrorResponse(err);
+    }
+    const built = buildScreenshotTitlesPrompt({
+      count: images.length,
+      language: localeName(locale),
+      appName,
+    });
+    try {
+      const { text: raw } = await generateText({
+        model: resolved.model,
+        system: built.system,
+        messages: [{
+          role: "user",
+          content: [
+            ...images.map((image) => ({
+              type: "image" as const,
+              image: image.data,
+              mediaType: image.mimeType,
+            })),
+            { type: "text" as const, text: built.prompt },
+          ],
+        }],
+      });
+      let titles = parseScreenshotTitles(raw);
+      if (!titles) {
+        const repaired = await repairGeneratedObjectText({
+          text: raw,
+          schema: screenshotTitlesSchema,
+          model: resolved.model,
+          system: built.system,
+          providerId: resolved.providerId,
+        });
+        titles = repaired ? parseScreenshotTitles(repaired) : null;
+      }
+      if (!titles) {
+        return NextResponse.json({ error: "screenshot_titles_parse" }, { status: 502 });
+      }
+      return NextResponse.json({
+        result: { titles: titles.slice(0, images.length) },
+        tier: resolved.tier,
+      });
+    } catch (err) {
+      return aiErrorResponse(err, action);
+    }
   }
 
   // Per-run guidance (from a dialog) overrides the saved setting; when absent
@@ -338,23 +431,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ result: finalResult, length: finalResult.length, overLimit, tier });
   } catch (err) {
-    console.error("[ai] error: action=%s field=%s", action, field, err);
-    const category = classifyAIError(err);
-    if (category === "credits") {
-      return NextResponse.json({ error: "ai_credits_exhausted" }, { status: 402 });
-    }
-    if (category === "rate_limited") {
-      return NextResponse.json({ error: "ai_rate_limited" }, { status: 429 });
-    }
-    if (category === "action_exhausted") {
-      return NextResponse.json({ error: "ai_action_exhausted" }, { status: 429 });
-    }
-    if (category === "device_conflict") {
-      return NextResponse.json({ error: "ai_device_conflict" }, { status: 409 });
-    }
-    if (category === "auth" || category === "permission") {
-      return NextResponse.json({ error: "ai_auth_error" }, { status: 401 });
-    }
-    return errorJson(err, 500, "AI request failed");
+    return aiErrorResponse(err, action, field);
   }
 }

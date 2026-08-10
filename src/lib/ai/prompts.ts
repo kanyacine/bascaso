@@ -498,3 +498,41 @@ ${text}`;
 
   return prompt;
 }
+
+/* Portions derived from appscreen (https://github.com/YUZU-Hub/appscreen), MIT License, Copyright YuzuHub */
+// Port of the magical-titles prompt (magical-titles.js:318-346). The JSON contract is stated
+// explicitly because the call is generateText, not structured output.
+export function buildScreenshotTitlesPrompt(input: { count: number; language: string; appName?: string }) {
+  return {
+    system: "You are an expert App Store marketing copywriter. Output only what is asked.",
+    prompt: [
+      input.appName ? `App: ${input.appName}` : "",
+      `Analyze these ${input.count} app screenshots and create compelling marketing titles.`,
+      "",
+      `The screenshots are shown in order (1 through ${input.count}). Study what the app does and identify:`,
+      "1. The main purpose and value proposition",
+      "2. The user problem it solves",
+      "3. Key features visible in each screen",
+      "",
+      "CRITICAL: Screenshot 1's headline MUST focus on the main value proposition – what problem does this app solve for users? This is the most important title.",
+      "",
+      "LENGTH REQUIREMENTS – THIS IS VERY IMPORTANT:",
+      "- headline: VERY SHORT, maximum 2-4 words. Punchy, memorable, benefit-focused.",
+      "- subheadline: SHORT, maximum 4-8 words. Expands on the headline.",
+      "",
+      "UNIQUENESS – VERY IMPORTANT:",
+      "- Each screenshot MUST have a UNIQUE headline and subheadline",
+      "- Do NOT repeat or reuse similar titles across screenshots",
+      "- Each title should highlight a DIFFERENT feature or benefit",
+      "",
+      'Examples of good headlines: "Track Every Expense", "Sleep Better Tonight", "Never Forget Again"',
+      'Examples of good subheadlines: "Automatic expense categorization and insights", "Science-backed sleep improvement", "Smart reminders that actually work"',
+      "",
+      "Return ONLY valid JSON in this exact format (no markdown, no explanation):",
+      `{ "titles": [ { "headline": "...", "subheadline": "..." } ] }`,
+      "",
+      `The titles array must contain exactly ${input.count} entries, one per screenshot, in order.`,
+      `Write all titles in ${input.language}.`,
+    ].filter(Boolean).join("\n"),
+  };
+}
