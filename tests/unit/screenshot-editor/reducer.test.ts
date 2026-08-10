@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { editorReducer, type EditorAction } from "@/lib/screenshot-editor/reducer";
 import { createEmptyDoc } from "@/lib/screenshot-docs";
+import {
+  createEmojiElement, createPopout, createTextElement,
+} from "@/lib/screenshot-editor/elements";
 import type { ScreenshotDoc } from "@/lib/screenshot-editor/types";
 
 function docWithShots(n: number): ScreenshotDoc {
@@ -144,5 +147,71 @@ describe("editorReducer – document level", () => {
     const other = createEmptyDoc();
     other.outputDevice = "custom";
     expect(editorReducer(createEmptyDoc(), { type: "replace-doc", doc: other })).toBe(other);
+  });
+});
+
+describe("editorReducer – elements", () => {
+  function docWithElement() {
+    let doc = docWithShots(1);
+    const element = createTextElement("en");
+    doc = editorReducer(doc, { type: "add-element", index: 0, element });
+    return { doc, id: element.id };
+  }
+
+  it("add-element appends to the shot's elements", () => {
+    const { doc } = docWithElement();
+    expect(doc.screenshots[0].elements).toHaveLength(1);
+    expect(doc.screenshots[0].elements[0].text).toBe("Your Text");
+  });
+
+  it("update-element patches by id without touching neighbors", () => {
+    let { doc, id } = docWithElement();
+    const other = createEmojiElement("⭐", "Star");
+    doc = editorReducer(doc, { type: "add-element", index: 0, element: other });
+    doc = editorReducer(doc, { type: "update-element", index: 0, elementId: id, patch: { x: 10, opacity: 50 } });
+    expect(doc.screenshots[0].elements[0]).toMatchObject({ x: 10, opacity: 50 });
+    expect(doc.screenshots[0].elements[1]).toMatchObject({ x: 50, opacity: 100 });
+  });
+
+  it("update-element with an unknown id returns the doc unchanged", () => {
+    const { doc } = docWithElement();
+    expect(editorReducer(doc, { type: "update-element", index: 0, elementId: "nope", patch: { x: 1 } })).toBe(doc);
+  });
+
+  it("set-element-text writes the language map and the legacy mirror", () => {
+    let { doc, id } = docWithElement();
+    doc = editorReducer(doc, { type: "set-element-text", index: 0, elementId: id, language: "en", value: "Hello" });
+    expect(doc.screenshots[0].elements[0].texts).toEqual({ en: "Hello" });
+    expect(doc.screenshots[0].elements[0].text).toBe("Hello");
+  });
+
+  it("set-element-icon-shadow patches the nested shadow, creating it if absent", () => {
+    let { doc, id } = docWithElement();
+    doc = editorReducer(doc, { type: "set-element-icon-shadow", index: 0, elementId: id, patch: { enabled: true, blur: 5 } });
+    expect(doc.screenshots[0].elements[0].iconShadow).toMatchObject({ enabled: true, blur: 5 });
+  });
+
+  it("remove-element deletes by id", () => {
+    let { doc, id } = docWithElement();
+    doc = editorReducer(doc, { type: "remove-element", index: 0, elementId: id });
+    expect(doc.screenshots[0].elements).toHaveLength(0);
+  });
+
+  it("move-element up swaps toward the front, down toward the back, no wrap", () => {
+    let doc = docWithShots(1);
+    const a = createTextElement("en"); const b = createEmojiElement("⭐", "Star");
+    doc = editorReducer(doc, { type: "add-element", index: 0, element: a });
+    doc = editorReducer(doc, { type: "add-element", index: 0, element: b });
+    doc = editorReducer(doc, { type: "move-element", index: 0, elementId: a.id, direction: "up" });
+    expect(doc.screenshots[0].elements.map((e) => e.id)).toEqual([b.id, a.id]);
+    const same = editorReducer(doc, { type: "move-element", index: 0, elementId: a.id, direction: "up" });
+    expect(same).toBe(doc); // already at the front
+    doc = editorReducer(doc, { type: "move-element", index: 0, elementId: a.id, direction: "down" });
+    expect(doc.screenshots[0].elements.map((e) => e.id)).toEqual([a.id, b.id]);
+  });
+
+  it("element actions ignore out-of-range shot indexes", () => {
+    const { doc } = docWithElement();
+    expect(editorReducer(doc, { type: "remove-element", index: 9, elementId: "x" })).toBe(doc);
   });
 });

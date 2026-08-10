@@ -1,6 +1,7 @@
 import { createDefaultScreenshot } from "./defaults";
 import type {
-  Background, EditorScreenshot, GradientStop, ScreenshotDoc, ScreenshotSettings, Shadow, TextSettings,
+  Background, EditorElement, EditorScreenshot, GradientStop, ScreenshotDoc, ScreenshotSettings,
+  Shadow, TextSettings,
 } from "./types";
 
 export type EditorAction =
@@ -22,7 +23,13 @@ export type EditorAction =
   | { type: "set-frame"; index: number; patch: Partial<ScreenshotSettings["frame"]> }
   | { type: "set-text-setting"; index: number; patch: Partial<TextSettings> }
   | { type: "set-headline"; index: number; language: string; value: string }
-  | { type: "set-subheadline"; index: number; language: string; value: string };
+  | { type: "set-subheadline"; index: number; language: string; value: string }
+  | { type: "add-element"; index: number; element: EditorElement }
+  | { type: "update-element"; index: number; elementId: string; patch: Partial<EditorElement> }
+  | { type: "set-element-text"; index: number; elementId: string; language: string; value: string }
+  | { type: "set-element-icon-shadow"; index: number; elementId: string; patch: Partial<Shadow> }
+  | { type: "remove-element"; index: number; elementId: string }
+  | { type: "move-element"; index: number; elementId: string; direction: "up" | "down" };
 
 function patchShot(
   doc: ScreenshotDoc,
@@ -32,6 +39,20 @@ function patchShot(
   if (index < 0 || index >= doc.screenshots.length) return doc;
   const screenshots = doc.screenshots.map((s, i) => (i === index ? update(structuredClone(s)) : s));
   return { ...doc, screenshots };
+}
+
+function patchElement(
+  doc: ScreenshotDoc,
+  index: number,
+  elementId: string,
+  update: (el: EditorElement) => EditorElement,
+): ScreenshotDoc {
+  const shot = doc.screenshots[index];
+  if (!shot || !shot.elements.some((e) => e.id === elementId)) return doc;
+  return patchShot(doc, index, (s) => ({
+    ...s,
+    elements: s.elements.map((e) => (e.id === elementId ? update(e) : e)),
+  }));
 }
 
 export function editorReducer(doc: ScreenshotDoc, action: EditorAction): ScreenshotDoc {
@@ -122,5 +143,40 @@ export function editorReducer(doc: ScreenshotDoc, action: EditorAction): Screens
         ...s,
         text: { ...s.text, subheadlines: { ...s.text.subheadlines, [action.language]: action.value } },
       }));
+    case "add-element":
+      return patchShot(doc, action.index, (s) => ({ ...s, elements: [...s.elements, action.element] }));
+    case "update-element":
+      return patchElement(doc, action.index, action.elementId, (e) => ({ ...e, ...action.patch }));
+    case "set-element-text":
+      return patchElement(doc, action.index, action.elementId, (e) => ({
+        ...e,
+        text: action.value,
+        texts: { ...e.texts, [action.language]: action.value },
+      }));
+    case "set-element-icon-shadow":
+      return patchElement(doc, action.index, action.elementId, (e) => ({
+        ...e,
+        iconShadow: { ...e.iconShadow, ...action.patch },
+      }));
+    case "remove-element": {
+      const shot = doc.screenshots[action.index];
+      if (!shot?.elements.some((e) => e.id === action.elementId)) return doc;
+      return patchShot(doc, action.index, (s) => ({
+        ...s,
+        elements: s.elements.filter((e) => e.id !== action.elementId),
+      }));
+    }
+    case "move-element": {
+      const shot = doc.screenshots[action.index];
+      if (!shot) return doc;
+      const i = shot.elements.findIndex((e) => e.id === action.elementId);
+      const j = action.direction === "up" ? i + 1 : i - 1;
+      if (i < 0 || j < 0 || j >= shot.elements.length) return doc;
+      return patchShot(doc, action.index, (s) => {
+        const elements = [...s.elements];
+        [elements[i], elements[j]] = [elements[j], elements[i]];
+        return { ...s, elements };
+      });
+    }
   }
 }
