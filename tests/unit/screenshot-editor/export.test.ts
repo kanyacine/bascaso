@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   ASC_MAX_SCREENSHOTS_PER_SET, workingFormats, buildExportPlan, exportFileName, zipFileName,
+  zipPartName,
 } from "@/lib/screenshot-editor/export";
 import { createEmptyDoc } from "@/lib/screenshot-docs";
 import { editorReducer } from "@/lib/screenshot-editor/reducer";
@@ -58,5 +59,15 @@ describe("file names", () => {
     expect(zipFileName({ languages: "working", formats: "working" }, multiDoc()))
       .toBe("screenshots_all-languages_all-formats.zip");
     expect(ASC_MAX_SCREENSHOTS_PER_SET).toBe(10);
+  });
+
+  // A run past MAX_ZIP_FILES ships several archives; a run under it keeps the plain name.
+  it("numbers the parts of a split zip only when there is more than one", () => {
+    expect(zipPartName("screenshots_all-languages_all-formats.zip", 0, 1))
+      .toBe("screenshots_all-languages_all-formats.zip");
+    expect(zipPartName("screenshots_all-languages_all-formats.zip", 0, 3))
+      .toBe("screenshots_all-languages_all-formats-1.zip");
+    expect(zipPartName("screenshots_all-languages_all-formats.zip", 2, 3))
+      .toBe("screenshots_all-languages_all-formats-3.zip");
   });
 });

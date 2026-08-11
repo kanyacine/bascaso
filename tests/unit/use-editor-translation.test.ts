@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { runTranslationBatches } from "@/lib/hooks/use-editor-translation";
+import { chunkBatchItems, runTranslationBatches } from "@/lib/hooks/use-editor-translation";
+import { MAX_BATCH_CHARS, MAX_BATCH_ITEMS } from "@/lib/ai/tasks";
 import type { TranslatableItem } from "@/lib/screenshot-editor/languages";
 
 // The React part of the hook is three useState calls; the part that can be wrong is the
@@ -161,5 +162,58 @@ describe("runTranslationBatches", () => {
   it("does nothing when there is no language to translate into", async () => {
     expect(await run([])).toEqual({ entries: [] });
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  // A 10-screenshot doc carries more than 60 translatable strings on its own. Unchunked,
+  // /api/ai rejected the whole language and the export lost it.
+  it("splits a language over several calls rather than busting the route's caps", async () => {
+    fetchMock.mockImplementation(batchOk());
+    const many: TranslatableItem[] = Array.from({ length: 145 }, (_, i) => ({
+      kind: "headline", index: i, text: `Headline ${i}`,
+    }));
+
+    const result = await runTranslationBatches({
+      items: many, sourceLanguage: "en-US", targetLanguages: ["fr-FR"], actionId: "action-1",
+    });
+
+    const bodies = fetchMock.mock.calls.map((c) => JSON.parse(c[1].body));
+    expect(bodies.map((b) => b.items.length)).toEqual([MAX_BATCH_ITEMS, MAX_BATCH_ITEMS, 25]);
+    expect(bodies.every((b) => b.actionId === "action-1")).toBe(true); // still one credit
+    expect(result?.entries).toHaveLength(145);
+  });
+});
+
+describe("chunkBatchItems", () => {
+  const item = (id: number, text: string) => ({ id: String(id), kind: "headline" as const, text });
+
+  it("keeps a payload the route accepts in a single call", () => {
+    expect(chunkBatchItems([item(0, "a"), item(1, "b")])).toHaveLength(1);
+  });
+
+  it("breaks on the character cap before the item cap", () => {
+    const long = Array.from({ length: 10 }, (_, i) => item(i, "x".repeat(500)));
+    const chunks = chunkBatchItems(long);
+    expect(chunks.map((c) => c.length)).toEqual([8, 2]);
+    for (const chunk of chunks) {
+      expect(chunk.reduce((n, i) => n + i.text.length, 0)).toBeLessThanOrEqual(MAX_BATCH_CHARS);
+      expect(chunk.length).toBeLessThanOrEqual(MAX_BATCH_ITEMS);
+    }
+  });
+
+  // The ids are offsets into the caller's item list – chunking must not renumber them.
+  it("preserves the global ids across chunks", () => {
+    const chunks = chunkBatchItems(Array.from({ length: 70 }, (_, i) => item(i, "t")));
+    expect(chunks.flat().map((i) => i.id)).toEqual(
+      Array.from({ length: 70 }, (_, i) => String(i)),
+    );
+  });
+
+  it("never emits an empty chunk, even for an item over the char cap on its own", () => {
+    const chunks = chunkBatchItems([item(0, "x".repeat(MAX_BATCH_CHARS + 1)), item(1, "b")]);
+    expect(chunks.map((c) => c.length)).toEqual([1, 1]);
+  });
+
+  it("has nothing to send for an empty list", () => {
+    expect(chunkBatchItems([])).toEqual([]);
   });
 });

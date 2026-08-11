@@ -149,6 +149,41 @@ describe("PUT /api/apps/[appId]/screenshot-doc", () => {
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual({ error: "Invalid JSON body" });
   });
+
+  // A screenshot without `text`/`elements` used to persist here and then 500 every later GET,
+  // because the read path normalizes languages and dereferences both.
+  it("rejects a screenshot the read path could not normalize", async () => {
+    const { PUT } = await import("@/app/api/apps/[appId]/screenshot-doc/route");
+    for (const shot of [{}, { text: {} }, { elements: [] }, { text: {}, elements: {} }]) {
+      const res = await PUT(new Request("http://localhost", {
+        method: "PUT", body: JSON.stringify({ doc: { ...validDoc, screenshots: [shot] } }),
+      }), params);
+      expect(res.status).toBe(400);
+    }
+    expect(mockSave).not.toHaveBeenCalled();
+  });
+
+  it("keeps a screenshot carrying both, plus whatever else it holds", async () => {
+    mockSave.mockReturnValue({ id: "01A", updatedAt: "2026-08-10T00:00:01.000Z" });
+    const { PUT } = await import("@/app/api/apps/[appId]/screenshot-doc/route");
+    const doc = { ...validDoc, screenshots: [{ text: {}, elements: [], background: { type: "solid" } }] };
+    const res = await PUT(new Request("http://localhost", {
+      method: "PUT", body: JSON.stringify({ doc }),
+    }), params);
+    expect(res.status).toBe(200);
+    expect(mockSave).toHaveBeenCalledWith("app-1", doc);
+  });
+
+  // The doc is rewritten on every autosave – a runaway one would thrash SQLite 800 ms apart.
+  it("refuses a doc past the size cap", async () => {
+    const { PUT } = await import("@/app/api/apps/[appId]/screenshot-doc/route");
+    const huge = { ...validDoc, currentLanguage: "x".repeat(5 * 1024 * 1024) };
+    const res = await PUT(new Request("http://localhost", {
+      method: "PUT", body: JSON.stringify({ doc: huge }),
+    }), params);
+    expect(res.status).toBe(413);
+    expect(mockSave).not.toHaveBeenCalled();
+  });
 });
 
 describe("PUT – outputDevices passthrough", () => {

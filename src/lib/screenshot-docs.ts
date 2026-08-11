@@ -46,18 +46,31 @@ export function getOrCreateCurrentDoc(
     return { id: existing.id, doc, updatedAt: existing.updatedAt };
   }
   const doc = createEmptyDoc(formats);
-  const inserted = db
-    .insert(screenshotDocs)
-    .values({
-      appId,
-      kind: "current",
-      languages: JSON.stringify(doc.projectLanguages),
-      outputDevice: doc.outputDevice,
-      doc: JSON.stringify(doc),
-    })
-    .returning()
-    .get();
-  return { id: inserted.id, doc, updatedAt: inserted.updatedAt };
+  try {
+    const inserted = db
+      .insert(screenshotDocs)
+      .values({
+        appId,
+        kind: "current",
+        languages: JSON.stringify(doc.projectLanguages),
+        outputDevice: doc.outputDevice,
+        doc: JSON.stringify(doc),
+      })
+      .returning()
+      .get();
+    return { id: inserted.id, doc, updatedAt: inserted.updatedAt };
+  } catch {
+    // Two windows opening the same app race between the select above and this insert; the
+    // partial unique index on (appId, kind='current') keeps one row, and the loser reads it
+    // instead of surfacing a raw constraint error.
+    const winner = currentRow(appId);
+    if (!winner) throw new Error("failed to create the screenshot document");
+    return {
+      id: winner.id,
+      doc: normalizeDocLanguages(JSON.parse(winner.doc) as ScreenshotDoc),
+      updatedAt: winner.updatedAt,
+    };
+  }
 }
 
 /** Freeze the current doc into a named `kind='version'` row – written automatically on export. */

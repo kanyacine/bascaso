@@ -80,6 +80,25 @@ describe("getOrCreateCurrentDoc", () => {
     const b = getOrCreateCurrentDoc("app-b");
     expect(b.id).not.toBe(a.id);
   });
+
+  // Two windows opening the same app race between the select and the insert. The partial unique
+  // index keeps one row; the loser used to surface the raw constraint error.
+  it("returns the winning row when a concurrent insert got there first", () => {
+    const winner = getOrCreateCurrentDoc("app-race");
+    const realSelect = testDb.select.bind(testDb);
+    let missed = false;
+    vi.spyOn(testDb, "select").mockImplementation(((...args: unknown[]) => {
+      if (missed) return realSelect(...(args as Parameters<typeof realSelect>));
+      missed = true; // the racing read, taken before the other window inserted
+      return { from: () => ({ where: () => ({ get: () => undefined }) }) };
+    }) as never);
+
+    const loser = getOrCreateCurrentDoc("app-race");
+
+    expect(loser.id).toBe(winner.id);
+    expect(loser.doc.screenshots).toEqual([]);
+    vi.restoreAllMocks();
+  });
 });
 
 describe("saveCurrentDoc", () => {

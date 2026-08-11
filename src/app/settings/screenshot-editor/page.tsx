@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Label } from "@/components/ui/label";
+import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { useTranslations } from "@/lib/i18n/locale-context";
 
@@ -27,7 +28,8 @@ export default function ScreenshotEditorSettingsPage() {
     });
   };
 
-  if (loading) return null;
+  // The tab is one switch: a blank pane reads as "nothing here" rather than "still loading".
+  if (loading) return <div className="flex justify-center py-8"><Spinner /></div>;
 
   return (
     <div className="space-y-8">

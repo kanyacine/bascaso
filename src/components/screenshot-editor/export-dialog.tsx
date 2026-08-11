@@ -7,6 +7,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Progress } from "@/components/ui/progress";
 import { Spinner } from "@/components/ui/spinner";
 import { TokenCostHint } from "@/components/token-cost-hint";
 import { AddLocaleDialog } from "@/components/add-locale-dialog";
@@ -24,17 +25,17 @@ import { collectTranslatableItems, type TranslationEntry } from "@/lib/screensho
 import { useEditorExport } from "@/lib/hooks/use-editor-export";
 import { useEditorTranslation } from "@/lib/hooks/use-editor-translation";
 import { useTranslations } from "@/lib/i18n/locale-context";
-import type { EditorAction } from "@/lib/screenshot-editor/reducer";
 import type { LaurelVariant, RenderImage, ScreenshotDoc } from "@/lib/screenshot-editor/types";
 
 export function ExportDialog({
-  open, onOpenChange, doc, dispatch: _dispatch, appId, appName,
-  primaryLocale, images, laurelImages,
+  open, onOpenChange, doc, appId, appName,
+  primaryLocale, images, failedImages, laurelImages,
 }: {
   open: boolean; onOpenChange: (o: boolean) => void;
-  doc: ScreenshotDoc; dispatch: (a: EditorAction) => void;
+  doc: ScreenshotDoc;
   appId: string; appName?: string; primaryLocale: string;
   images: Map<string, RenderImage>;
+  failedImages: Set<string>;
   laurelImages: Partial<Record<LaurelVariant, RenderImage>>;
 }) {
   const t = useTranslations();
@@ -56,7 +57,7 @@ export function ExportDialog({
   // ASC needs an editable version; until there is one the choice is forced back to the zip.
   const destination = editable ? chosenDestination : "zip";
 
-  const exporter = useEditorExport({ appId, doc, images, laurelImages });
+  const exporter = useEditorExport({ appId, doc, images, failedImages, laurelImages });
   const translator = useEditorTranslation({ appName });
   const running = exporter.running || translator.running;
 
@@ -197,10 +198,8 @@ export function ExportDialog({
                 </span>
               ) : null}
             </div>
-            <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-              <div className="h-full rounded-full bg-primary transition-all duration-300"
-                   style={{ width: `${progress.total > 0 ? (progress.done / progress.total) * 100 : 0}%` }} />
-            </div>
+            <Progress className="h-1.5"
+                      value={progress.total > 0 ? (progress.done / progress.total) * 100 : 0} />
           </section>
         ) : null}
 

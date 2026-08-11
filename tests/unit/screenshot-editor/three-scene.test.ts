@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   DEVICE_MODELS, FRAME_COLOR_PRESETS, MOCKUP_CAMERA, deviceModel, frameColorPreset,
-  migrate3DPosition, pivotTransform, screenCornerRadius, screenPlaneSize,
+  pivotTransform, screenCornerRadius, screenPlaneSize,
 } from "@/lib/screenshot-editor/three-scene";
 import { DEFAULTS } from "@/lib/screenshot-editor/defaults";
 import type { ScreenshotSettings } from "@/lib/screenshot-editor/types";
@@ -72,31 +72,5 @@ describe("frame color presets", () => {
     expect(frameColorPreset("iphone", undefined).id).toBe("natural");
     expect(frameColorPreset("samsung", "gray").id).toBe("natural"); // legacy doc → iPhone finish
     expect(frameColorPreset("nope", undefined).id).toBe("natural"); // unknown device → iphone palette
-  });
-});
-
-describe("migrate3DPosition", () => {
-  it("converts pre-v2 positions so the visual offset is unchanged (app.js:1554-1571)", () => {
-    const migrated = migrate3DPosition(ss({ use3D: true, scale: 70, x: 60, y: 40 }));
-    const xFactor = 2 / ((1 - 0.7) * 0.9);
-    const yFactor = 3 / ((1 - 0.7) * 2);
-    expect(migrated.x).toBeCloseTo(Math.min(100, 50 + 10 * xFactor));
-    expect(migrated.y).toBeCloseTo(Math.max(0, 50 - 10 * yFactor));
-  });
-
-  it("clamps to 0-100 and leaves 2D screenshots untouched", () => {
-    expect(migrate3DPosition(ss({ use3D: true, scale: 70, x: 100, y: 0 })).x).toBe(100);
-    const flat = ss({ use3D: false, x: 60, y: 40 });
-    expect(migrate3DPosition(flat)).toBe(flat); // same reference – no work done
-  });
-
-  it("falls back to the appscreen defaults for a partial legacy record", () => {
-    const partial = ss({ use3D: true });
-    delete (partial as { scale?: unknown }).scale;
-    delete (partial as { x?: unknown }).x;
-    delete (partial as { y?: unknown }).y;
-    const migrated = migrate3DPosition(partial);
-    expect(migrated.x).toBe(50);
-    expect(migrated.y).toBe(50);
   });
 });

@@ -107,9 +107,12 @@ export class MockupRenderer {
       model.add(screenPlane);
       this.scene.add(pivot);
       this.models.set(config.key, { pivot, screenPlane });
-      this.loading.delete(config.key);
     })();
     this.loading.set(config.key, promise);
+    // Clear in both outcomes: dropping the entry only on success meant one transient GLB
+    // failure was cached as a rejected promise and disabled 3D until the app restarted.
+    // The caller still gets `promise` – this chain only exists to run the cleanup.
+    promise.catch(() => {}).finally(() => this.loading.delete(config.key));
     return promise;
   }
 
@@ -183,10 +186,6 @@ export class MockupRenderer {
     return out;
   }
 
-  dispose(): void {
-    this.renderer.dispose();
-    this.models.clear();
-  }
 }
 
 let singleton: Promise<MockupRenderer> | null = null;

@@ -21,6 +21,7 @@ import {
 } from "@/lib/app-preferences";
 import { APPLE_FM_PROVIDER_ID, appleFmInputTooLarge } from "@/lib/ai/apple-fm";
 import { generateObjectWithRepair } from "@/lib/ai/structured-output";
+import { MAX_BATCH_CHARS, MAX_BATCH_ITEMS } from "@/lib/ai/tasks";
 
 /** Review replies/appeals use their own guidance bucket; everything else uses translation guidance. */
 function guidanceScopeForAction(action: string): GuidanceScope {
@@ -72,12 +73,6 @@ function looksConversational(text: string): boolean {
   ];
   return conversationalPrefixes.some((p) => lower.startsWith(p));
 }
-
-/** Batch caps. One call must fit in one model context, and one gesture must fit in the
- *  managed backend's per-action budget – 60 items is two full screenshot sets' worth of
- *  text, well above what a real set carries. */
-const MAX_BATCH_ITEMS = 60;
-const MAX_BATCH_CHARS = 4_000;
 
 const batchItemsSchema = z
   .array(z.object({

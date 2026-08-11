@@ -31,8 +31,15 @@ describe("wrapText", () => {
     expect(wrapText(fakeCtx, "aaa bbb ccc", 80)).toEqual(["aaa bbb", "ccc"]);
   });
 
-  it("keeps a word longer than maxWidth on its own line", () => {
-    expect(wrapText(fakeCtx, "aaaaaaaaaaaa bb", 60)).toEqual(["aaaaaaaaaaaa", "bb"]);
+  // appscreen let a too-long word overflow the canvas; this product translates into ja/zh,
+  // where a whole headline is one space-less "word".
+  it("breaks a word wider than the line instead of overflowing", () => {
+    expect(wrapText(fakeCtx, "aaaaaaaaaaaa bb", 60)).toEqual(["aaaaaa", "aaaaaa", "bb"]);
+    expect(wrapText(fakeCtx, "支出をすべて記録", 40)).toEqual(["支出をす", "べて記録"]);
+  });
+
+  it("never emits an empty piece when a single character is wider than the line", () => {
+    expect(wrapText(fakeCtx, "abc", 5)).toEqual(["a", "b", "c"]);
   });
 
   it("respects manual line breaks, including empty lines", () => {

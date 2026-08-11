@@ -7,13 +7,28 @@ import { listScreenshotSets } from "@/lib/asc/screenshots";
 import { listVersions } from "@/lib/asc/versions";
 import { resolveVersion } from "@/lib/asc/version-types";
 import { EDITOR_FORMATS, defaultWorkingFormats } from "@/lib/screenshot-editor/devices";
+import { normalizeDocLanguages } from "@/lib/screenshot-editor/languages";
 import { parseBody, errorJson } from "@/lib/api-helpers";
 import type { ScreenshotDoc } from "@/lib/screenshot-editor/types";
 
 // The envelope is validated; screenshot internals stay unknown records – their deep shape is
 // owned by types.ts and the reducer, and mirroring it here would be 150 lines drifting apart.
+// The two exceptions are `text` and `elements`: normalizeDocLanguages dereferences them on
+// every read, so a screenshot missing them would persist here and then 500 every later GET,
+// bricking the editor for that app until the row is deleted by hand.
+const screenshotSchema = z
+  .object({
+    text: z.record(z.string(), z.unknown()),
+    elements: z.array(z.record(z.string(), z.unknown())),
+  })
+  .catchall(z.unknown());
+
+/** The doc is rewritten on every autosave; a runaway one would thrash SQLite 800 ms apart.
+ *  Bitmaps belong in the asset store (spec §4), so a legitimate doc is text and geometry. */
+const MAX_DOC_BYTES = 4 * 1024 * 1024;
+
 const docSchema = z.object({
-  screenshots: z.array(z.record(z.string(), z.unknown())),
+  screenshots: z.array(screenshotSchema),
   selectedIndex: z.number().int().min(0),
   outputDevice: z.string().min(1),
   outputDevices: z.array(z.string().min(1)).optional(),
@@ -73,8 +88,15 @@ export async function PUT(request: Request, { params }: RouteParams) {
   const { appId } = await params;
   const parsed = await parseBody(request, putSchema);
   if (parsed instanceof Response) return parsed;
+  const serialized = JSON.stringify(parsed.doc);
+  if (serialized.length > MAX_DOC_BYTES) {
+    return NextResponse.json({ error: "Document too large" }, { status: 413 });
+  }
   try {
-    return NextResponse.json(saveCurrentDoc(appId, parsed.doc as unknown as ScreenshotDoc));
+    // Normalize on write as well as on read, so what comes back out of a GET is what was
+    // stored rather than a shape the reader had to repair.
+    const doc = normalizeDocLanguages(parsed.doc as unknown as ScreenshotDoc);
+    return NextResponse.json(saveCurrentDoc(appId, doc));
   } catch (err) {
     return errorJson(err);
   }

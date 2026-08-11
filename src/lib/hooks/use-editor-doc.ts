@@ -22,8 +22,12 @@ export function useEditorDoc(appId: string) {
   const t = useTranslations();
   const [{ doc, history }, setState] = useState<EditorState>({ doc: null, history: EMPTY_HISTORY });
   const [saveState, setSaveState] = useState<EditorSaveState>("idle");
+  // Distinct from saveState: a doc that never loaded has nothing to save, and the page has to
+  // stop spinning and say so rather than wait on a fetch that already failed.
+  const [loadFailed, setLoadFailed] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSaved = useRef<string | null>(null);
+  const pending = useRef<ScreenshotDoc | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -34,13 +38,20 @@ export function useEditorDoc(appId: string) {
         lastSaved.current = JSON.stringify(loaded);
         setState({ doc: loaded, history: EMPTY_HISTORY });
       })
-      .catch(() => { if (!cancelled) toast.error(t("screenshotEditor.saveFailed")); });
+      .catch(() => {
+        if (cancelled) return;
+        setLoadFailed(true);
+        toast.error(t("screenshotEditor.loadFailed"));
+      });
     return () => { cancelled = true; };
   }, [appId, t]);
 
   const scheduleSave = useCallback((next: ScreenshotDoc) => {
     if (timer.current) clearTimeout(timer.current);
+    pending.current = next;
     timer.current = setTimeout(async () => {
+      timer.current = null;
+      pending.current = null;
       const serialized = JSON.stringify(next);
       if (serialized === lastSaved.current) return;
       setSaveState("saving");
@@ -82,7 +93,32 @@ export function useEditorDoc(appId: string) {
     });
   }, [scheduleSave]);
 
-  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
+  /**
+   * Leaving the editor inside the debounce window (breadcrumb click right after an edit) used
+   * to drop the edit while the badge still read "Saved". Send it instead of cancelling it –
+   * `keepalive` lets the request outlive the unmount that triggered it.
+   */
+  const flush = useCallback(() => {
+    if (!timer.current) return;
+    clearTimeout(timer.current);
+    timer.current = null;
+    const next = pending.current;
+    pending.current = null;
+    if (!next) return;
+    const serialized = JSON.stringify(next);
+    if (serialized === lastSaved.current) return;
+    lastSaved.current = serialized;
+    // No state updates and no toast here: the component is on its way out.
+    void fetch(`/api/apps/${appId}/screenshot-doc`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ doc: next }),
+      keepalive: true,
+    }).catch(() => {});
+  }, [appId]);
 
-  return { doc, dispatch, saveState, undo, canUndo: history.stack.length > 0 };
+  // Cleanup on unmount – and on an appId change, which is the same loss of the pending doc.
+  useEffect(() => flush, [flush]);
+
+  return { doc, dispatch, saveState, loadFailed, undo, canUndo: history.stack.length > 0 };
 }

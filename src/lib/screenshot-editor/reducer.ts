@@ -1,3 +1,4 @@
+/* Portions derived from appscreen (https://github.com/YUZU-Hub/appscreen), MIT License, Copyright YuzuHub */
 import { createDefaultScreenshot } from "./defaults";
 import { EDITOR_FORMATS } from "./devices";
 import {
@@ -19,7 +20,6 @@ export type EditorAction =
   | { type: "set-screenshot-image"; index: number; language: string; imageRef: string }
   | { type: "clear-screenshot-image"; index: number; language: string }
   | { type: "set-output-device"; device: string }
-  | { type: "set-custom-size"; width: number; height: number }
   | { type: "set-background"; index: number; patch: Partial<Background> }
   | { type: "set-gradient-stop"; index: number; stopIndex: number; patch: Partial<GradientStop> }
   | { type: "add-gradient-stop"; index: number }
@@ -214,8 +214,6 @@ export function editorReducer(doc: ScreenshotDoc, action: EditorAction): Screens
         clearImage(s, categoryForFormat(doc.outputDevice), action.language));
     case "set-output-device":
       return withCurrentDeviceListed({ ...doc, outputDevice: action.device });
-    case "set-custom-size":
-      return { ...doc, outputDevice: "custom", customWidth: action.width, customHeight: action.height };
     case "set-background":
       return patchShot(doc, action.index, (s) => ({ ...s, background: { ...s.background, ...action.patch } }));
     case "set-gradient-stop":

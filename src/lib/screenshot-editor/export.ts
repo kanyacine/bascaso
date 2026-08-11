@@ -1,7 +1,13 @@
+/* Portions derived from appscreen (https://github.com/YUZU-Hub/appscreen), MIT License, Copyright YuzuHub */
 // Export planning – pure. The rendering/upload loops live in the client hook.
 import type { ScreenshotDoc } from "./types";
 
 export const ASC_MAX_SCREENSHOTS_PER_SET = 10; // Apple's per-set limit
+
+/** Files per zip request. The route rejects more (the whole multipart body is buffered in
+ *  memory to build the archive), and 30 locales × 2 formats × 10 screenshots is past it –
+ *  so the client ships one archive per chunk rather than one failed request. */
+export const MAX_ZIP_FILES = 600;
 
 export type ExportLanguageChoice = "current" | "working" | "working-plus-listing";
 export type ExportFormatChoice = "current" | "working";
@@ -37,6 +43,11 @@ export function buildExportPlan(
 
 export function exportFileName(language: string, format: string, index: number): string {
   return `${language}/${format}/${index + 1}.png`;
+}
+
+/** Name of one archive of a split export. A single-part export keeps the plain name. */
+export function zipPartName(zipName: string, part: number, total: number): string {
+  return total === 1 ? zipName : zipName.replace(/\.zip$/, `-${part + 1}.zip`);
 }
 
 export function zipFileName(

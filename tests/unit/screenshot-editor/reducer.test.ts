@@ -154,14 +154,10 @@ describe("editorReducer – settings patches", () => {
 });
 
 describe("editorReducer – document level", () => {
-  it("set-output-device and set-custom-size", () => {
+  it("set-output-device", () => {
     let doc = createEmptyDoc();
     doc = editorReducer(doc, { type: "set-output-device", device: "APP_IPHONE_65" });
     expect(doc.outputDevice).toBe("APP_IPHONE_65");
-    doc = editorReducer(doc, { type: "set-custom-size", width: 800, height: 600 });
-    expect(doc.outputDevice).toBe("custom");
-    expect(doc.customWidth).toBe(800);
-    expect(doc.customHeight).toBe(600);
   });
 
   it("replace-doc swaps the whole document (initial load)", () => {

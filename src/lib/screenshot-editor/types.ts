@@ -39,7 +39,7 @@ export interface ScreenshotSettings {
   rotation: number; // degrees
   perspective: number;
   cornerRadius: number; // px at 400px reference width
-  use3D: boolean; // phase 5 — phase 1 always renders 2D
+  use3D: boolean; // phase 5 – phase 1 always renders 2D
   device3D: string;
   rotation3D: { x: number; y: number; z: number };
   frameColor?: string; // 3D frame preset id; absent = first preset of the device
@@ -102,7 +102,7 @@ export interface EditorElement {
   layer: ElementLayer;
   // emoji
   emoji?: string;
-  // icon / graphic — image ref; resolved bitmap is passed separately at render time
+  // icon / graphic – image ref; resolved bitmap is passed separately at render time
   src?: string | null;
   name?: string;
   iconShadow?: Partial<Shadow>;
@@ -185,7 +185,7 @@ export interface ScreenshotDoc {
 /** Anything drawImage accepts that also exposes intrinsic size (browser Image, node-canvas Image, canvas). */
 export type RenderImage = CanvasImageSource & { readonly width: number; readonly height: number };
 
-/** Minimal canvas surface the engine needs — satisfied by HTMLCanvasElement and @napi-rs/canvas Canvas. */
+/** Minimal canvas surface the engine needs – satisfied by HTMLCanvasElement and @napi-rs/canvas Canvas. */
 export interface RenderCanvas {
   width: number;
   height: number;

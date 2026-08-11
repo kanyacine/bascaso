@@ -13,6 +13,7 @@ import { categoryForFormat, hasOwnImage, imageSourceFor } from "@/lib/screenshot
 import { POSITION_PRESETS, matchPositionPreset } from "@/lib/screenshot-editor/position-presets";
 import { FRAME_COLOR_PRESETS, frameColorPreset } from "@/lib/screenshot-editor/three-scene";
 import { useTranslations } from "@/lib/i18n/locale-context";
+import { useAscLabels } from "@/lib/i18n/use-asc-labels";
 import type { EditorAction } from "@/lib/screenshot-editor/reducer";
 import type { ScreenshotDoc, ScreenshotSettings, Shadow } from "@/lib/screenshot-editor/types";
 
@@ -22,6 +23,7 @@ export function ScreenshotPanel({ appId, doc, dispatch }: {
   appId: string; doc: ScreenshotDoc; dispatch: (a: EditorAction) => void;
 }) {
   const t = useTranslations();
+  const { deviceCategoryLabel } = useAscLabels();
   const index = doc.selectedIndex;
   const shot = doc.screenshots[index];
   const s = shot.screenshot;
@@ -75,10 +77,10 @@ export function ScreenshotPanel({ appId, doc, dispatch }: {
           <p className="text-xs text-muted-foreground">
             {inheritedDevice && inheritedLanguage
               ? t("screenshotEditor.imageFromDeviceAndLanguage", {
-                device: inheritedDevice, language: localeName(inheritedLanguage),
+                device: deviceCategoryLabel(inheritedDevice), language: localeName(inheritedLanguage),
               })
               : inheritedDevice
-                ? t("screenshotEditor.imageFromDevice", { device: inheritedDevice })
+                ? t("screenshotEditor.imageFromDevice", { device: deviceCategoryLabel(inheritedDevice) })
                 : t("screenshotEditor.imageFromLanguage", { language: localeName(inheritedLanguage!) })}
           </p>
         ) : null}

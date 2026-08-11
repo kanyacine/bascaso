@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { assetsForShot, collectRefs } from "@/lib/hooks/use-editor-images";
 import { applyTranslationEntries, docWithLanguage, type TranslationEntry } from "@/lib/screenshot-editor/languages";
 import {
-  ASC_MAX_SCREENSHOTS_PER_SET, exportFileName, type ExportJob,
+  ASC_MAX_SCREENSHOTS_PER_SET, MAX_ZIP_FILES, exportFileName, zipPartName, type ExportJob,
 } from "@/lib/screenshot-editor/export";
 import { renderScreenshotToCanvas, resolveScreenshotImage } from "@/lib/screenshot-editor/render/compose";
 import { getCanvasDimensions } from "@/lib/screenshot-editor/devices";
@@ -88,9 +88,10 @@ async function uploadToAsc(
       const res = await fetch(`${base}/${shot.id}`, { method: "DELETE" });
       if (!res.ok) throw new Error("purge failed");
     }
+    // Purge + upload is one unit: cancelling in between used to leave the target set empty on
+    // App Store Connect. The check at the top of the job loop is where a cancel takes effect.
     const capped = files.slice(0, ASC_MAX_SCREENSHOTS_PER_SET);
     for (let i = 0; i < capped.length; i++) {
-      if (isCancelled()) return;
       const form = new FormData();
       form.set("setId", setId);
       form.set("file", new File([capped[i].blob], `${i + 1}.png`, { type: "image/png" }));
@@ -100,9 +101,10 @@ async function uploadToAsc(
   }
 }
 
-export function useEditorExport({ appId, doc, images, laurelImages }: {
+export function useEditorExport({ appId, doc, images, failedImages, laurelImages }: {
   appId: string; doc: ScreenshotDoc;
   images: Map<string, RenderImage>;
+  failedImages: Set<string>;
   laurelImages: Partial<Record<LaurelVariant, RenderImage>>;
 }) {
   const t = useTranslations();
@@ -153,21 +155,33 @@ export function useEditorExport({ appId, doc, images, laurelImages }: {
 
   const runExport = useCallback(async (opts: RunExportOptions): Promise<boolean> => {
     if (doc.screenshots.length === 0) { toast.error(t("screenshotEditor.exportNothing")); return false; }
-    if (collectRefs(doc).some((ref) => !images.has(ref))) {
+    const refs = collectRefs(doc);
+    if (refs.some((ref) => !images.has(ref) && !failedImages.has(ref))) {
       toast.error(t("screenshotEditor.exportImagesLoading"));
       return false;
+    }
+    // Broken refs do not block the run – they would block it forever – but the user has to
+    // know the export is short of them.
+    if (refs.some((ref) => failedImages.has(ref))) {
+      toast.warning(t("screenshotEditor.exportImagesBroken"));
     }
     // Never rasterize a fallback face – await every family the doc uses (appscreen gap).
     await Promise.all(collectFontFamilies(doc).map((f) => loadEditorFont(f).catch(() => {})));
     cancelled.current = false;
     setRunning(true);
     try {
-      // automatic snapshot per export (spec §6)
-      await fetch(`/api/apps/${appId}/screenshot-doc/versions`, {
+      // Automatic snapshot per export (spec §6). It is the only way back from the purge an ASC
+      // export performs, so a snapshot that did not land aborts the export.
+      const snapshot = await fetch(`/api/apps/${appId}/screenshot-doc/versions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: `Export ${new Date().toISOString().slice(0, 16).replace("T", " ")}` }),
+        body: JSON.stringify({
+          name: t("screenshotEditor.exportSnapshotName", {
+            timestamp: new Date().toISOString().slice(0, 16).replace("T", " "),
+          }),
+        }),
       });
+      if (!snapshot.ok) throw new Error("snapshot failed");
       const total = opts.plan.length;
       // Steps, not jobs: rendering every job then uploading each one (or zipping the lot once),
       // so the progress bar sweeps 0 to 100% across the whole run instead of resetting halfway.
@@ -187,18 +201,29 @@ export function useEditorExport({ appId, doc, images, laurelImages }: {
       if (opts.destination === "zip") {
         setProgress({ done: total, total: steps, label: t("screenshotEditor.exportZipping") });
         const files = rendered.flatMap((r) => r.files);
-        const form = new FormData();
-        form.set("name", opts.zipName);
-        form.set("paths", JSON.stringify(files.map((f) => f.path)));
-        for (const f of files) form.append("files", new File([f.blob], "f.png", { type: "image/png" }));
-        const res = await fetch(`/api/apps/${appId}/screenshot-doc/export-zip`, { method: "POST", body: form });
-        if (!res.ok) throw new Error("zip failed");
-        const url = URL.createObjectURL(await res.blob());
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = opts.zipName;
-        link.click();
-        URL.revokeObjectURL(url);
+        // One archive per MAX_ZIP_FILES: a full run (every listing locale × every working
+        // format × 10 screenshots) is past the route's cap, and the paths inside each zip
+        // stay `<lang>/<format>/<index>.png` so the split costs the user nothing but a
+        // second download.
+        const chunks: RenderedFile[][] = [];
+        for (let i = 0; i < files.length; i += MAX_ZIP_FILES) {
+          chunks.push(files.slice(i, i + MAX_ZIP_FILES));
+        }
+        for (const [part, chunk] of chunks.entries()) {
+          const name = zipPartName(opts.zipName, part, chunks.length);
+          const form = new FormData();
+          form.set("name", name);
+          form.set("paths", JSON.stringify(chunk.map((f) => f.path)));
+          for (const f of chunk) form.append("files", new File([f.blob], "f.png", { type: "image/png" }));
+          const res = await fetch(`/api/apps/${appId}/screenshot-doc/export-zip`, { method: "POST", body: form });
+          if (!res.ok) throw new Error("zip failed");
+          const url = URL.createObjectURL(await res.blob());
+          const link = document.createElement("a");
+          link.href = url;
+          link.download = name;
+          link.click();
+          URL.revokeObjectURL(url);
+        }
       } else if (opts.asc) {
         await uploadToAsc(
           appId, rendered, opts.asc,
@@ -220,7 +245,7 @@ export function useEditorExport({ appId, doc, images, laurelImages }: {
       setRunning(false);
       setProgress(null);
     }
-  }, [appId, doc, images, renderJob, t]);
+  }, [appId, doc, images, failedImages, renderJob, t]);
 
   return { running, progress, cancel, runExport };
 }

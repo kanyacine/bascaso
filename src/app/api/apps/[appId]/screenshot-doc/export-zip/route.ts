@@ -2,8 +2,8 @@ import { Readable } from "node:stream";
 import { NextResponse } from "next/server";
 import { ZipArchive } from "archiver";
 import { errorJson } from "@/lib/api-helpers";
+import { MAX_ZIP_FILES } from "@/lib/screenshot-editor/export";
 
-const MAX_FILES = 600;
 const MAX_FILE_BYTES = 25 * 1024 * 1024;
 const PATH_RE = /^[A-Za-z0-9._-]+(\/[A-Za-z0-9._-]+)*$/; // no "..", no leading slash, no quotes
 const NAME_RE = /^[A-Za-z0-9._-]+\.zip$/;
@@ -22,7 +22,7 @@ export async function POST(request: Request, { params }: RouteParams) {
     }
     if (
       !Array.isArray(paths) || paths.length === 0 || paths.length !== files.length ||
-      paths.length > MAX_FILES || !paths.every((p) => typeof p === "string" && PATH_RE.test(p) && !p.includes(".."))
+      paths.length > MAX_ZIP_FILES || !paths.every((p) => typeof p === "string" && PATH_RE.test(p) && !p.includes(".."))
     ) {
       return NextResponse.json({ error: "Invalid file list" }, { status: 400 });
     }

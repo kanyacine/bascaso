@@ -32,6 +32,12 @@ function makeDoc(): ScreenshotDoc {
   const shot = createDefaultScreenshot(DEFAULTS, "ref");
   shot.background = { ...shot.background, type: "solid", solid: "#102030", noise: true, noiseIntensity: 10 };
   shot.text.headlines.en = "Reference headline";
+  // This canvas is a 300×600 miniature and the defaults size type for a 1290 px one: at 100 px
+  // a single word is wider than the frame, and wrapping it fills the whole canvas. Scale the
+  // type to the fixture so the pixel probes below stay about layer order, not text overflow.
+  // (perLanguageLayout is off here, so these fields are the ones the renderer reads.)
+  shot.text.headlineSize = 20;
+  shot.text.subheadlineSize = 10;
   shot.elements.push(
     { id: "behind", type: "text", x: 50, y: 95, width: 60, rotation: 0, opacity: 100,
       layer: "behind-screenshot", text: "behind", font: "sans-serif", fontSize: 12,

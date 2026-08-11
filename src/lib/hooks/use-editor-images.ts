@@ -21,11 +21,19 @@ export function collectRefs(doc: ScreenshotDoc): string[] {
   return [...refs];
 }
 
-export function useEditorImages(appId: string, doc: ScreenshotDoc | null): Map<string, RenderImage> {
+export interface EditorImages {
+  images: Map<string, RenderImage>;
+  /** Refs whose load failed. A ref is requested once, so these never resolve on their own –
+   *  callers that wait on the whole set (export) have to treat them as settled, not pending. */
+  failed: Set<string>;
+}
+
+export function useEditorImages(appId: string, doc: ScreenshotDoc | null): EditorImages {
   // Decoded once per ref; the ref set is write-only outside render, the map is state so a new
   // identity is what tells the canvas effect a bitmap landed.
   const requested = useRef(new Set<string>());
   const [images, setImages] = useState<Map<string, RenderImage>>(() => new Map());
+  const [failed, setFailed] = useState<Set<string>>(() => new Set());
   const refs = useMemo(() => (doc ? collectRefs(doc) : []), [doc]);
 
   useEffect(() => {
@@ -36,11 +44,16 @@ export function useEditorImages(appId: string, doc: ScreenshotDoc | null): Map<s
       img.onload = () => {
         setImages((prev) => new Map(prev).set(ref, img as unknown as RenderImage));
       };
+      // A deleted or corrupt asset used to leave the ref pending forever, and the export
+      // readiness check then refused every export with "images are still loading".
+      img.onerror = () => {
+        setFailed((prev) => new Set(prev).add(ref));
+      };
       img.src = ref.startsWith("data:") ? ref : `/api/apps/${appId}/screenshot-doc/assets/${ref}`;
     }
   }, [appId, refs]);
 
-  return images;
+  return { images, failed };
 }
 
 const LAUREL_VARIANTS: LaurelVariant[] = ["laurel-simple-left", "laurel-detailed-left"];

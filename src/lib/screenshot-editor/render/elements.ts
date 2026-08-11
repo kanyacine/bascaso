@@ -165,7 +165,7 @@ function drawElementFrame(
   context.restore();
 }
 
-// Draw laurel wreath using SVG image — left branch + mirrored right branch.
+// Draw laurel wreath using SVG image – left branch + mirrored right branch.
 // Verbatim port of drawLaurelSVG (app.js:7634-7671). Adaptations: the laurelImages global becomes
 // assets.laurelImages, document.createElement('canvas') becomes env.createCanvas, and the
 // complete/naturalWidth readiness guard becomes a null/size check on the resolved bitmap.
@@ -187,7 +187,7 @@ function drawLaurelSVG(
   const aspect = img.width / img.height;
   const branchW = branchH * aspect;
 
-  // The SVG is black fill — use a temp canvas to recolor it
+  // The SVG is black fill – use a temp canvas to recolor it
   const tmp = env.createCanvas(Math.ceil(branchW), Math.ceil(branchH));
   const tctx = tmp.getContext("2d") as CanvasRenderingContext2D;
 

@@ -109,19 +109,3 @@ export function frameColorPreset(device: string, presetId: string | undefined): 
   return presets.find((p) => p.id === presetId) ?? presets[0];
 }
 
-/**
- * Pre-v2 appscreen projects used xOffset = ((x-50)/50)*2 and yOffset = -((y-50)/50)*3.
- * Convert to the v2 formula so the visual offset is identical (app.js:1554-1571).
- * Only relevant for appscreen imports – every bascaso doc is v2-native.
- */
-export function migrate3DPosition(ss: ScreenshotSettings): ScreenshotSettings {
-  if (!ss.use3D) return ss;
-  const scale = (ss.scale || 70) / 100;
-  const xFactor = 2 / ((1 - scale) * 0.9);
-  const yFactor = 3 / ((1 - scale) * 2);
-  return {
-    ...ss,
-    x: Math.max(0, Math.min(100, 50 + ((ss.x ?? 50) - 50) * xFactor)),
-    y: Math.max(0, Math.min(100, 50 + ((ss.y ?? 50) - 50) * yFactor)),
-  };
-}

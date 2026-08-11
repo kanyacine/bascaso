@@ -2,7 +2,7 @@
 import type { Dimensions, RenderImage, ResolvedPopout, ScreenshotSettings } from "../types";
 
 // Verbatim port of drawPopoutsToContext (app.js:7511-7583). screenshotSettings is unused in the
-// body — kept for signature parity with the appscreen call site.
+// body – kept for signature parity with the appscreen call site.
 export function drawPopoutsToContext(
   context: CanvasRenderingContext2D,
   dims: Dimensions,

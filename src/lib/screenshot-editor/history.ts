@@ -35,7 +35,6 @@ const PURGING: ReadonlySet<EditorAction["type"]> = new Set([
   "replace-doc",
   "set-output-device",
   "toggle-output-device",
-  "set-custom-size",
   "set-current-language",
   "add-language",
   "remove-language",

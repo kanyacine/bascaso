@@ -33,8 +33,8 @@ export default function ScreenshotEditorPage({ params }: { params: Promise<{ app
   const t = useTranslations();
   const { apps } = useApps();
   const app = apps.find((a) => a.id === appId);
-  const { doc, dispatch, saveState, undo, canUndo } = useEditorDoc(appId);
-  const images = useEditorImages(appId, doc);
+  const { doc, dispatch, saveState, loadFailed, undo, canUndo } = useEditorDoc(appId);
+  const { images, failed: failedImages } = useEditorImages(appId, doc);
   const laurelImages = useLaurelImages();
   const fontsVersion = useEditorFonts(doc);
   const mockup = useEditorMockups(doc, images);
@@ -64,7 +64,13 @@ export default function ScreenshotEditorPage({ params }: { params: Promise<{ app
   };
 
   if (!doc) {
-    return <div className="flex flex-1 items-center justify-center"><Spinner /></div>;
+    return (
+      <div className="flex flex-1 items-center justify-center">
+        {loadFailed
+          ? <p className="error-banner">{t("screenshotEditor.loadFailed")}</p>
+          : <Spinner />}
+      </div>
+    );
   }
 
   const selected = doc.screenshots[doc.selectedIndex];
@@ -167,9 +173,9 @@ export default function ScreenshotEditorPage({ params }: { params: Promise<{ app
       <LanguagesDialog open={languagesOpen} onOpenChange={setLanguagesOpen}
                        doc={doc} dispatch={dispatch} appId={appId} appName={app?.name}
                        primaryLocale={app?.primaryLocale ?? ""} />
-      <ExportDialog open={exportOpen} onOpenChange={setExportOpen} doc={doc} dispatch={dispatch}
+      <ExportDialog open={exportOpen} onOpenChange={setExportOpen} doc={doc}
                     appId={appId} appName={app?.name} primaryLocale={app?.primaryLocale ?? ""}
-                    images={images} laurelImages={laurelImages} />
+                    images={images} failedImages={failedImages} laurelImages={laurelImages} />
       <VersionsDialog open={versionsOpen} onOpenChange={setVersionsOpen} appId={appId} doc={doc} dispatch={dispatch} />
     </div>
   );

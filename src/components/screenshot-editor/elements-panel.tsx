@@ -40,8 +40,10 @@ const FRAMES: { value: string; key: MessageKey }[] = [
   { value: "badge-circle", key: "screenshotEditor.badgeCircle" },
   { value: "badge-ribbon", key: "screenshotEditor.badgeRibbon" },
 ];
-const LAYER_SHORT: Record<EditorElement["layer"], string> = {
-  "behind-screenshot": "Behind", "above-screenshot": "Middle", "above-text": "Front",
+const LAYER_KEY: Record<EditorElement["layer"], MessageKey> = {
+  "behind-screenshot": "screenshotEditor.layerBehind",
+  "above-screenshot": "screenshotEditor.layerMiddle",
+  "above-text": "screenshotEditor.layerFront",
 };
 
 export function ElementsPanel({ appId, doc, dispatch, images, selectedElementId, onSelectElement }: {
@@ -118,7 +120,7 @@ export function ElementsPanel({ appId, doc, dispatch, images, selectedElementId,
               <span className="truncate">
                 {el.type === "text" ? getElementText(el, doc.currentLanguage) || el.name : el.name}
               </span>
-              <span className="ml-auto shrink-0 text-xs text-muted-foreground">{LAYER_SHORT[el.layer]}</span>
+              <span className="ml-auto shrink-0 text-xs text-muted-foreground">{t(LAYER_KEY[el.layer])}</span>
             </button>
             <div className="hidden shrink-0 gap-0.5 group-hover:flex">
               <Button size="icon" variant="ghost" className="size-6" disabled={i === 0}

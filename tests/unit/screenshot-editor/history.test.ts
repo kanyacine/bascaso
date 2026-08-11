@@ -36,7 +36,7 @@ describe("pushHistory", () => {
   it("purges on anything a snapshot could not survive", () => {
     const full = pushHistory(EMPTY_HISTORY, doc(1), addElement, 0);
     for (const type of [
-      "replace-doc", "set-output-device", "toggle-output-device", "set-custom-size",
+      "replace-doc", "set-output-device", "toggle-output-device",
       "set-current-language", "add-language", "remove-language",
     ] as const) {
       expect(pushHistory(full, doc(4), { type } as EditorAction, 100).stack, type).toEqual([]);
