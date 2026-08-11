@@ -3,5 +3,5 @@
 // tags on this repository still belong to. Three integers, because
 // CFBundleShortVersionString, update.electronjs.org and docker.yml's
 // type=semver tag all parse this as semver.
-export const APP_VERSION = "2026.8.0";
-export const BUILD_NUMBER = "20260803";
+export const APP_VERSION = "2026.8.1";
+export const BUILD_NUMBER = "20260811";
