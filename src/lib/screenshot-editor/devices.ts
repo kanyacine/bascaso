@@ -9,6 +9,9 @@ export interface EditorFormat {
   height: number;
 }
 
+/** Working formats a new doc starts on when the app has no screenshots in App Store Connect yet. */
+export const DEFAULT_WORKING_FORMATS = ["APP_IPHONE_65", "APP_IPAD_PRO_3GEN_11"];
+
 // Sizes match DISPLAY_TYPE_SIZES in src/lib/asc/display-types.ts (asserted by test).
 export const EDITOR_FORMATS: EditorFormat[] = [
   { key: "APP_IPHONE_67", label: DISPLAY_TYPE_LABELS.APP_IPHONE_67, width: 1260, height: 2736 },

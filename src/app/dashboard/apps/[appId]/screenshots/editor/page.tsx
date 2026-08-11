@@ -8,7 +8,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useApps } from "@/lib/apps-context";
 import { useTranslations } from "@/lib/i18n/locale-context";
 import { useEditorDoc } from "@/lib/hooks/use-editor-doc";
@@ -16,6 +15,7 @@ import { useEditorFonts } from "@/lib/hooks/use-editor-fonts";
 import { useEditorImages, useLaurelImages } from "@/lib/hooks/use-editor-images";
 import { useEditorMockups } from "@/lib/hooks/use-editor-mockups";
 import { EditorCanvas } from "@/components/screenshot-editor/editor-canvas";
+import { IconTooltip } from "@/components/screenshot-editor/panel-controls";
 import { ScreenshotStrip } from "@/components/screenshot-editor/screenshot-strip";
 import { BackgroundPanel } from "@/components/screenshot-editor/background-panel";
 import { ScreenshotPanel } from "@/components/screenshot-editor/screenshot-panel";
@@ -94,15 +94,17 @@ export default function ScreenshotEditorPage({ params }: { params: Promise<{ app
         )}
       </div>
       <div className="flex w-80 shrink-0 flex-col gap-4 overflow-y-auto">
-        <div className="flex items-center justify-between">
+        {/* One grid for both rows: the selects share a column (same width), the icon buttons share
+            the next one, and the save label sits in the export button's column. The panels render
+            with `display: contents` so their controls land in these columns directly. */}
+        <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2">
           <FormatSelect doc={doc} dispatch={dispatch} />
-          <span className="text-xs text-muted-foreground">
+          {/* Capped so a long "saving…" never widens the column and nudges the selects. */}
+          <span className="max-w-24 truncate text-right text-xs text-muted-foreground">
             {saveState === "saving" ? t("screenshotEditor.saving") : saveState === "saved" ? t("screenshotEditor.saved") : ""}
           </span>
-        </div>
-        <div className="flex items-center justify-between gap-2">
           <LanguageSwitcher doc={doc} dispatch={dispatch} onManage={() => setLanguagesOpen(true)} />
-          <Button size="sm" className="shrink-0" onClick={() => setExportOpen(true)}
+          <Button size="sm" onClick={() => setExportOpen(true)}
                   disabled={doc.screenshots.length === 0}>
             <Export size={16} className="mr-1.5" />{t("screenshotEditor.export")}
           </Button>
@@ -117,22 +119,16 @@ export default function ScreenshotEditorPage({ params }: { params: Promise<{ app
                 ["elements", Shapes, t("screenshotEditor.elements")],
                 ["popouts", Crop, t("screenshotEditor.popouts")],
               ] as const).map(([value, Icon, label]) => (
-                // The tooltip wraps the icon, not the trigger: as a parent with asChild it spreads
-                // its own data-state onto TabsTrigger and overwrites data-state="active", which
-                // kills the selected-tab styling.
                 <TabsTrigger key={value} value={value} aria-label={label}
                              className="data-[state=active]:text-primary">
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className="flex items-center"><Icon size={16} /></span>
-                    </TooltipTrigger>
-                    <TooltipContent>{label}</TooltipContent>
-                  </Tooltip>
+                  <IconTooltip label={label}><Icon size={16} /></IconTooltip>
                 </TabsTrigger>
               ))}
             </TabsList>
             <TabsContent value="background"><BackgroundPanel doc={doc} dispatch={dispatch} appId={appId} /></TabsContent>
-            <TabsContent value="screenshot"><ScreenshotPanel doc={doc} dispatch={dispatch} /></TabsContent>
+            <TabsContent value="screenshot">
+              <ScreenshotPanel appId={appId} doc={doc} dispatch={dispatch} />
+            </TabsContent>
             <TabsContent value="text">
               <TextPanel doc={doc} dispatch={dispatch} onMagicTitles={() => setMagicTitlesOpen(true)} />
             </TabsContent>

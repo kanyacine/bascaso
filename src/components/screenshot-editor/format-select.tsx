@@ -15,13 +15,15 @@ export function FormatSelect({ doc, dispatch }: { doc: ScreenshotDoc; dispatch: 
   const t = useTranslations();
   const working = workingFormats(doc);
   return (
-    <div className="flex items-center gap-1">
+    // `contents`: the select and the popover button are columns of the editor's header grid.
+    <div className="contents">
       <Select value={doc.outputDevice} onValueChange={(v) => dispatch({ type: "set-output-device", device: v })}>
-        <SelectTrigger className="w-44 text-sm" aria-label={t("screenshotEditor.format")}>
+        <SelectTrigger className="w-full min-w-0 text-sm" aria-label={t("screenshotEditor.format")}>
           <SelectValue />
         </SelectTrigger>
+        {/* Only the working formats switch the canvas – the full catalog lives in the popover. */}
         <SelectContent>
-          {EDITOR_FORMATS.map((f) => (
+          {EDITOR_FORMATS.filter((f) => working.includes(f.key)).map((f) => (
             <SelectItem key={f.key} value={f.key}>{f.label} – {f.width}×{f.height}</SelectItem>
           ))}
         </SelectContent>

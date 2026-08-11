@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getOrCreateCurrentDoc, saveCurrentDoc } from "@/lib/screenshot-docs";
+import { currentDocExists, getOrCreateCurrentDoc, saveCurrentDoc } from "@/lib/screenshot-docs";
+import { listApps } from "@/lib/asc/apps";
+import { listLocalizations } from "@/lib/asc/localizations";
+import { listScreenshotSets } from "@/lib/asc/screenshots";
+import { listVersions } from "@/lib/asc/versions";
+import { resolveVersion } from "@/lib/asc/version-types";
+import { EDITOR_FORMATS } from "@/lib/screenshot-editor/devices";
 import { parseBody, errorJson } from "@/lib/api-helpers";
 import type { ScreenshotDoc } from "@/lib/screenshot-editor/types";
 
@@ -21,10 +27,38 @@ const putSchema = z.object({ doc: docSchema });
 
 type RouteParams = { params: Promise<{ appId: string }> };
 
+/**
+ * Working formats for a doc that does not exist yet: the display types the app already ships,
+ * intersected with what the editor can render. `undefined` leaves createEmptyDoc on its default.
+ * ponytail: probes the primary localization only – a shipped app has its screenshots there.
+ */
+async function shippedFormats(appId: string): Promise<string[] | undefined> {
+  try {
+    const [apps, versions] = await Promise.all([listApps(), listVersions(appId)]);
+    const version = resolveVersion(versions, null);
+    if (!version) return undefined;
+    const localizations = await listLocalizations(version.id);
+    const primaryLocale = apps.find((a) => a.id === appId)?.attributes.primaryLocale;
+    const localization =
+      localizations.find((l) => l.attributes.locale === primaryLocale) ?? localizations[0];
+    if (!localization) return undefined;
+    const shipped = new Set(
+      (await listScreenshotSets(localization.id))
+        .filter((s) => s.screenshots.length > 0)
+        .map((s) => s.attributes.screenshotDisplayType),
+    );
+    const formats = EDITOR_FORMATS.filter((f) => shipped.has(f.key)).map((f) => f.key);
+    return formats.length > 0 ? formats : undefined;
+  } catch {
+    return undefined; // no credentials, demo mode, ASC down – the default pair is a fine start
+  }
+}
+
 export async function GET(_request: Request, { params }: RouteParams) {
   const { appId } = await params;
   try {
-    return NextResponse.json(getOrCreateCurrentDoc(appId));
+    const formats = currentDocExists(appId) ? undefined : await shippedFormats(appId);
+    return NextResponse.json(getOrCreateCurrentDoc(appId, formats));
   } catch (err) {
     return errorJson(err);
   }

@@ -1,28 +1,82 @@
 "use client";
 
+import { useRef, useState } from "react";
+import { TrashSimple } from "@phosphor-icons/react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { PanelColor, PanelSlider } from "./panel-controls";
+import { uploadAsset } from "./upload-asset";
+import { localeName } from "@/lib/asc/locale-names";
+import { imageLanguageFor } from "@/lib/screenshot-editor/languages";
 import { POSITION_PRESETS, matchPositionPreset } from "@/lib/screenshot-editor/position-presets";
 import { FRAME_COLOR_PRESETS, frameColorPreset } from "@/lib/screenshot-editor/three-scene";
 import { useTranslations } from "@/lib/i18n/locale-context";
 import type { EditorAction } from "@/lib/screenshot-editor/reducer";
 import type { ScreenshotDoc, ScreenshotSettings, Shadow } from "@/lib/screenshot-editor/types";
 
-export function ScreenshotPanel({ doc, dispatch }: {
-  doc: ScreenshotDoc; dispatch: (a: EditorAction) => void;
+const ACCEPTED_TYPES = "image/png,image/jpeg,image/webp";
+
+export function ScreenshotPanel({ appId, doc, dispatch }: {
+  appId: string; doc: ScreenshotDoc; dispatch: (a: EditorAction) => void;
 }) {
   const t = useTranslations();
   const index = doc.selectedIndex;
-  const s = doc.screenshots[index].screenshot;
+  const shot = doc.screenshots[index];
+  const s = shot.screenshot;
   const patch = (p: Partial<ScreenshotSettings>) => dispatch({ type: "set-screenshot-setting", index, patch: p });
   const shadow = (p: Partial<Shadow>) => dispatch({ type: "set-shadow", index, patch: p });
   const frame = (p: Partial<ScreenshotSettings["frame"]>) => dispatch({ type: "set-frame", index, patch: p });
   const activePreset = matchPositionPreset(s);
 
+  // The image is per working language, like the rest of the localized content.
+  const language = doc.currentLanguage;
+  const imageLanguage = imageLanguageFor(shot, language, doc.projectLanguages);
+  const hasImage = imageLanguage === language || (imageLanguage === null && Boolean(shot.src));
+  // Without this the canvas keeps showing another language's image after a delete, unexplained.
+  const inheritedFrom = hasImage ? null : imageLanguage;
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const onFile = async (files: FileList | null) => {
+    const file = files?.[0];
+    if (fileInput.current) fileInput.current.value = "";
+    if (!file) return;
+    setUploading(true);
+    try {
+      dispatch({ type: "set-screenshot-image", index, language, imageRef: await uploadAsset(appId, file) });
+    } catch {
+      toast.error(t("screenshotEditor.uploadFailed"));
+    } finally {
+      setUploading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
+      <section className="space-y-3">
+        <h3 className="section-title">{t("screenshotEditor.image")}</h3>
+        <div className="flex gap-1.5">
+          <Button size="sm" variant="outline" className="flex-1" disabled={uploading}
+                  onClick={() => fileInput.current?.click()}>
+            {hasImage ? t("screenshotEditor.replaceImage") : t("screenshotEditor.addImage")}
+          </Button>
+          <Button size="icon" variant="outline" className="size-8" disabled={!hasImage}
+                  aria-label={t("screenshotEditor.removeImage")}
+                  onClick={() => dispatch({ type: "clear-screenshot-image", index, language })}>
+            <TrashSimple size={14} />
+          </Button>
+        </div>
+        {inheritedFrom ? (
+          <p className="text-xs text-muted-foreground">
+            {t("screenshotEditor.imageFromLanguage", { language: localeName(inheritedFrom) })}
+          </p>
+        ) : null}
+        <input ref={fileInput} type="file" accept={ACCEPTED_TYPES} hidden
+               onChange={(e) => onFile(e.target.files)} />
+      </section>
+
       <section className="space-y-3">
         <h3 className="section-title">{t("screenshotEditor.deviceType")}</h3>
         <ToggleGroup type="single" variant="outline" size="sm" value={s.use3D ? "3d" : "2d"} className="w-full"

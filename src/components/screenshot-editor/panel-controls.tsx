@@ -1,6 +1,23 @@
 "use client";
 
 import { Slider } from "@/components/ui/slider";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+
+/**
+ * Hover label for an icon-only control. The trigger wraps the icon rather than the button: as a
+ * parent with asChild it spreads its own data-state onto the button and overwrites the open/active
+ * state the tabs and popovers style themselves with.
+ */
+export function IconTooltip({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="flex items-center">{children}</span>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  );
+}
 
 export function PanelSlider({ label, value, min, max, step = 1, onChange }: {
   label: string; value: number; min: number; max: number; step?: number; onChange: (v: number) => void;

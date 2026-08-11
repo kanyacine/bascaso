@@ -5,6 +5,7 @@ import { SquaresFour } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { IconTooltip } from "./panel-controls";
 import { ICON_CATALOG } from "./icon-catalog";
 import { useTranslations } from "@/lib/i18n/locale-context";
 
@@ -19,7 +20,7 @@ export function IconPicker({ onPick }: { onPick: (name: string) => void }) {
     <Popover open={open} onOpenChange={(o) => { setOpen(o); if (!o) setQuery(""); }}>
       <PopoverTrigger asChild>
         <Button variant="outline" size="sm" aria-label={t("screenshotEditor.addIcon")}>
-          <SquaresFour size={16} />
+          <IconTooltip label={t("screenshotEditor.addIcon")}><SquaresFour size={16} /></IconTooltip>
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-72 p-2" align="start">

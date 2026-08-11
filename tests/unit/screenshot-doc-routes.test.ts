@@ -8,7 +8,9 @@ const mockGetVersion = vi.fn();
 const mockRestore = vi.fn();
 const mockDuplicate = vi.fn();
 const mockDelete = vi.fn();
+const mockExists = vi.fn();
 vi.mock("@/lib/screenshot-docs", () => ({
+  currentDocExists: (...a: unknown[]) => mockExists(...a),
   getOrCreateCurrentDoc: (...a: unknown[]) => mockGetOrCreate(...a),
   saveCurrentDoc: (...a: unknown[]) => mockSave(...a),
   saveVersionSnapshot: (...a: unknown[]) => mockSnapshot(...a),
@@ -19,20 +21,71 @@ vi.mock("@/lib/screenshot-docs", () => ({
   deleteVersionSnapshot: (...a: unknown[]) => mockDelete(...a),
 }));
 
+const mockApps = vi.fn();
+const mockVersions = vi.fn();
+const mockLocalizations = vi.fn();
+const mockSets = vi.fn();
+vi.mock("@/lib/asc/apps", () => ({ listApps: () => mockApps() }));
+vi.mock("@/lib/asc/versions", () => ({ listVersions: (...a: unknown[]) => mockVersions(...a) }));
+vi.mock("@/lib/asc/localizations", () => ({ listLocalizations: (...a: unknown[]) => mockLocalizations(...a) }));
+vi.mock("@/lib/asc/screenshots", () => ({ listScreenshotSets: (...a: unknown[]) => mockSets(...a) }));
+
+function ascWithSets(displayTypes: string[]) {
+  mockApps.mockResolvedValue([{ id: "app-1", attributes: { primaryLocale: "fr-FR" } }]);
+  mockVersions.mockResolvedValue([{ id: "v1", attributes: { appVersionState: "PREPARE_FOR_SUBMISSION" } }]);
+  mockLocalizations.mockResolvedValue([
+    { id: "loc-en", attributes: { locale: "en-US" } },
+    { id: "loc-fr", attributes: { locale: "fr-FR" } },
+  ]);
+  mockSets.mockResolvedValue(
+    displayTypes.map((t) => ({ id: `set-${t}`, attributes: { screenshotDisplayType: t }, screenshots: [{ id: "s1" }] })),
+  );
+}
+
 beforeEach(() => { vi.clearAllMocks(); });
 
 const params = { params: Promise.resolve({ appId: "app-1" }) };
 
 describe("GET /api/apps/[appId]/screenshot-doc", () => {
-  it("returns the current doc, creating it on first access", async () => {
+  it("returns an existing doc without probing App Store Connect", async () => {
+    mockExists.mockReturnValue(true);
     mockGetOrCreate.mockReturnValue({ id: "01A", doc: { screenshots: [] }, updatedAt: "2026-08-10T00:00:00.000Z" });
     const { GET } = await import("@/app/api/apps/[appId]/screenshot-doc/route");
     const res = await GET(new Request("http://localhost"), params);
-    expect(mockGetOrCreate).toHaveBeenCalledWith("app-1");
+    expect(mockGetOrCreate).toHaveBeenCalledWith("app-1", undefined);
+    expect(mockVersions).not.toHaveBeenCalled();
     expect(await res.json()).toEqual({ id: "01A", doc: { screenshots: [] }, updatedAt: "2026-08-10T00:00:00.000Z" });
   });
 
+  it("seeds a new doc from the primary locale's shipped display types, editor formats only", async () => {
+    mockExists.mockReturnValue(false);
+    ascWithSets(["APP_IPAD_PRO_3GEN_11", "APP_WATCH_ULTRA", "APP_IPHONE_67"]);
+    mockGetOrCreate.mockReturnValue({ id: "01A", doc: {}, updatedAt: "t" });
+    const { GET } = await import("@/app/api/apps/[appId]/screenshot-doc/route");
+    await GET(new Request("http://localhost"), params);
+    expect(mockSets).toHaveBeenCalledWith("loc-fr");
+    expect(mockGetOrCreate).toHaveBeenCalledWith("app-1", ["APP_IPHONE_67", "APP_IPAD_PRO_3GEN_11"]);
+  });
+
+  it("ignores empty sets and falls back when App Store Connect is unreachable", async () => {
+    mockExists.mockReturnValue(false);
+    mockGetOrCreate.mockReturnValue({ id: "01A", doc: {}, updatedAt: "t" });
+    const { GET } = await import("@/app/api/apps/[appId]/screenshot-doc/route");
+
+    ascWithSets(["APP_IPHONE_67"]);
+    mockSets.mockResolvedValue([
+      { id: "set-1", attributes: { screenshotDisplayType: "APP_IPHONE_67" }, screenshots: [] },
+    ]);
+    await GET(new Request("http://localhost"), params);
+    expect(mockGetOrCreate).toHaveBeenLastCalledWith("app-1", undefined);
+
+    mockVersions.mockRejectedValue(new Error("no credentials"));
+    await GET(new Request("http://localhost"), params);
+    expect(mockGetOrCreate).toHaveBeenLastCalledWith("app-1", undefined);
+  });
+
   it("maps lib errors through errorJson", async () => {
+    mockExists.mockReturnValue(true);
     mockGetOrCreate.mockImplementation(() => { throw new Error("boom"); });
     const { GET } = await import("@/app/api/apps/[appId]/screenshot-doc/route");
     const res = await GET(new Request("http://localhost"), params);

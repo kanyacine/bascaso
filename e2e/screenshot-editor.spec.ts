@@ -26,12 +26,14 @@ test("create – edit – export – persist", async ({ page }) => {
   // Autosave settles (800ms debounce) – the save state label flips to "Saved"
   await expect(page.getByText("Saved", { exact: true })).toBeVisible({ timeout: 5_000 });
 
-  // Export as zip (destination defaults to zip; ASC is disabled in demo without an editable version)
+  // Export as zip: the destination defaults to ASC, which demo mode has no editable version for,
+  // so the dialog falls back to the zip.
   await page.getByRole("button", { name: "Export", exact: true }).first().click();
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("dialog").getByRole("button", { name: "Export", exact: true }).click();
   const download = await downloadPromise;
-  expect(download.suggestedFilename()).toBe("screenshots_en-US_APP_IPHONE_67.zip");
+  // Demo mode has no ASC to probe, so the doc starts on the default working formats.
+  expect(download.suggestedFilename()).toBe("screenshots_en-US_APP_IPHONE_65.zip");
 
   // Persistence – reload and the headline is still there
   await page.reload();

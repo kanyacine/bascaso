@@ -11,6 +11,8 @@ import { renderScreenshotToCanvas, resolveScreenshotImage } from "@/lib/screensh
 import { getCanvasDimensions } from "@/lib/screenshot-editor/devices";
 import { collectFontFamilies } from "@/lib/screenshot-editor/fonts";
 import { getMockupRenderer } from "@/lib/screenshot-editor/three-renderer";
+import { displayTypeLabel } from "@/lib/asc/display-types";
+import { localeName } from "@/lib/asc/locale-names";
 import { loadEditorFont } from "./use-editor-fonts";
 import { useTranslations } from "@/lib/i18n/locale-context";
 import type { AscLocalization } from "@/lib/asc/localizations";
@@ -44,18 +46,18 @@ async function uploadToAsc(
   appId: string,
   jobs: { job: ExportJob; files: RenderedFile[] }[],
   asc: { versionId: string; localizations: AscLocalization[] },
-  onProgress: (job: ExportJob) => void,
+  onProgress: (job: ExportJob, index: number) => void,
   isCancelled: () => boolean,
 ): Promise<void> {
   const setCache = new Map<string, string>(); // `${localizationId}:${displayType}` → setId
   const setsFetched = new Map<string, AscScreenshotSet[]>();
-  for (const { job, files } of jobs) {
+  for (const [index, { job, files }] of jobs.entries()) {
     if (isCancelled()) return;
     if (job.format === "custom") continue; // not an ASC display type – warned in the dialog
     const localization = asc.localizations.find((l) => l.attributes.locale === job.language);
     if (!localization) continue; // missing locales were surfaced in the dialog
     const base = `/api/apps/${appId}/versions/${asc.versionId}/localizations/${localization.id}/screenshots`;
-    onProgress(job);
+    onProgress(job, index);
     const cacheKey = `${localization.id}:${job.format}`;
     let setId = setCache.get(cacheKey);
     let existing: { id: string }[] = [];
@@ -105,7 +107,10 @@ export function useEditorExport({ appId, doc, images, laurelImages }: {
 }) {
   const t = useTranslations();
   const [running, setRunning] = useState(false);
-  const [progress, setProgress] = useState<{ done: number; total: number; label: string } | null>(null);
+  // `language` drives the "n languages done" counter in the dialog – the plan is language-major.
+  const [progress, setProgress] = useState<
+    { done: number; total: number; label: string; language?: string } | null
+  >(null);
   const cancelled = useRef(false);
 
   const cancel = useCallback(() => { cancelled.current = true; }, []);
@@ -164,18 +169,23 @@ export function useEditorExport({ appId, doc, images, laurelImages }: {
         body: JSON.stringify({ name: `Export ${new Date().toISOString().slice(0, 16).replace("T", " ")}` }),
       });
       const total = opts.plan.length;
+      // Steps, not jobs: rendering every job then uploading each one (or zipping the lot once),
+      // so the progress bar sweeps 0 to 100% across the whole run instead of resetting halfway.
+      const steps = opts.destination === "asc" ? total * 2 : total + 1;
       const rendered: { job: ExportJob; files: RenderedFile[] }[] = [];
       for (let i = 0; i < opts.plan.length; i++) {
         if (cancelled.current) return false;
         const job = opts.plan[i];
         setProgress({
-          done: i, total,
-          label: t("screenshotEditor.exportRendering", { language: job.language, format: job.format }),
+          done: i, total: steps, language: job.language,
+          label: t("screenshotEditor.exportRendering", {
+            language: localeName(job.language), format: displayTypeLabel(job.format),
+          }),
         });
         rendered.push({ job, files: await renderJob(job, opts.translations) });
       }
       if (opts.destination === "zip") {
-        setProgress({ done: total, total, label: t("screenshotEditor.exportZipping") });
+        setProgress({ done: total, total: steps, label: t("screenshotEditor.exportZipping") });
         const files = rendered.flatMap((r) => r.files);
         const form = new FormData();
         form.set("name", opts.zipName);
@@ -192,9 +202,11 @@ export function useEditorExport({ appId, doc, images, laurelImages }: {
       } else if (opts.asc) {
         await uploadToAsc(
           appId, rendered, opts.asc,
-          (job) => setProgress({
-            done: total, total,
-            label: t("screenshotEditor.exportUploading", { language: job.language, format: job.format }),
+          (job, index) => setProgress({
+            done: total + index, total: steps, language: job.language,
+            label: t("screenshotEditor.exportUploading", {
+              language: localeName(job.language), format: displayTypeLabel(job.format),
+            }),
           }),
           () => cancelled.current,
         );

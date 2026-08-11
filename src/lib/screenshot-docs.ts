@@ -2,15 +2,19 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { screenshotDocs } from "@/db/schema";
 import { DEFAULTS } from "@/lib/screenshot-editor/defaults";
-import { EDITOR_FORMATS } from "@/lib/screenshot-editor/devices";
+import { DEFAULT_WORKING_FORMATS, EDITOR_FORMATS } from "@/lib/screenshot-editor/devices";
 import { normalizeDocLanguages } from "@/lib/screenshot-editor/languages";
 import type { ScreenshotDoc } from "@/lib/screenshot-editor/types";
 
-export function createEmptyDoc(): ScreenshotDoc {
+/** `formats` seeds the working formats; unknown keys are dropped, an empty result falls back. */
+export function createEmptyDoc(formats: string[] = DEFAULT_WORKING_FORMATS): ScreenshotDoc {
+  const known = EDITOR_FORMATS.filter((f) => formats.includes(f.key)).map((f) => f.key);
+  const outputDevices = known.length > 0 ? known : [...DEFAULT_WORKING_FORMATS];
   return normalizeDocLanguages({
     screenshots: [],
     selectedIndex: 0,
-    outputDevice: EDITOR_FORMATS[0].key,
+    outputDevice: outputDevices[0],
+    outputDevices,
     customWidth: 1290,
     customHeight: 2796,
     currentLanguage: "en",
@@ -27,13 +31,21 @@ function currentRow(appId: string) {
     .get();
 }
 
-export function getOrCreateCurrentDoc(appId: string): { id: string; doc: ScreenshotDoc; updatedAt: string } {
+/** Lets a caller skip an expensive `formats` lookup when the doc already exists. */
+export function currentDocExists(appId: string): boolean {
+  return currentRow(appId) !== undefined;
+}
+
+export function getOrCreateCurrentDoc(
+  appId: string,
+  formats?: string[],
+): { id: string; doc: ScreenshotDoc; updatedAt: string } {
   const existing = currentRow(appId);
   if (existing) {
     const doc = normalizeDocLanguages(JSON.parse(existing.doc) as ScreenshotDoc);
     return { id: existing.id, doc, updatedAt: existing.updatedAt };
   }
-  const doc = createEmptyDoc();
+  const doc = createEmptyDoc(formats);
   const inserted = db
     .insert(screenshotDocs)
     .values({

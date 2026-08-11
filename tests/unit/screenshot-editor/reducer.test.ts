@@ -87,6 +87,16 @@ describe("editorReducer – screenshots list", () => {
     doc = editorReducer(doc, { type: "set-screenshot-image", index: 0, language: "en", imageRef: "new.png" });
     expect(doc.screenshots[0].localizedImages.en).toEqual({ src: "new.png" });
   });
+
+  it("clear-screenshot-image drops the language entry and the legacy single image", () => {
+    let doc = docWithShots(1);
+    doc = editorReducer(doc, { type: "set-screenshot-image", index: 0, language: "en-US", imageRef: "new.png" });
+    doc.screenshots[0].src = "legacy.png";
+    doc = editorReducer(doc, { type: "clear-screenshot-image", index: 0, language: "en-US" });
+    expect(doc.screenshots[0].localizedImages).toEqual({});
+    expect(doc.screenshots[0].src).toBeNull();
+    expect(editorReducer(doc, { type: "clear-screenshot-image", index: 9, language: "en-US" })).toBe(doc);
+  });
 });
 
 describe("editorReducer – settings patches", () => {
@@ -429,33 +439,54 @@ describe("editorReducer – languages", () => {
 });
 
 describe("editorReducer – working formats", () => {
-  it("toggle-output-device materializes, adds and removes, in EDITOR_FORMATS order", () => {
-    let doc = createEmptyDoc(); // outputDevice APP_IPHONE_67, outputDevices absent
-    doc = editorReducer(doc, { type: "toggle-output-device", device: "APP_IPAD_PRO_3GEN_129" });
-    expect(doc.outputDevices).toEqual(["APP_IPHONE_67", "APP_IPAD_PRO_3GEN_129"]);
-    doc = editorReducer(doc, { type: "toggle-output-device", device: "APP_IPHONE_65" });
-    expect(doc.outputDevices).toEqual(["APP_IPHONE_67", "APP_IPHONE_65", "APP_IPAD_PRO_3GEN_129"]);
-    doc = editorReducer(doc, { type: "toggle-output-device", device: "APP_IPHONE_65" });
-    expect(doc.outputDevices).toEqual(["APP_IPHONE_67", "APP_IPAD_PRO_3GEN_129"]);
+  // Docs written before working formats existed have no list – the reducer materializes it.
+  function legacyDoc() {
+    const doc = createEmptyDoc();
+    delete doc.outputDevices;
+    return doc;
+  }
+
+  it("toggle-output-device materializes an absent list from the current device", () => {
+    const doc = editorReducer(legacyDoc(), { type: "toggle-output-device", device: "APP_IPAD_PRO_3GEN_129" });
+    expect(doc.outputDevices).toEqual(["APP_IPHONE_65", "APP_IPAD_PRO_3GEN_129"]);
+  });
+
+  it("adds and removes in EDITOR_FORMATS order", () => {
+    let doc = createEmptyDoc(); // ["APP_IPHONE_65", "APP_IPAD_PRO_3GEN_11"]
+    doc = editorReducer(doc, { type: "toggle-output-device", device: "APP_IPHONE_67" });
+    expect(doc.outputDevices).toEqual(["APP_IPHONE_67", "APP_IPHONE_65", "APP_IPAD_PRO_3GEN_11"]);
+    doc = editorReducer(doc, { type: "toggle-output-device", device: "APP_IPHONE_67" });
+    expect(doc.outputDevices).toEqual(["APP_IPHONE_65", "APP_IPAD_PRO_3GEN_11"]);
   });
 
   it("refuses to remove the current device or add unknown keys", () => {
-    let doc = createEmptyDoc();
-    doc = editorReducer(doc, { type: "toggle-output-device", device: "APP_IPHONE_65" });
-    expect(editorReducer(doc, { type: "toggle-output-device", device: "APP_IPHONE_67" })).toBe(doc);
+    const doc = createEmptyDoc(); // current device APP_IPHONE_65
+    expect(editorReducer(doc, { type: "toggle-output-device", device: "APP_IPHONE_65" })).toBe(doc);
     expect(editorReducer(doc, { type: "toggle-output-device", device: "custom" })).toBe(doc);
     expect(editorReducer(doc, { type: "toggle-output-device", device: "nope" })).toBe(doc);
   });
 
+  it("replace-doc lists the restored device when the snapshot left it out", () => {
+    const imported = { ...createEmptyDoc(), outputDevice: "APP_IPHONE_67", outputDevices: ["APP_IPHONE_65"] };
+    const doc = editorReducer(createEmptyDoc(), { type: "replace-doc", doc: imported });
+    expect(doc.outputDevices).toEqual(["APP_IPHONE_67", "APP_IPHONE_65"]);
+  });
+
+  it("replace-doc keeps a custom size out of the working list and an absent list absent", () => {
+    const custom = { ...createEmptyDoc(), outputDevice: "custom", outputDevices: ["APP_IPHONE_65"] };
+    expect(editorReducer(custom, { type: "replace-doc", doc: custom }).outputDevices).toEqual(["APP_IPHONE_65"]);
+    const legacy = { ...legacyDoc(), outputDevice: "APP_IPHONE_67" };
+    expect(editorReducer(legacy, { type: "replace-doc", doc: legacy }).outputDevices).toBeUndefined();
+  });
+
   it("set-output-device keeps the working list consistent", () => {
     let doc = createEmptyDoc();
-    doc = editorReducer(doc, { type: "toggle-output-device", device: "APP_IPHONE_65" });
     doc = editorReducer(doc, { type: "set-output-device", device: "APP_IPAD_PRO_129" });
     expect(doc.outputDevice).toBe("APP_IPAD_PRO_129");
     expect(doc.outputDevices).toContain("APP_IPAD_PRO_129");
     const again = editorReducer(doc, { type: "set-output-device", device: "APP_IPHONE_65" });
     expect(again.outputDevices).toEqual(doc.outputDevices); // already listed
-    const noList = editorReducer(createEmptyDoc(), { type: "set-output-device", device: "APP_IPHONE_65" });
+    const noList = editorReducer(legacyDoc(), { type: "set-output-device", device: "APP_IPHONE_67" });
     expect(noList.outputDevices).toBeUndefined(); // absent list stays absent
   });
 });

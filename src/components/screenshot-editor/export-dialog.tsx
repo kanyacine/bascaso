@@ -7,6 +7,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Spinner } from "@/components/ui/spinner";
 import { TokenCostHint } from "@/components/token-cost-hint";
 import { AddLocaleDialog } from "@/components/add-locale-dialog";
 import { pickAppInfo } from "@/lib/asc/app-info-utils";
@@ -39,7 +40,8 @@ export function ExportDialog({
   const t = useTranslations();
   const [languages, setLanguages] = useState<ExportLanguageChoice>("current");
   const [formats, setFormats] = useState<ExportFormatChoice>("current");
-  const [destination, setDestination] = useState<"zip" | "asc">("zip");
+  // Uploading to App Store Connect is the point of the editor – the zip is the fallback.
+  const [chosenDestination, setChosenDestination] = useState<"zip" | "asc">("asc");
   const [addLocaleCode, setAddLocaleCode] = useState<string | null>(null);
 
   const { versions } = useVersions();
@@ -51,11 +53,15 @@ export function ExportDialog({
   const { appInfos } = useAppInfo(appId);
   const appInfoId = useMemo(() => pickAppInfo(appInfos)?.id ?? "", [appInfos]);
 
+  // ASC needs an editable version; until there is one the choice is forced back to the zip.
+  const destination = editable ? chosenDestination : "zip";
+
   const exporter = useEditorExport({ appId, doc, images, laurelImages });
   const translator = useEditorTranslation({ appName });
   const running = exporter.running || translator.running;
 
   const plan = buildExportPlan(doc, { languages, formats, listingLocales });
+  const planLanguages = [...new Set(plan.map((j) => j.language))];
   const uniqueExtra = [...new Set(plan.filter((j) => j.translated).map((j) => j.language))];
   const tooMany = doc.screenshots.length > ASC_MAX_SCREENSHOTS_PER_SET;
   // Working languages the listing does not carry yet: their jobs would be skipped on upload.
@@ -87,8 +93,13 @@ export function ExportDialog({
   };
 
   const progress = translator.progress
-    ? t("screenshotEditor.translating", { done: translator.progress.done, total: translator.progress.total })
-    : exporter.progress?.label;
+    ? {
+      ...translator.progress,
+      label: t("screenshotEditor.translating", {
+        done: translator.progress.done, total: translator.progress.total,
+      }),
+    }
+    : exporter.progress;
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!running) onOpenChange(o); }}>
@@ -134,7 +145,7 @@ export function ExportDialog({
 
         <section className="space-y-2">
           <h3 className="section-title">{t("screenshotEditor.exportDestination")}</h3>
-          <RadioGroup value={destination} onValueChange={(v) => setDestination(v as "zip" | "asc")}>
+          <RadioGroup value={destination} onValueChange={(v) => setChosenDestination(v as "zip" | "asc")}>
             <Label className="flex items-center gap-2 text-sm">
               <RadioGroupItem value="asc" disabled={!editable} />{t("screenshotEditor.exportToAsc")}
             </Label>
@@ -168,9 +179,39 @@ export function ExportDialog({
           ) : null}
         </section>
 
+        {/* Its own row: on the footer line the label competed with the buttons and pushed them out
+            of the dialog. The counter is in languages, not steps – "5/16" would mean nothing. */}
+        {progress ? (
+          <section className="space-y-1.5">
+            <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+              <span className="min-w-0 truncate">{progress.label}</span>
+              {exporter.progress ? (
+                <span className="shrink-0 tabular-nums">
+                  {t("screenshotEditor.exportLanguageProgress", {
+                    // The plan is language-major: the job in flight is the language being worked on.
+                    done: exporter.progress.language
+                      ? planLanguages.indexOf(exporter.progress.language) + 1
+                      : planLanguages.length,
+                    total: planLanguages.length,
+                  })}
+                </span>
+              ) : null}
+            </div>
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+              <div className="h-full rounded-full bg-primary transition-all duration-300"
+                   style={{ width: `${progress.total > 0 ? (progress.done / progress.total) * 100 : 0}%` }} />
+            </div>
+          </section>
+        ) : null}
+
         <DialogFooter className="items-center gap-3">
-          {progress ? <span className="mr-auto text-xs text-muted-foreground">{progress}</span> : null}
+          {running ? (
+            <Button variant="outline" onClick={() => { translator.cancel(); exporter.cancel(); }}>
+              {t("common.cancel")}
+            </Button>
+          ) : null}
           <Button onClick={start} disabled={running || plan.length === 0}>
+            {running ? <Spinner className="mr-1.5 size-4" /> : null}
             {t("screenshotEditor.exportStart")}
             {uniqueExtra.length > 0 ? <TokenCostHint group="metadata" variant="button" /> : null}
           </Button>

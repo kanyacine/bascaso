@@ -30,9 +30,9 @@ import type {
 
 const ACCEPTED_TYPES = "image/png,image/jpeg,image/webp";
 
-function StripItem({ id, index, doc, dispatch, onReplaceImage, canvasRef }: {
+function StripItem({ id, index, doc, dispatch, canvasRef }: {
   id: string; index: number; doc: ScreenshotDoc;
-  dispatch: (a: EditorAction) => void; onReplaceImage: (index: number) => void;
+  dispatch: (a: EditorAction) => void;
   canvasRef: (el: HTMLCanvasElement | null) => void;
 }) {
   const t = useTranslations();
@@ -90,9 +90,6 @@ function StripItem({ id, index, doc, dispatch, onReplaceImage, canvasRef }: {
                                 toast.success(t("screenshotEditor.styleApplied"));
                               }}>
               {t("screenshotEditor.copyStyleFromSelected")}
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => onReplaceImage(index)}>
-              {t("screenshotEditor.replaceImage")}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -180,8 +177,6 @@ export function ScreenshotStrip({
   }, [drawThumbnails, fontsVersion]);
 
   const fileInput = useRef<HTMLInputElement>(null);
-  const replaceInput = useRef<HTMLInputElement>(null);
-  const pendingReplace = useRef<number | null>(null);
   // Positional sortable ids – the list is rebuilt from the doc on every dispatch.
   const ids = doc.screenshots.map((_, i) => `shot-${i}`);
   const [uploading, setUploading] = useState(false);
@@ -210,28 +205,6 @@ export function ScreenshotStrip({
     } finally {
       setUploading(false);
       if (fileInput.current) fileInput.current.value = "";
-    }
-  };
-
-  // Replacing an image writes it under the current working language only – the other
-  // languages keep falling back through resolveScreenshotImage.
-  const onReplaceImage = (index: number) => {
-    pendingReplace.current = index;
-    replaceInput.current?.click();
-  };
-
-  const onReplaceFile = async (files: FileList | null) => {
-    const file = files?.[0];
-    const index = pendingReplace.current;
-    pendingReplace.current = null;
-    if (!file || index === null) return;
-    try {
-      const name = await uploadAsset(appId, file);
-      dispatch({ type: "set-screenshot-image", index, language: doc.currentLanguage, imageRef: name });
-    } catch {
-      toast.error(t("screenshotEditor.uploadFailed"));
-    } finally {
-      if (replaceInput.current) replaceInput.current.value = "";
     }
   };
 
@@ -264,7 +237,7 @@ export function ScreenshotStrip({
           <SortableContext items={ids} strategy={verticalListSortingStrategy}>
             {doc.screenshots.map((_, index) => (
               <StripItem key={ids[index]} id={ids[index]} index={index} doc={doc}
-                         dispatch={dispatch} onReplaceImage={onReplaceImage}
+                         dispatch={dispatch}
                          canvasRef={(el) => { thumbs.current[index] = el; }} />
             ))}
           </SortableContext>
@@ -289,8 +262,6 @@ export function ScreenshotStrip({
       </div>
       <input ref={fileInput} type="file" accept={ACCEPTED_TYPES} multiple hidden
              onChange={(e) => onFiles(e.target.files)} />
-      <input ref={replaceInput} type="file" accept={ACCEPTED_TYPES} hidden
-             onChange={(e) => onReplaceFile(e.target.files)} />
     </div>
   );
 }

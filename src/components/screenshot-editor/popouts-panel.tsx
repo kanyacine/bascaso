@@ -3,6 +3,7 @@
 import { ArrowDown, ArrowUp, Plus, TrashSimple } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CropPreview } from "./crop-preview";
 import { PanelColor, PanelSlider } from "./panel-controls";
 import { createPopout } from "@/lib/screenshot-editor/elements";
@@ -36,7 +37,7 @@ export function PopoutsPanel({ doc, dispatch, images, selectedPopoutId, onSelect
   return (
     <div className="space-y-6">
       <section className="space-y-2">
-        <Button variant="outline" size="sm" disabled={!image}
+        <Button variant="outline" size="sm" className="w-full" disabled={!image}
                 onClick={() => {
                   const popout = createPopout();
                   dispatch({ type: "add-popout", index, popout });
@@ -90,51 +91,58 @@ export function PopoutsPanel({ doc, dispatch, images, selectedPopoutId, onSelect
       </section>
 
       {selected && image ? (
-        <>
-          <section className="space-y-3">
-            <h3 className="section-title">{t("screenshotEditor.crop")}</h3>
+        // Two tabs so the crop preview and the long settings list do not fight for the panel.
+        <Tabs defaultValue="crop">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="crop">{t("screenshotEditor.crop")}</TabsTrigger>
+            <TabsTrigger value="settings">{t("screenshotEditor.popoutSettings")}</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="crop">
             <CropPreview image={image} popout={selected} onCropChange={(crop) => patch(crop)} />
-          </section>
+          </TabsContent>
 
-          <section className="space-y-3">
-            <PanelSlider label={t("screenshotEditor.positionX")} value={selected.x} min={0} max={100} onChange={(v) => patch({ x: v })} />
-            <PanelSlider label={t("screenshotEditor.positionY")} value={selected.y} min={0} max={100} onChange={(v) => patch({ y: v })} />
-            <PanelSlider label={t("screenshotEditor.width")} value={selected.width} min={5} max={130} onChange={(v) => patch({ width: v })} />
-            <PanelSlider label={t("screenshotEditor.rotation")} value={selected.rotation} min={-180} max={180} onChange={(v) => patch({ rotation: v })} />
-            <PanelSlider label={t("screenshotEditor.opacity")} value={selected.opacity} min={0} max={100} onChange={(v) => patch({ opacity: v })} />
-            <PanelSlider label={t("screenshotEditor.cornerRadius")} value={selected.cornerRadius} min={0} max={50} onChange={(v) => patch({ cornerRadius: v })} />
-          </section>
+          <TabsContent value="settings" className="space-y-6">
+            <section className="space-y-3">
+              <PanelSlider label={t("screenshotEditor.positionX")} value={selected.x} min={0} max={100} onChange={(v) => patch({ x: v })} />
+              <PanelSlider label={t("screenshotEditor.positionY")} value={selected.y} min={0} max={100} onChange={(v) => patch({ y: v })} />
+              <PanelSlider label={t("screenshotEditor.width")} value={selected.width} min={5} max={130} onChange={(v) => patch({ width: v })} />
+              <PanelSlider label={t("screenshotEditor.rotation")} value={selected.rotation} min={-180} max={180} onChange={(v) => patch({ rotation: v })} />
+              <PanelSlider label={t("screenshotEditor.opacity")} value={selected.opacity} min={0} max={100} onChange={(v) => patch({ opacity: v })} />
+              <PanelSlider label={t("screenshotEditor.cornerRadius")} value={selected.cornerRadius} min={0} max={50} onChange={(v) => patch({ cornerRadius: v })} />
+            </section>
 
-          <section className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="section-title">{t("screenshotEditor.shadow")}</h3>
-              <Switch checked={selected.shadow.enabled} onCheckedChange={(v) => shadow({ enabled: v })} />
-            </div>
-            {selected.shadow.enabled ? (
-              <>
-                <PanelColor label={t("screenshotEditor.color")} value={selected.shadow.color} onChange={(v) => shadow({ color: v })} />
-                <PanelSlider label={t("screenshotEditor.shadowBlur")} value={selected.shadow.blur} min={0} max={100} onChange={(v) => shadow({ blur: v })} />
-                <PanelSlider label={t("screenshotEditor.shadowOpacity")} value={selected.shadow.opacity} min={0} max={100} onChange={(v) => shadow({ opacity: v })} />
-                <PanelSlider label={t("screenshotEditor.shadowOffsetX")} value={selected.shadow.x} min={-50} max={50} onChange={(v) => shadow({ x: v })} />
-                <PanelSlider label={t("screenshotEditor.shadowOffsetY")} value={selected.shadow.y} min={-50} max={50} onChange={(v) => shadow({ y: v })} />
-              </>
-            ) : null}
-          </section>
+            <section className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="section-title">{t("screenshotEditor.shadow")}</h3>
+                <Switch checked={selected.shadow.enabled} onCheckedChange={(v) => shadow({ enabled: v })} />
+              </div>
+              {selected.shadow.enabled ? (
+                <>
+                  <PanelColor label={t("screenshotEditor.color")} value={selected.shadow.color} onChange={(v) => shadow({ color: v })} />
+                  <PanelSlider label={t("screenshotEditor.shadowBlur")} value={selected.shadow.blur} min={0} max={100} onChange={(v) => shadow({ blur: v })} />
+                  <PanelSlider label={t("screenshotEditor.shadowOpacity")} value={selected.shadow.opacity} min={0} max={100} onChange={(v) => shadow({ opacity: v })} />
+                  <PanelSlider label={t("screenshotEditor.shadowOffsetX")} value={selected.shadow.x} min={-50} max={50} onChange={(v) => shadow({ x: v })} />
+                  <PanelSlider label={t("screenshotEditor.shadowOffsetY")} value={selected.shadow.y} min={-50} max={50} onChange={(v) => shadow({ y: v })} />
+                </>
+              ) : null}
+            </section>
 
-          <section className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="section-title">{t("screenshotEditor.border")}</h3>
-              <Switch checked={selected.border.enabled} onCheckedChange={(v) => border({ enabled: v })} />
-            </div>
-            {selected.border.enabled ? (
-              <>
-                <PanelColor label={t("screenshotEditor.color")} value={selected.border.color} onChange={(v) => border({ color: v })} />
-                <PanelSlider label={t("screenshotEditor.frameWidth")} value={selected.border.width} min={0} max={20} onChange={(v) => border({ width: v })} />
-                <PanelSlider label={t("screenshotEditor.frameOpacity")} value={selected.border.opacity} min={0} max={100} onChange={(v) => border({ opacity: v })} />
-              </>
-            ) : null}
-          </section>
-        </>
+            <section className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="section-title">{t("screenshotEditor.border")}</h3>
+                <Switch checked={selected.border.enabled} onCheckedChange={(v) => border({ enabled: v })} />
+              </div>
+              {selected.border.enabled ? (
+                <>
+                  <PanelColor label={t("screenshotEditor.color")} value={selected.border.color} onChange={(v) => border({ color: v })} />
+                  <PanelSlider label={t("screenshotEditor.frameWidth")} value={selected.border.width} min={0} max={20} onChange={(v) => border({ width: v })} />
+                  <PanelSlider label={t("screenshotEditor.frameOpacity")} value={selected.border.opacity} min={0} max={100} onChange={(v) => border({ opacity: v })} />
+                </>
+              ) : null}
+            </section>
+          </TabsContent>
+        </Tabs>
       ) : null}
     </div>
   );

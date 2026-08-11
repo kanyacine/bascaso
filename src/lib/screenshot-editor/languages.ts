@@ -3,7 +3,7 @@
 // (switchGlobalLanguage, app.js:4738-4753), translation collection and write-back
 // (aiTranslateAll/applyTranslations/translateAllText, app.js:5081-5675). Pure – shared
 // by the reducer and the export loop.
-import type { ScreenshotDoc, TextSettings } from "./types";
+import type { EditorScreenshot, ScreenshotDoc, TextSettings } from "./types";
 
 const LEGACY = "en";
 const CANONICAL = "en-US";
@@ -31,6 +31,23 @@ function renameInText(text: TextSettings, from: string, to: string): TextSetting
     currentLayoutLang: text.currentLayoutLang === from ? to : text.currentLayoutLang,
     languageSettings: renameKey(text.languageSettings, from, to),
   };
+}
+
+/**
+ * Language whose image the renderer draws for `language`, mirroring resolveScreenshotImage's
+ * fallback order. Null when the shot has no localized image at all (a legacy `src` has no
+ * language of its own).
+ */
+export function imageLanguageFor(
+  shot: EditorScreenshot,
+  language: string,
+  projectLanguages: string[],
+): string | null {
+  const images = shot.localizedImages ?? {};
+  if (images[language]?.src) return language;
+  return projectLanguages.find((l) => images[l]?.src)
+    ?? Object.keys(images).find((l) => images[l]?.src)
+    ?? null;
 }
 
 /** Rename legacy bare "en" (phase 2/3 docs) to the ASC locale "en-US". Idempotent. */

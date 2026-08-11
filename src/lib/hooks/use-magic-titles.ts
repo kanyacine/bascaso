@@ -7,18 +7,13 @@ import { notifyManagedDebit } from "@/lib/ai/debit-toast";
 import { toastAIError } from "@/lib/ai/ai-error-toast";
 import { useTranslations } from "@/lib/i18n/locale-context";
 import type { EditorScreenshot, ScreenshotDoc } from "@/lib/screenshot-editor/types";
-import type { TranslationEntry } from "@/lib/screenshot-editor/languages";
+import { imageLanguageFor, type TranslationEntry } from "@/lib/screenshot-editor/languages";
 
 const MAX_EDGE = 512;
 
 function imageRefFor(shot: EditorScreenshot, language: string, projectLanguages: string[]): string | null {
-  const localized = shot.localizedImages?.[language]?.src;
-  if (localized) return localized;
-  for (const lang of projectLanguages) {
-    const src = shot.localizedImages?.[lang]?.src;
-    if (src) return src;
-  }
-  return shot.src ?? null;
+  const source = imageLanguageFor(shot, language, projectLanguages);
+  return (source ? shot.localizedImages[source].src : shot.src) ?? null;
 }
 
 async function toPayloadImage(appId: string, ref: string): Promise<{ mimeType: "image/jpeg"; data: string } | null> {

@@ -16,6 +16,7 @@ export type EditorAction =
   | { type: "duplicate-screenshot"; index: number }
   | { type: "reorder-screenshots"; from: number; to: number }
   | { type: "set-screenshot-image"; index: number; language: string; imageRef: string }
+  | { type: "clear-screenshot-image"; index: number; language: string }
   | { type: "set-output-device"; device: string }
   | { type: "set-custom-size"; width: number; height: number }
   | { type: "set-background"; index: number; patch: Partial<Background> }
@@ -131,6 +132,17 @@ function inFormatOrder(devices: string[]): string[] {
   );
 }
 
+/**
+ * The format menu only lists working formats, so the current device has to be one of them.
+ * Restores and .json imports carry any pairing; "custom" stays out of the list on purpose.
+ */
+function withCurrentDeviceListed(doc: ScreenshotDoc): ScreenshotDoc {
+  const list = doc.outputDevices;
+  if (!list || list.includes(doc.outputDevice)) return doc;
+  if (!EDITOR_FORMATS.some((f) => f.key === doc.outputDevice)) return doc;
+  return { ...doc, outputDevices: inFormatOrder([...list, doc.outputDevice]) };
+}
+
 /** Copy styling from one screenshot onto another – content (headlines, popouts) stays. */
 function restyleFrom(source: EditorScreenshot, target: EditorScreenshot): EditorScreenshot {
   return {
@@ -152,10 +164,10 @@ export function editorReducer(doc: ScreenshotDoc, action: EditorAction): Screens
     case "replace-doc": {
       // restores and .json imports can carry any language shape and any stale index
       const incoming = normalizeDocLanguages(action.doc);
-      return {
+      return withCurrentDeviceListed({
         ...incoming,
         selectedIndex: Math.max(0, Math.min(incoming.selectedIndex, incoming.screenshots.length - 1)),
-      };
+      });
     }
     case "select-screenshot":
       if (action.index < 0 || action.index >= doc.screenshots.length) return doc;
@@ -194,13 +206,15 @@ export function editorReducer(doc: ScreenshotDoc, action: EditorAction): Screens
         ...s,
         localizedImages: { ...s.localizedImages, [action.language]: { src: action.imageRef } },
       }));
-    case "set-output-device": {
-      const outputDevices =
-        doc.outputDevices && !doc.outputDevices.includes(action.device)
-          ? inFormatOrder([...doc.outputDevices, action.device])
-          : doc.outputDevices;
-      return { ...doc, outputDevice: action.device, outputDevices };
-    }
+    case "clear-screenshot-image":
+      // `src` holds the image of pre-localizedImages docs – it would resurface once the entry is gone.
+      return patchShot(doc, action.index, (s) => ({
+        ...s,
+        src: null,
+        localizedImages: removeFromRecord(s.localizedImages, action.language),
+      }));
+    case "set-output-device":
+      return withCurrentDeviceListed({ ...doc, outputDevice: action.device });
     case "set-custom-size":
       return { ...doc, outputDevice: "custom", customWidth: action.width, customHeight: action.height };
     case "set-background":

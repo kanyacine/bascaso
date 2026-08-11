@@ -5,6 +5,7 @@ import { Smiley } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { IconTooltip } from "./panel-controls";
 import { searchEmoji } from "@/lib/screenshot-editor/emoji-data";
 import { useTranslations } from "@/lib/i18n/locale-context";
 
@@ -18,7 +19,7 @@ export function EmojiPicker({ onPick }: { onPick: (emoji: string, name: string) 
     <Popover open={open} onOpenChange={(o) => { setOpen(o); if (!o) setQuery(""); }}>
       <PopoverTrigger asChild>
         <Button variant="outline" size="sm" aria-label={t("screenshotEditor.addEmoji")}>
-          <Smiley size={16} />
+          <IconTooltip label={t("screenshotEditor.addEmoji")}><Smiley size={16} /></IconTooltip>
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-72 p-2" align="start">

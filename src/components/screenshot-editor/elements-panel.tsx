@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { PanelColor, PanelSlider } from "./panel-controls";
+import { IconTooltip, PanelColor, PanelSlider } from "./panel-controls";
 import { EmojiPicker } from "./emoji-picker";
 import { FontPicker } from "./font-picker";
 import { IconPicker } from "./icon-picker";
@@ -78,14 +78,16 @@ export function ElementsPanel({ appId, doc, dispatch, images, selectedElementId,
   return (
     <div className="space-y-6">
       <section className="space-y-3">
-        <div className="flex gap-2">
+        {/* Four equal columns filling the panel, like the tab list above – the pickers render their
+            trigger button directly, so they stretch as grid items too. */}
+        <div className="grid grid-cols-4 gap-2">
           <Button variant="outline" size="sm" aria-label={t("screenshotEditor.addGraphic")}
                   onClick={() => fileInput.current?.click()}>
-            <ImageIcon size={16} />
+            <IconTooltip label={t("screenshotEditor.addGraphic")}><ImageIcon size={16} /></IconTooltip>
           </Button>
           <Button variant="outline" size="sm" aria-label={t("screenshotEditor.addText")}
                   onClick={() => add(createTextElement(doc.currentLanguage))}>
-            <TextT size={16} />
+            <IconTooltip label={t("screenshotEditor.addText")}><TextT size={16} /></IconTooltip>
           </Button>
           <EmojiPicker onPick={(emoji, name) => add(createEmojiElement(emoji, name))} />
           <IconPicker onPick={(name) => {
