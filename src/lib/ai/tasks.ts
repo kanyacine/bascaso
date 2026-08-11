@@ -9,7 +9,6 @@ export type AITaskId =
   | "draft-nomination"
   | "reviews-insights"
   | "analytics-insights"
-  | "screenshot-titles"
   | "workflow-seeds"
   | "workflow-relevance"
   | "workflow-compose";
@@ -24,7 +23,6 @@ export const AI_TASK_GROUPS: Record<AITaskId, AIGroupId> = {
   translate: "metadata",
   improve: "metadata",
   "fix-keywords": "metadata",
-  "screenshot-titles": "metadata",
   "reviews-insights": "insights",
   "analytics-insights": "insights",
   "workflow-seeds": "workflows",

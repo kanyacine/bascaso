@@ -27,7 +27,6 @@ import { LanguageSwitcher } from "@/components/screenshot-editor/language-switch
 import { LanguagesDialog } from "@/components/screenshot-editor/languages-dialog";
 import { ExportDialog } from "@/components/screenshot-editor/export-dialog";
 import { VersionsDialog } from "@/components/screenshot-editor/versions-dialog";
-import { MagicTitlesDialog } from "@/components/screenshot-editor/magic-titles-dialog";
 
 export default function ScreenshotEditorPage({ params }: { params: Promise<{ appId: string }> }) {
   const { appId } = use(params);
@@ -45,7 +44,6 @@ export default function ScreenshotEditorPage({ params }: { params: Promise<{ app
   const [languagesOpen, setLanguagesOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [versionsOpen, setVersionsOpen] = useState(false);
-  const [magicTitlesOpen, setMagicTitlesOpen] = useState(false);
 
   // Selection is per screenshot: reset it during render when the selected shot changes
   // (React's "adjusting state when props change" – an effect here would cascade renders).
@@ -152,7 +150,7 @@ export default function ScreenshotEditorPage({ params }: { params: Promise<{ app
               <ScreenshotPanel appId={appId} doc={doc} dispatch={dispatch} />
             </TabsContent>
             <TabsContent value="text">
-              <TextPanel doc={doc} dispatch={dispatch} onMagicTitles={() => setMagicTitlesOpen(true)} />
+              <TextPanel doc={doc} dispatch={dispatch} />
             </TabsContent>
             <TabsContent value="elements">
               <ElementsPanel appId={appId} doc={doc} dispatch={dispatch} images={images}
@@ -173,8 +171,6 @@ export default function ScreenshotEditorPage({ params }: { params: Promise<{ app
                     appId={appId} appName={app?.name} primaryLocale={app?.primaryLocale ?? ""}
                     images={images} laurelImages={laurelImages} />
       <VersionsDialog open={versionsOpen} onOpenChange={setVersionsOpen} appId={appId} doc={doc} dispatch={dispatch} />
-      <MagicTitlesDialog open={magicTitlesOpen} onOpenChange={setMagicTitlesOpen}
-                         appId={appId} doc={doc} dispatch={dispatch} appName={app?.name} />
     </div>
   );
 }

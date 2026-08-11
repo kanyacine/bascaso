@@ -5,6 +5,7 @@ const mockGenerateText = vi.fn();
 const mockClassifyAIError = vi.fn();
 const mockGetLanguageModelForTask = vi.fn();
 const mockBuildTranslatePrompt = vi.fn();
+const mockBuildTranslateBatchPrompt = vi.fn();
 const mockBuildImprovePrompt = vi.fn();
 const mockBuildReplyPrompt = vi.fn();
 const mockBuildAppealPrompt = vi.fn();
@@ -14,8 +15,7 @@ const mockBuildShortenPrompt = vi.fn();
 const mockGetAIGuidance = vi.fn();
 const mockGetAppleFmAllowUnsupportedLanguages = vi.fn();
 const mockErrorJson = vi.fn();
-const mockBuildScreenshotTitlesPrompt = vi.fn();
-const mockRepairGeneratedObjectText = vi.fn();
+const mockGenerateObjectWithRepair = vi.fn();
 
 vi.mock("ai", () => ({
   generateText: (...args: unknown[]) => mockGenerateText(...args),
@@ -37,20 +37,20 @@ vi.mock("@/lib/ai/provider-factory", async (importOriginal) => {
 
 vi.mock("@/lib/ai/prompts", () => ({
   buildTranslatePrompt: (...args: unknown[]) => mockBuildTranslatePrompt(...args),
+  buildTranslateBatchPrompt: (...args: unknown[]) => mockBuildTranslateBatchPrompt(...args),
   buildImprovePrompt: (...args: unknown[]) => mockBuildImprovePrompt(...args),
   buildReplyPrompt: (...args: unknown[]) => mockBuildReplyPrompt(...args),
   buildAppealPrompt: (...args: unknown[]) => mockBuildAppealPrompt(...args),
   buildFixKeywordsPrompt: (...args: unknown[]) => mockBuildFixKeywordsPrompt(...args),
   buildNominationPrompt: (...args: unknown[]) => mockBuildNominationPrompt(...args),
   buildShortenPrompt: (...args: unknown[]) => mockBuildShortenPrompt(...args),
-  buildScreenshotTitlesPrompt: (...args: unknown[]) => mockBuildScreenshotTitlesPrompt(...args),
 }));
 
 vi.mock("@/lib/ai/structured-output", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/ai/structured-output")>();
   return {
     ...actual,
-    repairGeneratedObjectText: (...args: unknown[]) => mockRepairGeneratedObjectText(...args),
+    generateObjectWithRepair: (...args: unknown[]) => mockGenerateObjectWithRepair(...args),
   };
 });
 
@@ -77,6 +77,8 @@ describe("AI route", () => {
     });
     mockBuildTranslatePrompt.mockReset();
     mockBuildTranslatePrompt.mockReturnValue("translate-prompt");
+    mockBuildTranslateBatchPrompt.mockReset();
+    mockBuildTranslateBatchPrompt.mockReturnValue("translate-batch-prompt");
     mockBuildImprovePrompt.mockReset();
     mockBuildImprovePrompt.mockReturnValue("improve-prompt");
     mockBuildReplyPrompt.mockReset();
@@ -93,10 +95,8 @@ describe("AI route", () => {
     mockGetAIGuidance.mockReturnValue("");
     mockGetAppleFmAllowUnsupportedLanguages.mockReset();
     mockGetAppleFmAllowUnsupportedLanguages.mockReturnValue(false);
-    mockBuildScreenshotTitlesPrompt.mockReset();
-    mockBuildScreenshotTitlesPrompt.mockReturnValue({ system: "sys", prompt: "prompt" });
-    mockRepairGeneratedObjectText.mockReset();
-    mockRepairGeneratedObjectText.mockResolvedValue(null);
+    mockGenerateObjectWithRepair.mockReset();
+    mockGenerateObjectWithRepair.mockResolvedValue({ object: { results: [] } });
     mockErrorJson.mockReset();
     mockErrorJson.mockImplementation(
       (_err, status = 500, fallback = "mapped") =>
@@ -808,101 +808,158 @@ describe("AI route", () => {
     expect(data).toEqual({ result: "Short", length: 5, overLimit: false, tier: "byok" });
   });
 
-  describe("screenshot-titles action", () => {
-    const images = [{ mimeType: "image/jpeg", data: "aGVsbG8=" }];
+  // The screenshot editor sends one call per target locale carrying every text of the
+  // gesture, instead of one call per text. Same action id, same task, same routing – only
+  // the payload shape and the structured response differ.
+  describe("translate batch form", () => {
+    const items = [
+      { id: "0", kind: "headline", text: "Track every expense" },
+      { id: "1", kind: "element", text: "Free forever" },
+    ];
 
-    it("sends image parts and returns parsed titles with the tier", async () => {
-      mockGenerateText.mockResolvedValue({
-        text: '{"titles":[{"headline":"Hi","subheadline":"There"}]}',
+    function batchRequest(body: Record<string, unknown> = {}) {
+      return new Request("http://localhost", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "translate", text: "", items,
+          fromLocale: "en-US", toLocale: "de-DE", appName: "Weatherly",
+          ...body,
+        }),
+      });
+    }
+
+    it("returns one result per item, keyed by the id it was sent with", async () => {
+      mockGenerateObjectWithRepair.mockResolvedValue({
+        object: { results: [{ id: "1", value: "Für immer gratis" }, { id: "0", value: "Jede Ausgabe erfassen" }] },
       });
       const { POST } = await import("@/app/api/ai/route");
-      const res = await POST(new Request("http://localhost", {
-        method: "POST",
-        body: JSON.stringify({ action: "screenshot-titles", text: "", locale: "fr-FR", images, appName: "Weatherly" }),
-      }));
+
+      const res = await POST(batchRequest());
+
       expect(res.status).toBe(200);
+      // Request order, not model order: the client zips these back onto its own list.
       expect(await res.json()).toEqual({
-        result: { titles: [{ headline: "Hi", subheadline: "There" }] },
+        results: [
+          { id: "0", value: "Jede Ausgabe erfassen" },
+          { id: "1", value: "Für immer gratis" },
+        ],
         tier: "byok",
       });
-      const call = mockGenerateText.mock.calls[0][0];
-      expect(call.messages[0].content[0]).toMatchObject({ type: "image" });
-      expect(call.messages[0].content.at(-1)).toMatchObject({ type: "text", text: "prompt" });
-    });
-
-    it("caps the returned titles to the number of images sent", async () => {
-      mockGenerateText.mockResolvedValue({
-        text: '{"titles":[{"headline":"A","subheadline":"a"},{"headline":"B","subheadline":"b"}]}',
-      });
-      const { POST } = await import("@/app/api/ai/route");
-      const res = await POST(new Request("http://localhost", {
-        method: "POST",
-        body: JSON.stringify({ action: "screenshot-titles", text: "", locale: "fr-FR", images }),
-      }));
-      expect((await res.json()).result.titles).toHaveLength(1);
-    });
-
-    it("rejects the action without images", async () => {
-      const { POST } = await import("@/app/api/ai/route");
-      const res = await POST(new Request("http://localhost", {
-        method: "POST",
-        body: JSON.stringify({ action: "screenshot-titles", text: "", locale: "fr-FR" }),
-      }));
-      expect(res.status).toBe(400);
-    });
-
-    it("rejects the action without a locale", async () => {
-      const { POST } = await import("@/app/api/ai/route");
-      const res = await POST(new Request("http://localhost", {
-        method: "POST",
-        body: JSON.stringify({ action: "screenshot-titles", text: "", images }),
-      }));
-      expect(res.status).toBe(400);
-    });
-
-    it("recovers through the repair pass", async () => {
-      mockGenerateText.mockResolvedValue({ text: "not json at all" });
-      mockRepairGeneratedObjectText.mockResolvedValue('{"titles":[{"headline":"R","subheadline":"r"}]}');
-      const { POST } = await import("@/app/api/ai/route");
-      const res = await POST(new Request("http://localhost", {
-        method: "POST",
-        body: JSON.stringify({ action: "screenshot-titles", text: "", locale: "fr-FR", images }),
-      }));
-      expect(res.status).toBe(200);
-      expect((await res.json()).result.titles).toEqual([{ headline: "R", subheadline: "r" }]);
-    });
-
-    it("502s when parsing and repair both fail", async () => {
-      mockGenerateText.mockResolvedValue({ text: "not json at all" });
-      mockRepairGeneratedObjectText.mockResolvedValue(null);
-      const { POST } = await import("@/app/api/ai/route");
-      const res = await POST(new Request("http://localhost", {
-        method: "POST",
-        body: JSON.stringify({ action: "screenshot-titles", text: "", locale: "fr-FR", images }),
-      }));
-      expect(res.status).toBe(502);
-    });
-
-    it("surfaces a routing failure before spending anything", async () => {
-      mockGetLanguageModelForTask.mockRejectedValue(new AIRoutingError("ai_tier_not_configured", "The metadata tier is not configured"));
-      const { POST } = await import("@/app/api/ai/route");
-      const res = await POST(new Request("http://localhost", {
-        method: "POST",
-        body: JSON.stringify({ action: "screenshot-titles", text: "", locale: "fr-FR", images }),
-      }));
-      expect(res.status).toBe(400);
+      expect(mockBuildTranslateBatchPrompt).toHaveBeenCalledWith(
+        items, "en-US", "de-DE", { appName: "Weatherly" },
+      );
+      // One structured call for the whole batch – the plain-text rail stays untouched.
       expect(mockGenerateText).not.toHaveBeenCalled();
     });
 
-    it("maps provider failures through the shared error mapping", async () => {
-      mockGenerateText.mockRejectedValue(new Error("boom"));
-      mockClassifyAIError.mockReturnValue("rate_limited");
+    it("drops results for ids that were never sent", async () => {
+      mockGenerateObjectWithRepair.mockResolvedValue({
+        object: { results: [{ id: "0", value: "ok" }, { id: "99", value: "hallucinated" }] },
+      });
       const { POST } = await import("@/app/api/ai/route");
-      const res = await POST(new Request("http://localhost", {
-        method: "POST",
-        body: JSON.stringify({ action: "screenshot-titles", text: "", locale: "fr-FR", images }),
+
+      expect((await (await POST(batchRequest())).json()).results).toEqual([{ id: "0", value: "ok" }]);
+    });
+
+    // An empty translation would wipe the user's canvas text on apply – a silent data loss
+    // for the one item the model gave up on.
+    it("drops blank translations instead of returning them", async () => {
+      mockGenerateObjectWithRepair.mockResolvedValue({
+        object: { results: [{ id: "0", value: "   " }, { id: "1", value: "Für immer gratis" }] },
+      });
+      const { POST } = await import("@/app/api/ai/route");
+
+      expect((await (await POST(batchRequest())).json()).results)
+        .toEqual([{ id: "1", value: "Für immer gratis" }]);
+    });
+
+    it("still requires both locales", async () => {
+      const { POST } = await import("@/app/api/ai/route");
+      const res = await POST(batchRequest({ toLocale: undefined }));
+
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual({
+        error: "fromLocale and toLocale are required for translate",
+      });
+    });
+
+    it("rejects an empty item list", async () => {
+      const { POST } = await import("@/app/api/ai/route");
+      const res = await POST(batchRequest({ items: [] }));
+
+      expect(res.status).toBe(400);
+      expect(mockGenerateObjectWithRepair).not.toHaveBeenCalled();
+    });
+
+    // Both caps exist to keep one call inside a model's context and one gesture inside the
+    // managed backend's per-action budget.
+    it("rejects more than 60 items", async () => {
+      const many = Array.from({ length: 61 }, (_, i) => ({ id: String(i), kind: "element", text: "x" }));
+      const { POST } = await import("@/app/api/ai/route");
+      const res = await POST(batchRequest({ items: many }));
+
+      expect(res.status).toBe(400);
+      expect(mockGenerateObjectWithRepair).not.toHaveBeenCalled();
+    });
+
+    it("rejects more than 4000 characters of source text", async () => {
+      const heavy = Array.from({ length: 5 }, (_, i) => ({
+        id: String(i), kind: "element", text: "x".repeat(801),
       }));
-      expect(res.status).toBe(429);
+      const { POST } = await import("@/app/api/ai/route");
+      const res = await POST(batchRequest({ items: heavy }));
+
+      expect(res.status).toBe(400);
+      expect(mockGenerateObjectWithRepair).not.toHaveBeenCalled();
+    });
+
+    it("accepts exactly the cap", async () => {
+      const atCap = Array.from({ length: 60 }, (_, i) => ({
+        id: String(i), kind: "element", text: "x".repeat(66),
+      }));
+      mockGenerateObjectWithRepair.mockResolvedValue({ object: { results: [{ id: "0", value: "ok" }] } });
+      const { POST } = await import("@/app/api/ai/route");
+
+      expect((await POST(batchRequest({ items: atCap }))).status).toBe(200);
+    });
+
+    it("surfaces a routing failure before spending anything", async () => {
+      mockGetLanguageModelForTask.mockRejectedValue(
+        new AIRoutingError("ai_tier_not_configured", "The metadata tier is not configured"),
+      );
+      const { POST } = await import("@/app/api/ai/route");
+
+      const res = await POST(batchRequest());
+
+      expect(res.status).toBe(400);
+      expect(mockGenerateObjectWithRepair).not.toHaveBeenCalled();
+    });
+
+    // The metadata dialogs (bulk translate, add locale) never send `items`, and this batch
+    // form must not change what they get back.
+    it("leaves the single-text form on the plain-text rail", async () => {
+      const { POST } = await import("@/app/api/ai/route");
+
+      const res = await POST(batchRequest({ items: undefined, text: "hello" }));
+
+      expect(await res.json()).toEqual({
+        result: "Generated output", length: 16, overLimit: false, tier: "byok",
+      });
+      expect(mockBuildTranslatePrompt).toHaveBeenCalled();
+      expect(mockBuildTranslateBatchPrompt).not.toHaveBeenCalled();
+      expect(mockGenerateObjectWithRepair).not.toHaveBeenCalled();
+    });
+
+    it("maps provider failures through the shared error mapping", async () => {
+      mockGenerateObjectWithRepair.mockRejectedValue(new Error("boom"));
+      mockClassifyAIError.mockReturnValue("credits");
+      const { POST } = await import("@/app/api/ai/route");
+
+      const res = await POST(batchRequest());
+
+      expect(res.status).toBe(402);
+      expect(await res.json()).toEqual({ error: "ai_credits_exhausted" });
     });
   });
 });

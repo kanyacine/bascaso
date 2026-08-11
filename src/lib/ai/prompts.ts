@@ -71,6 +71,63 @@ ${text}`;
   return prompt;
 }
 
+/** One screenshot text to translate, with the id it must be returned under. */
+export interface TranslateBatchItem {
+  id: string;
+  kind: "headline" | "subheadline" | "element";
+  text: string;
+}
+
+const BATCH_KIND_DESCRIPTIONS: Record<TranslateBatchItem["kind"], string> = {
+  headline: "headline (the large title on the screenshot)",
+  subheadline: "subheadline (the smaller line under the headline)",
+  element: "text element (a free-standing label placed on the screenshot)",
+};
+
+/**
+ * Translate every text of one screenshot set in a single call.
+ *
+ * Separate from buildTranslatePrompt because the unit is different: App Store fields are
+ * translated one at a time against a character limit, screenshot texts are translated as a
+ * set against a canvas. Two consequences shape this prompt – ids have to come back
+ * untouched (they are the only link back to the item), and length matters more than
+ * completeness, because these texts are laid out at a fixed size and overflow is clipped.
+ */
+export function buildTranslateBatchPrompt(
+  items: TranslateBatchItem[],
+  fromLocale: string,
+  toLocale: string,
+  context: { appName?: string },
+): string {
+  const fromName = localeName(fromLocale);
+  const toName = localeName(toLocale);
+
+  let prompt = `Translate the following ${items.length} screenshot texts from ${fromName} (${fromLocale}) to ${toName} (${toLocale}).`;
+
+  if (context.appName) {
+    prompt += `\nThe app is called "${context.appName}".`;
+  }
+
+  prompt += `
+
+These texts are rendered on App Store screenshots, at a fixed size on a fixed canvas.
+
+Rules:
+- Return exactly ${items.length} entries, one per item, each with the id it was given. Never invent, merge, drop, or renumber an id.
+- Keep each translation close to the source length. A translation noticeably longer than its source overflows the screenshot and gets clipped – prefer a shorter wording that keeps the meaning.
+- Preserve the tone, the capitalisation style, and any line breaks.
+- Keep brand names, technical terms, and proper nouns untranslated unless they have an established localised form.
+- Translate every item independently: they are separate texts, not one paragraph.
+
+Items:`;
+
+  for (const item of items) {
+    prompt += `\n- id: ${item.id} | ${BATCH_KIND_DESCRIPTIONS[item.kind]}\n  ${item.text}`;
+  }
+
+  return prompt;
+}
+
 /**
  * Ask the model to shorten an over-limit result to fit a character budget,
  * preserving meaning, tone, and language. Used as a one-shot recovery pass
@@ -499,40 +556,3 @@ ${text}`;
   return prompt;
 }
 
-/* Portions derived from appscreen (https://github.com/YUZU-Hub/appscreen), MIT License, Copyright YuzuHub */
-// Port of the magical-titles prompt (magical-titles.js:318-346). The JSON contract is stated
-// explicitly because the call is generateText, not structured output.
-export function buildScreenshotTitlesPrompt(input: { count: number; language: string; appName?: string }) {
-  return {
-    system: "You are an expert App Store marketing copywriter. Output only what is asked.",
-    prompt: [
-      input.appName ? `App: ${input.appName}` : "",
-      `Analyze these ${input.count} app screenshots and create compelling marketing titles.`,
-      "",
-      `The screenshots are shown in order (1 through ${input.count}). Study what the app does and identify:`,
-      "1. The main purpose and value proposition",
-      "2. The user problem it solves",
-      "3. Key features visible in each screen",
-      "",
-      "CRITICAL: Screenshot 1's headline MUST focus on the main value proposition – what problem does this app solve for users? This is the most important title.",
-      "",
-      "LENGTH REQUIREMENTS – THIS IS VERY IMPORTANT:",
-      "- headline: VERY SHORT, maximum 2-4 words. Punchy, memorable, benefit-focused.",
-      "- subheadline: SHORT, maximum 4-8 words. Expands on the headline.",
-      "",
-      "UNIQUENESS – VERY IMPORTANT:",
-      "- Each screenshot MUST have a UNIQUE headline and subheadline",
-      "- Do NOT repeat or reuse similar titles across screenshots",
-      "- Each title should highlight a DIFFERENT feature or benefit",
-      "",
-      'Examples of good headlines: "Track Every Expense", "Sleep Better Tonight", "Never Forget Again"',
-      'Examples of good subheadlines: "Automatic expense categorization and insights", "Science-backed sleep improvement", "Smart reminders that actually work"',
-      "",
-      "Return ONLY valid JSON in this exact format (no markdown, no explanation):",
-      `{ "titles": [ { "headline": "...", "subheadline": "..." } ] }`,
-      "",
-      `The titles array must contain exactly ${input.count} entries, one per screenshot, in order.`,
-      `Write all titles in ${input.language}.`,
-    ].filter(Boolean).join("\n"),
-  };
-}

@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
   buildTranslatePrompt,
+  buildTranslateBatchPrompt,
   buildImprovePrompt,
   buildFixKeywordsPrompt,
-  buildScreenshotTitlesPrompt,
   buildReplyPrompt,
   buildAppealPrompt,
   buildAnalyticsInsightsPrompt,
@@ -625,13 +625,48 @@ describe("buildNominationPrompt", () => {
   });
 });
 
-describe("buildScreenshotTitlesPrompt", () => {
-  it("states count, language and the JSON contract", () => {
-    const built = buildScreenshotTitlesPrompt({ count: 3, language: "French", appName: "Weatherly" });
-    expect(built.prompt).toContain("App: Weatherly");
-    expect(built.prompt).toContain("these 3 app screenshots");
-    expect(built.prompt).toContain("exactly 3 entries");
-    expect(built.prompt).toContain("Write all titles in French.");
-    expect(buildScreenshotTitlesPrompt({ count: 1, language: "English" }).prompt).not.toContain("App:");
+describe("buildTranslateBatchPrompt", () => {
+  const items = [
+    { id: "0", kind: "headline" as const, text: "Track every expense" },
+    { id: "1", kind: "subheadline" as const, text: "Automatic categories" },
+    { id: "2", kind: "element" as const, text: "Free forever" },
+  ];
+
+  it("lists every item with its id and describes what each one is", () => {
+    const prompt = buildTranslateBatchPrompt(items, "en-US", "de-DE", { appName: "Weatherly" });
+
+    expect(prompt).toContain("English (US)");
+    expect(prompt).toContain("German");
+    expect(prompt).toContain("Weatherly");
+    for (const item of items) {
+      expect(prompt).toContain(item.text);
+      expect(prompt).toContain(`id: ${item.id}`);
+    }
+    expect(prompt).toContain("headline");
+    expect(prompt).toContain("subheadline");
+    // The three kinds must be named in the prompt: a headline sits on a canvas at a very
+    // different size than a body element, and the model cannot infer that from the text.
+    expect(prompt).toContain("text element");
+  });
+
+  // The whole point of the batch form: the ids are the only thing tying a translation back
+  // to the item it came from, so the prompt has to demand them back verbatim.
+  it("requires the ids back unchanged, one entry per item", () => {
+    const prompt = buildTranslateBatchPrompt(items, "en-US", "fr-FR", {});
+    expect(prompt).toContain("exactly 3");
+    expect(prompt.toLowerCase()).toContain("id");
+  });
+
+  // These texts are laid out on a fixed screenshot canvas: a translation twice as long as
+  // the source overflows or shrinks the type to nothing.
+  it("constrains the output length to the source length", () => {
+    const prompt = buildTranslateBatchPrompt(items, "en-US", "fr-FR", {});
+    expect(prompt).toMatch(/length/i);
+  });
+
+  it("omits the app line when no app name is given", () => {
+    const prompt = buildTranslateBatchPrompt([items[0]], "en-US", "ja", {});
+    expect(prompt).not.toContain("The app is called");
+    expect(prompt).toContain("Japanese");
   });
 });

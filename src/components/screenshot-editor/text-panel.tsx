@@ -1,7 +1,6 @@
 "use client";
 
-import { MagicWand, TextItalic, TextStrikethrough, TextUnderline } from "@phosphor-icons/react";
-import { Button } from "@/components/ui/button";
+import { TextItalic, TextStrikethrough, TextUnderline } from "@phosphor-icons/react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
@@ -47,8 +46,8 @@ function StyleToggles({ italic, underline, strikethrough, onChange }: {
 
 // Text writes go to doc.currentLanguage; the five layout controls follow the per-language
 // layout switch (colors, weights and italics stay global across languages – appscreen behavior).
-export function TextPanel({ doc, dispatch, onMagicTitles }: {
-  doc: ScreenshotDoc; dispatch: (a: EditorAction) => void; onMagicTitles?: () => void;
+export function TextPanel({ doc, dispatch }: {
+  doc: ScreenshotDoc; dispatch: (a: EditorAction) => void;
 }) {
   const t = useTranslations();
   const index = doc.selectedIndex;
@@ -63,12 +62,6 @@ export function TextPanel({ doc, dispatch, onMagicTitles }: {
 
   return (
     <div className="space-y-6">
-      {onMagicTitles ? (
-        <Button size="sm" variant="outline" className="w-full" onClick={onMagicTitles}>
-          <MagicWand size={14} className="mr-1.5" />{t("screenshotEditor.magicTitles")}
-        </Button>
-      ) : null}
-
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="section-title">{t("screenshotEditor.headline")}</h3>
