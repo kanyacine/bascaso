@@ -7,6 +7,17 @@ import {
   CloudArrowUp,
   Plus,
 } from "@phosphor-icons/react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -48,6 +59,7 @@ export function ScreenshotSetCard({
   onUpload,
   onDelete,
   onDeleteSet,
+  onDeleteSetEverywhere,
   onDragEnd,
 }: {
   set: AscScreenshotSet;
@@ -58,6 +70,7 @@ export function ScreenshotSetCard({
   onUpload: (setId: string, file: File) => void;
   onDelete: (screenshotId: string) => void;
   onDeleteSet: (setId: string) => void;
+  onDeleteSetEverywhere: (displayType: string) => void;
   onDragEnd: (setId: string, event: DragEndEvent) => void;
 }) {
   const t = useTranslations();
@@ -180,6 +193,32 @@ export function ScreenshotSetCard({
                 >
                   {t("screenshots.removeVariant")}
                 </Button>
+                {/* Confirmed: other locales may still hold screenshots in this variant. */}
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="ghost" size="sm" className="text-muted-foreground">
+                      {t("screenshots.removeVariantEverywhere")}
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>
+                        {t("screenshots.removeVariantEverywhereTitle", {
+                          variant: displayTypeLabel(displayType),
+                        })}
+                      </AlertDialogTitle>
+                      <AlertDialogDescription>
+                        {t("screenshots.removeVariantEverywhereBody")}
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => onDeleteSetEverywhere(displayType)}>
+                        {t("common.remove")}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </div>
             )}
           </div>

@@ -74,6 +74,21 @@ export default function AboutPage() {
           {t("settings.about.terms")}
         </a>
       </div>
+
+      <section className="space-y-1">
+        <h3 className="section-title">{t("settings.about.credits")}</h3>
+        <p className="text-xs text-muted-foreground">
+          <a
+            href="https://github.com/YUZU-Hub/appscreen"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:underline underline-offset-4"
+          >
+            {t("settings.about.creditsAppscreen")}
+          </a>
+        </p>
+        <p className="text-xs text-muted-foreground">{t("settings.about.creditsModels")}</p>
+      </section>
     </div>
   );
 }

@@ -9,7 +9,13 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       include: ["src/lib/**/*.ts", "src/app/api/**/*.ts"],
-      exclude: ["src/lib/utils.ts", "src/lib/hooks/**"],
+      exclude: [
+        "src/lib/utils.ts",
+        "src/lib/hooks/**",
+        // WebGL renderer – needs a GPU context, cannot execute under node. All the pure 3D
+        // math it consumes is in three-scene.ts, which IS covered.
+        "src/lib/screenshot-editor/three-renderer.ts",
+      ],
       thresholds: {
         "src/lib/**/*.ts": {
           lines: 100,

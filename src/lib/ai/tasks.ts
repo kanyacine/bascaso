@@ -44,3 +44,10 @@ export const AI_ROUTED_GROUPS: AIGroupId[] = ["redaction", "metadata", "insights
 export function groupForTask(taskId: AITaskId): AIGroupId {
   return AI_TASK_GROUPS[taskId];
 }
+
+/** Batch caps for the `translate` action. One call must fit in one model context, and one
+ *  gesture must fit in the managed backend's per-action budget – 60 items is two full
+ *  screenshot sets' worth of text, well above what a real set carries.
+ *  Shared: `/api/ai` validates against them, callers chunk against them. */
+export const MAX_BATCH_ITEMS = 60;
+export const MAX_BATCH_CHARS = 4_000;

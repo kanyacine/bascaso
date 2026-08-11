@@ -32,9 +32,11 @@ export function useAscLabels() {
         const key = `asc.states.${state}`;
         return getByPath(messages, key) ?? fallbackStateLabel(state);
       },
-      deviceCategoryLabel(category: DeviceCategory): string {
-        const key = DEVICE_CATEGORY_KEYS[category];
-        return getByPath(messages, key) ?? category;
+      /** Takes a plain string: the screenshot editor also carries the "Other" bucket, which is
+       *  not an ASC device category and falls through to its own name. */
+      deviceCategoryLabel(category: string): string {
+        const key = DEVICE_CATEGORY_KEYS[category as DeviceCategory];
+        return (key && getByPath(messages, key)) || category;
       },
       categoryLabel(id: string): string {
         const key = `asc.categories.${id}`;

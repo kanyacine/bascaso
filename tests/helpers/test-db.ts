@@ -113,6 +113,20 @@ export function createTestDb() {
       encrypted_dek TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
+
+    CREATE TABLE screenshot_docs (
+      id TEXT PRIMARY KEY NOT NULL,
+      app_id TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      name TEXT,
+      languages TEXT NOT NULL,
+      output_device TEXT NOT NULL,
+      doc TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE UNIQUE INDEX screenshot_docs_current_unique ON screenshot_docs (app_id) WHERE kind = 'current';
   `);
   return drizzle(sqlite, { schema });
 }

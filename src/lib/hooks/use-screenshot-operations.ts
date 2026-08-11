@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { arrayMove } from "@dnd-kit/sortable";
 import type { DragEndEvent } from "@dnd-kit/core";
 import { apiFetch } from "@/lib/api-fetch";
+import { useTranslations } from "@/lib/i18n/locale-context";
 import { displayTypeLabel, type AscScreenshotSet } from "@/lib/asc/display-types";
 
 interface UseScreenshotOperationsOptions {
@@ -13,6 +14,10 @@ interface UseScreenshotOperationsOptions {
   refresh: () => Promise<void>;
   screenshotSets: AscScreenshotSet[];
   setScreenshotSets: React.Dispatch<React.SetStateAction<AscScreenshotSet[]>>;
+  /** Every localization of the version – the cross-locale delete needs their ids. */
+  localizations: { id: string }[];
+  appId: string;
+  versionId: string;
 }
 
 export function useScreenshotOperations({
@@ -21,12 +26,16 @@ export function useScreenshotOperations({
   refresh,
   screenshotSets,
   setScreenshotSets,
+  localizations,
+  appId,
+  versionId,
 }: UseScreenshotOperationsOptions) {
   const [uploadingSetIds, setUploadingSetIds] = useState<Set<string>>(
     new Set(),
   );
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
   const [creatingVariant, setCreatingVariant] = useState(false);
+  const t = useTranslations();
 
   const handleUpload = useCallback(
     async (setId: string, file: File) => {
@@ -37,11 +46,11 @@ export function useScreenshotOperations({
         formData.append("setId", setId);
 
         await apiFetch(apiBase, { method: "POST", body: formData });
-        toast.success("Screenshot uploaded");
+        toast.success(t("screenshots.uploaded"));
         await refresh();
       } catch (err) {
         toast.error(
-          err instanceof Error ? err.message : "Failed to upload screenshot",
+          err instanceof Error ? err.message : t("screenshots.uploadFailed"),
         );
       } finally {
         setUploadingSetIds((prev) => {
@@ -51,7 +60,7 @@ export function useScreenshotOperations({
         });
       }
     },
-    [apiBase, refresh],
+    [apiBase, refresh, t],
   );
 
   const handleDeleteScreenshot = useCallback(
@@ -60,11 +69,11 @@ export function useScreenshotOperations({
       setDeletingIds((prev) => new Set(prev).add(screenshotId));
       try {
         await apiFetch(`${apiBase}/${screenshotId}`, { method: "DELETE" });
-        toast.success("Screenshot deleted");
+        toast.success(t("screenshots.deleted"));
         await refresh();
       } catch (err) {
         toast.error(
-          err instanceof Error ? err.message : "Failed to delete screenshot",
+          err instanceof Error ? err.message : t("screenshots.deleteFailed"),
         );
       } finally {
         setDeletingIds((prev) => {
@@ -74,7 +83,7 @@ export function useScreenshotOperations({
         });
       }
     },
-    [apiBase, deletingIds, refresh],
+    [apiBase, deletingIds, refresh, t],
   );
 
   const handleDragEnd = useCallback(
@@ -112,11 +121,11 @@ export function useScreenshotOperations({
           ),
         );
         toast.error(
-          err instanceof Error ? err.message : "Failed to reorder screenshots",
+          err instanceof Error ? err.message : t("screenshots.reorderFailed"),
         );
       }
     },
-    [apiBase, screenshotSets, setScreenshotSets],
+    [apiBase, screenshotSets, setScreenshotSets, t],
   );
 
   const handleAddVariant = useCallback(
@@ -129,17 +138,17 @@ export function useScreenshotOperations({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ displayType }),
         });
-        toast.success(`Added ${displayTypeLabel(displayType)}`);
+        toast.success(t("screenshots.variantAdded", { variant: displayTypeLabel(displayType) }));
         await refresh();
       } catch (err) {
         toast.error(
-          err instanceof Error ? err.message : "Failed to create screenshot set",
+          err instanceof Error ? err.message : t("screenshots.addVariantFailed"),
         );
       } finally {
         setCreatingVariant(false);
       }
     },
-    [apiBase, localizationId, refresh],
+    [apiBase, localizationId, refresh, t],
   );
 
   const handleDeleteSet = useCallback(
@@ -150,15 +159,46 @@ export function useScreenshotOperations({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ setId }),
         });
-        toast.success("Variant removed");
+        toast.success(t("screenshots.variantRemoved"));
         await refresh();
       } catch (err) {
         toast.error(
-          err instanceof Error ? err.message : "Failed to remove variant",
+          err instanceof Error ? err.message : t("screenshots.removeVariantFailed"),
         );
       }
     },
-    [apiBase, refresh],
+    [apiBase, refresh, t],
+  );
+
+  /** Same variant, every localization of the version – screenshots inside it go with it. */
+  const handleDeleteSetEverywhere = useCallback(
+    async (displayType: string) => {
+      try {
+        const removed = await Promise.all(
+          localizations.map(async (loc) => {
+            const base = `/api/apps/${appId}/versions/${versionId}/localizations/${loc.id}/screenshots`;
+            const { screenshotSets: sets } = await apiFetch<{ screenshotSets: AscScreenshotSet[] }>(base);
+            const set = sets?.find((s) => s.attributes.screenshotDisplayType === displayType);
+            if (!set) return false;
+            await apiFetch(`${base}/sets`, {
+              method: "DELETE",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ setId: set.id }),
+            });
+            return true;
+          }),
+        );
+        const count = removed.filter(Boolean).length;
+        toast.success(t(count === 1 ? "screenshots.variantRemovedFromOne" : "screenshots.variantRemovedFromMany", { count: String(count) }));
+        await refresh();
+      } catch (err) {
+        toast.error(
+          err instanceof Error ? err.message : t("screenshots.removeVariantFailed"),
+        );
+        await refresh(); // a partial run leaves the page stale
+      }
+    },
+    [appId, versionId, localizations, refresh, t],
   );
 
   return {
@@ -170,5 +210,6 @@ export function useScreenshotOperations({
     handleDragEnd,
     handleAddVariant,
     handleDeleteSet,
+    handleDeleteSetEverywhere,
   };
 }

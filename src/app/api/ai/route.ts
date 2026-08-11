@@ -4,6 +4,7 @@ import { generateText } from "ai";
 import { classifyAIError, getLanguageModelForTask } from "@/lib/ai/provider-factory";
 import {
   buildTranslatePrompt,
+  buildTranslateBatchPrompt,
   buildImprovePrompt,
   buildReplyPrompt,
   buildAppealPrompt,
@@ -19,6 +20,8 @@ import {
   type GuidanceScope,
 } from "@/lib/app-preferences";
 import { APPLE_FM_PROVIDER_ID, appleFmInputTooLarge } from "@/lib/ai/apple-fm";
+import { generateObjectWithRepair } from "@/lib/ai/structured-output";
+import { MAX_BATCH_CHARS, MAX_BATCH_ITEMS } from "@/lib/ai/tasks";
 
 /** Review replies/appeals use their own guidance bucket; everything else uses translation guidance. */
 function guidanceScopeForAction(action: string): GuidanceScope {
@@ -29,14 +32,20 @@ function guidanceScopeForAction(action: string): GuidanceScope {
 const BASE_SYSTEM =
   "You are a text-processing tool. Output ONLY the final result as plain text with no preamble, explanation, or commentary. Never use markdown, HTML, or any formatting syntax. Never refuse or ask questions.";
 
+/** Base system message for the one action that answers with structured data rather than a
+ *  field's text: BASE_SYSTEM's "plain text, never any syntax" rule would argue against the
+ *  JSON the schema asks for. */
+const STRUCTURED_SYSTEM =
+  "You are a translation tool. Return ONLY the requested structured data, with no preamble, explanation, or commentary. Never refuse or ask questions.";
+
 /**
  * Append the user's standing guidance (tone/style instructions) to the system
  * message. Guidance steers style only – the rules above remain authoritative,
  * so guidance can never break the plain-text, non-conversational contract.
  */
-function buildSystem(guidance: string): string {
-  if (!guidance) return BASE_SYSTEM;
-  return `${BASE_SYSTEM}\n\nThe user has provided standing instructions for tone and style. Follow them wherever they do not conflict with the rules above:\n${guidance}`;
+function buildSystem(guidance: string, base: string = BASE_SYSTEM): string {
+  if (!guidance) return base;
+  return `${base}\n\nThe user has provided standing instructions for tone and style. Follow them wherever they do not conflict with the rules above:\n${guidance}`;
 }
 
 /** Control / zero-width / BOM characters that LLMs sometimes emit into single-line fields. */
@@ -64,6 +73,19 @@ function looksConversational(text: string): boolean {
   ];
   return conversationalPrefixes.some((p) => lower.startsWith(p));
 }
+
+const batchItemsSchema = z
+  .array(z.object({
+    id: z.string().min(1),
+    kind: z.enum(["headline", "subheadline", "element"]),
+    text: z.string().min(1),
+  }))
+  .min(1, "items must not be empty")
+  .max(MAX_BATCH_ITEMS, `at most ${MAX_BATCH_ITEMS} items per translate call`)
+  .refine(
+    (items) => items.reduce((total, item) => total + item.text.length, 0) <= MAX_BATCH_CHARS,
+    { message: `at most ${MAX_BATCH_CHARS} characters of source text per translate call` },
+  );
 
 const requestSchema = z.object({
   action: z.enum([
@@ -93,11 +115,59 @@ const requestSchema = z.object({
   whatsNew: z.string().optional(),
   promotionalText: z.string().optional(),
   isLaunch: z.boolean().optional(),
+  // translate, batch form: several texts in one call, each returned under the id it came
+  // with. Absent = the single-`text` form, which every metadata flow still uses.
+  items: batchItemsSchema.optional(),
   // 1 user gesture = 1 managed action: the caller supplies the id when its gesture can
   // trigger several calls (bulk, workflow); otherwise the resolution generates one (see
   // getLanguageModelForTask).
   actionId: z.string().uuid().optional(),
 });
+
+const translateBatchSchema = z.object({
+  results: z.array(z.object({ id: z.string(), value: z.string() })),
+});
+
+/**
+ * Zip the model's results back onto the items that were asked for: request order, known
+ * ids only, no blanks.
+ *
+ * The client applies these onto a screenshot document, so an id it never sent would land
+ * nowhere and a blank value would erase the text it was meant to translate. Both are
+ * things a model does under pressure, and neither is worth failing the whole batch over –
+ * the other items are good.
+ */
+function alignBatchResults(
+  items: { id: string }[],
+  results: { id: string; value: string }[],
+): { id: string; value: string }[] {
+  const byId = new Map(results.map((result) => [result.id, result.value]));
+  return items
+    .map((item) => ({ id: item.id, value: byId.get(item.id) ?? "" }))
+    .filter((result) => result.value.trim() !== "");
+}
+
+/** Provider failures map to the same status codes for every action. */
+function aiErrorResponse(err: unknown, action: string, field?: string): NextResponse {
+  console.error("[ai] error: action=%s field=%s", action, field, err);
+  const category = classifyAIError(err);
+  if (category === "credits") {
+    return NextResponse.json({ error: "ai_credits_exhausted" }, { status: 402 });
+  }
+  if (category === "rate_limited") {
+    return NextResponse.json({ error: "ai_rate_limited" }, { status: 429 });
+  }
+  if (category === "action_exhausted") {
+    return NextResponse.json({ error: "ai_action_exhausted" }, { status: 429 });
+  }
+  if (category === "device_conflict") {
+    return NextResponse.json({ error: "ai_device_conflict" }, { status: 409 });
+  }
+  if (category === "auth" || category === "permission") {
+    return NextResponse.json({ error: "ai_auth_error" }, { status: 401 });
+  }
+  return errorJson(err, 500, "AI request failed") as NextResponse;
+}
 
 export async function POST(request: Request) {
   const parsed = await parseBody(request, requestSchema);
@@ -106,7 +176,7 @@ export async function POST(request: Request) {
   const {
     action, text, field, reviewTitle, rating, fromLocale, toLocale, locale,
     appName, charLimit, guidance, description, subtitle, forbiddenWords,
-    versionString, whatsNew, promotionalText, isLaunch, actionId,
+    versionString, whatsNew, promotionalText, isLaunch, actionId, items,
   } = parsed;
 
   // Copy needs no AI – echo the text back
@@ -114,10 +184,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ result: text });
   }
 
+  // The batch form of translate: same task, same routing, same guidance – it only leaves
+  // the plain-text rail at the point of generation, where it asks for structured data
+  // instead of one field's text.
+  const batchItems = action === "translate" ? items : undefined;
+
   // Per-run guidance (from a dialog) overrides the saved setting; when absent
   // (e.g. magic wand) fall back to the saved guidance for this action's scope.
   const effectiveGuidance = (guidance ?? getAIGuidance(guidanceScopeForAction(action))).trim();
-  const system = buildSystem(effectiveGuidance);
+  const system = buildSystem(effectiveGuidance, batchItems ? STRUCTURED_SYSTEM : BASE_SYSTEM);
 
   let model;
   let providerId = "";
@@ -163,7 +238,9 @@ export async function POST(request: Request) {
           { status: 400 },
         );
       }
-      prompt = buildTranslatePrompt(text, fromLocale, toLocale, context);
+      prompt = batchItems
+        ? buildTranslateBatchPrompt(batchItems, fromLocale, toLocale, { appName })
+        : buildTranslatePrompt(text, fromLocale, toLocale, context);
       break;
     }
     case "improve": {
@@ -228,6 +305,23 @@ export async function POST(request: Request) {
   // check is a script-aware token estimate (CJK ≈ 1 token/char).
   if (maxInputChars !== undefined && appleFmInputTooLarge(system + prompt)) {
     return NextResponse.json({ error: "apple_fm_input_too_large" }, { status: 422 });
+  }
+
+  if (batchItems) {
+    try {
+      const { object } = await generateObjectWithRepair({
+        model,
+        schema: translateBatchSchema,
+        system,
+        prompt,
+        temperature: samplingTemperature(providerId, modelId, 0),
+        providerId,
+        providerOptions: noThinkingOptions(providerId, modelId),
+      });
+      return NextResponse.json({ results: alignBatchResults(batchItems, object.results), tier });
+    } catch (err) {
+      return aiErrorResponse(err, action, field);
+    }
   }
 
   try {
@@ -338,23 +432,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ result: finalResult, length: finalResult.length, overLimit, tier });
   } catch (err) {
-    console.error("[ai] error: action=%s field=%s", action, field, err);
-    const category = classifyAIError(err);
-    if (category === "credits") {
-      return NextResponse.json({ error: "ai_credits_exhausted" }, { status: 402 });
-    }
-    if (category === "rate_limited") {
-      return NextResponse.json({ error: "ai_rate_limited" }, { status: 429 });
-    }
-    if (category === "action_exhausted") {
-      return NextResponse.json({ error: "ai_action_exhausted" }, { status: 429 });
-    }
-    if (category === "device_conflict") {
-      return NextResponse.json({ error: "ai_device_conflict" }, { status: 409 });
-    }
-    if (category === "auth" || category === "permission") {
-      return NextResponse.json({ error: "ai_auth_error" }, { status: 401 });
-    }
-    return errorJson(err, 500, "AI request failed");
+    return aiErrorResponse(err, action, field);
   }
 }

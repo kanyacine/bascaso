@@ -57,3 +57,8 @@ electron/*.js.map
 /docs/superpowers/
 /.claude/
 /.superpowers/
+
+# playwright e2e scratch DB + fixtures
+e2e/.tmp/
+test-results/
+playwright-report/

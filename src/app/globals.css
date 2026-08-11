@@ -151,6 +151,25 @@
     @apply rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive;
   }
 
+  /* Colour swatch – the colour fills the whole control, size comes from the caller.
+     A border, not a ring: an outward ring is clipped by the scrolling editor panel on a swatch
+     flush right, and an inset one is painted over by ::-webkit-color-swatch, which fills the
+     content box – only the corner fringe survives. A border sits in the border box, out of the
+     colour's reach either way, and follows the foreground so a white swatch on the light theme
+     (or a black one on the dark theme) still reads as a box.
+     A native <input type="color"> paints its own colour box and border – both stripped below. */
+  .swatch {
+    @apply cursor-pointer rounded-md bg-transparent p-0;
+    @apply border border-foreground/25 hover:border-foreground/60;
+  }
+  .swatch::-webkit-color-swatch-wrapper {
+    @apply p-0;
+  }
+  .swatch::-webkit-color-swatch,
+  .swatch::-moz-color-swatch {
+    @apply rounded-md border-0;
+  }
+
   /* Managed account card – balance, packs and subscribe in one surface. */
   /* Capped, not fluid: the AI settings page has no column of its own, so a
      full-width card stretched to the window and dwarfed every field under it.
@@ -261,5 +280,23 @@
   -webkit-app-region: drag;
 }
 .no-drag {
+  -webkit-app-region: no-drag;
+}
+/* macOS routes clicks inside a drag region to the window, so a floating layer that opens over the
+   title bar becomes unhoverable and unclickable. Opt every one out – the popper wrapper covers the
+   popper-positioned layers, the slots cover item-aligned selects and the overlay-backed dialogs. */
+[data-radix-popper-content-wrapper],
+[data-slot="select-content"],
+[data-slot="combobox-content"],
+[data-slot="dropdown-menu-content"],
+[data-slot="dropdown-menu-sub-content"],
+[data-slot="popover-content"],
+[data-slot="tooltip-content"],
+[data-slot="dialog-content"],
+[data-slot="dialog-overlay"],
+[data-slot="alert-dialog-content"],
+[data-slot="alert-dialog-overlay"],
+[data-slot="sheet-content"],
+[data-slot="sheet-overlay"] {
   -webkit-app-region: no-drag;
 }

@@ -5,6 +5,7 @@ const mockGenerateText = vi.fn();
 const mockClassifyAIError = vi.fn();
 const mockGetLanguageModelForTask = vi.fn();
 const mockBuildTranslatePrompt = vi.fn();
+const mockBuildTranslateBatchPrompt = vi.fn();
 const mockBuildImprovePrompt = vi.fn();
 const mockBuildReplyPrompt = vi.fn();
 const mockBuildAppealPrompt = vi.fn();
@@ -14,6 +15,7 @@ const mockBuildShortenPrompt = vi.fn();
 const mockGetAIGuidance = vi.fn();
 const mockGetAppleFmAllowUnsupportedLanguages = vi.fn();
 const mockErrorJson = vi.fn();
+const mockGenerateObjectWithRepair = vi.fn();
 
 vi.mock("ai", () => ({
   generateText: (...args: unknown[]) => mockGenerateText(...args),
@@ -35,6 +37,7 @@ vi.mock("@/lib/ai/provider-factory", async (importOriginal) => {
 
 vi.mock("@/lib/ai/prompts", () => ({
   buildTranslatePrompt: (...args: unknown[]) => mockBuildTranslatePrompt(...args),
+  buildTranslateBatchPrompt: (...args: unknown[]) => mockBuildTranslateBatchPrompt(...args),
   buildImprovePrompt: (...args: unknown[]) => mockBuildImprovePrompt(...args),
   buildReplyPrompt: (...args: unknown[]) => mockBuildReplyPrompt(...args),
   buildAppealPrompt: (...args: unknown[]) => mockBuildAppealPrompt(...args),
@@ -42,6 +45,14 @@ vi.mock("@/lib/ai/prompts", () => ({
   buildNominationPrompt: (...args: unknown[]) => mockBuildNominationPrompt(...args),
   buildShortenPrompt: (...args: unknown[]) => mockBuildShortenPrompt(...args),
 }));
+
+vi.mock("@/lib/ai/structured-output", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/ai/structured-output")>();
+  return {
+    ...actual,
+    generateObjectWithRepair: (...args: unknown[]) => mockGenerateObjectWithRepair(...args),
+  };
+});
 
 vi.mock("@/lib/api-helpers", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/api-helpers")>();
@@ -66,6 +77,8 @@ describe("AI route", () => {
     });
     mockBuildTranslatePrompt.mockReset();
     mockBuildTranslatePrompt.mockReturnValue("translate-prompt");
+    mockBuildTranslateBatchPrompt.mockReset();
+    mockBuildTranslateBatchPrompt.mockReturnValue("translate-batch-prompt");
     mockBuildImprovePrompt.mockReset();
     mockBuildImprovePrompt.mockReturnValue("improve-prompt");
     mockBuildReplyPrompt.mockReset();
@@ -82,6 +95,8 @@ describe("AI route", () => {
     mockGetAIGuidance.mockReturnValue("");
     mockGetAppleFmAllowUnsupportedLanguages.mockReset();
     mockGetAppleFmAllowUnsupportedLanguages.mockReturnValue(false);
+    mockGenerateObjectWithRepair.mockReset();
+    mockGenerateObjectWithRepair.mockResolvedValue({ object: { results: [] } });
     mockErrorJson.mockReset();
     mockErrorJson.mockImplementation(
       (_err, status = 500, fallback = "mapped") =>
@@ -791,5 +806,160 @@ describe("AI route", () => {
     // `tier` rides along on every success so the client knows whether the gesture
     // cost a credit (see notifyManagedDebit).
     expect(data).toEqual({ result: "Short", length: 5, overLimit: false, tier: "byok" });
+  });
+
+  // The screenshot editor sends one call per target locale carrying every text of the
+  // gesture, instead of one call per text. Same action id, same task, same routing – only
+  // the payload shape and the structured response differ.
+  describe("translate batch form", () => {
+    const items = [
+      { id: "0", kind: "headline", text: "Track every expense" },
+      { id: "1", kind: "element", text: "Free forever" },
+    ];
+
+    function batchRequest(body: Record<string, unknown> = {}) {
+      return new Request("http://localhost", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "translate", text: "", items,
+          fromLocale: "en-US", toLocale: "de-DE", appName: "Weatherly",
+          ...body,
+        }),
+      });
+    }
+
+    it("returns one result per item, keyed by the id it was sent with", async () => {
+      mockGenerateObjectWithRepair.mockResolvedValue({
+        object: { results: [{ id: "1", value: "Für immer gratis" }, { id: "0", value: "Jede Ausgabe erfassen" }] },
+      });
+      const { POST } = await import("@/app/api/ai/route");
+
+      const res = await POST(batchRequest());
+
+      expect(res.status).toBe(200);
+      // Request order, not model order: the client zips these back onto its own list.
+      expect(await res.json()).toEqual({
+        results: [
+          { id: "0", value: "Jede Ausgabe erfassen" },
+          { id: "1", value: "Für immer gratis" },
+        ],
+        tier: "byok",
+      });
+      expect(mockBuildTranslateBatchPrompt).toHaveBeenCalledWith(
+        items, "en-US", "de-DE", { appName: "Weatherly" },
+      );
+      // One structured call for the whole batch – the plain-text rail stays untouched.
+      expect(mockGenerateText).not.toHaveBeenCalled();
+    });
+
+    it("drops results for ids that were never sent", async () => {
+      mockGenerateObjectWithRepair.mockResolvedValue({
+        object: { results: [{ id: "0", value: "ok" }, { id: "99", value: "hallucinated" }] },
+      });
+      const { POST } = await import("@/app/api/ai/route");
+
+      expect((await (await POST(batchRequest())).json()).results).toEqual([{ id: "0", value: "ok" }]);
+    });
+
+    // An empty translation would wipe the user's canvas text on apply – a silent data loss
+    // for the one item the model gave up on.
+    it("drops blank translations instead of returning them", async () => {
+      mockGenerateObjectWithRepair.mockResolvedValue({
+        object: { results: [{ id: "0", value: "   " }, { id: "1", value: "Für immer gratis" }] },
+      });
+      const { POST } = await import("@/app/api/ai/route");
+
+      expect((await (await POST(batchRequest())).json()).results)
+        .toEqual([{ id: "1", value: "Für immer gratis" }]);
+    });
+
+    it("still requires both locales", async () => {
+      const { POST } = await import("@/app/api/ai/route");
+      const res = await POST(batchRequest({ toLocale: undefined }));
+
+      expect(res.status).toBe(400);
+      expect(await res.json()).toEqual({
+        error: "fromLocale and toLocale are required for translate",
+      });
+    });
+
+    it("rejects an empty item list", async () => {
+      const { POST } = await import("@/app/api/ai/route");
+      const res = await POST(batchRequest({ items: [] }));
+
+      expect(res.status).toBe(400);
+      expect(mockGenerateObjectWithRepair).not.toHaveBeenCalled();
+    });
+
+    // Both caps exist to keep one call inside a model's context and one gesture inside the
+    // managed backend's per-action budget.
+    it("rejects more than 60 items", async () => {
+      const many = Array.from({ length: 61 }, (_, i) => ({ id: String(i), kind: "element", text: "x" }));
+      const { POST } = await import("@/app/api/ai/route");
+      const res = await POST(batchRequest({ items: many }));
+
+      expect(res.status).toBe(400);
+      expect(mockGenerateObjectWithRepair).not.toHaveBeenCalled();
+    });
+
+    it("rejects more than 4000 characters of source text", async () => {
+      const heavy = Array.from({ length: 5 }, (_, i) => ({
+        id: String(i), kind: "element", text: "x".repeat(801),
+      }));
+      const { POST } = await import("@/app/api/ai/route");
+      const res = await POST(batchRequest({ items: heavy }));
+
+      expect(res.status).toBe(400);
+      expect(mockGenerateObjectWithRepair).not.toHaveBeenCalled();
+    });
+
+    it("accepts exactly the cap", async () => {
+      const atCap = Array.from({ length: 60 }, (_, i) => ({
+        id: String(i), kind: "element", text: "x".repeat(66),
+      }));
+      mockGenerateObjectWithRepair.mockResolvedValue({ object: { results: [{ id: "0", value: "ok" }] } });
+      const { POST } = await import("@/app/api/ai/route");
+
+      expect((await POST(batchRequest({ items: atCap }))).status).toBe(200);
+    });
+
+    it("surfaces a routing failure before spending anything", async () => {
+      mockGetLanguageModelForTask.mockRejectedValue(
+        new AIRoutingError("ai_tier_not_configured", "The metadata tier is not configured"),
+      );
+      const { POST } = await import("@/app/api/ai/route");
+
+      const res = await POST(batchRequest());
+
+      expect(res.status).toBe(400);
+      expect(mockGenerateObjectWithRepair).not.toHaveBeenCalled();
+    });
+
+    // The metadata dialogs (bulk translate, add locale) never send `items`, and this batch
+    // form must not change what they get back.
+    it("leaves the single-text form on the plain-text rail", async () => {
+      const { POST } = await import("@/app/api/ai/route");
+
+      const res = await POST(batchRequest({ items: undefined, text: "hello" }));
+
+      expect(await res.json()).toEqual({
+        result: "Generated output", length: 16, overLimit: false, tier: "byok",
+      });
+      expect(mockBuildTranslatePrompt).toHaveBeenCalled();
+      expect(mockBuildTranslateBatchPrompt).not.toHaveBeenCalled();
+      expect(mockGenerateObjectWithRepair).not.toHaveBeenCalled();
+    });
+
+    it("maps provider failures through the shared error mapping", async () => {
+      mockGenerateObjectWithRepair.mockRejectedValue(new Error("boom"));
+      mockClassifyAIError.mockReturnValue("credits");
+      const { POST } = await import("@/app/api/ai/route");
+
+      const res = await POST(batchRequest());
+
+      expect(res.status).toBe(402);
+      expect(await res.json()).toEqual({ error: "ai_credits_exhausted" });
+    });
   });
 });

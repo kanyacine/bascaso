@@ -71,6 +71,63 @@ ${text}`;
   return prompt;
 }
 
+/** One screenshot text to translate, with the id it must be returned under. */
+export interface TranslateBatchItem {
+  id: string;
+  kind: "headline" | "subheadline" | "element";
+  text: string;
+}
+
+const BATCH_KIND_DESCRIPTIONS: Record<TranslateBatchItem["kind"], string> = {
+  headline: "headline (the large title on the screenshot)",
+  subheadline: "subheadline (the smaller line under the headline)",
+  element: "text element (a free-standing label placed on the screenshot)",
+};
+
+/**
+ * Translate every text of one screenshot set in a single call.
+ *
+ * Separate from buildTranslatePrompt because the unit is different: App Store fields are
+ * translated one at a time against a character limit, screenshot texts are translated as a
+ * set against a canvas. Two consequences shape this prompt – ids have to come back
+ * untouched (they are the only link back to the item), and length matters more than
+ * completeness, because these texts are laid out at a fixed size and overflow is clipped.
+ */
+export function buildTranslateBatchPrompt(
+  items: TranslateBatchItem[],
+  fromLocale: string,
+  toLocale: string,
+  context: { appName?: string },
+): string {
+  const fromName = localeName(fromLocale);
+  const toName = localeName(toLocale);
+
+  let prompt = `Translate the following ${items.length} screenshot texts from ${fromName} (${fromLocale}) to ${toName} (${toLocale}).`;
+
+  if (context.appName) {
+    prompt += `\nThe app is called "${context.appName}".`;
+  }
+
+  prompt += `
+
+These texts are rendered on App Store screenshots, at a fixed size on a fixed canvas.
+
+Rules:
+- Return exactly ${items.length} entries, one per item, each with the id it was given. Never invent, merge, drop, or renumber an id.
+- Keep each translation close to the source length. A translation noticeably longer than its source overflows the screenshot and gets clipped – prefer a shorter wording that keeps the meaning.
+- Preserve the tone, the capitalisation style, and any line breaks.
+- Keep brand names, technical terms, and proper nouns untranslated unless they have an established localised form.
+- Translate every item independently: they are separate texts, not one paragraph.
+
+Items:`;
+
+  for (const item of items) {
+    prompt += `\n- id: ${item.id} | ${BATCH_KIND_DESCRIPTIONS[item.kind]}\n  ${item.text}`;
+  }
+
+  return prompt;
+}
+
 /**
  * Ask the model to shorten an over-limit result to fit a character budget,
  * preserving meaning, tone, and language. Used as a one-shot recovery pass
@@ -498,3 +555,4 @@ ${text}`;
 
   return prompt;
 }
+

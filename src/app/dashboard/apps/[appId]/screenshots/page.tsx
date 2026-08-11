@@ -2,6 +2,9 @@
 
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { useParams, useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { PaintBrush } from "@phosphor-icons/react";
+import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import {
   PointerSensor,
@@ -225,12 +228,16 @@ export default function ScreenshotsPage() {
     handleDragEnd,
     handleAddVariant,
     handleDeleteSet,
+    handleDeleteSetEverywhere,
   } = useScreenshotOperations({
     apiBase,
     localizationId,
     refresh,
     screenshotSets,
     setScreenshotSets: setRawSets,
+    localizations,
+    appId,
+    versionId,
   });
 
   const handleRefresh = useCallback(() => refresh(), [refresh]);
@@ -297,13 +304,19 @@ export default function ScreenshotsPage() {
         />
       )}
 
-      {showTabs && (
-        <DeviceCategoryTabs
-          categories={readOnly ? visibleCategories : allCategories}
-          selected={selectedCategory}
-          onSelect={setSelectedCategory}
-        />
-      )}
+      <DeviceCategoryTabs
+        categories={showTabs ? (readOnly ? visibleCategories : allCategories) : []}
+        selected={selectedCategory}
+        onSelect={setSelectedCategory}
+        action={
+          <Button asChild size="sm">
+            <Link href={`/dashboard/apps/${appId}/screenshots/editor`}>
+              <PaintBrush size={16} className="mr-1.5" />
+              {t("screenshotEditor.open")}
+            </Link>
+          </Button>
+        }
+      />
 
       {isEmpty && readOnly ? (
         <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
@@ -332,6 +345,7 @@ export default function ScreenshotsPage() {
                 onUpload={handleUpload}
                 onDelete={handleDeleteScreenshot}
                 onDeleteSet={handleDeleteSet}
+                onDeleteSetEverywhere={handleDeleteSetEverywhere}
                 onDragEnd={handleDragEnd}
               />
             ))}

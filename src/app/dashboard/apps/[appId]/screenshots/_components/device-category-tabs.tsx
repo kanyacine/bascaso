@@ -19,16 +19,18 @@ export function DeviceCategoryTabs({
   categories,
   selected,
   onSelect,
+  action,
 }: {
   categories: DeviceCategory[];
   selected: DeviceCategory;
   onSelect: (cat: DeviceCategory) => void;
+  action?: React.ReactNode;
 }) {
   const { deviceCategoryLabel } = useAscLabels();
 
   return (
-    <div className="border-b">
-      <nav className="-mb-px flex">
+    <div className="flex items-end justify-between gap-4 border-b pb-1.5">
+      <nav className="-mb-[7px] flex">
         {categories.map((cat) => (
           <button
             key={cat}
@@ -45,6 +47,7 @@ export function DeviceCategoryTabs({
           </button>
         ))}
       </nav>
+      {action}
     </div>
   );
 }

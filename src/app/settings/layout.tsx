@@ -15,6 +15,7 @@ const TAB_SEGMENTS = [
   { labelKey: "settings.tabs.ai" as const, segment: "/ai" },
   { labelKey: "settings.tabs.account" as const, segment: "/account" },
   { labelKey: "settings.tabs.aso" as const, segment: "/aso" },
+  { labelKey: "settings.tabs.screenshotEditor" as const, segment: "/screenshot-editor" },
   { labelKey: "settings.tabs.about" as const, segment: "/about" },
 ];
 
