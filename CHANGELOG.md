@@ -4,6 +4,19 @@ Versions from 2026.8.0 onwards are Bascaso's own, in CalVer (`YYYY.M.PATCH`).
 The 1.x entries below belong to the itsyconnect-macos line this project was
 forked from, and are kept for history.
 
+## 2026.8.1
+
+- Compose App Store screenshots inside the app. Backgrounds take a solid colour, a gradient or an image, with optional noise. The capture sits flat or on a 3D iPhone you can rotate and recolour. Headline and subheadline keep their own layout per language, text and graphic elements stack on three layers with laurel and badge frames, and popouts zoom into a crop
+- Work in several languages at once. Texts are per language, and one imported image serves the other languages and device sizes until you override it. At export, listing locales you never set up as working languages can be translated for you
+- Upload straight to App Store Connect. The editor renders each working format the app's platforms actually have, replaces the target screenshot sets, and stops at Apple's limit of 10 per set. A zip of everything is the other way out
+- Keep named versions of a document, restore or duplicate them, and move the whole thing in and out as JSON. Every export saves a snapshot on its own
+- Type with the fonts installed on your Mac. Google Fonts stays off by default, and turning it on adds an Online tab that warns you loading a family sends your IP address to Google
+- Fix analytics silently losing history on high-volume accounts. Report instances with roughly 100k+ rows were skipped with only a console warning, so charts started weeks ago instead of at launch (from itsyconnect-macos, thanks @yaaayaaa)
+
+The screenshot editor is derived from [appscreen](https://github.com/YUZU-Hub/appscreen)
+by YuzuHub (MIT). The iPhone 15 Pro Max model is by MajdyModels (CC BY 4.0, via
+Sketchfab).
+
 ## 2026.8.0
 
 First public release. Bascaso is a desktop app and self-hosted web dashboard
