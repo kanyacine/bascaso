@@ -90,17 +90,17 @@ describe("parseAppscreenProject", () => {
     expect(doc.customHeight).toBe(2796);
   });
 
-  it("keeps localized images and drops languages with no image", () => {
+  it("keeps localized images in the Other bucket and drops languages with no image", () => {
     const { doc } = parseAppscreenProject(syntheticProject());
-    expect(Object.keys(doc.screenshots[0].localizedImages)).toEqual(["en", "fr"]);
-    expect(doc.screenshots[0].localizedImages.en.src).toMatch(/^data:image\/png;base64,/);
+    expect(Object.keys(doc.screenshots[0].images.Other)).toEqual(["en", "fr"]);
+    expect(doc.screenshots[0].images.Other.en.src).toMatch(/^data:image\/png;base64,/);
   });
 
   it("folds a legacy src into the current language and defaults missing collections", () => {
     const { doc } = parseAppscreenProject(syntheticProject());
     const legacy = doc.screenshots[1];
-    expect(Object.keys(legacy.localizedImages)).toEqual(["en"]);
-    expect(legacy.localizedImages.en.src).toMatch(/^data:image\/png;base64,/);
+    expect(Object.keys(legacy.images.Other)).toEqual(["en"]);
+    expect(legacy.images.Other.en.src).toMatch(/^data:image\/png;base64,/);
     expect(legacy.elements).toEqual([]);
     expect(legacy.popouts).toEqual([]);
     expect(legacy.name).toBe("Shot 2");
@@ -110,8 +110,8 @@ describe("parseAppscreenProject", () => {
     const raw = syntheticProject();
     raw.screenshots[0].src = dataUrl("#ffffff");
     const { doc, imageRefs } = parseAppscreenProject(raw);
-    expect(doc.screenshots[0].localizedImages.en.src).not.toBe(raw.screenshots[0].src);
-    expect(imageRefs.get("screenshot:0:en")).toBe(doc.screenshots[0].localizedImages.en.src);
+    expect(doc.screenshots[0].images.Other.en.src).not.toBe(raw.screenshots[0].src);
+    expect(imageRefs.get("screenshot:0:en")).toBe(doc.screenshots[0].images.Other.en.src);
   });
 
   it("migrates pre-v2 3D positions on import", () => {
@@ -151,14 +151,14 @@ describe("parseAppscreenProject", () => {
     }] as unknown as typeof raw.screenshots;
     const { imageRefs, doc } = parseAppscreenProject(raw);
     expect([...imageRefs.keys()]).toEqual([]);
-    expect(doc.screenshots[0].localizedImages).toEqual({});
+    expect(doc.screenshots[0].images.Other).toEqual({});
   });
 
   it("parses a screenshot whose localizedImages field is absent", () => {
     const raw = syntheticProject();
     delete (raw.screenshots[0] as { localizedImages?: unknown }).localizedImages;
     const { doc } = parseAppscreenProject(raw);
-    expect(doc.screenshots[0].localizedImages).toEqual({});
+    expect(doc.screenshots[0].images.Other).toEqual({});
   });
 });
 
@@ -174,7 +174,7 @@ describe("rendering a parsed appscreen project", () => {
     for (const [index, screenshot] of doc.screenshots.entries()) {
       for (const language of doc.projectLanguages) {
         const screenshotImages: RenderAssets["screenshotImages"] = {};
-        for (const lang of Object.keys(screenshot.localizedImages)) {
+        for (const lang of Object.keys(screenshot.images.Other)) {
           screenshotImages[lang] = await decode(imageRefs.get(`screenshot:${index}:${lang}`) as string);
         }
         const backgroundRef = imageRefs.get(`background:${index}`);
@@ -224,7 +224,7 @@ describe.skipIf(!existsSync(FIXTURE))("appscreen reference doc parity", () => {
 
     for (const [index, screenshot] of doc.screenshots.entries()) {
       const screenshotImages: RenderAssets["screenshotImages"] = {};
-      for (const lang of Object.keys(screenshot.localizedImages)) {
+      for (const lang of Object.keys(screenshot.images.Other)) {
         screenshotImages[lang] = await decode(imageRefs.get(`screenshot:${index}:${lang}`) as string);
       }
       const backgroundRef = imageRefs.get(`background:${index}`);

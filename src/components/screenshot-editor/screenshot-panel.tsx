@@ -9,7 +9,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { PanelColor, PanelSlider } from "./panel-controls";
 import { uploadAsset } from "./upload-asset";
 import { localeName } from "@/lib/asc/locale-names";
-import { imageLanguageFor } from "@/lib/screenshot-editor/languages";
+import { categoryForFormat, hasOwnImage, imageSourceFor } from "@/lib/screenshot-editor/images";
 import { POSITION_PRESETS, matchPositionPreset } from "@/lib/screenshot-editor/position-presets";
 import { FRAME_COLOR_PRESETS, frameColorPreset } from "@/lib/screenshot-editor/three-scene";
 import { useTranslations } from "@/lib/i18n/locale-context";
@@ -30,12 +30,15 @@ export function ScreenshotPanel({ appId, doc, dispatch }: {
   const frame = (p: Partial<ScreenshotSettings["frame"]>) => dispatch({ type: "set-frame", index, patch: p });
   const activePreset = matchPositionPreset(s);
 
-  // The image is per working language, like the rest of the localized content.
+  // The image belongs to a device and a language: this button pair edits that one cell, and the
+  // canvas may well be showing another one – say the iPhone capture while an iPad format is
+  // selected. Saying so is what stops a delete from looking like it did nothing.
   const language = doc.currentLanguage;
-  const imageLanguage = imageLanguageFor(shot, language, doc.projectLanguages);
-  const hasImage = imageLanguage === language || (imageLanguage === null && Boolean(shot.src));
-  // Without this the canvas keeps showing another language's image after a delete, unexplained.
-  const inheritedFrom = hasImage ? null : imageLanguage;
+  const category = categoryForFormat(doc.outputDevice);
+  const hasImage = hasOwnImage(shot, category, language);
+  const shown = hasImage ? null : imageSourceFor(doc, shot, language);
+  const inheritedDevice = shown && shown.category && shown.category !== category ? shown.category : null;
+  const inheritedLanguage = shown && shown.language !== language ? shown.language : null;
   const fileInput = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
 
@@ -68,9 +71,15 @@ export function ScreenshotPanel({ appId, doc, dispatch }: {
             <TrashSimple size={14} />
           </Button>
         </div>
-        {inheritedFrom ? (
+        {shown && (inheritedDevice || inheritedLanguage) ? (
           <p className="text-xs text-muted-foreground">
-            {t("screenshotEditor.imageFromLanguage", { language: localeName(inheritedFrom) })}
+            {inheritedDevice && inheritedLanguage
+              ? t("screenshotEditor.imageFromDeviceAndLanguage", {
+                device: inheritedDevice, language: localeName(inheritedLanguage),
+              })
+              : inheritedDevice
+                ? t("screenshotEditor.imageFromDevice", { device: inheritedDevice })
+                : t("screenshotEditor.imageFromLanguage", { language: localeName(inheritedLanguage!) })}
           </p>
         ) : null}
         <input ref={fileInput} type="file" accept={ACCEPTED_TYPES} hidden

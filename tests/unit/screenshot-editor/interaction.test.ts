@@ -5,6 +5,7 @@ import {
   type DragState,
 } from "@/lib/screenshot-editor/interaction";
 import { createEmojiElement, createTextElement, createGraphicElement, createPopout } from "@/lib/screenshot-editor/elements";
+import { DEFAULT_CROP } from "@/lib/screenshot-editor/crop";
 import { makeCanvas, px } from "./helpers";
 
 const DIMS = { width: 1000, height: 2000 };
@@ -76,8 +77,8 @@ describe("hitTestPopouts", () => {
   const IMG = { width: 400, height: 400 };
 
   it("hits inside the displayed crop box, topmost (last) first", () => {
-    const a = { ...createPopout(), x: 50, y: 50, width: 30 };
-    const b = { ...createPopout(), x: 50, y: 50, width: 30 };
+    const a = { ...createPopout(), ...DEFAULT_CROP, x: 50, y: 50, width: 30 };
+    const b = { ...createPopout(), ...DEFAULT_CROP, x: 50, y: 50, width: 30 };
     // crop 30%×30% of a square image → square crop; display 300px wide, 300px tall
     expect(hitTestPopouts([a, b], DIMS, 500, 1000, IMG)).toBe(b.id);
     expect(hitTestPopouts([a], DIMS, 640, 1140, IMG)).toBe(a.id);
@@ -85,7 +86,7 @@ describe("hitTestPopouts", () => {
   });
 
   it("returns null without a source image or popouts", () => {
-    const a = createPopout();
+    const a = { ...createPopout(), ...DEFAULT_CROP };
     expect(hitTestPopouts([a], DIMS, 500, 1000, null)).toBeNull();
     expect(hitTestPopouts([], DIMS, 500, 1000, IMG)).toBeNull();
   });

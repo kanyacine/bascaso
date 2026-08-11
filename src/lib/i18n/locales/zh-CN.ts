@@ -643,6 +643,8 @@ export const zhCN: Messages = {
     replaceImage: "替换图片",
     addImage: "添加图片",
     imageFromLanguage: "图片来自 {language} – 此语言尚无自己的图片。",
+    imageFromDevice: "使用 {device} 的截图 – 此设备尚无自己的截图。",
+    imageFromDeviceAndLanguage: "使用 {device} 的 {language} 截图。",
     imageFit: "适配",
     imageFitCover: "填充",
     imageFitContain: "适应",

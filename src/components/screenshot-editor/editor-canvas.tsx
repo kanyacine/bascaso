@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { CornersOut, CrosshairSimple } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { categoryForFormat, categoryOrder } from "@/lib/screenshot-editor/images";
+import { cropForCategory } from "@/lib/screenshot-editor/crop";
 import { useTranslations } from "@/lib/i18n/locale-context";
 import { renderScreenshotToCanvas, resolveScreenshotImage } from "@/lib/screenshot-editor/render/compose";
 import { getCanvasDimensions } from "@/lib/screenshot-editor/devices";
@@ -119,7 +121,12 @@ export function EditorCanvas({
     const img = resolveScreenshotImage(
       assetsForShot(doc, doc.selectedIndex, images, {}), doc.currentLanguage, doc.projectLanguages,
     );
-    const popoutId = hitTestPopouts(shot.popouts, dims, x, y, img);
+    const popoutCategory = categoryForFormat(doc.outputDevice);
+    const popoutOrder = categoryOrder(doc);
+    const popoutId = hitTestPopouts(
+      shot.popouts.map((p) => ({ ...p, ...cropForCategory(p, popoutCategory, popoutOrder) })),
+      dims, x, y, img,
+    );
     if (popoutId) return { id: popoutId, isPopout: true };
     const sizes: Record<string, { width: number; height: number } | undefined> = {};
     for (const el of shot.elements) {

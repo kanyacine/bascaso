@@ -23,7 +23,7 @@ describe("resolveScreenshotImage", () => {
     expect(resolveScreenshotImage({ screenshotImages: { ja: green } }, "de", ["en", "fr"])).toBe(green);
     // skips languages whose entry is present but unresolved
     expect(resolveScreenshotImage({ screenshotImages: { it: undefined, ja: green } }, "de", ["en"])).toBe(green);
-    expect(resolveScreenshotImage({ screenshotImages: {}, legacyImage: blue }, "de", ["en"])).toBe(blue);
+    expect(resolveScreenshotImage({ screenshotImages: {} }, "de", ["en"])).toBeNull();
     expect(resolveScreenshotImage({ screenshotImages: {} }, "de", ["en"])).toBeNull();
   });
 });
@@ -40,8 +40,8 @@ function makeDoc(): ScreenshotDoc {
       layer: "above-text" },
   );
   shot.popouts.push({
-    id: "p1", x: 75, y: 75, width: 30, rotation: 0, opacity: 100,
-    cropX: 0, cropY: 0, cropWidth: 100, cropHeight: 100, cornerRadius: 0,
+    id: "p1", x: 75, y: 75, width: 30, rotation: 0, opacity: 100, cornerRadius: 0,
+    crops: { iPhone: { cropX: 0, cropY: 0, cropWidth: 100, cropHeight: 100 } },
     shadow: { enabled: false, color: "#000000", blur: 0, opacity: 0, x: 0, y: 0 },
     border: { enabled: false, color: "#00ff00", width: 4, opacity: 100 },
   });

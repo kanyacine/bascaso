@@ -649,6 +649,8 @@ export const ru: Messages = {
     replaceImage: "Заменить изображение",
     addImage: "Добавить изображение",
     imageFromLanguage: "Изображение из {language} – у этого языка своего нет.",
+    imageFromDevice: "Показан снимок {device} – для этого устройства своего нет.",
+    imageFromDeviceAndLanguage: "Показан снимок {device} на языке {language}.",
     imageFit: "Кадрирование",
     imageFitCover: "Заполнить",
     imageFitContain: "Вписать",

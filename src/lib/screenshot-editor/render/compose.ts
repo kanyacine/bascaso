@@ -1,8 +1,11 @@
 /* Portions derived from appscreen (https://github.com/YUZU-Hub/appscreen), MIT License, Copyright YuzuHub */
 import { getCanvasDimensions } from "../devices";
+import { OTHER_CATEGORY, categoryForFormat, categoryOrder } from "../images";
+import { cropForCategory } from "../crop";
 import { migrate3DPosition } from "../three-scene";
 import type {
   Background,
+  Crop,
   Dimensions,
   EditorElement,
   EditorScreenshot,
@@ -25,7 +28,7 @@ import { drawTextToContext } from "./text";
 // Port of getScreenshotImage (language-utils.js:94-122). Adaptation: the doc stores image refs,
 // so the already-resolved bitmaps arrive keyed by language in assets.screenshotImages.
 export function resolveScreenshotImage(
-  assets: Pick<RenderAssets, "screenshotImages" | "legacyImage">,
+  assets: Pick<RenderAssets, "screenshotImages">,
   language: string,
   projectLanguages: string[],
 ): RenderImage | null {
@@ -48,8 +51,7 @@ export function resolveScreenshotImage(
     }
   }
 
-  // Legacy fallback for old screenshot format
-  return assets.legacyImage || null;
+  return null;
 }
 
 // Port of renderScreenshotToCanvas (app.js:7050-7102). Adaptations: dimensions come from the doc
@@ -106,8 +108,14 @@ export function renderScreenshotToCanvas(
   // Elements above screenshot
   drawElementsToContext(ctx, dims, elements, "above-screenshot", env, assets);
 
-  // Draw popouts
-  drawPopoutsToContext(ctx, dims, screenshot.popouts, img, settings);
+  // Draw popouts – their crop follows the same device axis as the image they cut into
+  const order = categoryOrder(doc);
+  const category = categoryForFormat(doc.outputDevice);
+  drawPopoutsToContext(
+    ctx, dims,
+    screenshot.popouts.map((p) => ({ ...p, ...cropForCategory(p, category, order) })),
+    img, settings,
+  );
 
   // Draw text
   drawTextToContext(ctx, dims, screenshot.text);
@@ -128,7 +136,7 @@ interface AppscreenProject {
     screenshot: ScreenshotSettings;
     text: TextSettings;
     elements?: EditorElement[];
-    popouts?: Popout[];
+    popouts?: (Omit<Popout, "crops"> & Crop)[];
   }[];
   selectedIndex: number;
   formatVersion?: number;
@@ -166,6 +174,8 @@ export function parseAppscreenProject(raw: unknown): ParsedAppscreenProject {
   const imageRefs = new Map<string, string>();
 
   const screenshots: EditorScreenshot[] = project.screenshots.map((s, index) => {
+    // appscreen had no device axis: everything it exports lands in the bucket of the custom
+    // canvas size the import creates, and serves every device until one is overridden.
     const localizedImages: Record<string, { src: string | null }> = {};
     for (const [lang, entry] of Object.entries(s.localizedImages ?? {})) {
       if (!entry?.src) continue;
@@ -190,12 +200,15 @@ export function parseAppscreenProject(raw: unknown): ParsedAppscreenProject {
 
     return {
       name: s.name,
-      localizedImages,
+      images: { [OTHER_CATEGORY]: localizedImages },
       background: s.background,
       screenshot: needs3DMigration ? migrate3DPosition(s.screenshot) : s.screenshot,
       text: s.text,
       elements,
-      popouts: s.popouts ?? [],
+      popouts: (s.popouts ?? []).map(({ cropX, cropY, cropWidth, cropHeight, ...rest }) => ({
+        ...rest,
+        crops: { [OTHER_CATEGORY]: { cropX, cropY, cropWidth, cropHeight } },
+      })),
     };
   });
 

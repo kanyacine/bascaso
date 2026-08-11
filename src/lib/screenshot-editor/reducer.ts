@@ -3,9 +3,10 @@ import { EDITOR_FORMATS } from "./devices";
 import {
   applyTranslationEntries, docWithLanguage, normalizeDocLanguages, type TranslationEntry,
 } from "./languages";
+import { categoryForFormat, categoryOrder, clearImage, setImage } from "./images";
+import { setCrop } from "./crop";
 import type {
-  Background, EditorElement, EditorScreenshot, GradientStop, LanguageLayout, Popout, ScreenshotDoc,
-  ScreenshotSettings, Shadow, TextSettings,
+  Background, Crop, EditorElement, EditorScreenshot, GradientStop, LanguageLayout, Popout, ScreenshotDoc, ScreenshotSettings, Shadow, TextSettings,
 } from "./types";
 
 export type EditorAction =
@@ -37,6 +38,7 @@ export type EditorAction =
   | { type: "move-element"; index: number; elementId: string; direction: "up" | "down" }
   | { type: "add-popout"; index: number; popout: Popout }
   | { type: "update-popout"; index: number; popoutId: string; patch: Partial<Omit<Popout, "id" | "shadow" | "border">> }
+  | { type: "set-popout-crop"; index: number; popoutId: string; patch: Partial<Crop> }
   | { type: "set-popout-shadow"; index: number; popoutId: string; patch: Partial<Shadow> }
   | { type: "set-popout-border"; index: number; popoutId: string; patch: Partial<Popout["border"]> }
   | { type: "remove-popout"; index: number; popoutId: string }
@@ -175,7 +177,9 @@ export function editorReducer(doc: ScreenshotDoc, action: EditorAction): Screens
     case "add-screenshot": {
       const shot = createDefaultScreenshot(doc.defaults);
       // No ref = blank screenshot (background + text only), like appscreen's "add" button.
-      if (action.imageRef) shot.localizedImages = { [doc.currentLanguage]: { src: action.imageRef } };
+      if (action.imageRef) {
+        shot.images = { [categoryForFormat(doc.outputDevice)]: { [doc.currentLanguage]: { src: action.imageRef } } };
+      }
       const screenshots = [...doc.screenshots, shot];
       return { ...doc, screenshots, selectedIndex: screenshots.length - 1 };
     }
@@ -201,18 +205,13 @@ export function editorReducer(doc: ScreenshotDoc, action: EditorAction): Screens
       const selected = doc.screenshots[doc.selectedIndex];
       return { ...doc, screenshots, selectedIndex: screenshots.indexOf(selected) };
     }
+    // Both write the cell of the device on screen – the panel only ever edits what it displays.
     case "set-screenshot-image":
-      return patchShot(doc, action.index, (s) => ({
-        ...s,
-        localizedImages: { ...s.localizedImages, [action.language]: { src: action.imageRef } },
-      }));
+      return patchShot(doc, action.index, (s) =>
+        setImage(s, categoryForFormat(doc.outputDevice), action.language, action.imageRef));
     case "clear-screenshot-image":
-      // `src` holds the image of pre-localizedImages docs – it would resurface once the entry is gone.
-      return patchShot(doc, action.index, (s) => ({
-        ...s,
-        src: null,
-        localizedImages: removeFromRecord(s.localizedImages, action.language),
-      }));
+      return patchShot(doc, action.index, (s) =>
+        clearImage(s, categoryForFormat(doc.outputDevice), action.language));
     case "set-output-device":
       return withCurrentDeviceListed({ ...doc, outputDevice: action.device });
     case "set-custom-size":
@@ -300,6 +299,9 @@ export function editorReducer(doc: ScreenshotDoc, action: EditorAction): Screens
       return patchShot(doc, action.index, (s) => ({ ...s, popouts: [...s.popouts, action.popout] }));
     case "update-popout":
       return patchPopout(doc, action.index, action.popoutId, (p) => ({ ...p, ...action.patch }));
+    case "set-popout-crop":
+      return patchPopout(doc, action.index, action.popoutId, (p) =>
+        setCrop(p, categoryForFormat(doc.outputDevice), action.patch, categoryOrder(doc)));
     case "set-popout-shadow":
       return patchPopout(doc, action.index, action.popoutId, (p) => ({
         ...p,
@@ -368,7 +370,11 @@ export function editorReducer(doc: ScreenshotDoc, action: EditorAction): Screens
         defaults: { ...doc.defaults, text: textWithLanguageRemoved(doc.defaults.text, action.language) },
         screenshots: doc.screenshots.map((s) => ({
           ...s,
-          localizedImages: removeFromRecord(s.localizedImages, action.language),
+          // The language leaves every device, not just the one on screen.
+          images: Object.fromEntries(
+            Object.entries(s.images ?? {}).map(([cat, byLanguage]) =>
+              [cat, removeFromRecord(byLanguage, action.language)]),
+          ),
           text: textWithLanguageRemoved(s.text, action.language),
           elements: s.elements.map((el) =>
             el.texts && action.language in el.texts

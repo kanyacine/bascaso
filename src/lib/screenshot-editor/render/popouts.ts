@@ -1,12 +1,12 @@
 /* Portions derived from appscreen (https://github.com/YUZU-Hub/appscreen), MIT License, Copyright YuzuHub */
-import type { Dimensions, Popout, RenderImage, ScreenshotSettings } from "../types";
+import type { Dimensions, RenderImage, ResolvedPopout, ScreenshotSettings } from "../types";
 
 // Verbatim port of drawPopoutsToContext (app.js:7511-7583). screenshotSettings is unused in the
 // body — kept for signature parity with the appscreen call site.
 export function drawPopoutsToContext(
   context: CanvasRenderingContext2D,
   dims: Dimensions,
-  popouts: Popout[],
+  popouts: ResolvedPopout[],
   img: RenderImage | null,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars -- kept for signature parity
   screenshotSettings: ScreenshotSettings,

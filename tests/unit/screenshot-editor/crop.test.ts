@@ -1,7 +1,10 @@
 import { describe, it, expect } from "vitest";
+import { createPopout } from "@/lib/screenshot-editor/elements";
+import type { Popout } from "@/lib/screenshot-editor/types";
 import {
   getCropPreviewLayout, hitTestCropHandle, applyCropDrag, MIN_CROP_PCT, CROP_HANDLE_HIT_RADIUS,
   type CropRect,
+  DEFAULT_CROP, cropForCategory, hasOwnCrop, setCrop,
 } from "@/lib/screenshot-editor/crop";
 
 const CROP: CropRect = { cropX: 25, cropY: 25, cropWidth: 30, cropHeight: 30 };
@@ -70,5 +73,33 @@ describe("applyCropDrag", () => {
   it("never lets the origin go negative", () => {
     expect(applyCropDrag("move", CROP, -90, -90)).toEqual({ ...CROP, cropX: 0, cropY: 0 });
     expect(applyCropDrag("left", CROP, -90, 0)).toEqual({ ...CROP, cropX: 0, cropWidth: 55 });
+  });
+});
+
+describe("crops on the device axis", () => {
+  const popout = (crops: Popout["crops"]) => ({ ...createPopout(), crops });
+  const order = ["iPad", "iPhone"];
+
+  it("uses the device's own crop when it has one", () => {
+    const p = popout({ iPad: { cropX: 1, cropY: 2, cropWidth: 3, cropHeight: 4 } });
+    expect(cropForCategory(p, "iPad", order)).toEqual({ cropX: 1, cropY: 2, cropWidth: 3, cropHeight: 4 });
+  });
+
+  it("inherits another device's crop rather than jumping to the default", () => {
+    const p = popout({ iPhone: { cropX: 9, cropY: 9, cropWidth: 9, cropHeight: 9 } });
+    expect(cropForCategory(p, "iPad", order).cropX).toBe(9);
+  });
+
+  it("falls back to the default when nothing has been cropped", () => {
+    expect(cropForCategory(popout({}), "iPad", order)).toEqual(DEFAULT_CROP);
+  });
+
+  it("writing a device's crop starts from what it was inheriting and leaves the others alone", () => {
+    const p = popout({ iPhone: { cropX: 9, cropY: 9, cropWidth: 9, cropHeight: 9 } });
+    const next = setCrop(p, "iPad", { cropWidth: 50 }, order);
+    expect(next.crops.iPad).toEqual({ cropX: 9, cropY: 9, cropWidth: 50, cropHeight: 9 });
+    expect(next.crops.iPhone).toEqual({ cropX: 9, cropY: 9, cropWidth: 9, cropHeight: 9 });
+    expect(hasOwnCrop(next, "iPad")).toBe(true);
+    expect(hasOwnCrop(p, "iPad")).toBe(false);
   });
 });

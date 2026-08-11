@@ -15,18 +15,18 @@ function docWithShots(n: number): ScreenshotDoc {
 }
 
 describe("editorReducer – screenshots list", () => {
-  it("add-screenshot appends a defaults-based screenshot with the ref under the current language and selects it", () => {
+  it("add-screenshot appends a defaults-based screenshot with the ref in the current cell and selects it", () => {
     const doc = editorReducer(createEmptyDoc(), { type: "add-screenshot", imageRef: "a.png" });
     expect(doc.screenshots).toHaveLength(1);
     expect(doc.selectedIndex).toBe(0);
-    expect(doc.screenshots[0].localizedImages).toEqual({ "en-US": { src: "a.png" } });
+    expect(doc.screenshots[0].images).toEqual({ iPhone: { "en-US": { src: "a.png" } } });
     expect(doc.screenshots[0].background.type).toBe("gradient"); // from defaults
   });
 
   it("add-screenshot without a ref appends a blank screenshot", () => {
     const doc = editorReducer(createEmptyDoc(), { type: "add-screenshot" });
     expect(doc.screenshots).toHaveLength(1);
-    expect(doc.screenshots[0].localizedImages).toEqual({});
+    expect(doc.screenshots[0].images).toEqual({});
     expect(doc.screenshots[0].background.type).toBe("gradient");
   });
 
@@ -59,7 +59,7 @@ describe("editorReducer – screenshots list", () => {
   it("reorder-screenshots moves an item and follows the selected screenshot", () => {
     let doc = docWithShots(3); // selected: 2 (last added)
     doc = editorReducer(doc, { type: "reorder-screenshots", from: 2, to: 0 });
-    expect(doc.screenshots.map((s) => s.localizedImages["en-US"]?.src)).toEqual(["ref-2.png", "ref-0.png", "ref-1.png"]);
+    expect(doc.screenshots.map((s) => s.images?.iPhone?.["en-US"]?.src)).toEqual(["ref-2.png", "ref-0.png", "ref-1.png"]);
     expect(doc.selectedIndex).toBe(0);
   });
 
@@ -82,19 +82,23 @@ describe("editorReducer – screenshots list", () => {
     expect(editorReducer(doc, { type: "select-screenshot", index: -1 })).toBe(doc);
   });
 
-  it("set-screenshot-image writes the ref for the given language", () => {
+  it("set-screenshot-image writes the cell of the device on screen", () => {
     let doc = docWithShots(1);
     doc = editorReducer(doc, { type: "set-screenshot-image", index: 0, language: "en", imageRef: "new.png" });
-    expect(doc.screenshots[0].localizedImages.en).toEqual({ src: "new.png" });
+    expect(doc.screenshots[0].images?.iPhone?.en).toEqual({ src: "new.png" });
+
+    // the same shot, edited while an iPad format is selected, lands in its own cell
+    doc = editorReducer(doc, { type: "set-output-device", device: "APP_IPAD_PRO_3GEN_11" });
+    doc = editorReducer(doc, { type: "set-screenshot-image", index: 0, language: "en", imageRef: "pad.png" });
+    expect(doc.screenshots[0].images?.iPad?.en).toEqual({ src: "pad.png" });
+    expect(doc.screenshots[0].images?.iPhone?.en).toEqual({ src: "new.png" }); // untouched
   });
 
-  it("clear-screenshot-image drops the language entry and the legacy single image", () => {
+  it("clear-screenshot-image drops the cell it was asked for", () => {
     let doc = docWithShots(1);
     doc = editorReducer(doc, { type: "set-screenshot-image", index: 0, language: "en-US", imageRef: "new.png" });
-    doc.screenshots[0].src = "legacy.png";
     doc = editorReducer(doc, { type: "clear-screenshot-image", index: 0, language: "en-US" });
-    expect(doc.screenshots[0].localizedImages).toEqual({});
-    expect(doc.screenshots[0].src).toBeNull();
+    expect(doc.screenshots[0].images?.iPhone).toEqual({});
     expect(editorReducer(doc, { type: "clear-screenshot-image", index: 9, language: "en-US" })).toBe(doc);
   });
 });
@@ -249,15 +253,30 @@ describe("editorReducer – popouts", () => {
   it("add-popout appends", () => {
     const { doc } = docWithPopout();
     expect(doc.screenshots[0].popouts).toHaveLength(1);
-    expect(doc.screenshots[0].popouts[0].cropX).toBe(25);
+    expect(doc.screenshots[0].popouts[0].crops).toEqual({}); // no device has cropped it yet
   });
 
   it("update-popout patches flat fields by id; unknown id is a no-op", () => {
     const { doc: doc0, id } = docWithPopout();
     let doc = doc0;
-    doc = editorReducer(doc, { type: "update-popout", index: 0, popoutId: id, patch: { cropX: 10, width: 45 } });
-    expect(doc.screenshots[0].popouts[0]).toMatchObject({ cropX: 10, width: 45 });
+    doc = editorReducer(doc, { type: "update-popout", index: 0, popoutId: id, patch: { width: 45 } });
+    expect(doc.screenshots[0].popouts[0]).toMatchObject({ width: 45 });
     expect(editorReducer(doc, { type: "update-popout", index: 0, popoutId: "nope", patch: { x: 1 } })).toBe(doc);
+  });
+
+  it("set-popout-crop writes the crop of the device on screen, leaving the others alone", () => {
+    const { doc: doc0, id } = docWithPopout();
+    let doc = editorReducer(doc0, { type: "set-popout-crop", index: 0, popoutId: id, patch: { cropX: 10 } });
+    expect(doc.screenshots[0].popouts[0].crops).toEqual({
+      iPhone: { cropX: 10, cropY: 25, cropWidth: 30, cropHeight: 30 }, // the rest from the default
+    });
+
+    doc = editorReducer(doc, { type: "set-output-device", device: "APP_IPAD_PRO_3GEN_11" });
+    doc = editorReducer(doc, { type: "set-popout-crop", index: 0, popoutId: id, patch: { cropWidth: 80 } });
+    const crops = doc.screenshots[0].popouts[0].crops;
+    expect(crops.iPhone).toEqual({ cropX: 10, cropY: 25, cropWidth: 30, cropHeight: 30 });
+    // the iPad starts from what it was inheriting, then takes the patch
+    expect(crops.iPad).toEqual({ cropX: 10, cropY: 25, cropWidth: 80, cropHeight: 30 });
   });
 
   it("set-popout-shadow and set-popout-border patch nested objects", () => {
@@ -411,7 +430,7 @@ describe("editorReducer – languages", () => {
     expect(t.headlines["fr-FR"]).toBeUndefined();
     expect(t.headlineLanguages).toEqual(["en-US"]);
     expect(t.languageSettings["fr-FR"]).toBeUndefined();
-    expect(doc.screenshots[0].localizedImages["fr-FR"]).toBeUndefined();
+    expect(doc.screenshots[0].images?.iPhone?.["fr-FR"]).toBeUndefined();
     expect(doc.screenshots[0].elements.find((e) => e.id === el.id)?.texts?.["fr-FR"]).toBeUndefined();
   });
 

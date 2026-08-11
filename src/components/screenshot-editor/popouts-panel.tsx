@@ -7,6 +7,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CropPreview } from "./crop-preview";
 import { PanelColor, PanelSlider } from "./panel-controls";
 import { createPopout } from "@/lib/screenshot-editor/elements";
+import { categoryForFormat, categoryOrder } from "@/lib/screenshot-editor/images";
+import { cropForCategory } from "@/lib/screenshot-editor/crop";
 import { assetsForShot } from "@/lib/hooks/use-editor-images";
 import { resolveScreenshotImage } from "@/lib/screenshot-editor/render/compose";
 import { useTranslations } from "@/lib/i18n/locale-context";
@@ -27,8 +29,12 @@ export function PopoutsPanel({ doc, dispatch, images, selectedPopoutId, onSelect
     assetsForShot(doc, index, images, {}), doc.currentLanguage, doc.projectLanguages,
   );
 
-  const patch = (p: Partial<Omit<Popout, "id" | "shadow" | "border">>) =>
+  const patch = (p: Partial<Omit<Popout, "id" | "shadow" | "border" | "crops">>) =>
     selected && dispatch({ type: "update-popout", index, popoutId: selected.id, patch: p });
+  // The crop follows the device, like the image it cuts into.
+  const category = categoryForFormat(doc.outputDevice);
+  const order = categoryOrder(doc);
+  const cropFor = (p: Popout) => cropForCategory(p, category, order);
   const shadow = (p: Partial<Shadow>) =>
     selected && dispatch({ type: "set-popout-shadow", index, popoutId: selected.id, patch: p });
   const border = (p: Partial<Popout["border"]>) =>
@@ -63,7 +69,7 @@ export function PopoutsPanel({ doc, dispatch, images, selectedPopoutId, onSelect
                     onClick={() => onSelectPopout(p.id)}>
               <span>{t("screenshotEditor.popoutName", { index: popouts.length - i })}</span>
               <span className="text-xs text-muted-foreground">
-                {Math.round(p.cropWidth)}% × {Math.round(p.cropHeight)}%
+                {Math.round(cropFor(p).cropWidth)}% × {Math.round(cropFor(p).cropHeight)}%
               </span>
             </button>
             <div className="hidden shrink-0 gap-0.5 group-hover:flex">
@@ -99,7 +105,10 @@ export function PopoutsPanel({ doc, dispatch, images, selectedPopoutId, onSelect
           </TabsList>
 
           <TabsContent value="crop">
-            <CropPreview image={image} popout={selected} onCropChange={(crop) => patch(crop)} />
+            <CropPreview image={image} crop={cropFor(selected)}
+                         onCropChange={(crop) => dispatch({
+                           type: "set-popout-crop", index, popoutId: selected.id, patch: crop,
+                         })} />
           </TabsContent>
 
           <TabsContent value="settings" className="space-y-6">

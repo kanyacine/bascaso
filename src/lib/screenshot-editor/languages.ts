@@ -3,7 +3,7 @@
 // (switchGlobalLanguage, app.js:4738-4753), translation collection and write-back
 // (aiTranslateAll/applyTranslations/translateAllText, app.js:5081-5675). Pure – shared
 // by the reducer and the export loop.
-import type { EditorScreenshot, ScreenshotDoc, TextSettings } from "./types";
+import type { ScreenshotDoc, TextSettings } from "./types";
 
 const LEGACY = "en";
 const CANONICAL = "en-US";
@@ -33,22 +33,6 @@ function renameInText(text: TextSettings, from: string, to: string): TextSetting
   };
 }
 
-/**
- * Language whose image the renderer draws for `language`, mirroring resolveScreenshotImage's
- * fallback order. Null when the shot has no localized image at all (a legacy `src` has no
- * language of its own).
- */
-export function imageLanguageFor(
-  shot: EditorScreenshot,
-  language: string,
-  projectLanguages: string[],
-): string | null {
-  const images = shot.localizedImages ?? {};
-  if (images[language]?.src) return language;
-  return projectLanguages.find((l) => images[l]?.src)
-    ?? Object.keys(images).find((l) => images[l]?.src)
-    ?? null;
-}
 
 /** Rename legacy bare "en" (phase 2/3 docs) to the ASC locale "en-US". Idempotent. */
 export function normalizeDocLanguages(doc: ScreenshotDoc): ScreenshotDoc {
@@ -61,7 +45,9 @@ export function normalizeDocLanguages(doc: ScreenshotDoc): ScreenshotDoc {
     defaults: { ...doc.defaults, text: renameInText(doc.defaults.text, LEGACY, CANONICAL) },
     screenshots: doc.screenshots.map((shot) => ({
       ...shot,
-      localizedImages: renameKey(shot.localizedImages, LEGACY, CANONICAL),
+      images: shot.images && Object.fromEntries(
+        Object.entries(shot.images).map(([cat, byLanguage]) => [cat, renameKey(byLanguage, LEGACY, CANONICAL)]),
+      ),
       text: renameInText(shot.text, LEGACY, CANONICAL),
       elements: shot.elements.map((el) =>
         el.texts && LEGACY in el.texts ? { ...el, texts: renameKey(el.texts, LEGACY, CANONICAL) } : el,

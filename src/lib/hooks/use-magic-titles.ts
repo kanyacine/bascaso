@@ -7,13 +7,13 @@ import { notifyManagedDebit } from "@/lib/ai/debit-toast";
 import { toastAIError } from "@/lib/ai/ai-error-toast";
 import { useTranslations } from "@/lib/i18n/locale-context";
 import type { EditorScreenshot, ScreenshotDoc } from "@/lib/screenshot-editor/types";
-import { imageLanguageFor, type TranslationEntry } from "@/lib/screenshot-editor/languages";
+import { type TranslationEntry } from "@/lib/screenshot-editor/languages";
+import { imageSourceFor } from "@/lib/screenshot-editor/images";
 
 const MAX_EDGE = 512;
 
-function imageRefFor(shot: EditorScreenshot, language: string, projectLanguages: string[]): string | null {
-  const source = imageLanguageFor(shot, language, projectLanguages);
-  return (source ? shot.localizedImages[source].src : shot.src) ?? null;
+function imageRefFor(doc: ScreenshotDoc, shot: EditorScreenshot, language: string): string | null {
+  return imageSourceFor(doc, shot, language)?.src ?? null;
 }
 
 async function toPayloadImage(appId: string, ref: string): Promise<{ mimeType: "image/jpeg"; data: string } | null> {
@@ -42,7 +42,7 @@ export function useMagicTitles({ appId, appName }: { appId: string; appName?: st
     async (doc: ScreenshotDoc, language: string): Promise<TranslationEntry[] | null> => {
       setRunning(true);
       try {
-        const refs = doc.screenshots.map((shot) => imageRefFor(shot, language, doc.projectLanguages));
+        const refs = doc.screenshots.map((shot) => imageRefFor(doc, shot, language));
         // ponytail: shots whose image fails to load are dropped, which shifts the indexes the
         // model sees; send placeholder entries instead if that ever bites in practice.
         const images = (await Promise.all(refs.map((ref) => (ref ? toPayloadImage(appId, ref) : null))))

@@ -1,8 +1,37 @@
 /* Portions derived from appscreen (https://github.com/YUZU-Hub/appscreen), MIT License, Copyright YuzuHub */
 // Port of the crop-preview math (getCropPreviewLayout app.js:3218, hitTestCropHandle
 // app.js:3333, moveCropDrag app.js:3389). Pure percent/pixel geometry.
+import type { Crop, Popout } from "./types";
 
-export interface CropRect { cropX: number; cropY: number; cropWidth: number; cropHeight: number }
+export type CropRect = Crop;
+
+/** What a popout shows on a device nobody has cropped for yet. */
+export const DEFAULT_CROP: Crop = { cropX: 25, cropY: 25, cropWidth: 30, cropHeight: 30 };
+
+/**
+ * The crop drawn for a device: its own, else the first device that has one, else the default.
+ * Mirrors imagesForCategory – the two axes have to agree or the popout lands off its own image.
+ */
+export function cropForCategory(popout: Popout, category: string, order: string[]): Crop {
+  if (popout.crops?.[category]) return popout.crops[category];
+  for (const other of order) {
+    if (popout.crops?.[other]) return popout.crops[other];
+  }
+  const first = Object.keys(popout.crops ?? {}).sort()[0];
+  return first ? popout.crops[first] : DEFAULT_CROP;
+}
+
+/** True when this device has a crop of its own, as opposed to inheriting one. */
+export function hasOwnCrop(popout: Popout, category: string): boolean {
+  return Boolean(popout.crops?.[category]);
+}
+
+export function setCrop(popout: Popout, category: string, patch: Partial<Crop>, order: string[]): Popout {
+  return {
+    ...popout,
+    crops: { ...popout.crops, [category]: { ...cropForCategory(popout, category, order), ...patch } },
+  };
+}
 export interface CropLayout { drawX: number; drawY: number; drawW: number; drawH: number }
 export type CropHandle =
   | "top-left" | "top-right" | "bottom-left" | "bottom-right"

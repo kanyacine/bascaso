@@ -58,7 +58,7 @@ describe("createDefaultScreenshot", () => {
   it("deep-clones defaults so edits never leak back", () => {
     const s = createDefaultScreenshot(DEFAULTS, "Shot 1");
     expect(s.name).toBe("Shot 1");
-    expect(s.localizedImages).toEqual({});
+    expect(s.images).toEqual({});
     s.background.gradient.stops[0].color = "#000000";
     s.text.headlines.en = "edited";
     expect(DEFAULTS.background.gradient.stops[0].color).toBe("#667eea");

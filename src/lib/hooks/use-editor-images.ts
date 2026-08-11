@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  allImageRefs, categoryForFormat, categoryOrder, imagesForCategory,
+} from "@/lib/screenshot-editor/images";
 import type {
   LaurelVariant, RenderAssets, RenderImage, ScreenshotDoc,
 } from "@/lib/screenshot-editor/types";
@@ -9,10 +12,7 @@ import type {
 export function collectRefs(doc: ScreenshotDoc): string[] {
   const refs = new Set<string>();
   for (const shot of doc.screenshots) {
-    for (const entry of Object.values(shot.localizedImages)) {
-      if (entry?.src) refs.add(entry.src);
-    }
-    if (shot.src) refs.add(shot.src);
+    for (const ref of allImageRefs(shot)) refs.add(ref);
     if (shot.background.image) refs.add(shot.background.image);
     for (const el of shot.elements) {
       if (el.src) refs.add(el.src);
@@ -71,7 +71,9 @@ export function assetsForShot(
   const screenshotImages: Record<string, RenderImage | undefined> = {};
   const elementImages: Record<string, RenderImage | undefined> = {};
   if (shot) {
-    for (const [lang, entry] of Object.entries(shot.localizedImages)) {
+    // Scoped to the device on screen; the renderer resolves the language inside it.
+    const forDevice = imagesForCategory(shot, categoryForFormat(doc.outputDevice), categoryOrder(doc));
+    for (const [lang, entry] of Object.entries(forDevice)) {
       if (entry?.src) screenshotImages[lang] = images.get(entry.src);
     }
     for (const el of shot.elements) {
@@ -80,7 +82,6 @@ export function assetsForShot(
   }
   return {
     screenshotImages,
-    legacyImage: shot?.src ? images.get(shot.src) : null,
     backgroundImage: shot?.background.image ? images.get(shot.background.image) : undefined,
     elementImages,
     laurelImages,

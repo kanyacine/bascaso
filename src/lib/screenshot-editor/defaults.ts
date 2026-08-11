@@ -93,7 +93,7 @@ export function createDefaultScreenshot(defaults: ScreenshotDefaults, name?: str
   const clone = structuredClone(defaults);
   return {
     ...(name === undefined ? {} : { name }),
-    localizedImages: {},
+    images: {},
     background: clone.background,
     screenshot: clone.screenshot,
     text: clone.text,

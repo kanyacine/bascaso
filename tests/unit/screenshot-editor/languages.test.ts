@@ -1,13 +1,12 @@
 import { describe, it, expect } from "vitest";
 import {
   normalizeDocLanguages, docWithLanguage, collectTranslatableItems, applyTranslationEntries,
-  imageLanguageFor,
   type TranslationEntry,
 } from "@/lib/screenshot-editor/languages";
 import { editorReducer } from "@/lib/screenshot-editor/reducer";
 import { createEmptyDoc } from "@/lib/screenshot-docs";
 import { createTextElement, createEmojiElement } from "@/lib/screenshot-editor/elements";
-import type { EditorScreenshot, ScreenshotDoc } from "@/lib/screenshot-editor/types";
+import type { ScreenshotDoc } from "@/lib/screenshot-editor/types";
 
 function legacyEnDoc(): ScreenshotDoc {
   // simulate a phase 2/3 doc: bare "en" everywhere
@@ -15,21 +14,6 @@ function legacyEnDoc(): ScreenshotDoc {
   const raw = JSON.parse(JSON.stringify(doc).replaceAll('"en-US"', '"en"')) as ScreenshotDoc;
   return editorReducer(raw, { type: "add-screenshot", imageRef: "a.png" });
 }
-
-describe("imageLanguageFor", () => {
-  // imageLanguageFor only reads these two fields
-  const shot = (localizedImages: Record<string, { src: string | null }>, src: string | null = null) =>
-    ({ localizedImages, src }) as unknown as EditorScreenshot;
-
-  it("prefers the asked language, then the project order, then any other, then nothing", () => {
-    expect(imageLanguageFor(shot({ "fr-FR": { src: "fr.png" }, "en-US": { src: "en.png" } }), "fr-FR", ["en-US", "fr-FR"]))
-      .toBe("fr-FR");
-    expect(imageLanguageFor(shot({ "en-US": { src: "en.png" } }), "fr-FR", ["en-US", "fr-FR"])).toBe("en-US");
-    expect(imageLanguageFor(shot({ "de-DE": { src: "de.png" } }), "fr-FR", ["en-US", "fr-FR"])).toBe("de-DE");
-    expect(imageLanguageFor(shot({ "en-US": { src: null } }), "fr-FR", ["en-US"])).toBeNull();
-    expect(imageLanguageFor(shot({}, "legacy.png"), "fr-FR", ["fr-FR"])).toBeNull(); // no language of its own
-  });
-});
 
 describe("normalizeDocLanguages", () => {
   it("renames bare en to en-US across every language-keyed structure", () => {
@@ -41,7 +25,7 @@ describe("normalizeDocLanguages", () => {
     expect(normalized.currentLanguage).toBe("en-US");
     expect(normalized.projectLanguages).toEqual(["en-US"]);
     const shot = normalized.screenshots[0];
-    expect(shot.localizedImages).toEqual({ "en-US": { src: "a.png" } });
+    expect(shot.images?.iPhone).toEqual({ "en-US": { src: "a.png" } });
     expect(shot.text.headlines).toEqual({ "en-US": "Hi" });
     expect(shot.text.headlineLanguages).toEqual(["en-US"]);
     expect(shot.text.currentHeadlineLang).toBe("en-US");
@@ -53,11 +37,11 @@ describe("normalizeDocLanguages", () => {
 
   it("leaves records without the legacy key untouched", () => {
     const doc = legacyEnDoc();
-    doc.screenshots[0].localizedImages = {};
+    doc.screenshots[0].images = {};
     doc.screenshots[0].text.languageSettings = {};
     doc.screenshots[0].text.headlineLanguages = [];
     const normalized = normalizeDocLanguages(doc);
-    expect(normalized.screenshots[0].localizedImages).toEqual({});
+    expect(normalized.screenshots[0].images).toEqual({});
     expect(normalized.screenshots[0].text.languageSettings).toEqual({});
     expect(normalized.screenshots[0].text.headlineLanguages).toEqual([]);
   });

@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import {
   applyCropDrag, getCropPreviewLayout, hitTestCropHandle, type CropHandle, type CropRect,
 } from "@/lib/screenshot-editor/crop";
-import type { Popout, RenderImage } from "@/lib/screenshot-editor/types";
+import type { RenderImage } from "@/lib/screenshot-editor/types";
 
 const CURSORS: Record<CropHandle, string> = {
   "top-left": "nwse-resize", "bottom-right": "nwse-resize",
@@ -13,8 +13,8 @@ const CURSORS: Record<CropHandle, string> = {
   move: "move",
 };
 
-export function CropPreview({ image, popout, onCropChange }: {
-  image: RenderImage; popout: Popout; onCropChange: (patch: CropRect) => void;
+export function CropPreview({ image, crop, onCropChange }: {
+  image: RenderImage; crop: CropRect; onCropChange: (patch: CropRect) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drag = useRef<{ handle: CropHandle; startX: number; startY: number; orig: CropRect } | null>(null);
@@ -36,10 +36,10 @@ export function CropPreview({ image, popout, onCropChange }: {
     ctx.drawImage(image as CanvasImageSource, drawX, drawY, drawW, drawH);
     ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    const rx = drawX + (popout.cropX / 100) * drawW;
-    const ry = drawY + (popout.cropY / 100) * drawH;
-    const rw = (popout.cropWidth / 100) * drawW;
-    const rh = (popout.cropHeight / 100) * drawH;
+    const rx = drawX + (crop.cropX / 100) * drawW;
+    const ry = drawY + (crop.cropY / 100) * drawH;
+    const rw = (crop.cropWidth / 100) * drawW;
+    const rh = (crop.cropHeight / 100) * drawH;
     ctx.save();
     ctx.beginPath();
     ctx.rect(rx, ry, rw, rh);
@@ -62,7 +62,7 @@ export function CropPreview({ image, popout, onCropChange }: {
       ctx.fillRect(hx - handleSize / 2, hy - handleSize / 2, handleSize, handleSize);
       ctx.strokeRect(hx - handleSize / 2, hy - handleSize / 2, handleSize, handleSize);
     }
-  }, [image, popout.cropX, popout.cropY, popout.cropWidth, popout.cropHeight]);
+  }, [image, crop.cropX, crop.cropY, crop.cropWidth, crop.cropHeight]);
 
   const coords = (e: React.PointerEvent) => {
     const canvas = canvasRef.current!;
@@ -80,16 +80,16 @@ export function CropPreview({ image, popout, onCropChange }: {
       className="w-full rounded-md"
       onPointerDown={(e) => {
         const { x, y, layout } = coords(e);
-        const handle = hitTestCropHandle(x, y, layout, popout);
+        const handle = hitTestCropHandle(x, y, layout, crop);
         if (!handle) return;
-        drag.current = { handle, startX: x, startY: y, orig: { ...popout } };
+        drag.current = { handle, startX: x, startY: y, orig: { ...crop } };
         e.currentTarget.setPointerCapture(e.pointerId);
         e.preventDefault();
       }}
       onPointerMove={(e) => {
         const { x, y, layout } = coords(e);
         if (!drag.current) {
-          const handle = hitTestCropHandle(x, y, layout, popout);
+          const handle = hitTestCropHandle(x, y, layout, crop);
           e.currentTarget.style.cursor = handle ? CURSORS[handle] : "default";
           return;
         }

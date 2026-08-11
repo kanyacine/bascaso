@@ -649,6 +649,8 @@ export const de: Messages = {
     replaceImage: "Bild ersetzen",
     addImage: "Bild hinzufügen",
     imageFromLanguage: "Bild aus {language} – diese Sprache hat kein eigenes.",
+    imageFromDevice: "Aus der {device}-Aufnahme – dieses Gerät hat keine eigene.",
+    imageFromDeviceAndLanguage: "Aus der {device}-Aufnahme auf {language}.",
     imageFit: "Anpassung",
     imageFitCover: "Füllen",
     imageFitContain: "Einpassen",

@@ -121,6 +121,14 @@ export interface EditorElement {
   frameScale?: number; // percent
 }
 
+/** A region of the source image, in percent. */
+export interface Crop {
+  cropX: number; // 0-100 of source image
+  cropY: number;
+  cropWidth: number;
+  cropHeight: number;
+}
+
 export interface Popout {
   id: string;
   x: number; // 0-100
@@ -128,19 +136,23 @@ export interface Popout {
   width: number; // 0-100
   rotation: number;
   opacity: number; // 0-100
-  cropX: number; // 0-100 of source image
-  cropY: number;
-  cropWidth: number;
-  cropHeight: number;
+  /**
+   * One crop per device category: the source image changes with the device, so the region worth
+   * showing does too. Same fallback as the images (crop.ts) – an unset device inherits.
+   */
+  crops: Record<string, Crop>;
   cornerRadius: number; // px at 300px reference width
   shadow: Shadow;
   border: { enabled: boolean; color: string; width: number; opacity: number };
 }
 
+/** What the renderer consumes: a popout with its crop already resolved for the device drawn. */
+export type ResolvedPopout = Popout & Crop;
+
 export interface EditorScreenshot {
   name?: string;
-  src?: string | null; // legacy single-image ref (pre-localizedImages docs)
-  localizedImages: Record<string, { src: string | null }>;
+  /** Sources by device category, then by language. See images.ts for the fallback order. */
+  images: Record<string, Record<string, { src: string | null }>>;
   background: Background;
   screenshot: ScreenshotSettings;
   text: TextSettings;
@@ -184,8 +196,7 @@ export type LaurelVariant = "laurel-simple-left" | "laurel-detailed-left";
 
 /** Resolved bitmaps for one screenshot render. Keys of elementImages are element ids. */
 export interface RenderAssets {
-  screenshotImages: Record<string, RenderImage | undefined>; // by language
-  legacyImage?: RenderImage | null; // resolved EditorScreenshot.src
+  screenshotImages: Record<string, RenderImage | undefined>; // by language, for the device on screen
   backgroundImage?: RenderImage | null;
   elementImages: Record<string, RenderImage | undefined>;
   laurelImages: Partial<Record<LaurelVariant, RenderImage>>;

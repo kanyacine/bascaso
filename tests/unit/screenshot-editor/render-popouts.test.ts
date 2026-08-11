@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { drawPopoutsToContext } from "@/lib/screenshot-editor/render/popouts";
 import { makeCanvas, px } from "./helpers";
 import { DEFAULTS } from "@/lib/screenshot-editor/defaults";
-import type { Popout, RenderImage } from "@/lib/screenshot-editor/types";
+import type { RenderImage, ResolvedPopout } from "@/lib/screenshot-editor/types";
 
 const dims = { width: 200, height: 200 };
 
@@ -14,9 +14,9 @@ function source(): RenderImage {
   return canvas as unknown as RenderImage;
 }
 
-function popout(overrides: Partial<Popout> = {}): Popout {
+function popout(overrides: Partial<ResolvedPopout> = {}): ResolvedPopout {
   return {
-    id: "p1", x: 50, y: 50, width: 50, rotation: 0, opacity: 100,
+    id: "p1", x: 50, y: 50, width: 50, rotation: 0, opacity: 100, crops: {},
     cropX: 0, cropY: 0, cropWidth: 100, cropHeight: 50, cornerRadius: 0,
     shadow: { enabled: false, color: "#000000", blur: 0, opacity: 0, x: 0, y: 0 },
     border: { enabled: false, color: "#00ff00", width: 4, opacity: 100 },

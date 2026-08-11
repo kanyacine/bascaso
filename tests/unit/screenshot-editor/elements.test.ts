@@ -44,7 +44,7 @@ describe("element factories – appscreen defaults", () => {
     const p = createPopout();
     expect(p.id).toMatch(UUID_RE);
     expect(p).toMatchObject({
-      cropX: 25, cropY: 25, cropWidth: 30, cropHeight: 30,
+      crops: {},
       x: 70, y: 30, width: 30, rotation: 0, opacity: 100, cornerRadius: 12,
       shadow: { enabled: true, color: "#000000", blur: 30, opacity: 40, x: 0, y: 15 },
       border: { enabled: true, color: "#ffffff", width: 3, opacity: 100 },

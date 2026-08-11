@@ -647,6 +647,8 @@ export const en = {
     replaceImage: "Replace image",
     addImage: "Add image",
     imageFromLanguage: "Shown from {language} – this language has no image of its own.",
+    imageFromDevice: "Shown from the {device} capture – this device has none of its own.",
+    imageFromDeviceAndLanguage: "Shown from the {device} capture in {language}.",
     imageFit: "Fit",
     imageFitCover: "Fill",
     imageFitContain: "Fit inside",

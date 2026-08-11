@@ -2,7 +2,7 @@
 // Port of the canvas interaction layer (setupElementCanvasDrag, app.js:2741-3050):
 // hit-testing, drag math and snap guides. Pure – the React canvas component supplies
 // pointer coords already scaled to canvas pixels.
-import type { Dimensions, EditorElement, ElementLayer, Popout } from "./types";
+import type { Dimensions, EditorElement, ElementLayer, ResolvedPopout } from "./types";
 
 export const SNAP_THRESHOLD = 1.5; // canvas-percent units (app.js:2747)
 
@@ -60,7 +60,7 @@ export function hitTestElements(
 }
 
 export function hitTestPopouts(
-  popouts: Popout[],
+  popouts: ResolvedPopout[],
   dims: Dimensions,
   x: number,
   y: number,
