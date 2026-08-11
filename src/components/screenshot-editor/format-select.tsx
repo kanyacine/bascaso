@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { EDITOR_FORMATS } from "@/lib/screenshot-editor/devices";
+import { EDITOR_FORMATS, formatsForPlatforms } from "@/lib/screenshot-editor/devices";
+import { useVersions } from "@/lib/versions-context";
 import { workingFormats } from "@/lib/screenshot-editor/export";
 import { useTranslations } from "@/lib/i18n/locale-context";
 import type { EditorAction } from "@/lib/screenshot-editor/reducer";
@@ -14,6 +15,14 @@ import type { ScreenshotDoc } from "@/lib/screenshot-editor/types";
 export function FormatSelect({ doc, dispatch }: { doc: ScreenshotDoc; dispatch: (a: EditorAction) => void }) {
   const t = useTranslations();
   const working = workingFormats(doc);
+  // Only the devices the app is declared on – an iOS app has no business exporting a Mac shot.
+  // A format the doc already works on is listed regardless, so nothing silently disappears.
+  const { versions } = useVersions();
+  const platforms = [...new Set(versions.map((v) => v.attributes.platform))];
+  const formats = formatsForPlatforms(platforms)
+    .concat(EDITOR_FORMATS.filter((f) => working.includes(f.key)))
+    .filter((f, i, all) => all.findIndex((x) => x.key === f.key) === i)
+    .sort((a, b) => EDITOR_FORMATS.indexOf(a) - EDITOR_FORMATS.indexOf(b));
   return (
     // `contents`: the select and the popover button are columns of the editor's header grid.
     <div className="contents">
@@ -23,7 +32,7 @@ export function FormatSelect({ doc, dispatch }: { doc: ScreenshotDoc; dispatch: 
         </SelectTrigger>
         {/* Only the working formats switch the canvas – the full catalog lives in the popover. */}
         <SelectContent>
-          {EDITOR_FORMATS.filter((f) => working.includes(f.key)).map((f) => (
+          {formats.filter((f) => working.includes(f.key)).map((f) => (
             <SelectItem key={f.key} value={f.key}>{f.label} – {f.width}×{f.height}</SelectItem>
           ))}
         </SelectContent>
@@ -38,7 +47,7 @@ export function FormatSelect({ doc, dispatch }: { doc: ScreenshotDoc; dispatch: 
           <p className="section-title mb-2">{t("screenshotEditor.workingFormats")}</p>
           {/* The whole ASC catalog – too long for the panel, so the list scrolls. */}
           <div className="max-h-72 overflow-y-auto">
-          {EDITOR_FORMATS.map((f) => {
+          {formats.map((f) => {
             const active = working.includes(f.key);
             return (
               <label key={f.key} className="flex items-center gap-2 rounded px-1 py-1 text-sm hover:bg-accent">

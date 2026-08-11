@@ -32,7 +32,9 @@ vi.mock("@/lib/asc/screenshots", () => ({ listScreenshotSets: (...a: unknown[]) 
 
 function ascWithSets(displayTypes: string[]) {
   mockApps.mockResolvedValue([{ id: "app-1", attributes: { primaryLocale: "fr-FR" } }]);
-  mockVersions.mockResolvedValue([{ id: "v1", attributes: { appVersionState: "PREPARE_FOR_SUBMISSION" } }]);
+  mockVersions.mockResolvedValue([
+    { id: "v1", attributes: { appVersionState: "PREPARE_FOR_SUBMISSION", platform: "IOS" } },
+  ]);
   mockLocalizations.mockResolvedValue([
     { id: "loc-en", attributes: { locale: "en-US" } },
     { id: "loc-fr", attributes: { locale: "fr-FR" } },
@@ -70,7 +72,7 @@ describe("GET /api/apps/[appId]/screenshot-doc", () => {
     );
   });
 
-  it("ignores empty sets and falls back when App Store Connect is unreachable", async () => {
+  it("falls back to the platform default when the app ships no screenshot yet", async () => {
     mockExists.mockReturnValue(false);
     mockGetOrCreate.mockReturnValue({ id: "01A", doc: {}, updatedAt: "t" });
     const { GET } = await import("@/app/api/apps/[appId]/screenshot-doc/route");
@@ -80,9 +82,26 @@ describe("GET /api/apps/[appId]/screenshot-doc", () => {
       { id: "set-1", attributes: { screenshotDisplayType: "APP_IPHONE_67" }, screenshots: [] },
     ]);
     await GET(new Request("http://localhost"), params);
-    expect(mockGetOrCreate).toHaveBeenLastCalledWith("app-1", undefined);
+    expect(mockGetOrCreate).toHaveBeenLastCalledWith("app-1", ["APP_IPHONE_65", "APP_IPAD_PRO_3GEN_11"]);
+  });
 
+  it("seeds a Mac app on the Mac format, never on an iPhone", async () => {
+    mockExists.mockReturnValue(false);
+    mockGetOrCreate.mockReturnValue({ id: "01A", doc: {}, updatedAt: "t" });
+    mockVersions.mockResolvedValue([
+      { id: "v1", attributes: { appVersionState: "PREPARE_FOR_SUBMISSION", platform: "MAC_OS" } },
+    ]);
+    mockSets.mockResolvedValue([]);
+    const { GET } = await import("@/app/api/apps/[appId]/screenshot-doc/route");
+    await GET(new Request("http://localhost"), params);
+    expect(mockGetOrCreate).toHaveBeenLastCalledWith("app-1", ["APP_DESKTOP"]);
+  });
+
+  it("leaves the default alone when App Store Connect is unreachable", async () => {
+    mockExists.mockReturnValue(false);
+    mockGetOrCreate.mockReturnValue({ id: "01A", doc: {}, updatedAt: "t" });
     mockVersions.mockRejectedValue(new Error("no credentials"));
+    const { GET } = await import("@/app/api/apps/[appId]/screenshot-doc/route");
     await GET(new Request("http://localhost"), params);
     expect(mockGetOrCreate).toHaveBeenLastCalledWith("app-1", undefined);
   });

@@ -6,7 +6,7 @@ import { listLocalizations } from "@/lib/asc/localizations";
 import { listScreenshotSets } from "@/lib/asc/screenshots";
 import { listVersions } from "@/lib/asc/versions";
 import { resolveVersion } from "@/lib/asc/version-types";
-import { EDITOR_FORMATS } from "@/lib/screenshot-editor/devices";
+import { EDITOR_FORMATS, defaultWorkingFormats } from "@/lib/screenshot-editor/devices";
 import { parseBody, errorJson } from "@/lib/api-helpers";
 import type { ScreenshotDoc } from "@/lib/screenshot-editor/types";
 
@@ -29,26 +29,31 @@ type RouteParams = { params: Promise<{ appId: string }> };
 
 /**
  * Working formats for a doc that does not exist yet: the display types the app already ships,
- * intersected with what the editor can render. `undefined` leaves createEmptyDoc on its default.
+ * intersected with what the editor can render; failing that, the default for the platforms the
+ * app is declared on, so a Mac-only app does not open on an iPhone. `undefined` leaves
+ * createEmptyDoc on its own default.
  * ponytail: probes the primary localization only – a shipped app has its screenshots there.
  */
-async function shippedFormats(appId: string): Promise<string[] | undefined> {
+async function seedFormats(appId: string): Promise<string[] | undefined> {
   try {
     const [apps, versions] = await Promise.all([listApps(), listVersions(appId)]);
+    const platformDefault = defaultWorkingFormats([
+      ...new Set(versions.map((v) => v.attributes.platform)),
+    ]);
     const version = resolveVersion(versions, null);
-    if (!version) return undefined;
+    if (!version) return platformDefault;
     const localizations = await listLocalizations(version.id);
     const primaryLocale = apps.find((a) => a.id === appId)?.attributes.primaryLocale;
     const localization =
       localizations.find((l) => l.attributes.locale === primaryLocale) ?? localizations[0];
-    if (!localization) return undefined;
+    if (!localization) return platformDefault;
     const shipped = new Set(
       (await listScreenshotSets(localization.id))
         .filter((s) => s.screenshots.length > 0)
         .map((s) => s.attributes.screenshotDisplayType),
     );
     const formats = EDITOR_FORMATS.filter((f) => shipped.has(f.key)).map((f) => f.key);
-    return formats.length > 0 ? formats : undefined;
+    return formats.length > 0 ? formats : platformDefault;
   } catch {
     return undefined; // no credentials, demo mode, ASC down – the default pair is a fine start
   }
@@ -57,7 +62,7 @@ async function shippedFormats(appId: string): Promise<string[] | undefined> {
 export async function GET(_request: Request, { params }: RouteParams) {
   const { appId } = await params;
   try {
-    const formats = currentDocExists(appId) ? undefined : await shippedFormats(appId);
+    const formats = currentDocExists(appId) ? undefined : await seedFormats(appId);
     return NextResponse.json(getOrCreateCurrentDoc(appId, formats));
   } catch (err) {
     return errorJson(err);

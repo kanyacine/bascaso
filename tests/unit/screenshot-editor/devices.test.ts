@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { EDITOR_FORMATS, getCanvasDimensions } from "@/lib/screenshot-editor/devices";
+import {
+  EDITOR_FORMATS, defaultWorkingFormats, formatsForPlatforms, getCanvasDimensions,
+} from "@/lib/screenshot-editor/devices";
 import { DISPLAY_TYPE_LABELS, DISPLAY_TYPE_SIZES, sortDisplayTypes } from "@/lib/asc/display-types";
 
 describe("EDITOR_FORMATS", () => {
@@ -36,5 +38,46 @@ describe("getCanvasDimensions", () => {
   it("falls back to the first format for an unknown key", () => {
     expect(getCanvasDimensions({ outputDevice: "nope", customWidth: 1, customHeight: 1 }))
       .toEqual({ width: 1260, height: 2736 });
+  });
+});
+
+describe("formatsForPlatforms", () => {
+  const keys = (platforms: string[]) => formatsForPlatforms(platforms).map((f) => f.key);
+
+  it("offers an iOS app its iPhones, iPads and watches – nothing else", () => {
+    const ios = keys(["IOS"]);
+    expect(ios).toContain("APP_IPHONE_67");
+    expect(ios).toContain("APP_IPAD_PRO_3GEN_11");
+    expect(ios).toContain("APP_WATCH_ULTRA");
+    expect(ios).not.toContain("APP_DESKTOP");
+    expect(ios).not.toContain("APP_APPLE_TV");
+    expect(ios).not.toContain("APP_APPLE_VISION_PRO");
+  });
+
+  it("narrows a single-platform app to its own devices", () => {
+    expect(keys(["MAC_OS"])).toEqual(["APP_DESKTOP"]);
+    expect(keys(["TV_OS"])).toEqual(["APP_APPLE_TV"]);
+    expect(keys(["VISION_OS"])).toEqual(["APP_APPLE_VISION_PRO"]);
+  });
+
+  it("unions the platforms of a mixed app, in catalog order", () => {
+    const mixed = keys(["IOS", "MAC_OS"]);
+    expect(mixed).toEqual([...keys(["IOS"]), "APP_DESKTOP"]);
+  });
+
+  it("falls back to the whole catalog when the platform says nothing", () => {
+    expect(keys([])).toEqual(EDITOR_FORMATS.map((f) => f.key));
+    expect(keys(["SOMETHING_NEW"])).toEqual(EDITOR_FORMATS.map((f) => f.key));
+  });
+});
+
+describe("defaultWorkingFormats", () => {
+  it("keeps the usual pair for iOS", () => {
+    expect(defaultWorkingFormats(["IOS"])).toEqual(["APP_IPHONE_65", "APP_IPAD_PRO_3GEN_11"]);
+  });
+
+  it("starts a platform without the pair on its own first format", () => {
+    expect(defaultWorkingFormats(["MAC_OS"])).toEqual(["APP_DESKTOP"]);
+    expect(defaultWorkingFormats(["TV_OS"])).toEqual(["APP_APPLE_TV"]);
   });
 });
