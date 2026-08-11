@@ -10,6 +10,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Plus, TrashSimple } from "@phosphor-icons/react";
 import { PanelColor, PanelSlider } from "./panel-controls";
 import { uploadAsset } from "./upload-asset";
+import { GRADIENT_PRESETS, parseGradientPreset } from "@/lib/screenshot-editor/gradient-presets";
 import { useTranslations } from "@/lib/i18n/locale-context";
 import type { EditorAction } from "@/lib/screenshot-editor/reducer";
 import type { Background, ScreenshotDoc } from "@/lib/screenshot-editor/types";
@@ -48,11 +49,26 @@ export function BackgroundPanel({ doc, dispatch, appId }: {
 
       {bg.type === "gradient" ? (
         <section className="space-y-3">
+          <div className="space-y-1.5">
+            <span className="text-sm">{t("screenshotEditor.gradientPresets")}</span>
+            {/* 5 × 5 – wide swatches read a linear gradient better than squares do. */}
+            <div className="grid grid-cols-5 gap-1.5">
+              {GRADIENT_PRESETS.map((preset) => (
+                <button key={preset.label} type="button" title={preset.label} aria-label={preset.label}
+                        className="swatch h-6"
+                        style={{ background: preset.css }}
+                        onClick={() => {
+                          const parsed = parseGradientPreset(preset.css);
+                          if (parsed) patch({ gradient: parsed });
+                        }} />
+              ))}
+            </div>
+          </div>
           <PanelSlider label={t("screenshotEditor.angle")} value={bg.gradient.angle} min={0} max={360}
                        onChange={(v) => patch({ gradient: { ...bg.gradient, angle: v } })} />
           {bg.gradient.stops.map((stop, stopIndex) => (
             <div key={stopIndex} className="flex items-center gap-2">
-              <input type="color" value={stop.color} className="size-7 cursor-pointer rounded border bg-transparent"
+              <input type="color" value={stop.color} className="swatch size-7"
                      onChange={(e) => dispatch({ type: "set-gradient-stop", index, stopIndex, patch: { color: e.target.value } })} />
               <Slider className="flex-1" value={[stop.position]} min={0} max={100}
                       onValueChange={([v]) => dispatch({ type: "set-gradient-stop", index, stopIndex, patch: { position: v } })} />

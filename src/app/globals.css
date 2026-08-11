@@ -151,6 +151,28 @@
     @apply rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive;
   }
 
+  /* Colour swatch – the colour fills the whole control, the outline is an inset ring. Size comes
+     from the caller. The ring must be inset: the editor panel scrolls, so anything painted outside
+     the box is clipped against its edge, and a swatch flush right loses its outline.
+     A native <input type="color"> also paints its colour in an inset box with a border of its own
+     – the square-inside-a-square – so both are stripped below. */
+  /* A border, not a ring. An outward ring is clipped by the scrolling panel on a swatch flush
+     right, and an inset one is painted over by ::-webkit-color-swatch, which fills the content
+     box – only the corner fringe survives. A border sits in the border box, out of the colour's
+     reach either way. It follows the foreground so a white swatch on the light theme (or a black
+     one on the dark theme) still reads as a box. */
+  .swatch {
+    @apply cursor-pointer rounded-md bg-transparent p-0;
+    @apply border border-foreground/25 hover:border-foreground/60;
+  }
+  .swatch::-webkit-color-swatch-wrapper {
+    @apply p-0;
+  }
+  .swatch::-webkit-color-swatch,
+  .swatch::-moz-color-swatch {
+    @apply rounded-md border-0;
+  }
+
   /* Managed account card – balance, packs and subscribe in one surface. */
   /* Capped, not fluid: the AI settings page has no column of its own, so a
      full-width card stretched to the window and dwarfed every field under it.

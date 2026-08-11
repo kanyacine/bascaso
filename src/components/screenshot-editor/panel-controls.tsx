@@ -41,7 +41,7 @@ export function PanelColor({ label, value, onChange }: {
     <label className="flex items-center justify-between text-sm">
       <span>{label}</span>
       <input type="color" value={value} onChange={(e) => onChange(e.target.value)}
-             className="size-7 cursor-pointer rounded border bg-transparent" />
+             className="swatch size-7" />
     </label>
   );
 }

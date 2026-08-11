@@ -34,13 +34,21 @@ describe("createEmptyDoc", () => {
   });
 
   it("seeds the working formats from the caller, dropping keys the editor cannot render", () => {
-    const doc = createEmptyDoc(["APP_IPAD_PRO_3GEN_129", "APP_IPHONE_67", "APP_WATCH_ULTRA"]);
+    // iMessage display types carry no pixel size in the ASC catalog, so they are not editor formats.
+    const doc = createEmptyDoc(["APP_IPAD_PRO_3GEN_129", "APP_IPHONE_67", "IMESSAGE_APP_IPHONE_67"]);
     expect(doc.outputDevices).toEqual(["APP_IPHONE_67", "APP_IPAD_PRO_3GEN_129"]); // EDITOR_FORMATS order
     expect(doc.outputDevice).toBe("APP_IPHONE_67");
   });
 
+  it("keeps the non-phone formats – watch, Mac, TV and Vision Pro are editable too", () => {
+    expect(createEmptyDoc(["APP_APPLE_TV"]).outputDevices).toEqual(["APP_APPLE_TV"]);
+    expect(createEmptyDoc(["APP_WATCH_ULTRA", "APP_DESKTOP"]).outputDevices)
+      .toEqual(["APP_WATCH_ULTRA", "APP_DESKTOP"]);
+  });
+
   it("falls back to the default pair when nothing usable is passed", () => {
-    expect(createEmptyDoc(["APP_APPLE_TV"]).outputDevices).toEqual(["APP_IPHONE_65", "APP_IPAD_PRO_3GEN_11"]);
+    expect(createEmptyDoc(["IMESSAGE_APP_IPAD_97"]).outputDevices)
+      .toEqual(["APP_IPHONE_65", "APP_IPAD_PRO_3GEN_11"]);
     expect(createEmptyDoc([]).outputDevices).toEqual(["APP_IPHONE_65", "APP_IPAD_PRO_3GEN_11"]);
   });
 });

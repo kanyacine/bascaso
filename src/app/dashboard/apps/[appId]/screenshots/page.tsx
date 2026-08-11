@@ -228,12 +228,16 @@ export default function ScreenshotsPage() {
     handleDragEnd,
     handleAddVariant,
     handleDeleteSet,
+    handleDeleteSetEverywhere,
   } = useScreenshotOperations({
     apiBase,
     localizationId,
     refresh,
     screenshotSets,
     setScreenshotSets: setRawSets,
+    localizations,
+    appId,
+    versionId,
   });
 
   const handleRefresh = useCallback(() => refresh(), [refresh]);
@@ -341,6 +345,7 @@ export default function ScreenshotsPage() {
                 onUpload={handleUpload}
                 onDelete={handleDeleteScreenshot}
                 onDeleteSet={handleDeleteSet}
+                onDeleteSetEverywhere={handleDeleteSetEverywhere}
                 onDragEnd={handleDragEnd}
               />
             ))}

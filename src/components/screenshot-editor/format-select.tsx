@@ -36,6 +36,8 @@ export function FormatSelect({ doc, dispatch }: { doc: ScreenshotDoc; dispatch: 
         </PopoverTrigger>
         <PopoverContent className="w-64 p-2" align="start">
           <p className="section-title mb-2">{t("screenshotEditor.workingFormats")}</p>
+          {/* The whole ASC catalog – too long for the panel, so the list scrolls. */}
+          <div className="max-h-72 overflow-y-auto">
           {EDITOR_FORMATS.map((f) => {
             const active = working.includes(f.key);
             return (
@@ -47,6 +49,7 @@ export function FormatSelect({ doc, dispatch }: { doc: ScreenshotDoc; dispatch: 
               </label>
             );
           })}
+          </div>
         </PopoverContent>
       </Popover>
     </div>

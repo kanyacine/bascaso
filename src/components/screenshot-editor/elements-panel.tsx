@@ -16,14 +16,13 @@ import { uploadAsset } from "./upload-asset";
 import {
   createEmojiElement, createGraphicElement, createIconElement, createTextElement,
 } from "@/lib/screenshot-editor/elements";
-import { SYSTEM_FONTS } from "@/lib/screenshot-editor/font-catalog";
+import { FONT_WEIGHTS, SYSTEM_FONTS } from "@/lib/screenshot-editor/font-catalog";
 import { getElementText } from "@/lib/screenshot-editor/render/elements";
 import { useTranslations } from "@/lib/i18n/locale-context";
 import type { MessageKey } from "@/lib/i18n/messages";
 import type { EditorAction } from "@/lib/screenshot-editor/reducer";
 import type { EditorElement, IconWeight, RenderImage, ScreenshotDoc } from "@/lib/screenshot-editor/types";
 
-const WEIGHTS = ["300", "400", "500", "600", "700", "800", "900"];
 const ICON_WEIGHTS: { value: IconWeight; key: MessageKey }[] = [
   { value: "thin", key: "screenshotEditor.weightThin" },
   { value: "light", key: "screenshotEditor.weightLight" },
@@ -181,9 +180,9 @@ export function ElementsPanel({ appId, doc, dispatch, images, selectedElementId,
               <div className="flex items-center justify-between text-sm">
                 <span>{t("screenshotEditor.weight")}</span>
                 <Select value={selected.fontWeight ?? "600"} onValueChange={(v) => patch({ fontWeight: v })}>
-                  <SelectTrigger className="w-24 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-28 text-sm"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {WEIGHTS.map((w) => <SelectItem key={w} value={w}>{w}</SelectItem>)}
+                    {FONT_WEIGHTS.map((w) => <SelectItem key={w.value} value={w.value}>{t(w.key)}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>

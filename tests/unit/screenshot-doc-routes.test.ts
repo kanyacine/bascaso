@@ -59,12 +59,15 @@ describe("GET /api/apps/[appId]/screenshot-doc", () => {
 
   it("seeds a new doc from the primary locale's shipped display types, editor formats only", async () => {
     mockExists.mockReturnValue(false);
-    ascWithSets(["APP_IPAD_PRO_3GEN_11", "APP_WATCH_ULTRA", "APP_IPHONE_67"]);
+    // iMessage sets are the only shipped display types the editor cannot render.
+    ascWithSets(["APP_IPAD_PRO_3GEN_11", "IMESSAGE_APP_IPHONE_67", "APP_IPHONE_67", "APP_WATCH_ULTRA"]);
     mockGetOrCreate.mockReturnValue({ id: "01A", doc: {}, updatedAt: "t" });
     const { GET } = await import("@/app/api/apps/[appId]/screenshot-doc/route");
     await GET(new Request("http://localhost"), params);
     expect(mockSets).toHaveBeenCalledWith("loc-fr");
-    expect(mockGetOrCreate).toHaveBeenCalledWith("app-1", ["APP_IPHONE_67", "APP_IPAD_PRO_3GEN_11"]);
+    expect(mockGetOrCreate).toHaveBeenCalledWith(
+      "app-1", ["APP_IPHONE_67", "APP_IPAD_PRO_3GEN_11", "APP_WATCH_ULTRA"],
+    );
   });
 
   it("ignores empty sets and falls back when App Store Connect is unreachable", async () => {

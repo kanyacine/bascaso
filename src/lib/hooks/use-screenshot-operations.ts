@@ -13,6 +13,10 @@ interface UseScreenshotOperationsOptions {
   refresh: () => Promise<void>;
   screenshotSets: AscScreenshotSet[];
   setScreenshotSets: React.Dispatch<React.SetStateAction<AscScreenshotSet[]>>;
+  /** Every localization of the version – the cross-locale delete needs their ids. */
+  localizations: { id: string }[];
+  appId: string;
+  versionId: string;
 }
 
 export function useScreenshotOperations({
@@ -21,6 +25,9 @@ export function useScreenshotOperations({
   refresh,
   screenshotSets,
   setScreenshotSets,
+  localizations,
+  appId,
+  versionId,
 }: UseScreenshotOperationsOptions) {
   const [uploadingSetIds, setUploadingSetIds] = useState<Set<string>>(
     new Set(),
@@ -161,6 +168,37 @@ export function useScreenshotOperations({
     [apiBase, refresh],
   );
 
+  /** Same variant, every localization of the version – screenshots inside it go with it. */
+  const handleDeleteSetEverywhere = useCallback(
+    async (displayType: string) => {
+      try {
+        const removed = await Promise.all(
+          localizations.map(async (loc) => {
+            const base = `/api/apps/${appId}/versions/${versionId}/localizations/${loc.id}/screenshots`;
+            const { screenshotSets: sets } = await apiFetch<{ screenshotSets: AscScreenshotSet[] }>(base);
+            const set = sets?.find((s) => s.attributes.screenshotDisplayType === displayType);
+            if (!set) return false;
+            await apiFetch(`${base}/sets`, {
+              method: "DELETE",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ setId: set.id }),
+            });
+            return true;
+          }),
+        );
+        const count = removed.filter(Boolean).length;
+        toast.success(`Variant removed from ${count} language${count === 1 ? "" : "s"}`);
+        await refresh();
+      } catch (err) {
+        toast.error(
+          err instanceof Error ? err.message : "Failed to remove variant",
+        );
+        await refresh(); // a partial run leaves the page stale
+      }
+    },
+    [appId, versionId, localizations, refresh],
+  );
+
   return {
     uploadingSetIds,
     deletingIds,
@@ -170,5 +208,6 @@ export function useScreenshotOperations({
     handleDragEnd,
     handleAddVariant,
     handleDeleteSet,
+    handleDeleteSetEverywhere,
   };
 }

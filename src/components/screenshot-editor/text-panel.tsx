@@ -1,12 +1,13 @@
 "use client";
 
-import { MagicWand } from "@phosphor-icons/react";
+import { MagicWand, TextItalic, TextStrikethrough, TextUnderline } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { FontPicker } from "./font-picker";
+import { FONT_WEIGHTS } from "@/lib/screenshot-editor/font-catalog";
 import { PanelColor, PanelSlider } from "./panel-controls";
 import { localeName } from "@/lib/asc/locale-names";
 import { useTranslations } from "@/lib/i18n/locale-context";
@@ -14,7 +15,35 @@ import { getEffectiveLayout } from "@/lib/screenshot-editor/render/text";
 import type { EditorAction } from "@/lib/screenshot-editor/reducer";
 import type { LanguageLayout, ScreenshotDoc, TextSettings } from "@/lib/screenshot-editor/types";
 
-const WEIGHTS = ["300", "400", "500", "600", "700", "800", "900"];
+/** Italic / underline / strikethrough, the appscreen style row (index.html:860-878). */
+function StyleToggles({ italic, underline, strikethrough, onChange }: {
+  italic: boolean; underline: boolean; strikethrough: boolean;
+  onChange: (style: { italic: boolean; underline: boolean; strikethrough: boolean }) => void;
+}) {
+  const t = useTranslations();
+  const value = [
+    ...(italic ? ["italic"] : []), ...(underline ? ["underline"] : []),
+    ...(strikethrough ? ["strikethrough"] : []),
+  ];
+  return (
+    <ToggleGroup type="multiple" variant="outline" size="sm" value={value}
+                 onValueChange={(v) => onChange({
+                   italic: v.includes("italic"),
+                   underline: v.includes("underline"),
+                   strikethrough: v.includes("strikethrough"),
+                 })}>
+      <ToggleGroupItem value="italic" aria-label={t("screenshotEditor.italic")}>
+        <TextItalic size={14} />
+      </ToggleGroupItem>
+      <ToggleGroupItem value="underline" aria-label={t("screenshotEditor.underline")}>
+        <TextUnderline size={14} />
+      </ToggleGroupItem>
+      <ToggleGroupItem value="strikethrough" aria-label={t("screenshotEditor.strikethrough")}>
+        <TextStrikethrough size={14} />
+      </ToggleGroupItem>
+    </ToggleGroup>
+  );
+}
 
 // Text writes go to doc.currentLanguage; the five layout controls follow the per-language
 // layout switch (colors, weights and italics stay global across languages – appscreen behavior).
@@ -54,9 +83,9 @@ export function TextPanel({ doc, dispatch, onMagicTitles }: {
             <div className="flex items-center justify-between text-sm">
               <span>{t("screenshotEditor.weight")}</span>
               <Select value={txt.headlineWeight} onValueChange={(v) => patch({ headlineWeight: v })}>
-                <SelectTrigger className="w-24 text-sm"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="w-28 text-sm"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {WEIGHTS.map((w) => <SelectItem key={w} value={w}>{w}</SelectItem>)}
+                  {FONT_WEIGHTS.map((w) => <SelectItem key={w.value} value={w.value}>{t(w.key)}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -66,6 +95,12 @@ export function TextPanel({ doc, dispatch, onMagicTitles }: {
             </div>
             <PanelColor label={t("screenshotEditor.color")} value={txt.headlineColor}
                         onChange={(v) => patch({ headlineColor: v })} />
+            <StyleToggles italic={txt.headlineItalic} underline={txt.headlineUnderline}
+                          strikethrough={txt.headlineStrikethrough}
+                          onChange={({ italic, underline, strikethrough }) => patch({
+                            headlineItalic: italic, headlineUnderline: underline,
+                            headlineStrikethrough: strikethrough,
+                          })} />
           </>
         ) : null}
       </section>
@@ -82,6 +117,15 @@ export function TextPanel({ doc, dispatch, onMagicTitles }: {
             <PanelSlider label={t("screenshotEditor.size")} value={layout.subheadlineSize} min={12} max={140}
                          onChange={(v) => layoutPatch({ subheadlineSize: v })} />
             <div className="flex items-center justify-between text-sm">
+              <span>{t("screenshotEditor.weight")}</span>
+              <Select value={txt.subheadlineWeight} onValueChange={(v) => patch({ subheadlineWeight: v })}>
+                <SelectTrigger className="w-28 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {FONT_WEIGHTS.map((w) => <SelectItem key={w.value} value={w.value}>{t(w.key)}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center justify-between text-sm">
               <span>{t("screenshotEditor.fontFamily")}</span>
               <FontPicker value={txt.subheadlineFont} onChange={(v) => patch({ subheadlineFont: v })} />
             </div>
@@ -89,6 +133,12 @@ export function TextPanel({ doc, dispatch, onMagicTitles }: {
                         onChange={(v) => patch({ subheadlineColor: v })} />
             <PanelSlider label={t("screenshotEditor.opacity")} value={txt.subheadlineOpacity} min={0} max={100}
                          onChange={(v) => patch({ subheadlineOpacity: v })} />
+            <StyleToggles italic={txt.subheadlineItalic} underline={txt.subheadlineUnderline}
+                          strikethrough={txt.subheadlineStrikethrough}
+                          onChange={({ italic, underline, strikethrough }) => patch({
+                            subheadlineItalic: italic, subheadlineUnderline: underline,
+                            subheadlineStrikethrough: strikethrough,
+                          })} />
           </>
         ) : null}
       </section>
