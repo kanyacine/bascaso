@@ -114,11 +114,6 @@ export function ScreenshotPanel({ appId, doc, dispatch }: {
       {s.use3D ? (
         <section className="space-y-3">
           <h3 className="section-title">{t("screenshotEditor.deviceModel")}</h3>
-          <ToggleGroup type="single" variant="outline" size="sm" value={s.device3D} className="w-full"
-                       onValueChange={(v) => v && patch({ device3D: v, frameColor: FRAME_COLOR_PRESETS[v][0].id })}>
-            <ToggleGroupItem value="iphone" className="flex-1">iPhone</ToggleGroupItem>
-            <ToggleGroupItem value="samsung" className="flex-1">Samsung</ToggleGroupItem>
-          </ToggleGroup>
           <PanelSlider label={t("screenshotEditor.rotationX")} value={s.rotation3D.x} min={-45} max={45}
                        onChange={(v) => patch({ rotation3D: { ...s.rotation3D, x: v } })} />
           <PanelSlider label={t("screenshotEditor.rotationY")} value={s.rotation3D.y} min={-45} max={45}
@@ -127,13 +122,19 @@ export function ScreenshotPanel({ appId, doc, dispatch }: {
                        onChange={(v) => patch({ rotation3D: { ...s.rotation3D, z: v } })} />
           <div className="space-y-1.5">
             <span className="text-sm">{t("screenshotEditor.frameColor")}</span>
+            {/* Same swatch treatment as the colour inputs: the outline is inside the button, so a
+                pale finish keeps an edge on the light theme and nothing is clipped by the panel. */}
             <div className="flex flex-wrap gap-1.5">
-              {FRAME_COLOR_PRESETS[s.device3D]?.map((p) => (
-                <button key={p.id} type="button" aria-label={p.label} title={p.label}
-                        onClick={() => patch({ frameColor: p.id })}
-                        className={`size-6 rounded-full border ${frameColorPreset(s.device3D, s.frameColor).id === p.id ? "ring-2 ring-ring ring-offset-1" : ""}`}
-                        style={{ backgroundColor: p.swatch }} />
-              ))}
+              {FRAME_COLOR_PRESETS.iphone.map((p) => {
+                const active = frameColorPreset(s.device3D, s.frameColor).id === p.id;
+                return (
+                  <button key={p.id} type="button" aria-label={p.label} title={p.label}
+                          aria-pressed={active}
+                          onClick={() => patch({ frameColor: p.id })}
+                          className={`swatch size-6 rounded-full ${active ? "ring-2 ring-inset ring-foreground" : ""}`}
+                          style={{ backgroundColor: p.swatch }} />
+                );
+              })}
             </div>
           </div>
           <p className="text-xs text-muted-foreground">{t("screenshotEditor.threeDTip")}</p>

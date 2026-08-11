@@ -18,9 +18,13 @@ import { useTranslations } from "@/lib/i18n/locale-context";
 import type { EditorAction } from "@/lib/screenshot-editor/reducer";
 import type { ScreenshotDoc } from "@/lib/screenshot-editor/types";
 
-export function LanguagesDialog({ open, onOpenChange, doc, dispatch, appId: _appId, appName }: {
+export function LanguagesDialog({
+  open, onOpenChange, doc, dispatch, appId: _appId, appName, primaryLocale,
+}: {
   open: boolean; onOpenChange: (o: boolean) => void;
   doc: ScreenshotDoc; dispatch: (a: EditorAction) => void; appId: string; appName?: string;
+  /** The listing's default locale – every other one falls back to it, so it has to stay. */
+  primaryLocale: string;
 }) {
   const t = useTranslations();
   const { running, progress, translateItems, cancel } = useEditorTranslation({ appName });
@@ -59,19 +63,32 @@ export function LanguagesDialog({ open, onOpenChange, doc, dispatch, appId: _app
         </DialogHeader>
 
         <section className="space-y-1">
-          {doc.projectLanguages.map((lang) => (
-            <div key={lang} className="flex items-center justify-between rounded-md border px-3 py-1.5 text-sm">
-              <span>{localeName(lang)}{lang === doc.currentLanguage ? " ·" : ""}</span>
-              <Button size="icon" variant="ghost" className="size-6"
-                      disabled={doc.projectLanguages.length <= 1 || running}
-                      aria-label={t("screenshotEditor.removeLanguage")}
-                      onClick={() => dispatch({ type: "remove-language", language: lang })}>
-                <TrashSimple size={12} />
-              </Button>
-            </div>
-          ))}
+          {doc.projectLanguages.map((lang) => {
+            const isPrimary = lang === primaryLocale;
+            return (
+              <div key={lang} className="flex items-center justify-between rounded-md border px-3 py-1.5 text-sm">
+                <span>
+                  {localeName(lang)}{lang === doc.currentLanguage ? " ·" : ""}
+                  {isPrimary ? (
+                    <span className="ml-1.5 text-xs text-muted-foreground">
+                      {t("screenshotEditor.primaryLanguage")}
+                    </span>
+                  ) : null}
+                </span>
+                <Button size="icon" variant="ghost" className="size-6"
+                        disabled={isPrimary || doc.projectLanguages.length <= 1 || running}
+                        aria-label={t("screenshotEditor.removeLanguage")}
+                        onClick={() => dispatch({ type: "remove-language", language: lang })}>
+                  <TrashSimple size={12} />
+                </Button>
+              </div>
+            );
+          })}
           {doc.projectLanguages.length <= 1 ? (
             <p className="text-xs text-muted-foreground">{t("screenshotEditor.lastLanguageHint")}</p>
+          ) : null}
+          {doc.projectLanguages.includes(primaryLocale) ? (
+            <p className="text-xs text-muted-foreground">{t("screenshotEditor.primaryLanguageHint")}</p>
           ) : null}
         </section>
 

@@ -3,7 +3,7 @@
 import { use, useState } from "react";
 import Link from "next/link";
 import {
-  ArrowLeft, Crop, DeviceMobile, Export, Palette, Shapes, TextT,
+  ArrowLeft, ArrowUUpLeft, Crop, DeviceMobile, Export, Palette, Shapes, TextT,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -34,7 +34,7 @@ export default function ScreenshotEditorPage({ params }: { params: Promise<{ app
   const t = useTranslations();
   const { apps } = useApps();
   const app = apps.find((a) => a.id === appId);
-  const { doc, dispatch, saveState } = useEditorDoc(appId);
+  const { doc, dispatch, saveState, undo, canUndo } = useEditorDoc(appId);
   const images = useEditorImages(appId, doc);
   const laurelImages = useLaurelImages();
   const fontsVersion = useEditorFonts(doc);
@@ -93,16 +93,35 @@ export default function ScreenshotEditorPage({ params }: { params: Promise<{ app
           <p className="text-sm text-muted-foreground">{t("screenshotEditor.emptyState")}</p>
         )}
       </div>
-      <div className="flex w-80 shrink-0 flex-col gap-4 overflow-y-auto">
+      {/* Header and tab bar stay put, like the back/versions buttons on the left – only the panel
+          under the tabs scrolls. */}
+      <div className="flex min-h-0 w-80 shrink-0 flex-col gap-4">
         {/* One grid for both rows: the selects share a column (same width), the icon buttons share
             the next one, and the save label sits in the export button's column. The panels render
             with `display: contents` so their controls land in these columns directly. */}
         <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2">
           <FormatSelect doc={doc} dispatch={dispatch} />
-          {/* Capped so a long "saving…" never widens the column and nudges the selects. */}
-          <span className="max-w-24 truncate text-right text-xs text-muted-foreground">
-            {saveState === "saving" ? t("screenshotEditor.saving") : saveState === "saved" ? t("screenshotEditor.saved") : ""}
-          </span>
+          <div className="flex items-center justify-end gap-1">
+            {/* Both labels are laid out in the same cell, one of them hidden: the box is as wide as
+                the longest of the two in the active language and never resizes, so the state
+                flipping between them cannot nudge the selects next to it. */}
+            <span className="grid justify-items-end text-xs text-muted-foreground">
+              <span aria-hidden className="invisible col-start-1 row-start-1 whitespace-nowrap">
+                {t("screenshotEditor.saving")}
+              </span>
+              <span aria-hidden className="invisible col-start-1 row-start-1 whitespace-nowrap">
+                {t("screenshotEditor.saved")}
+              </span>
+              {/* role=status: it is the live one of the three, for a screen reader and for a test. */}
+              <span role="status" className="col-start-1 row-start-1 whitespace-nowrap">
+                {saveState === "saving" ? t("screenshotEditor.saving") : saveState === "saved" ? t("screenshotEditor.saved") : ""}
+              </span>
+            </span>
+            <Button size="icon" variant="ghost" className="size-8" disabled={!canUndo} onClick={undo}
+                    aria-label={t("screenshotEditor.undo")}>
+              <IconTooltip label={t("screenshotEditor.undo")}><ArrowUUpLeft size={16} /></IconTooltip>
+            </Button>
+          </div>
           <LanguageSwitcher doc={doc} dispatch={dispatch} onManage={() => setLanguagesOpen(true)} />
           <Button size="sm" onClick={() => setExportOpen(true)}
                   disabled={doc.screenshots.length === 0}>
@@ -110,8 +129,8 @@ export default function ScreenshotEditorPage({ params }: { params: Promise<{ app
           </Button>
         </div>
         {selected ? (
-          <Tabs value={tab} onValueChange={setTab}>
-            <TabsList className="grid w-full grid-cols-5">
+          <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col">
+            <TabsList className="grid w-full shrink-0 grid-cols-5">
               {([
                 ["background", Palette, t("screenshotEditor.background")],
                 ["screenshot", DeviceMobile, t("screenshotEditor.screenshot")],
@@ -125,6 +144,9 @@ export default function ScreenshotEditorPage({ params }: { params: Promise<{ app
                 </TabsTrigger>
               ))}
             </TabsList>
+            {/* px-0.5: the panels' focus rings and swatch outlines would otherwise touch the
+                scroll edge. */}
+            <div className="min-h-0 flex-1 overflow-y-auto px-0.5">
             <TabsContent value="background"><BackgroundPanel doc={doc} dispatch={dispatch} appId={appId} /></TabsContent>
             <TabsContent value="screenshot">
               <ScreenshotPanel appId={appId} doc={doc} dispatch={dispatch} />
@@ -140,11 +162,13 @@ export default function ScreenshotEditorPage({ params }: { params: Promise<{ app
               <PopoutsPanel doc={doc} dispatch={dispatch} images={images}
                             selectedPopoutId={selectedPopoutId} onSelectPopout={selectPopout} />
             </TabsContent>
+            </div>
           </Tabs>
         ) : null}
       </div>
       <LanguagesDialog open={languagesOpen} onOpenChange={setLanguagesOpen}
-                       doc={doc} dispatch={dispatch} appId={appId} appName={app?.name} />
+                       doc={doc} dispatch={dispatch} appId={appId} appName={app?.name}
+                       primaryLocale={app?.primaryLocale ?? ""} />
       <ExportDialog open={exportOpen} onOpenChange={setExportOpen} doc={doc} dispatch={dispatch}
                     appId={appId} appName={app?.name} primaryLocale={app?.primaryLocale ?? ""}
                     images={images} laurelImages={laurelImages} />

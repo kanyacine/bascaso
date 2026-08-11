@@ -14,6 +14,11 @@ export interface DeviceModelConfig {
   modelRotation: { x: number; y: number; z: number };
 }
 
+/**
+ * Apple devices only. appscreen also shipped a Samsung model; a store listing built here is an
+ * App Store listing, so it is gone. Docs written before that still carry device3D: "samsung" –
+ * deviceModel() falls back to the iPhone for them, which is the whole migration.
+ */
 export const DEVICE_MODELS: Record<string, DeviceModelConfig> = {
   iphone: {
     key: "iphone",
@@ -22,15 +27,6 @@ export const DEVICE_MODELS: Record<string, DeviceModelConfig> = {
     screenHeightFactor: 0.826,
     screenOffset: { x: 0.027, y: 0.745, z: 0.098 },
     cornerRadiusFactor: 0.16,
-    modelRotation: { x: 0, y: 0, z: 0 },
-  },
-  samsung: {
-    key: "samsung",
-    modelPath: "/screenshot-editor/models/samsung-galaxy-s25-ultra.glb",
-    aspectRatio: 1440 / 3120,
-    screenHeightFactor: 0.66,
-    screenOffset: { x: 0, y: 0, z: 0.08 },
-    cornerRadiusFactor: 0.04,
     modelRotation: { x: 0, y: 0, z: 0 },
   },
 };
@@ -86,6 +82,7 @@ export interface FrameColorPreset {
   materials: Record<string, string>;
 }
 
+/** iPhone finishes. Keyed by device for the legacy fallback in frameColorPreset(). */
 export const FRAME_COLOR_PRESETS: Record<string, FrameColorPreset[]> = {
   iphone: [
     { id: "natural", label: "Natural Titanium", swatch: "#9d927f",
@@ -104,22 +101,6 @@ export const FRAME_COLOR_PRESETS: Record<string, FrameColorPreset[]> = {
       materials: { backpanel: "#e3c8a0", metalframe: "#c9a96e", gray: "#2a2418" } },
     { id: "red", label: "Product Red", swatch: "#c1272d",
       materials: { backpanel: "#c1272d", metalframe: "#8a1c20", gray: "#1a0a0a" } },
-  ],
-  samsung: [
-    { id: "gray", label: "Titanium Gray", swatch: "#8a8a8a",
-      materials: { back_glass: "#4c4c4c", frame: "#cdcdcd", antenna: "#707070" } },
-    { id: "black", label: "Titanium Black", swatch: "#2a2a2a",
-      materials: { back_glass: "#1a1a1a", frame: "#3a3a3a", antenna: "#2a2a2a" } },
-    { id: "silverblue", label: "Titanium Silverblue", swatch: "#a8b8c8",
-      materials: { back_glass: "#8a9eb0", frame: "#b8c8d4", antenna: "#7a8ea0" } },
-    { id: "whitesilver", label: "Titanium Whitesilver", swatch: "#e8e4df",
-      materials: { back_glass: "#d8d4cf", frame: "#e8e4df", antenna: "#c0bcb7" } },
-    { id: "pinkgold", label: "Titanium Pinkgold", swatch: "#d4a89a",
-      materials: { back_glass: "#c89888", frame: "#d4b0a0", antenna: "#b08878" } },
-    { id: "jadegreen", label: "Titanium Jadegreen", swatch: "#9aaa9c",
-      materials: { back_glass: "#7a9a7c", frame: "#a8b8aa", antenna: "#6a8a6c" } },
-    { id: "jetblack", label: "Titanium Jetblack", swatch: "#404040",
-      materials: { back_glass: "#2a2a2a", frame: "#484848", antenna: "#353535" } },
   ],
 };
 

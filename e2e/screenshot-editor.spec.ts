@@ -23,8 +23,10 @@ test("create – edit – export – persist", async ({ page }) => {
   const headline = page.getByPlaceholder("Headline").first();
   await headline.fill("Hello E2E");
 
-  // Autosave settles (800ms debounce) – the save state label flips to "Saved"
-  await expect(page.getByText("Saved", { exact: true })).toBeVisible({ timeout: 5_000 });
+  // Autosave settles (800ms debounce) – the save state label flips to "Saved". The status role
+  // picks the live label out of the hidden ones that reserve its width.
+  // Filtered: the status role also matches dnd-kit's live region, which stays empty.
+  await expect(page.getByRole("status").filter({ hasText: "Saved" })).toBeVisible({ timeout: 5_000 });
 
   // Export as zip: the destination defaults to ASC, which demo mode has no editable version for,
   // so the dialog falls back to the zip.

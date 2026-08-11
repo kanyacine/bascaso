@@ -15,8 +15,9 @@ describe("device configs", () => {
     expect(DEVICE_MODELS.iphone.modelPath).toBe("/screenshot-editor/models/iphone-15-pro-max.glb");
     expect(DEVICE_MODELS.iphone.aspectRatio).toBeCloseTo(1290 / 2796);
     expect(DEVICE_MODELS.iphone.screenOffset).toEqual({ x: 0.027, y: 0.745, z: 0.098 });
-    expect(DEVICE_MODELS.samsung.modelPath).toBe("/screenshot-editor/models/samsung-galaxy-s25-ultra.glb");
-    expect(deviceModel("samsung")).toBe(DEVICE_MODELS.samsung);
+    // Apple only – a doc written when the Samsung model existed still renders, as an iPhone.
+    expect(DEVICE_MODELS.samsung).toBeUndefined();
+    expect(deviceModel("samsung")).toBe(DEVICE_MODELS.iphone);
     expect(deviceModel(undefined)).toBe(DEVICE_MODELS.iphone);
     expect(deviceModel("nope")).toBe(DEVICE_MODELS.iphone);
     expect(MOCKUP_CAMERA.fov).toBe(35);
@@ -27,7 +28,7 @@ describe("device configs", () => {
     expect(plane.height).toBeCloseTo(4.3 * 0.826);
     expect(plane.width).toBeCloseTo(plane.height * (1290 / 2796));
     expect(screenCornerRadius(1290, DEVICE_MODELS.iphone)).toBe(Math.round(1290 * 0.16));
-    expect(screenCornerRadius(1440, DEVICE_MODELS.samsung)).toBe(Math.round(1440 * 0.04));
+    expect(screenCornerRadius(1440, DEVICE_MODELS.iphone)).toBe(Math.round(1440 * 0.16));
   });
 });
 
@@ -62,14 +63,14 @@ describe("pivotTransform", () => {
 describe("frame color presets", () => {
   it("ports both palettes and falls back to the first preset", () => {
     expect(FRAME_COLOR_PRESETS.iphone).toHaveLength(8);
-    expect(FRAME_COLOR_PRESETS.samsung).toHaveLength(7);
+    expect(FRAME_COLOR_PRESETS.samsung).toBeUndefined();
     expect(FRAME_COLOR_PRESETS.iphone[0]).toEqual({
       id: "natural", label: "Natural Titanium", swatch: "#9d927f",
       materials: { backpanel: "#9d927f", metalframe: "#5f5950", gray: "#221f1b" },
     });
     expect(frameColorPreset("iphone", "red").id).toBe("red");
     expect(frameColorPreset("iphone", undefined).id).toBe("natural");
-    expect(frameColorPreset("samsung", "nope").id).toBe("gray");
+    expect(frameColorPreset("samsung", "gray").id).toBe("natural"); // legacy doc → iPhone finish
     expect(frameColorPreset("nope", undefined).id).toBe("natural"); // unknown device → iphone palette
   });
 });
