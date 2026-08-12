@@ -39,6 +39,7 @@ All tables use Drizzle ORM. Timestamps are ISO 8601 strings. IDs are ULIDs (sort
 |---|---|
 | `ascCredentials` | id, issuerId, keyId, encryptedPrivateKey, isActive, createdAt |
 | `aiSettings` | id, provider, modelId, encryptedApiKey, updatedAt |
+| `screenshotDocs` | Screenshot editor documents – one `kind='current'` per app (partial unique index) plus named `kind='version'` snapshots. `doc` is the JSON `ScreenshotDoc`, image refs only. See [SCREENSHOT-EDITOR.md](SCREENSHOT-EDITOR.md) |
 
 **Cache tables** (one per ASC resource type):
 
@@ -61,6 +62,14 @@ users. A stale row is served immediately and refreshed in the background
 (stale-while-revalidate); only a true cold miss computes synchronously,
 because scoring is user-initiated per keyword (each pastille shows its own
 spinner) rather than a page-load dependency.
+
+### Binary assets
+
+The database holds no bitmaps. Images imported into the screenshot editor are written next to
+it, under `<dirname(DATABASE_PATH)>/screenshot-assets/<appId>/<ulid>.<ext>`, and documents
+reference them by file name (`src/lib/screenshot-editor-assets.ts`). Both path segments are
+allowlisted by regex before touching the filesystem, and the stored extension comes from
+sniffing the bytes, not from the upload's `Content-Type`.
 
 ## Data fetching strategy
 
@@ -101,7 +110,13 @@ Set via `next.config.ts`:
 - `X-Content-Type-Options: nosniff`
 - `X-Frame-Options: DENY`
 - `Referrer-Policy: strict-origin-when-cross-origin`
-- `Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'`
+- `Content-Security-Policy` – `next.config.ts` holds the current value; keep it and this list in
+  step. It is `default-src 'self'` plus: `img-src` for `data:`, `blob:` and `*.mzstatic.com`
+  (Apple's screenshot CDN); `style-src`/`font-src` for `fonts.googleapis.com` and
+  `fonts.gstatic.com`, used only by the screenshot editor's canvas fonts and only once the user
+  turns them on (the interface font is self-hosted via `next/font`); `connect-src 'self' blob:`,
+  where `blob:` is three.js reading textures out of our own `.glb` files, so no remote origin
+  becomes reachable. `script-src` still carries `'unsafe-inline' 'unsafe-eval'` – see ISSUES.md.
 
 ### Environment variables
 
@@ -110,6 +125,7 @@ Validated at startup with Zod. App refuses to start if required vars are missing
 | Variable | Required | Purpose |
 |---|---|---|
 | `ENCRYPTION_MASTER_KEY` | Yes | 32-byte hex key for envelope encryption |
+| `DATABASE_PATH` | Yes | SQLite file. Set by `electron/main.ts` to the app's userData dir; its parent also holds `screenshot-assets/` |
 | `PORT` | No | Server port (default 3000) |
 
 ## API conventions

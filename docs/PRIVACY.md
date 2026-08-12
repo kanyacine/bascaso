@@ -24,6 +24,8 @@ address and only if you click the button that says so.
 | Your Bascaso cloud session, if any | `bascaso.db` | Same |
 | Your own AI provider keys (BYOK) | `bascaso.db` | Same |
 | Cached App Store Connect data, ASO scores, preferences, pending changes | `bascaso.db` | Plain — it is your own data on your own machine |
+| Screenshot editor documents and their saved versions | `bascaso.db` | Same |
+| Images you import into the screenshot editor | `screenshot-assets/` | Same, as ordinary files |
 
 **Leaves your Mac even without an account**, because the app cannot work otherwise:
 
@@ -32,6 +34,14 @@ address and only if you click the button that says so.
 - **The public App Store search API** (`itunes.apple.com`) — the ASO layer queries it for
   keyword rankings and competitor data. These requests carry no account identifier and no
   data of yours; they are the same public searches anyone can run. See [ASO.md](ASO.md).
+
+**Off unless you turn it on: Google Fonts.** The screenshot editor types with the fonts already
+installed on your Mac, and asks Google for nothing. Settings → Screenshot editor has one switch
+that adds an Online tab to the font picker; loading a family from it fetches the font files from
+`fonts.googleapis.com` and `fonts.gstatic.com`, which means Google sees your IP address and the
+family you asked for. The switch says so, it is off by default, and nothing else in the app
+uses those hosts (the interface font ships with the app). Turning it back off stops the
+requests. See [SCREENSHOT-EDITOR.md](SCREENSHOT-EDITOR.md).
 
 **AI, without the managed tier:**
 

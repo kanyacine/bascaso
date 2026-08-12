@@ -10,6 +10,7 @@ Before writing any code, read these docs:
 - **[docs/UI.md](docs/UI.md)** – typography, icons, component patterns, form conventions, layout rules. All UI must follow these conventions exactly.
 - **[docs/BACKEND.md](docs/BACKEND.md)** – architecture, security model, database schema, caching strategy, API conventions, testing. All server-side code must follow these conventions.
 - **[docs/DB.md](docs/DB.md)** – database migrations, how to add tables/columns, checklist. Must read before any schema changes.
+- **[docs/SCREENSHOT-EDITOR.md](docs/SCREENSHOT-EDITOR.md)** – document model, render engine, export and upload. Must read before touching `src/lib/screenshot-editor/`, `src/components/screenshot-editor/` or the screenshot-doc routes.
 
 ## Project rules
 

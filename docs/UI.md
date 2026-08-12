@@ -116,7 +116,9 @@ The dashboard layout (`src/app/dashboard/layout.tsx`) wraps all page content in:
 </div>
 ```
 
-**Content is capped at `max-w-5xl` (64rem / 1024px) and centred** with `px-6` so narrow viewports still get side padding. Pages must not override this width – it is set once in the layout.
+**Content is capped at `max-w-6xl` and centred** with `px-6` so narrow viewports still get side padding. Pages must not override this width – it is set once in the layout.
+
+The screenshot editor is the one exception, and it is handled in the layout rather than by the page: `ScrollableContent` matches the editor route and swaps the centred container for a full-width, non-scrolling flex column, because the editor is a three-column workspace that fills the window and scrolls inside its own panels. A new full-bleed screen goes in that same test – never as a page overriding the width from underneath.
 
 ### Page root patterns
 

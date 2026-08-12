@@ -22,7 +22,7 @@ docs/BACKEND.md mandates Zod on every route input, but many handlers do an unche
 Related: `src/app/api/screenshot-download/route.ts:34` reflects the unvalidated `name` query param into the `Content-Disposition` header.
 
 ### 4. CSP includes 'unsafe-eval'
-`next.config.ts:22` ships `script-src 'self' 'unsafe-inline' 'unsafe-eval'`, but docs/BACKEND.md specifies no `unsafe-eval`. Either it is needed (then document why) or drop it.
+`next.config.ts` ships `script-src 'self' 'unsafe-inline' 'unsafe-eval'` with no note saying why. Either it is needed (then document why) or drop it. The rest of the policy is explained in docs/BACKEND.md and in a comment above the header.
 
 ### 5. ~40 raw label headings instead of .section-title
 docs/UI.md mandates `<h3 className="section-title">` for form headings; these use `<label className="text-sm text-muted-foreground">` instead:
