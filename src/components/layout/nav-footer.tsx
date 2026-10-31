@@ -32,6 +32,7 @@ import { useTranslations } from "@/lib/i18n/locale-context";
 import { BRAND_ISSUES_URL } from "@/lib/brand";
 import { accountDisplayName } from "@/lib/managed/client";
 import { useManagedAccount } from "@/lib/hooks/use-managed-account";
+import { useApps } from "@/lib/apps-context";
 
 interface Account {
   id: string;
@@ -47,6 +48,7 @@ export function NavFooter() {
   const { isMobile } = useSidebar();
   const { guardNavigation } = useFormDirty();
   const t = useTranslations();
+  const { refresh: refreshApps } = useApps();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [switching, setSwitching] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -88,7 +90,7 @@ export function NavFooter() {
         method: "POST",
       });
       if (res.ok) {
-        await fetchAccounts();
+        await Promise.all([fetchAccounts(), refreshApps()]);
         router.push("/dashboard?entry=1");
         router.refresh();
       }
@@ -104,7 +106,7 @@ export function NavFooter() {
 
   async function handleAccountAdded() {
     setDialogOpen(false);
-    await fetchAccounts();
+    await Promise.all([fetchAccounts(), refreshApps()]);
     guardNavigation(() => {
       router.push("/dashboard?entry=1");
       router.refresh();
