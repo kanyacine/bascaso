@@ -94,15 +94,23 @@ describe("estimateDownloads – unit behaviour", () => {
     });
   });
 
-  it("falls back to the default 0.03 market factor for an unknown country", () => {
+  it("gives an unknown country the smallest market in the table", () => {
     const unknown = estimateDownloads(50, "zz");
     const us = estimateDownloads(50, "us");
-    expect(unknown.dailySearches).toBeCloseTo(us.dailySearches * 0.03, 2);
+    expect(unknown.dailySearches).toBeLessThan(us.dailySearches * 0.001);
+    expect(unknown.belowThreshold).toBe(true);
+    expect(unknown.marketSource).toBe("derived");
   });
 
-  it("scales linearly below the first popularity anchor (pop 5 → 1 search/day)", () => {
-    const result = estimateDownloads(2.5);
-    expect(result.dailySearches).toBeCloseTo(0.5, 2); // 1 * (2.5 / 5)
+  it("scales linearly below the first popularity anchor (pop 1 → 1 search/day)", () => {
+    const result = estimateDownloads(0.5);
+    expect(result.dailySearches).toBeCloseTo(0.5, 2);
+  });
+
+  it("runs every range from a tenth of the estimate to the estimate", () => {
+    const { positions } = estimateDownloads(70, "us");
+    for (const p of positions) expect(p.downloadsLow).toBeCloseTo(p.downloadsHigh * 0.1, 1);
+    expect(positions[0].downloadsHigh).toBeCloseTo(4_600 * 0.3 * 0.05, 2);
   });
 
   it("treats an empty-string country as the default 'us' market", () => {

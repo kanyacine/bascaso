@@ -61,18 +61,18 @@ describe("strategyValue", () => {
     difficulty: 1, opportunity, classification, relevant: true,
   });
 
-  it("niche boosts hidden gems over sweet spots, broad does the opposite", () => {
-    const gem = mk("Hidden Gem", 80);
+  it("niche boosts reachable Good Targets over Sweet Spots, broad does the opposite", () => {
+    const target = mk("Good Target", 80);
     const sweet = mk("Sweet Spot", 80);
-    expect(strategyValue(gem, "niche")).toBeGreaterThan(strategyValue(sweet, "niche"));
-    expect(strategyValue(sweet, "broad")).toBeGreaterThan(strategyValue(gem, "broad"));
+    expect(strategyValue(target, "niche")).toBeGreaterThan(strategyValue(sweet, "niche"));
+    expect(strategyValue(sweet, "broad")).toBeGreaterThan(strategyValue(target, "broad"));
   });
 
-  it("crushes Avoid under every strategy", () => {
-    const avoid = mk("Avoid", 100);
-    const moderate = mk("Moderate", 50);
+  it("ranks Worth Climbing and Low Volume below Supporting under every strategy", () => {
+    const supporting = mk("Supporting", 50);
     for (const s of ["balanced", "broad", "niche"] as const) {
-      expect(strategyValue(avoid, s)).toBeLessThan(strategyValue(moderate, s));
+      expect(strategyValue(mk("Worth Climbing", 50), s)).toBeLessThan(strategyValue(supporting, s));
+      expect(strategyValue(mk("Low Volume", 50), s)).toBeLessThan(strategyValue(supporting, s));
     }
   });
 

@@ -213,14 +213,14 @@ describe("runKeywordResearch – nominal run", () => {
 });
 
 describe("runKeywordResearch – strategy", () => {
-  it("niche reranks hidden gems first and packs them first in the field", async () => {
+  it("niche reranks reachable targets first and packs them first in the field", async () => {
     const CLASSES: Record<string, string> = {
-      planner: "Sweet Spot",
-      habit: "Hidden Gem",
+      planner: "Worth Climbing",
+      habit: "Good Target",
     };
     mockScoreKeyword.mockImplementation(async (keyword: string) => ({
       ...makeScore(keyword),
-      classification: CLASSES[keyword] ?? "Good Target",
+      classification: CLASSES[keyword] ?? "Supporting",
     }));
 
     const result = await runKeywordResearch(
@@ -229,7 +229,7 @@ describe("runKeywordResearch – strategy", () => {
       new AbortController().signal,
     );
 
-    // niche: habit 80×1.6=128 > daily planner 90×1.0=90 > planner 95×0.9=85.5
+    // niche: habit 80×1.3=104 > daily planner 90×1.1=99 > planner 95×0.4=38
     expect(result.candidates.slice(0, 3).map((c) => c.keyword)).toEqual([
       "habit", "daily planner", "planner",
     ]);
