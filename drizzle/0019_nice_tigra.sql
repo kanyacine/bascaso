@@ -1,0 +1,1 @@
+ALTER TABLE `keyword_scores` ADD `scoring_version` integer DEFAULT 1 NOT NULL;

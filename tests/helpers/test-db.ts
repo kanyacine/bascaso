@@ -61,6 +61,7 @@ export function createTestDb() {
       result_ids TEXT,
       details TEXT,
       competitors TEXT,
+      scoring_version INTEGER NOT NULL DEFAULT 1,
       PRIMARY KEY (keyword, country)
     );
 
