@@ -4,6 +4,10 @@ Versions from 2026.8.0 onwards are Bascaso's own, in CalVer (`YYYY.M.PATCH`).
 The 1.x entries below belong to the itsyconnect-macos line this project was
 forked from, and are kept for history.
 
+## Unreleased
+
+- Fix the app list not updating after switching or adding a team. The sidebar kept showing the previous team's apps until you visited Settings and came back; it now refreshes immediately (from itsyconnect-macos 1.14.2, thanks @trszdev)
+
 ## 2026.8.1
 
 - Compose App Store screenshots inside the app. Backgrounds take a solid colour, a gradient or an image, with optional noise. The capture sits flat or on a 3D iPhone you can rotate and recolour. Headline and subheadline keep their own layout per language, text and graphic elements stack on three layers with laurel and badge frames, and popouts zoom into a crop
