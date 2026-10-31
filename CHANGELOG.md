@@ -7,6 +7,7 @@ forked from, and are kept for history.
 ## Unreleased
 
 - Fix the app list not updating after switching or adding a team. The sidebar kept showing the previous team's apps until you visited Settings and came back; it now refreshes immediately (from itsyconnect-macos 1.14.2, thanks @trszdev)
+- Score keywords with RespectASO's new method. Opportunity is now the downloads a day your app can expect at the rank it can actually reach, given its own strength (ratings, momentum, age) against the keyword's difficulty, in that storefront. Popularity maps to searches using Apple's published figures, across 175 storefronts. Keywords fall into five classes: Sweet Spot, Good Target, Supporting, Worth Climbing and Low Volume. Cached scores are recalculated on first view (from RespectASO)
 
 ## 2026.8.1
 
