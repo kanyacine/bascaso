@@ -270,14 +270,14 @@ describe("rankDistribution", () => {
 });
 
 describe("classificationDistribution", () => {
-  it("counts by classification, falling back empty strings to Moderate", () => {
+  it("counts by classification, falling back empty strings to Low Volume", () => {
     const items = [
       item({ classification: "Sweet Spot" }),
       item({ classification: "" }),
-      item({ classification: "Moderate" }),
+      item({ classification: "Low Volume" }),
       item({ classification: "" }),
     ];
-    expect(classificationDistribution(items)).toEqual({ "Sweet Spot": 1, Moderate: 3 });
+    expect(classificationDistribution(items)).toEqual({ "Sweet Spot": 1, "Low Volume": 3 });
   });
 });
 

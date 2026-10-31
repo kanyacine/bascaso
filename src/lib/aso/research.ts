@@ -446,12 +446,10 @@ export type ResearchSortColumn =
 
 // Verdict quality order, worst to best – index is the sort value.
 const CLASSIFICATION_ORDER = [
-  "Avoid",
-  "High Competition",
   "Low Volume",
-  "Moderate",
+  "Worth Climbing",
+  "Supporting",
   "Good Target",
-  "Hidden Gem",
   "Sweet Spot",
 ];
 

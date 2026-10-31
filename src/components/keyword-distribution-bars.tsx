@@ -46,11 +46,9 @@ export function summaryInputs(
 const MIX_SEGMENTS: Array<{ label: string; cls: string }> = [
   { label: "Sweet Spot", cls: "bg-green-700" },
   { label: "Good Target", cls: "bg-green-500" },
-  { label: "Hidden Gem", cls: "bg-blue-500" },
-  { label: "High Competition", cls: "bg-yellow-500" },
-  { label: "Moderate", cls: "bg-muted-foreground/70" },
+  { label: "Supporting", cls: "bg-blue-500" },
+  { label: "Worth Climbing", cls: "bg-amber-500" },
   { label: "Low Volume", cls: "bg-muted-foreground/40" },
-  { label: "Avoid", cls: "bg-red-500" },
 ];
 
 // Scoring fetches 25 results, hence the 21–25 bucket instead of respectaso's
