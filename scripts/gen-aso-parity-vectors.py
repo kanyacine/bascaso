@@ -2,13 +2,15 @@
 synthetic fixtures with a frozen clock. Output JSON is committed to
 bascaso and replayed by Vitest to validate the TS port.
 
-Needs Python 3.11+ (upstream uses datetime.UTC and itertools.pairwise) and an
+Needs Python 3.10+ (datetime.UTC and fromisoformat's "Z" suffix, both new in
+3.11, are shimmed below) and an
 up-to-date respectaso clone next to bascaso:
     git -C ../respectaso pull
     python3 scripts/gen-aso-parity-vectors.py tests/unit/aso/parity-vectors.json
 Upstream commit the vectors were last generated from: see "respectaso_commit"
 in the output."""
 
+import datetime as _datetime_module
 import json
 import os
 import subprocess
@@ -22,6 +24,10 @@ sys.modules["requests"].exceptions = types.SimpleNamespace(
     ConnectionError=Exception, Timeout=Exception, HTTPError=Exception
 )
 sys.modules["requests"].Timeout = Exception
+
+# Upstream imports `datetime.UTC` (Python 3.11+); provide it on 3.10.
+if not hasattr(_datetime_module, "UTC"):
+    _datetime_module.UTC = _datetime_module.timezone.utc
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 RESPECTASO = os.environ.get(
@@ -43,8 +49,16 @@ class FrozenDatetime(datetime):
     def now(cls, tz=None):
         return FROZEN_NOW
 
+    @classmethod
+    def fromisoformat(cls, value):
+        # Python 3.10 rejects a trailing "Z"; 3.11+ reads it as UTC.
+        if isinstance(value, str) and value.endswith(("Z", "z")):
+            value = value[:-1] + "+00:00"
+        return super().fromisoformat(value)
+
 
 services.datetime = FrozenDatetime
+strength.datetime = FrozenDatetime
 strength._utcnow = lambda: FROZEN_NOW
 
 try:

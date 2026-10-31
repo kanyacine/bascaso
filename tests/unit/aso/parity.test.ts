@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { ttrAt } from "@/lib/aso/downloads";
 import {
@@ -70,6 +70,16 @@ const vectors = JSON.parse(
 };
 
 const now = new Date(vectors.frozen_now);
+
+// App strength reads the clock (years on the store); the vectors were made at
+// `frozen_now`, so every suite here runs at that instant.
+beforeAll(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(now);
+});
+afterAll(() => {
+  vi.useRealTimers();
+});
 
 // Sub-scores are stored rounded to 1 decimal by Python (banker's rounding);
 // allow just over half a tick for the rounding-mode difference.
