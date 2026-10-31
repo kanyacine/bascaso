@@ -16,10 +16,17 @@ import {
   classifyKeyword,
   type ClassificationLabel,
 } from "./scoring";
+import { getAppProfile } from "./app-profile";
+import type { AppProfile } from "./strength";
 import { normalizeKeyword } from "./score-display";
 import { AdaptiveRateLimiter, ItunesRateLimited, searchApps } from "./itunes";
 
 export const SCORE_TTL_MS = 24 * 60 * 60 * 1000; // 1 score/day/keyword/country
+
+/** Scoring methodology stamped on every stored row. 2 = respectaso 798335f
+ *  (popularity v2, download-based opportunity). Rows from an older version
+ *  are served stale and refreshed in the background. */
+export const SCORING_VERSION = 2;
 
 /** Wipe the whole keyword scoring cache and its trend history. Backs the
  *  "delete all search history" settings action; the next score request for
@@ -58,8 +65,13 @@ export interface KeywordScore {
   country: string;
   popularity: number | null;
   difficulty: number;
+  /** What the keyword is worth to the requested app in this storefront
+   *  (to a brand new app when no app id was given or its profile is
+   *  unknown), 0-100 on the downloads scale. */
   opportunity: number;
   classification: ClassificationLabel;
+  /** The app profile the opportunity was computed for; null = a new app. */
+  appProfile: AppProfile | null;
   fetchedAt: number;
   stale: boolean;
   /** 1-based position of the requested app in the search results; null
@@ -135,7 +147,7 @@ const limiter = new AdaptiveRateLimiter();
 let chain: Promise<unknown> = Promise.resolve();
 const inFlight = new Map<
   string,
-  Promise<{ base: Omit<KeywordScore, "rank" | "previous">; ids: number[] }>
+  Promise<{ base: Omit<KeywordScore, "rank" | "previous" | "appProfile">; ids: number[] }>
 >();
 
 // Serialize iTunes calls with the adaptive delay between them.
@@ -162,12 +174,14 @@ function pacedSearch(keyword: string, country: string) {
 async function computeAndStore(
   keyword: string,
   country: string,
-): Promise<{ base: Omit<KeywordScore, "rank" | "previous">; ids: number[] }> {
+): Promise<{ base: Omit<KeywordScore, "rank" | "previous" | "appProfile">; ids: number[] }> {
   const apps = await pacedSearch(keyword, country);
   const popularity = estimatePopularity(apps, keyword);
   const { total: difficulty, breakdown } = calculateDifficulty(apps, keyword);
-  const opportunity = calcOpportunity(popularity ?? 0, difficulty);
-  const classification = classifyKeyword(popularity ?? 0, difficulty);
+  // Stored values are what the keyword is worth to a brand new app here;
+  // per-app values are derived at read time (withAppContext).
+  const opportunity = calcOpportunity(popularity ?? 0, difficulty, { country });
+  const classification = classifyKeyword(popularity ?? 0, difficulty, { country });
   const fetchedAt = Date.now();
   const ids = apps.map((a) => a.trackId).filter((id): id is number => id != null);
   const resultIds = JSON.stringify(ids);
@@ -200,10 +214,10 @@ async function computeAndStore(
   }
 
   db.insert(keywordScores)
-    .values({ keyword, country, popularity, difficulty, opportunity, classification, fetchedAt, resultIds, details, competitors })
+    .values({ keyword, country, popularity, difficulty, opportunity, classification, fetchedAt, resultIds, details, competitors, scoringVersion: SCORING_VERSION })
     .onConflictDoUpdate({
       target: [keywordScores.keyword, keywordScores.country],
-      set: { popularity, difficulty, opportunity, classification, fetchedAt, resultIds, details, competitors },
+      set: { popularity, difficulty, opportunity, classification, fetchedAt, resultIds, details, competitors, scoringVersion: SCORING_VERSION },
     })
     .run();
 
@@ -239,11 +253,31 @@ function dedupedCompute(
       inFlight.delete(key);
     });
   if (!existing) inFlight.set(key, shared);
-  return shared.then(({ base, ids }) => ({
-    ...base,
-    rank: rankIn(ids, appAppleId),
-    previous: previousScore(keyword, country, base.fetchedAt, appAppleId),
-  }));
+  return shared.then(({ base, ids }) =>
+    withAppContext(
+      {
+        ...base,
+        rank: rankIn(ids, appAppleId),
+        previous: previousScore(keyword, country, base.fetchedAt, appAppleId),
+        appProfile: null,
+      },
+      appAppleId,
+    ),
+  );
+}
+
+/** Re-derive opportunity and classification for the requesting app: its
+ *  strength in this storefront and its real rank decide where it lands. */
+async function withAppContext(score: KeywordScore, appAppleId?: number): Promise<KeywordScore> {
+  if (!appAppleId) return score;
+  const app = await getAppProfile(appAppleId, score.country);
+  const ctx = { country: score.country, app, appRank: score.rank, keyword: score.keyword };
+  return {
+    ...score,
+    opportunity: calcOpportunity(score.popularity ?? 0, score.difficulty, ctx),
+    classification: classifyKeyword(score.popularity ?? 0, score.difficulty, ctx),
+    appProfile: app.known === false ? null : app,
+  };
 }
 
 /**
@@ -266,13 +300,14 @@ export async function scoreKeyword(
     .get();
 
   if (row) {
-    const stale = Date.now() - row.fetchedAt > SCORE_TTL_MS;
+    const stale =
+      Date.now() - row.fetchedAt > SCORE_TTL_MS || row.scoringVersion < SCORING_VERSION;
     if (stale) {
       // Fire-and-forget background refresh; the next read serves the new row.
       void dedupedCompute(keyword, country).catch(() => {});
     }
     const ids = row.resultIds ? (JSON.parse(row.resultIds) as number[]) : null;
-    return {
+    return withAppContext({
       keyword,
       country,
       popularity: row.popularity,
@@ -288,7 +323,8 @@ export async function scoreKeyword(
         ? (JSON.parse(row.competitors) as CompetitorSnapshot[])
         : null,
       previous: previousScore(keyword, country, row.fetchedAt, appAppleId),
-    };
+      appProfile: null,
+    }, appAppleId);
   }
 
   return dedupedCompute(keyword, country, appAppleId);

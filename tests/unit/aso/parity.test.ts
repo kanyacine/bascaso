@@ -1,9 +1,21 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { readFileSync } from "node:fs";
-import { calcOpportunity, classifyKeyword } from "@/lib/aso/scoring";
+import { ttrAt } from "@/lib/aso/downloads";
+import {
+  appStrength,
+  calcOpportunity,
+  classifyKeyword,
+  expectedDownloads,
+  hasRealDemand,
+  reachableRank,
+  topSpotOpportunity,
+  typicalLanding,
+} from "@/lib/aso/scoring";
+import { appComponents, type AppProfile } from "@/lib/aso/strength";
 import {
   estimatePopularity,
   calculateDifficulty,
+  popularitySignals,
   type CompetitorApp,
 } from "@/lib/aso/estimators";
 
@@ -19,13 +31,55 @@ interface ParityCase {
   expected_difficulty: Record<string, number | string | boolean | null>;
   expected_opportunity: number;
   expected_classification: string;
+  expected_signals?: Record<string, number> | null;
+}
+
+interface OpportunityCase {
+  popularity: number;
+  difficulty: number;
+  country: string;
+  profile: string;
+  app_rank: number | null;
+  keyword: string | null;
+  expected_opportunity: number;
+  expected_classification: string;
+  expected_downloads: number;
+  expected_reachable_rank: number;
+  expected_typical_landing: [number, number];
+  expected_top_spot: number;
+  expected_real_demand: boolean;
+}
+
+interface StrengthCase {
+  profile: string;
+  app: AppProfile | null;
+  expected_strength: number;
+  expected_components: Record<string, number>;
 }
 
 const vectors = JSON.parse(
   readFileSync(new URL("./parity-vectors.json", import.meta.url), "utf8"),
-) as { frozen_now: string; cases: ParityCase[] };
+) as {
+  frozen_now: string;
+  respectaso_commit?: string;
+  cases: ParityCase[];
+  opportunity_cases?: OpportunityCase[];
+  strength_cases?: StrengthCase[];
+  profiles?: Record<string, AppProfile | null>;
+  ttr_cases?: { rank: number; expected: number }[];
+};
 
 const now = new Date(vectors.frozen_now);
+
+// App strength reads the clock (years on the store); the vectors were made at
+// `frozen_now`, so every suite here runs at that instant.
+beforeAll(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(now);
+});
+afterAll(() => {
+  vi.useRealTimers();
+});
 
 // Sub-scores are stored rounded to 1 decimal by Python (banker's rounding);
 // allow just over half a tick for the rounding-mode difference.
@@ -41,11 +95,25 @@ const SUB_SCORES = new Set([
 
 const toCamel = (s: string) => s.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
 
+/** Relative float closeness for unrounded model outputs. */
+function expectNear(actual: number, expected: number, label: string): void {
+  const scale = Math.max(1, Math.abs(expected));
+  expect(Math.abs(actual - expected) / scale, `${label}: ${actual} vs ${expected}`).toBeLessThan(1e-9);
+}
+
 describe("parity with respectaso Python scoring", () => {
   for (const c of vectors.cases) {
     it(c.name, () => {
       const popularity = estimatePopularity(c.competitors, c.keyword);
       expect(popularity).toBe(c.expected_popularity);
+
+      if (c.expected_signals) {
+        const signals = popularitySignals(c.competitors, c.keyword)!;
+        for (const [key, value] of Object.entries(signals)) {
+          const pyKey = key.replace(/[A-Z]/g, (m) => `_${m.toLowerCase()}`);
+          expectNear(value, c.expected_signals[pyKey], `signal ${key}`);
+        }
+      }
 
       const { total, breakdown } = calculateDifficulty(c.competitors, c.keyword, now);
       const record = breakdown as unknown as Record<string, number | string | boolean | null>;
@@ -65,5 +133,46 @@ describe("parity with respectaso Python scoring", () => {
       expect(calcOpportunity(popularity ?? 0, total)).toBe(c.expected_opportunity);
       expect(classifyKeyword(popularity ?? 0, total)).toBe(c.expected_classification);
     });
+  }
+});
+
+describe.runIf(vectors.strength_cases)("parity: app strength", () => {
+  for (const c of vectors.strength_cases ?? []) {
+    it(c.profile, () => {
+      expectNear(appStrength(c.app), c.expected_strength, "strength");
+      const parts = appComponents(c.app ?? {}, { now });
+      for (const [k, v] of Object.entries(c.expected_components)) {
+        expectNear(parts[k as keyof typeof parts], v, k);
+      }
+    });
+  }
+});
+
+describe.runIf(vectors.opportunity_cases)("parity: opportunity model", () => {
+  for (const c of vectors.opportunity_cases ?? []) {
+    const label = `pop=${c.popularity} diff=${c.difficulty} ${c.country} ${c.profile} rank=${c.app_rank} kw=${c.keyword}`;
+    it(label, () => {
+      const app = vectors.profiles?.[c.profile] ?? null;
+      const ctx = { country: c.country, app, appRank: c.app_rank, keyword: c.keyword };
+      expect(calcOpportunity(c.popularity, c.difficulty, ctx)).toBe(c.expected_opportunity);
+      expect(classifyKeyword(c.popularity, c.difficulty, ctx)).toBe(c.expected_classification);
+      expectNear(expectedDownloads(c.popularity, c.difficulty, ctx), c.expected_downloads, "downloads");
+      expectNear(
+        reachableRank(c.difficulty, { app, appRank: c.app_rank, keyword: c.keyword }),
+        c.expected_reachable_rank,
+        "reachable rank",
+      );
+      const landing = typicalLanding(c.difficulty, app);
+      expect(landing.rank).toBe(c.expected_typical_landing[0]);
+      expectNear(landing.topTenShare, c.expected_typical_landing[1], "top-ten share");
+      expect(topSpotOpportunity(c.popularity, c.country)).toBe(c.expected_top_spot);
+      expect(hasRealDemand(c.popularity, c.country)).toBe(c.expected_real_demand);
+    });
+  }
+});
+
+describe.runIf(vectors.ttr_cases)("parity: tap-through at real ranks", () => {
+  for (const c of vectors.ttr_cases ?? []) {
+    it(`rank ${c.rank}`, () => expectNear(ttrAt(c.rank), c.expected, "ttr"));
   }
 });

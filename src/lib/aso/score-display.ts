@@ -4,11 +4,12 @@ import type { MessageKey } from "@/lib/i18n/messages";
 
 export type OpportunityTone = "green" | "amber" | "red";
 
-// Bands follow the classification thresholds: ≥ 55 is "Good Target"
-// territory, ≤ 25 is "Avoid".
+// Bands follow the classification thresholds (respectaso 798335f): 50+ is
+// one download a day or more (Good Target and up), 30-49 Supporting, below
+// that Worth Climbing or Low Volume.
 export function opportunityTone(opportunity: number): OpportunityTone {
-  if (opportunity >= 55) return "green";
-  if (opportunity >= 26) return "amber";
+  if (opportunity >= 50) return "green";
+  if (opportunity >= 30) return "amber";
   return "red";
 }
 
@@ -45,14 +46,14 @@ export function difficultyTone(difficulty: number): ScoreTone {
   return "darkRed";
 }
 
-// Mirrors respectaso's insight color map, except Sweet Spot gets a
-// deeper green than Good Target to rank above it visually.
+// Mirrors respectaso's opportunity colours (green 10+/day, emerald 1+/day,
+// blue Supporting); Worth Climbing gets amber so it reads as "not yet".
 const CLASSIFICATION_TONES: Record<string, ScoreTone> = {
   "Sweet Spot": "darkGreen",
   "Good Target": "green",
-  "Hidden Gem": "blue",
-  "High Competition": "yellow",
-  Avoid: "red",
+  Supporting: "blue",
+  "Worth Climbing": "amber",
+  "Low Volume": "muted",
 };
 
 export function classificationTone(classification: string): ScoreTone {
@@ -63,11 +64,9 @@ export function classificationTone(classification: string): ScoreTone {
 export const CLASSIFICATION_TOOLTIPS: Record<string, MessageKey> = {
   "Sweet Spot": "keywords.verdictSweetSpot",
   "Good Target": "keywords.verdictGoodTarget",
-  "Hidden Gem": "keywords.verdictHiddenGem",
-  "High Competition": "keywords.verdictHighCompetition",
-  Moderate: "keywords.verdictModerate",
+  Supporting: "keywords.verdictSupporting",
+  "Worth Climbing": "keywords.verdictWorthClimbing",
   "Low Volume": "keywords.verdictLowVolume",
-  Avoid: "keywords.verdictAvoid",
 };
 
 // Bands mirror respectaso's "Your App Rank" card.

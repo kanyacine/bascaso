@@ -162,7 +162,7 @@ export function computeStorefrontSummary(
 export function classificationDistribution(items: SummaryInput[]): Record<string, number> {
   const dist: Record<string, number> = {};
   for (const item of items) {
-    const key = item.classification || "Moderate";
+    const key = item.classification || "Low Volume";
     dist[key] = (dist[key] ?? 0) + 1;
   }
   return dist;

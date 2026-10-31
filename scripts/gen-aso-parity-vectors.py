@@ -1,9 +1,19 @@
 """Generate parity vectors by running respectaso's real scoring code on
 synthetic fixtures with a frozen clock. Output JSON is committed to
-mybetteraso and replayed by Vitest to validate the TS port."""
+bascaso and replayed by Vitest to validate the TS port.
 
-import importlib.util
+Needs Python 3.10+ (datetime.UTC and fromisoformat's "Z" suffix, both new in
+3.11, are shimmed below) and an
+up-to-date respectaso clone next to bascaso:
+    git -C ../respectaso pull
+    python3 scripts/gen-aso-parity-vectors.py tests/unit/aso/parity-vectors.json
+Upstream commit the vectors were last generated from: see "respectaso_commit"
+in the output."""
+
+import datetime as _datetime_module
 import json
+import os
+import subprocess
 import sys
 import types
 from datetime import datetime, timezone
@@ -15,25 +25,22 @@ sys.modules["requests"].exceptions = types.SimpleNamespace(
 )
 sys.modules["requests"].Timeout = Exception
 
-BASE = "/Users/yacine/Documents/code/betteraso/respectaso/aso"
+# Upstream imports `datetime.UTC` (Python 3.11+); provide it on 3.10.
+if not hasattr(_datetime_module, "UTC"):
+    _datetime_module.UTC = _datetime_module.timezone.utc
 
+HERE = os.path.dirname(os.path.abspath(__file__))
+RESPECTASO = os.environ.get(
+    "RESPECTASO_DIR", os.path.normpath(os.path.join(HERE, "..", "..", "respectaso"))
+)
+BASE = os.path.join(RESPECTASO, "aso")
 
-def load(name, path):
-    # Python 3.9 host: enable PEP 604 (`X | None`) annotations via compile flag.
-    import __future__
-    mod = types.ModuleType(name)
-    mod.__file__ = path
-    with open(path) as f:
-        code = compile(f.read(), path, "exec", flags=__future__.annotations.compiler_flag)
-    sys.modules[name] = mod
-    exec(code, mod.__dict__)
-    return mod
+# Import the real `aso` package modules (they use relative imports) without
+# running Django: only pure modules are touched.
+sys.path.insert(0, RESPECTASO)
+from aso import scoring, services, strength  # noqa: E402
 
-
-services = load("services", f"{BASE}/services.py")
-scoring = load("scoring", f"{BASE}/scoring.py")
-
-# Freeze the clock inside services.py
+# Freeze the clock everywhere upstream reads it.
 FROZEN_NOW = datetime(2026, 7, 21, 0, 0, 0, tzinfo=timezone.utc)
 
 
@@ -42,8 +49,25 @@ class FrozenDatetime(datetime):
     def now(cls, tz=None):
         return FROZEN_NOW
 
+    @classmethod
+    def fromisoformat(cls, value):
+        # Python 3.10 rejects a trailing "Z"; 3.11+ reads it as UTC.
+        if isinstance(value, str) and value.endswith(("Z", "z")):
+            value = value[:-1] + "+00:00"
+        return super().fromisoformat(value)
+
 
 services.datetime = FrozenDatetime
+strength.datetime = FrozenDatetime
+strength._utcnow = lambda: FROZEN_NOW
+
+try:
+    COMMIT = subprocess.run(
+        ["git", "-C", RESPECTASO, "rev-parse", "--short", "HEAD"],
+        capture_output=True, text=True, check=True,
+    ).stdout.strip()
+except Exception:  # noqa: BLE001
+    COMMIT = "unknown"
 
 
 def app(name, reviews, rating=4.5, released="2020-01-15T08:00:00Z",
@@ -281,7 +305,7 @@ TIER_FIELDS = [
     "fresh_count", "title_keyword_count", "total_apps", "tier_score", "label",
 ]
 
-out = {"frozen_now": FROZEN_NOW.isoformat(), "cases": []}
+out = {"frozen_now": FROZEN_NOW.isoformat(), "respectaso_commit": COMMIT, "cases": []}
 for name, fx in FIXTURES.items():
     kw, comps = fx["keyword"], fx["competitors"]
     popularity = pop.estimate(comps, kw)
@@ -301,6 +325,7 @@ for name, fx in FIXTURES.items():
         "expected_ranking_tiers": expected_tiers,
         "expected_opportunity": scoring.calc_opportunity(popularity or 0, total),
         "expected_classification": scoring.classify_keyword(popularity or 0, total),
+        "expected_signals": pop.signal_components(comps, kw),
     })
 
 # Edge: empty competitor list
@@ -326,6 +351,80 @@ for popularity in [None, 0, 3, 5, 17, 42, 68, 75, 88, 100]:
             "country": country,
             "expected": dl.estimate(popularity, country),
         })
+
+# Opportunity model: popularity × difficulty × storefront × app profile ×
+# real rank. Profiles are serialized as the TS AppProfile shape.
+PROFILES = {
+    "new": None,
+    "unknown": {"name": "Some App", "ratings": 9_000, "average": 4.6,
+                "released": "2019-01-01T08:00:00Z", "known": False},
+    "indie": {"name": "Habit Grid", "ratings": 350, "average": 4.4,
+              "released": "2024-02-01T08:00:00Z"},
+    "mid": {"name": "Budget Planner Pro", "ratings": 6_500, "average": 4.7,
+            "released": "2018-05-01T08:00:00Z"},
+    "big": {"name": "Photo Editor Max", "ratings": 1_400_000, "average": 4.8,
+            "released": "2012-06-01T08:00:00Z"},
+    "young_rated": {"name": "Météo Précise", "ratings": 120, "average": 5.0,
+                    "released": "2026-06-01T08:00:00Z"},
+}
+
+
+def profile(data):
+    if data is None:
+        return None
+    return strength.AppProfile(**data)
+
+
+out["strength_cases"] = [
+    {"profile": name, "app": data,
+     "expected_strength": scoring.app_strength(profile(data)),
+     "expected_components": profile(data).components() if data else strength.NEW_APP.components()}
+    for name, data in PROFILES.items()
+]
+
+out["opportunity_cases"] = []
+for popularity in [0, 1, 12, 25, 39, 40, 47, 55, 63, 72, 88, 100]:
+    for difficulty in [0, 8, 22, 37, 50, 64, 79, 93, 100]:
+        for country in ["us", "fr", "br", "lu", "zz"]:
+            for pname in ["new", "indie", "big"]:
+                app_ = profile(PROFILES[pname])
+                out["opportunity_cases"].append({
+                    "popularity": popularity, "difficulty": difficulty,
+                    "country": country, "profile": pname, "app_rank": None, "keyword": None,
+                    "expected_opportunity": scoring.calc_opportunity(popularity, difficulty, country, app_),
+                    "expected_classification": scoring.classify_keyword(popularity, difficulty, country, app_),
+                    "expected_downloads": scoring.expected_downloads(popularity, difficulty, country, app_),
+                    "expected_reachable_rank": scoring.reachable_rank(difficulty, app_),
+                    "expected_typical_landing": list(scoring.typical_landing(difficulty, app_)),
+                    "expected_top_spot": scoring.top_spot_opportunity(popularity, country),
+                    "expected_real_demand": scoring.has_real_demand(popularity, country),
+                })
+
+# Real ranks, with and without the keyword in the app's title.
+for pname, keyword in [("mid", "budget planner"), ("mid", "expense tracker"),
+                       ("young_rated", "météo"), ("unknown", "some app")]:
+    app_ = profile(PROFILES[pname])
+    for difficulty in [15, 45, 80]:
+        for app_rank in [1, 3, 9, 27, 140]:
+            out["opportunity_cases"].append({
+                "popularity": 58, "difficulty": difficulty, "country": "us",
+                "profile": pname, "app_rank": app_rank, "keyword": keyword,
+                "expected_opportunity": scoring.calc_opportunity(58, difficulty, "us", app_, app_rank, keyword),
+                "expected_classification": scoring.classify_keyword(58, difficulty, "us", app_, app_rank, keyword),
+                "expected_downloads": scoring.expected_downloads(58, difficulty, "us", app_, app_rank, keyword),
+                "expected_reachable_rank": scoring.reachable_rank(difficulty, app_, app_rank, keyword),
+                "expected_typical_landing": list(scoring.typical_landing(difficulty, app_)),
+                "expected_top_spot": scoring.top_spot_opportunity(58, "us"),
+                "expected_real_demand": scoring.has_real_demand(58, "us"),
+            })
+
+out["profiles"] = PROFILES
+
+# Tap-through at real-valued ranks, including the power-law tail.
+out["ttr_cases"] = [
+    {"rank": r, "expected": services.DownloadEstimator.ttr_at(r)}
+    for r in [0.5, 1, 1.5, 2, 3.25, 9.9, 10, 17.6, 19.99, 20, 20.5, 33, 100, 250]
+]
 
 path = sys.argv[1] if len(sys.argv) > 1 else "parity-vectors.json"
 with open(path, "w") as f:

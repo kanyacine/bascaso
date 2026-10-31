@@ -24,24 +24,27 @@ export interface StrategyConfig {
   chipClass: string;
 }
 
-// Multipliers per respectASO classification – signed off in review on 2026-07-24.
-// Avoid stays penalised everywhere, never excluded (a thin pool still fills the
-// field).
+// Multipliers per respectASO classification. Remapped on 2026-10-31 onto the
+// five download-based classes of respectaso 798335f (the 2026-07-24 set had
+// seven, including Hidden Gem and Avoid, which no longer exist). Niche leans on
+// Good Target / Supporting – the keywords THIS app can reach – rather than on
+// raw volume. Low Volume stays penalised, never excluded (a thin pool still
+// fills the field).
 export const STRATEGIES = {
   balanced: {
-    weights: { "Sweet Spot": 1.3, "Hidden Gem": 1.2, "Good Target": 1.1, "Moderate": 1.0, "Low Volume": 0.6, "High Competition": 0.4, "Avoid": 0.2 },
+    weights: { "Sweet Spot": 1.3, "Good Target": 1.1, "Supporting": 1.0, "Worth Climbing": 0.6, "Low Volume": 0.4 },
     seedHint: "",
     labelKey: "aso.research.strategies.balanced",
     chipClass: "bg-muted text-muted-foreground",
   },
   broad: {
-    weights: { "Sweet Spot": 1.5, "Hidden Gem": 0.8, "Good Target": 1.2, "Moderate": 1.0, "Low Volume": 0.3, "High Competition": 0.6, "Avoid": 0.2 },
+    weights: { "Sweet Spot": 1.5, "Good Target": 1.2, "Supporting": 0.8, "Worth Climbing": 0.7, "Low Volume": 0.2 },
     seedHint: "Favour broad, high-traffic category terms with wide appeal.",
     labelKey: "aso.research.strategies.broad",
     chipClass: "bg-green-500/15 text-green-600 dark:text-green-400",
   },
   niche: {
-    weights: { "Sweet Spot": 0.9, "Hidden Gem": 1.6, "Good Target": 1.0, "Moderate": 0.8, "Low Volume": 0.7, "High Competition": 0.2, "Avoid": 0.2 },
+    weights: { "Sweet Spot": 1.2, "Good Target": 1.3, "Supporting": 1.1, "Worth Climbing": 0.4, "Low Volume": 0.7 },
     seedHint: "Favour specific long-tail phrases a smaller, focused audience would search.",
     labelKey: "aso.research.strategies.niche",
     chipClass: "bg-blue-500/15 text-blue-600 dark:text-blue-400",

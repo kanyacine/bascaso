@@ -116,6 +116,10 @@ export const keywordScores = sqliteTable(
     resultIds: text("result_ids"), // JSON array of ranked iTunes track ids
     details: text("details"), // JSON DifficultyBreakdown (sub-scores, tiers…)
     competitors: text("competitors"), // JSON CompetitorSnapshot[] (top results, trimmed)
+    // Scoring methodology the row was computed with (SCORING_VERSION in
+    // score-service). Older rows are served stale and refreshed: popularity
+    // v1 and v2 are not on the same scale.
+    scoringVersion: integer("scoring_version").notNull().default(1),
   },
   (t) => [primaryKey({ columns: [t.keyword, t.country] })],
 );

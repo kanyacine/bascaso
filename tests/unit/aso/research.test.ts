@@ -219,17 +219,15 @@ describe("compareResearchRows", () => {
   describe("classification column", () => {
     it("sorts by verdict quality, best first when descending", () => {
       const rows = [
-        row("moderate", doneScore({ classification: "Moderate" })),
-        row("avoid", doneScore({ classification: "Avoid" })),
-        row("sweet", doneScore({ classification: "Sweet Spot" })),
-        row("gem", doneScore({ classification: "Hidden Gem" })),
-        row("target", doneScore({ classification: "Good Target" })),
-        row("competition", doneScore({ classification: "High Competition" })),
+        row("supporting", doneScore({ classification: "Supporting" })),
         row("volume", doneScore({ classification: "Low Volume" })),
+        row("sweet", doneScore({ classification: "Sweet Spot" })),
+        row("climb", doneScore({ classification: "Worth Climbing" })),
+        row("target", doneScore({ classification: "Good Target" })),
       ];
       rows.sort(compareResearchRows("classification", "desc"));
       expect(rows.map((r) => r.keyword)).toEqual([
-        "sweet", "gem", "target", "moderate", "volume", "competition", "avoid",
+        "sweet", "target", "supporting", "climb", "volume",
       ]);
     });
 
@@ -237,10 +235,10 @@ describe("compareResearchRows", () => {
       const rows = [
         row("sweet", doneScore({ classification: "Sweet Spot" })),
         row("pending", { status: "loading" }),
-        row("avoid", doneScore({ classification: "Avoid" })),
+        row("volume", doneScore({ classification: "Low Volume" })),
       ];
       rows.sort(compareResearchRows("classification", "asc"));
-      expect(rows.map((r) => r.keyword)).toEqual(["avoid", "sweet", "pending"]);
+      expect(rows.map((r) => r.keyword)).toEqual(["volume", "sweet", "pending"]);
     });
   });
 

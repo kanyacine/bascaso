@@ -11,15 +11,23 @@ vi.mock("@/db", () => ({
 }));
 
 const mockSearchApps = vi.fn();
+const mockLookupApp = vi.fn();
 vi.mock("@/lib/aso/itunes", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/aso/itunes")>();
   return {
     ...actual,
     searchApps: (...args: unknown[]) => mockSearchApps(...args),
+    lookupApp: (...args: unknown[]) => mockLookupApp(...args),
   };
 });
 
-import { clearScoreCache, scoreKeyword, SCORE_TTL_MS } from "@/lib/aso/score-service";
+import {
+  clearScoreCache,
+  scoreKeyword,
+  SCORE_TTL_MS,
+  SCORING_VERSION,
+} from "@/lib/aso/score-service";
+import { calcOpportunity } from "@/lib/aso/scoring";
 import { ItunesRateLimited, SearchApiUnavailableError } from "@/lib/aso/itunes";
 
 const competitors = [
@@ -55,6 +63,8 @@ describe("scoreKeyword", () => {
     testDb = createTestDb();
     mockSearchApps.mockReset();
     mockSearchApps.mockResolvedValue(competitors);
+    mockLookupApp.mockReset();
+    mockLookupApp.mockResolvedValue(null);
     vi.useFakeTimers();
   });
 
@@ -343,6 +353,78 @@ describe("scoreKeyword", () => {
     );
     await vi.advanceTimersByTimeAsync(25_000);
     await assertion;
+  });
+});
+
+describe("scoreKeyword – per-app opportunity (respectaso 798335f)", () => {
+  beforeEach(() => {
+    testDb = createTestDb();
+    mockSearchApps.mockReset();
+    mockSearchApps.mockResolvedValue(competitors);
+    mockLookupApp.mockReset();
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("stores the new-app value for the storefront and stamps the scoring version", async () => {
+    mockLookupApp.mockResolvedValue(null);
+    const score = await settle(scoreKeyword("meditation", "fr"));
+    const row = testDb.select().from(keywordScores).get()!;
+    expect(row.scoringVersion).toBe(SCORING_VERSION);
+    expect(row.opportunity).toBe(
+      calcOpportunity(score.popularity ?? 0, score.difficulty, { country: "fr" }),
+    );
+    expect(mockLookupApp).not.toHaveBeenCalled();
+    expect(score.appProfile).toBeNull();
+  });
+
+  it("scores the requesting app from its own store profile and real rank", async () => {
+    const strong = {
+      trackId: 222, trackName: "Calm Meditation", userRatingCount: 900_000,
+      averageUserRating: 4.8, releaseDate: "2012-01-01T08:00:00Z",
+    };
+    mockLookupApp.mockResolvedValue(strong);
+    const score = await settle(scoreKeyword("meditation", "fr", 222));
+    expect(mockLookupApp).toHaveBeenCalledWith(222, "fr");
+    expect(score.rank).toBe(2);
+    expect(score.appProfile).toMatchObject({ name: "Calm Meditation", ratings: 900_000 });
+    expect(score.opportunity).toBe(
+      calcOpportunity(score.popularity ?? 0, score.difficulty, {
+        country: "fr", app: score.appProfile, appRank: 2, keyword: "meditation",
+      }),
+    );
+  });
+
+  it("caches the app profile per storefront", async () => {
+    mockLookupApp.mockResolvedValue({ trackId: 111, trackName: "Meditation App", userRatingCount: 10 });
+    await settle(scoreKeyword("meditation", "fr", 111));
+    await settle(scoreKeyword("calm", "fr", 111));
+    expect(mockLookupApp).toHaveBeenCalledTimes(1);
+  });
+
+  it("scores the app as new when its profile cannot be read", async () => {
+    mockLookupApp.mockRejectedValue(new Error("down"));
+    const score = await settle(scoreKeyword("meditation", "fr", 999));
+    expect(score.appProfile).toBeNull();
+    expect(score.opportunity).toBe(
+      calcOpportunity(score.popularity ?? 0, score.difficulty, { country: "fr" }),
+    );
+  });
+
+  it("serves a row from an older scoring version as stale and refreshes it", async () => {
+    testDb.insert(keywordScores).values({
+      keyword: "meditation", country: "fr", popularity: 50, difficulty: 20,
+      opportunity: 65, classification: "Hidden Gem", fetchedAt: Date.now(),
+      resultIds: "[]", details: null, competitors: null, scoringVersion: 1,
+    }).run();
+    const stale = await scoreKeyword("meditation", "fr");
+    expect(stale.stale).toBe(true);
+    await vi.advanceTimersByTimeAsync(25_000);
+    expect(mockSearchApps).toHaveBeenCalledTimes(1);
+    expect(testDb.select().from(keywordScores).get()!.scoringVersion).toBe(SCORING_VERSION);
   });
 });
 

@@ -2,8 +2,9 @@
 // (ITunesSearchService) and aso/throttle.py (AdaptiveITunesRateLimiter).
 // Primary: iTunes Search API. Fallback: App Store SSR page + Lookup API
 // batch hydration – both produce the same CompetitorApp shape.
-// ponytail: lookup_by_id, lookup_full_description and find_app_rank are
-// not ported – scoring only needs keyword search.
+// lookupApp ports the single-app case of lookup_by_id (the tracked app's
+// own store profile, for the opportunity score).
+// ponytail: lookup_full_description and find_app_rank are not ported.
 
 import type { CompetitorApp } from "./estimators";
 
@@ -295,6 +296,23 @@ export async function searchApps(
         "returned errors. Please try again in a few minutes.",
     );
   }
+}
+
+/** The App Store's public record of one app in one storefront (iTunes
+ *  Lookup API), or null when the storefront does not list it. Throws on a
+ *  network or HTTP failure so callers can tell "absent" from "unknown". */
+export async function lookupApp(trackId: number, country = "us"): Promise<CompetitorApp | null> {
+  const params = new URLSearchParams({ id: String(trackId), country });
+  const response = await fetch(`${LOOKUP_URL}?${params}`, {
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (response.status === 429 || response.status === 403 || response.status === 503) {
+    throw new ItunesRateLimited();
+  }
+  if (!response.ok) throw new Error(`Lookup error ${response.status}`);
+  const data = (await response.json()) as { results?: RawResult[] };
+  const hit = (data.results ?? []).find((r) => r.trackId === trackId);
+  return hit ? parseApp(hit) : null;
 }
 
 // ── Adaptive rate limiter (from aso/throttle.py) ─────────────────────────

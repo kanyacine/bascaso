@@ -1,15 +1,20 @@
-// Ported from respectaso aso/services.py – DownloadEstimator (lines
-// ~984-1215). Estimates daily downloads per ranking position for a
-// keyword by combining popularity → daily searches, position → tap-through
-// rate (TTR), and a conversion-rate (tap → install) range. Parity is
-// enforced by tests/unit/aso/downloads.test.ts against vectors in
-// tests/unit/aso/parity-vectors.json (download_cases).
+/* Portions derived from RespectASO (https://github.com/respectlytics/respectaso),
+ * aso/services.py DownloadEstimator and aso/scoring.py at 798335f
+ * (2026-10-24), AGPL-3.0, Copyright Respectlytics. */
+
+// Estimates daily downloads per ranking position for a keyword:
+//   downloads = daily searches × tap-through rate(rank) × install rate
+// Daily searches come from the popularity curve, scaled by the storefront's
+// market size (./countries). Every figure is shown as a range from a tenth of
+// the estimate to the estimate. Parity is enforced by
+// tests/unit/aso/downloads.test.ts against tests/unit/aso/parity-vectors.json.
+
+import { marketSize, STOREFRONT_MARKETS } from "./countries";
 
 /**
- * The only storefront the model is calibrated on: POP_TO_SEARCHES comes from
- * US App Store observations, and other countries only get the crude
- * MARKET_SIZE installed-base ratio below. Estimates are therefore hidden
- * outside the US unless the user opts in (Settings › ASO).
+ * The storefront the model was historically calibrated on. Upstream now
+ * measures 48 markets (see isMeasuredMarket); outside the US estimates stay
+ * hidden unless the user opts in (Settings › ASO).
  */
 export const DOWNLOADS_CALIBRATED_COUNTRY = "us";
 export const DOWNLOADS_ALL_STOREFRONTS_KEY = "aso-downloads-all-storefronts";
@@ -31,105 +36,39 @@ export interface DownloadEstimate {
   /** One entry per search-result position, 1-20. */
   positions: DownloadPosition[];
   tiers: { top5: DownloadRange; top6To10: DownloadRange; top11To20: DownloadRange };
+  /** Under one search a day: a range of zeros is a fact, not a bug. */
+  belowThreshold: boolean;
+  /** Whether the market size behind the numbers was measured or derived. */
+  marketSource: "measured" | "derived";
 }
 
-// Popularity score → estimated daily searches (US App Store baseline).
-// Piecewise-linear mapping calibrated against real App Store observations.
-const POP_TO_SEARCHES: ReadonlyArray<readonly [number, number]> = [
-  [5, 1],
-  [10, 3],
-  [15, 5],
-  [20, 10],
-  [25, 20],
-  [30, 35],
-  [35, 55],
-  [40, 90],
+/**
+ * Popularity → estimated daily searches (US App Store baseline), anchored to
+ * Apple's top-search-terms dataset: ~70/day at popularity 40 (the dataset
+ * floor), a linear ramp below, ~15%/point log-linear growth above.
+ */
+export const POP_TO_SEARCHES: ReadonlyArray<readonly [number, number]> = [
+  [1, 1],
+  [20, 35],
+  [39, 65],
+  [40, 70],
   [45, 140],
-  [50, 200],
-  [55, 290],
-  [60, 400],
-  [65, 550],
-  [70, 750],
-  [75, 1_100],
-  [80, 2_000],
-  [85, 4_000],
-  [90, 8_000],
-  [95, 16_000],
-  [100, 32_000],
+  [50, 280],
+  [55, 570],
+  [60, 1_150],
+  [65, 2_300],
+  [70, 4_600],
+  [75, 9_300],
+  [80, 19_000],
+  [85, 38_000],
+  [90, 76_000],
+  [95, 152_000],
+  [100, 300_000],
 ];
 
-// Position → tap-through rate (fraction of searchers who tap), index 0 =
-// position 1, index 19 = position 20. Power-law decay: steep drop from #1
-// to #5 (first screen), then a gradual tail for positions requiring scroll.
-const TTR: readonly number[] = [
-  0.3, 0.18, 0.12, 0.085, 0.06, 0.045, 0.033, 0.025, 0.019, 0.013, 0.009, 0.007, 0.0055, 0.0042,
-  0.0033, 0.0025, 0.0019, 0.0014, 0.001, 0.0007,
-];
-
-// Conversion rate (tap → install) range for free apps.
-const CVR_LOW = 0.05;
-const CVR_HIGH = 0.2;
-
-// Market-size multiplier: scales search volume relative to the US App
-// Store (the POP_TO_SEARCHES baseline). Derived from estimated
-// active-iPhone installed base per country relative to the US.
-const MARKET_SIZE: Readonly<Record<string, number>> = {
-  us: 1.0,
-  // Tier 2 – large markets (30 M+ iPhones)
-  cn: 0.45,
-  jp: 0.35,
-  gb: 0.3,
-  de: 0.25,
-  fr: 0.22,
-  kr: 0.2,
-  br: 0.18,
-  in: 0.15,
-  ca: 0.15,
-  au: 0.12,
-  ru: 0.12,
-  it: 0.12,
-  es: 0.1,
-  mx: 0.1,
-  // Tier 3 – mid-size markets (5-30 M iPhones)
-  tw: 0.08,
-  nl: 0.07,
-  se: 0.06,
-  ch: 0.06,
-  pl: 0.05,
-  tr: 0.05,
-  th: 0.05,
-  id: 0.05,
-  be: 0.04,
-  at: 0.04,
-  no: 0.04,
-  dk: 0.04,
-  sg: 0.04,
-  il: 0.04,
-  ae: 0.04,
-  sa: 0.04,
-  ph: 0.04,
-  my: 0.04,
-  za: 0.03,
-  ie: 0.03,
-  fi: 0.03,
-  pt: 0.03,
-  nz: 0.03,
-  cl: 0.03,
-  ar: 0.03,
-  co: 0.03,
-  ng: 0.03,
-  eg: 0.03,
-  pk: 0.02,
-  ke: 0.02,
-  gh: 0.02,
-  tz: 0.02,
-  ug: 0.02,
-};
-const MARKET_SIZE_DEFAULT = 0.03;
-
-/** Interpolate daily search volume from a popularity score (5-100). */
-function dailySearches(popularity: number | null): number {
-  if (popularity === null || popularity <= 0) return 0;
+/** Interpolate daily search volume (US) from a popularity score. */
+export function popToSearches(popularity: number | null | undefined): number {
+  if (popularity == null || popularity <= 0) return 0;
   const pts = POP_TO_SEARCHES;
   if (popularity <= pts[0][0]) return pts[0][1] * (popularity / pts[0][0]);
   if (popularity >= pts[pts.length - 1][0]) return pts[pts.length - 1][1];
@@ -140,6 +79,66 @@ function dailySearches(popularity: number | null): number {
   return s0 + ((popularity - p0) / (p1 - p0)) * (s1 - s0);
 }
 
+/** Estimated searches per day for a keyword in a storefront (US curve ×
+ *  market size). Country omitted = the US scale. */
+export function dailySearches(popularity: number | null | undefined, country?: string | null): number {
+  const searches = popToSearches(popularity ?? 0);
+  if (!country) return searches;
+  return searches * marketSize(country);
+}
+
+/** Position → tap-through rate (fraction of searchers who tap), index 0 =
+ *  position 1. Power-law decay: steep to #5, gradual tail after. */
+const TTR: readonly number[] = [
+  0.3, 0.18, 0.12, 0.085, 0.06, 0.045, 0.033, 0.025, 0.019, 0.013, 0.009, 0.007, 0.0055, 0.0042,
+  0.0033, 0.0025, 0.0019, 0.0014, 0.001, 0.0007,
+];
+
+/** Install rate (tap → install): 5%, the low end for free apps. */
+const CVR = 0.05;
+
+/** Every download range runs from a tenth of the estimate to the estimate. */
+export const RANGE_LOW_SHARE = 0.1;
+
+/** Past #20 the rate keeps falling as a power law, with the exponent the
+ *  table shows between #10 and #20 (~4.2): never a cliff to zero. */
+const TAIL_EXPONENT = Math.log(TTR[9] / TTR[19]) / Math.log(20 / 10);
+
+/** Share of searchers who tap the result at `rank`, for any real rank:
+ *  the table at whole ranks 1-20, log-interpolated between, power law past 20. */
+export function ttrAt(rank: number): number {
+  if (rank <= 1) return TTR[0];
+  if (rank <= 20) {
+    const low = Math.floor(rank);
+    if (low >= 20) return TTR[19];
+    const fraction = rank - low;
+    if (fraction === 0) return TTR[low - 1];
+    return Math.exp(Math.log(TTR[low - 1]) * (1 - fraction) + Math.log(TTR[low]) * fraction);
+  }
+  return TTR[19] * (20 / rank) ** TAIL_EXPONENT;
+}
+
+/** Conservative daily downloads at one (real-valued) rank, unrounded. */
+export function downloadsAt(popularity: number | null | undefined, rank: number, country: string = "us"): number {
+  if (!popularity || popularity <= 0 || rank < 1) return 0;
+  return dailySearches(popularity, country || "us") * ttrAt(rank) * CVR;
+}
+
+/** Daily downloads at one rank, low and high, unrounded. */
+export function rangeAt(popularity: number | null | undefined, rank: number, country: string = "us"): DownloadRange {
+  if (!popularity || popularity <= 0 || rank < 1) return { low: 0, high: 0 };
+  const estimate = dailySearches(popularity, country || "us") * ttrAt(rank) * CVR;
+  return { low: estimate * RANGE_LOW_SHARE, high: estimate };
+}
+
+const MEASURED = new Set(STOREFRONT_MARKETS.filter((c) => c.source === "measured").map((c) => c.code));
+
+/** Whether the storefront's market size was measured against App Store data. */
+export function isMeasuredMarket(country: string | null | undefined): boolean {
+  return MEASURED.has((country || "us").toLowerCase());
+}
+
+/** Python's round(x, 2) for display figures. */
 const round2 = (x: number) => Math.round(x * 100) / 100;
 
 /**
@@ -160,21 +159,17 @@ function tierAvg(positions: readonly DownloadPosition[], start: number, end: num
  * keyword. Model: Downloads = Searches × TTR(position) × CVR.
  */
 export function estimateDownloads(popularity: number | null, country: string = "us"): DownloadEstimate {
-  let searches = dailySearches(popularity);
-
-  // Scale search volume by relative App Store market size; unknown
-  // country codes fall back to a conservative default factor.
-  const marketMult = MARKET_SIZE[(country || "us").toLowerCase()] ?? MARKET_SIZE_DEFAULT;
-  searches *= marketMult;
+  const searches = dailySearches(popularity, country || "us");
 
   const positions: DownloadPosition[] = [];
   for (let pos = 1; pos <= 20; pos++) {
     const ttr = TTR[pos - 1];
+    const high = searches * ttrAt(pos) * CVR;
     positions.push({
       pos,
       ttr: round2(ttr * 100),
-      downloadsLow: round2(searches * ttr * CVR_LOW),
-      downloadsHigh: round2(searches * ttr * CVR_HIGH),
+      downloadsLow: round2(high * RANGE_LOW_SHARE),
+      downloadsHigh: round2(high),
     });
   }
 
@@ -186,5 +181,7 @@ export function estimateDownloads(popularity: number | null, country: string = "
       top6To10: tierAvg(positions, 6, 10),
       top11To20: tierAvg(positions, 11, 20),
     },
+    belowThreshold: searches < 1,
+    marketSource: isMeasuredMarket(country) ? "measured" : "derived",
   };
 }
